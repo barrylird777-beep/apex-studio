@@ -1,6 +1,7 @@
 {
   "name": "apex-studio",
   "version": "1.0.0",
+  "description": "God-Tier Multimedia Creative Web Application",
   "type": "module",
   "main": "server.mjs",
   "scripts": {
