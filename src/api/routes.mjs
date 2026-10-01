@@ -45,9 +45,9 @@ export function createApi(studio){
  r.get("/companions",(req,res)=>res.json(studio.companions.list()));
  r.post("/companions",(req,res)=>res.status(201).json(studio.companions.create(req.body??{})));
  r.get("/companions/:id",(req,res)=>res.json(studio.companions.get(req.params.id)));
- r.post("/companions/:id/media",(req,res)=>res.json(studio.companions.setMedia(req.params.id,req.body?.media,req.body?.enabled)));
+ r.post("/companions/:id/media",(req,res)=>res.json(studio.companions.setMedia(req.params.id,req.body?.media,req.body?.enabled)));\n r.post("/companions/:id/preferences",(req,res)=>res.json(studio.companions.setPreference(req.params.id,req.body?.key,req.body?.value)));\n r.post("/companions/:id/boundaries",(req,res)=>res.json(studio.companions.setBoundary(req.params.id,req.body?.key,req.body?.value)));\n r.post("/companions/:id/relationship",(req,res)=>res.json(studio.companions.updateRelationship(req.params.id,req.body??{})));\n r.post("/companions/:id/memories",(req,res)=>res.status(201).json(studio.companions.remember(req.params.id,req.body??{})));\n r.get("/companions/:id/memories",(req,res)=>res.json(studio.companions.memories(req.params.id)));
  r.post("/companions/:id/sessions",(req,res)=>res.status(201).json(studio.companions.startSession(req.params.id,req.body?.media??"chat")));
- r.post("/companions/sessions/:id/end",(req,res)=>res.json(studio.companions.endSession(req.params.id)));
+ r.post("/companions/sessions/:id/end",(req,res)=>res.json(studio.companions.endSession(req.params.id)));\n r.get("/companions/sessions/:id/messages",(req,res)=>res.json(studio.companions.listMessages(req.params.id)));\n r.post("/companions/sessions/:id/messages",(req,res)=>res.status(201).json(studio.companions.addMessage(req.params.id,req.body??{})));
  r.get("/providers",(req,res)=>res.json(studio.providers.names()));
  r.post("/command",async(req,res)=>{try{res.json(await studio.command(req.body?.name,req.body?.args??{}))}catch(e){res.status(400).json({error:e.message})}});
  r.post("/evaluate",(req,res)=>res.json(evaluateArtifact(req.body?.artifact,{requiredFields:req.body?.requiredFields??[],provenance:req.body?.provenance??[],continuity:req.body?.continuity??[]})));
