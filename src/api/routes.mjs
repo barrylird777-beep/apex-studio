@@ -2,6 +2,7 @@ import express from "express";
 export function createApi(studio){
  const r=express.Router();
  r.get("/health",(req,res)=>res.json({ok:true,studio:"Apex Studio",version:studio.version,time:new Date().toISOString()}));
+ r.get("/universe",(req,res)=>res.json(studio.universe.list()));
  r.get("/snapshot",(req,res)=>res.json({version:studio.version,projects:studio.projects.list(),agents:studio.agents.list(),assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),production:{nodes:[...studio.production.nodes.values()],edges:studio.production.edges},graph:studio.graph.snapshot(),memories:studio.memory.items.length}));
  r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
  r.get("/projects",(req,res)=>res.json(studio.projects.list()));
