@@ -48,3 +48,16 @@ export function bibleCatalog() {
     editions: BIBLE_EDITIONS.map(([id,title,date,license]) => ({id,title,date,license}))
   };
 }
+
+
+export const BIBLE_CANONICAL_LAYERS = Object.freeze([
+ {id:"torah",name:"Torah / Pentateuch",books:5},
+ {id:"tanakh",name:"Tanakh / Hebrew Bible",books:24},
+ {id:"protestant",name:"Protestant Old + New Testament",books:66},
+ {id:"catholic",name:"Catholic Bible",books:"tradition-dependent"},
+ {id:"eastern-orthodox",name:"Eastern Orthodox Bible",books:"tradition-dependent"},
+ {id:"ethiopian",name:"Ethiopian Orthodox biblical canon",books:"tradition-dependent"}
+]);
+
+export function findBibleEdition(id){return BIBLE_EDITIONS.find(([key])=>key===id)??null}
+export function listBibleFamilies(){return BIBLE_FAMILIES.map(x=>({...x,textFamilies:[...x.textFamilies]}))}
