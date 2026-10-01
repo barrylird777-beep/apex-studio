@@ -1,17 +1,16 @@
 const express = require('express');
-const { InferenceClient } = require('@huggingface/inference');
+const { HfInference } = require('@huggingface/inference');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 7860;
-const HF_TOKEN = process.env.HF_TOKEN; // Your Hugging Face API key
+const HF_TOKEN = process.env.HF_TOKEN;
 
-const hf = new InferenceClient(HF_TOKEN);
+const hf = new HfInference(HF_TOKEN);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 1. Oracle Text Endpoint (Using Top-Tier Reasoning Model)
 app.post('/api/oracle', async (req, res) => {
     try {
         const { idea } = req.body;
@@ -30,7 +29,6 @@ app.post('/api/oracle', async (req, res) => {
     }
 });
 
-// 2. Forge Image Endpoint (Using FLUX.1-dev)
 app.post('/api/forge', async (req, res) => {
     try {
         const { prompt } = req.body;
@@ -51,4 +49,5 @@ app.post('/api/forge', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Apex God-Tier Engine active on port ${
+    console.log(`Apex God-Tier Engine active on port ${PORT}`);
+});
