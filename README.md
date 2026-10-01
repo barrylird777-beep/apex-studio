@@ -1,4 +1,4 @@
-# Apex Studio 4.0
+# Apex Studio 5.0
 
 Apex is a modular creative operating system for long-form worlds, characters, timelines, knowledge, agents, and production assets.
 
@@ -15,6 +15,16 @@ Apex is a modular creative operating system for long-form worlds, characters, ti
 - **Memory** — project-scoped durable notes and lightweight retrieval
 - **Agent Registry / Orchestrator** — specialist agents and auditable jobs
 - **Production Graph** — concept through release dependency planning
+
+## System layers
+- **Universe Scale** — nested cosmic/galactic/stellar/world regions
+- **Scene + Shot Model** — production-ready story and camera primitives
+- **Job Queue** — long-running task boundary
+- **Provider Registry** — vendor/model-agnostic AI adapter boundary
+- **Tool Registry** — extensible specialist capabilities
+- **Evaluation Gates** — schema, continuity, provenance, safety, and production checks
+- **Import / Export** — portable studio bundles
+- **Sessions** — project-aware runtime context
 
 ## API
 - GET `/api/health`
