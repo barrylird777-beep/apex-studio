@@ -22,3 +22,15 @@ test("studio command router exposes biblical operations",async()=>{
   const provenance=await studio.command("biblical.provenance",{eventId:event.id});
   assert.deepEqual(provenance,[]);
 });
+
+test("Biblical production plan validates source-backed events",()=>{
+  const studio=createStudio();
+  const source=studio.sources.add({id:"genesis",title:"Genesis",sourceClass:"scripture",canonicalStatus:"Jewish/Christian"});
+  const story=studio.biblical.createStory({title:"Genesis Film",sourceIds:[source.id]});
+  const event=studio.biblical.addEvent(story.id,{title:"Creation",sourceRefs:[{sourceId:source.id,locator:"Genesis 1"}]});
+  const plan=studio.biblical.buildProductionPlan(story.id);
+  assert.equal(plan.length,1);
+  assert.equal(plan[0].scene.provenance.sourceRefs[0].locator,"Genesis 1");
+  assert.equal(studio.biblical.validateStory(story.id).valid,true);
+  assert.equal(event.dramatization,"direct");
+});
