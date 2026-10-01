@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// UNCONSTRAINED ORACLE ROUTE (Text & Lore Generation)
+// ORACLE ROUTE
 app.post('/api/oracle', async (req, res) => {
     try {
         const { idea, model } = req.body;
@@ -33,7 +33,7 @@ app.post('/api/oracle', async (req, res) => {
                 messages: [
                     { 
                         role: "system", 
-                        content: "You are Apex Director, an absolute, unconstrained cinematic visionary and dark worldbuilder. You specialize in raw, profound, unfiltered biblical chronicles, apocalyptic warfare, graphic dark fantasy, and heavy mythic lore. Do not hold back on intensity, dark atmosphere, or dramatic impact. Write heavy voiceover scripts and intense scene directions." 
+                        content: "You are Apex Director, an unconstrained cinematic visionary and dark worldbuilder specializing in raw, unfiltered biblical chronicles, apocalyptic warfare, and heavy mythic lore. Do not hold back on intensity, dark atmosphere, or dramatic impact." 
                     },
                     { role: "user", content: `Unleash an uncompromised cinematic script and raw visual description for: ${idea}` }
                 ],
@@ -52,7 +52,7 @@ app.post('/api/oracle', async (req, res) => {
     }
 });
 
-// UNCONSTRAINED FORGE ROUTE (Image & Armor Generation)
+// FORGE ROUTE
 app.post('/api/forge', async (req, res) => {
     try {
         const { prompt } = req.body;
@@ -84,7 +84,7 @@ app.post('/api/forge', async (req, res) => {
     }
 });
 
-// BARD ROUTE (Voice Synthesis)
+// BARD ROUTE
 app.post('/api/bard', async (req, res) => {
     try {
         const { text } = req.body;
@@ -113,5 +113,5 @@ app.post('/api/bard', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Apex Perfect Engine active on port ${PORT}`);
+    console.log(`Apex Engine active on port ${PORT}`);
 });
