@@ -1,3 +1,0 @@
-gradio==4.44.0
-huggingface_hub
-edge-tts
