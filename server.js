@@ -23,31 +23,4 @@ app.post('/api/oracle', async (req, res) => {
             max_tokens: 600,
             temperature: 0.9
         });
-        res.json({ result: response.choices[0].message.content });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/forge', async (req, res) => {
-    try {
-        const { prompt } = req.body;
-        const enhancedPrompt = `${prompt}, cinematic raw photography, Unreal Engine 5 render, dramatic lighting, photorealistic, 8k`;
-        
-        const blob = await hf.textToImage({
-            model: 'black-forest-labs/FLUX.1-dev',
-            inputs: enhancedPrompt,
-            parameters: { num_inference_steps: 28 }
-        });
-
-        const buffer = Buffer.from(await blob.arrayBuffer());
-        res.set('Content-Type', 'image/png');
-        res.send(buffer);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.listen(PORT, () => {
-    console.log(`Apex God-Tier Engine active on port ${PORT}`);
-});
+        res.
