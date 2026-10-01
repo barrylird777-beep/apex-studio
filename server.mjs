@@ -12,10 +12,12 @@ const HF_TOKEN = process.env.HF_TOKEN;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Health check endpoint to stabilize Railway proxy
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
 
+// Main Route with Fallback
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, 'public', 'index.html');
     res.sendFile(indexPath, (err) => {
@@ -23,8 +25,8 @@ app.get('/', (req, res) => {
             res.status(200).send(`
                 <!DOCTYPE html>
                 <html>
-                <head><title>Apex Studio</title></head>
-                <body style="background:#0a0a0f; color:#c6a87c; text-align:center; padding-top:50px;">
+                <head><title>Apex Studio - Emergency Mode</title></head>
+                <body style="background:#050508; color:#d4af37; font-family:sans-serif; text-align:center; padding-top:50px;">
                     <h1>Apex Studio Online</h1>
                     <p>Server is running on port ${PORT}, but public/index.html was not found.</p>
                 </body>
@@ -37,17 +39,25 @@ app.get('/', (req, res) => {
 // UPGRADED ORACLE (Documentary Script Engine)
 app.post('/api/oracle', async (req, res) => {
     try {
-        const { era, theme, pacing, details } = req.body;
+        const { era, pacing, duration, score, details } = req.body;
         
-        const systemPrompt = `You are a master historical documentarian and screenwriter. You are writing a script for a massive video series covering the entire Bible. 
-        Format the output strictly as a video script: 
-        [VISUAL: Describe the sweeping 8k visual] 
-        [NARRATOR: Write the profound, cinematic voiceover].`;
+        const systemPrompt = `You are a master historical documentarian and screenwriter for a massive cinematic series covering the biblical timeline. 
+        You must format the output strictly as a professional Production Deck timeline. 
         
-        const userPrompt = `Draft a script sequence for the following era: ${era}. 
-        Core Theme: ${theme}. 
-        Pacing: ${pacing}. 
-        Specific details to include: ${details}`;
+        For every scene, output a combined block with separate, detailed components like this:
+        
+        [TIMESTAMP: 00:00 - 00:15]
+        [VISUAL]: (Highly detailed visual description, camera movement, and lighting)
+        [NARRATOR / AUDIO]: (The exact profound, cinematic voiceover text)
+        [SOUND DESIGN]: (SFX and musical score details)
+        
+        Repeat this structure sequentially for the entire requested duration.`;
+        
+        const userPrompt = `Draft a highly detailed production script for the following epoch: ${era}. 
+        Target Segment Duration: ${duration}.
+        Pacing & Tone: ${pacing}. 
+        Musical Score Directive: ${score}.
+        Specific Narrative Details: ${details}`;
 
         const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
             method: "POST",
@@ -61,7 +71,7 @@ app.post('/api/oracle', async (req, res) => {
                     { role: "system", content: systemPrompt },
                     { role: "user", content: userPrompt }
                 ],
-                max_tokens: 1500,
+                max_tokens: 2500,
                 temperature: 0.8,
                 top_p: 0.95
             })
@@ -80,11 +90,12 @@ app.post('/api/oracle', async (req, res) => {
 app.post('/api/forge', async (req, res) => {
     try {
         const { scene, shotType, lighting, mood } = req.body;
-        const masterPrompt = `${scene}, ${shotType}, ${lighting} lighting, ${mood} atmosphere, 16:9 aspect ratio, 8k resolution, photorealistic cinematic documentary footage, Unreal Engine 5 render, highly detailed`;
+        const masterPrompt = `${scene}, ${shotType}, ${lighting}, ${mood}, 16:9 aspect ratio, 8k resolution, photorealistic cinematic documentary footage, Unreal Engine 5 render, highly detailed`;
 
-        // FIXED URL HERE
-        const response = await fetch("https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0", {
+        console.log("Forge initializing with prompt:", masterPrompt);
 
+        // Swapped to RealVisXL: A highly reliable, photorealistic model that stays warm on the free tier
+        const response = await fetch("https://api-inference.huggingface.co/models/SG161222/RealVisXL_V4.0", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${HF_TOKEN}`,
@@ -96,9 +107,18 @@ app.post('/api/forge', async (req, res) => {
             })
         });
 
+        // Deep error catching so we know EXACTLY what Hugging Face is doing
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(errText || 'Forge generation failed');
+            console.error("Hugging Face API Error:", errText);
+            throw new Error(`HF Status ${response.status}: ${errText}`);
+        }
+
+        // Sometimes HF returns a 200 OK but sends a JSON error instead of an image
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            const jsonErr = await response.json();
+            throw new Error(`HF JSON Error: ${JSON.stringify(jsonErr)}`);
         }
 
         const arrayBuffer = await response.arrayBuffer();
@@ -106,6 +126,7 @@ app.post('/api/forge', async (req, res) => {
         res.set('Content-Type', 'image/png');
         res.send(buffer);
     } catch (error) {
+        console.error("Forge Error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -115,7 +136,6 @@ app.post('/api/bard', async (req, res) => {
     try {
         const { text } = req.body;
         
-        // FIXED URL HERE
         const response = await fetch("https://api-inference.huggingface.co/models/suno/bark", {
             method: "POST",
             headers: {
