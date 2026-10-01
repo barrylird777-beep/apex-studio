@@ -32,3 +32,9 @@ export * from "./characters/store.mjs";
 export * from "./core/sources.mjs";
 export * from "./core/provenance.mjs";
 export * from "./core/command-router.mjs";
+
+export * from "./core/knowledge-base.mjs";
+export * from "./core/render.mjs";
+export * from "./core/release.mjs";
+export * from "./core/collaboration.mjs";
+export * from "./core/embedding.mjs";
