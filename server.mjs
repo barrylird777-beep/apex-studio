@@ -1,3 +1,4 @@
+const PORT = process.env.PORT || 7860;
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
