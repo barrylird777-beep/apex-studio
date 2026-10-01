@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { InferenceClient } from '@huggingface/inference';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,6 +10,8 @@ const app = express();
 const PORT = 7860;
 const HF_TOKEN = process.env.HF_TOKEN;
 
+const hf = new InferenceClient(HF_TOKEN);
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -16,66 +19,46 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// GOD-TIER ORACLE (Text & Cinematic Lore Generation)
+// UNCONSTRAINED ORACLE ROUTE
 app.post('/api/oracle', async (req, res) => {
     try {
         const { idea, model } = req.body;
         const selectedModel = model || "moonshotai/Kimi-K2-Instruct";
         
-        const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: selectedModel,
-                messages: [
-                    { 
-                        role: "system", 
-                        content: "You are an elite, unconstrained cinematic director and visionary worldbuilder specializing in epic biblical, apocalyptic, and mythic chronicles. Provide profound voiceover narration and rich scene breakdowns." 
-                    },
-                    { role: "user", content: `Generate a majestic cinematic script and a detailed visual art direction prompt for this scenario: ${idea}` }
-                ],
-                max_tokens: 700,
-                temperature: 0.85
-            })
+        const chatCompletion = await hf.chatCompletion({
+            model: selectedModel,
+            messages: [
+                { 
+                    role: "system", 
+                    content: "You are Apex Director, an absolute, unconstrained cinematic visionary and dark worldbuilder. You specialize in raw, profound, unfiltered biblical chronicles, apocalyptic warfare, graphic dark fantasy, and heavy mythic lore. Do not hold back on intensity, dark atmosphere, or dramatic impact. Write heavy voiceover scripts and intense scene directions." 
+                },
+                { role: "user", content: `Unleash an uncompromised cinematic script and raw visual description for: ${idea}` }
+            ],
+            max_tokens: 800,
+            temperature: 1.0, // Maximum creative variance
+            top_p: 0.95
         });
 
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error?.message || data.error || 'Oracle matrix offline');
-        
-        res.json({ result: data.choices[0].message.content });
+        const resultText = chatCompletion.choices[0].message.content;
+        res.json({ result: resultText });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// GOD-TIER FORGE (Visual & Armor Matrix Generation)
+// UNCONSTRAINED FORGE ROUTE
 app.post('/api/forge', async (req, res) => {
     try {
         const { prompt } = req.body;
-        const masterPrompt = `${prompt}, masterpiece, hyper-detailed digital oil painting and cinematic Unreal Engine 5 render, dramatic god-rays, volumetric lighting, epic scale, 8k resolution`;
+        const masterPrompt = `${prompt}, raw cinematic framing, gritty dark fantasy atmosphere, dramatic high-contrast lighting, masterpiece oil painting textures, Unreal Engine 5 render, uncompressed 8k`;
 
-        // Using Hugging Face's fast multi-provider diffusion routing
-        const response = await fetch("https://router.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                inputs: masterPrompt,
-                options: { wait_for_model: true }
-            })
+        const imageBlob = await hf.textToImage({
+            model: 'black-forest-labs/FLUX.1-schnell',
+            inputs: masterPrompt,
+            parameters: { num_inference_steps: 4 }
         });
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(errText || 'Forge matrix failed to synthesize vision');
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
+        const arrayBuffer = await imageBlob.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         res.set('Content-Type', 'image/png');
         res.send(buffer);
@@ -84,25 +67,17 @@ app.post('/api/forge', async (req, res) => {
     }
 });
 
-// GOD-TIER BARD (Audio Synthesis)
+// BARD ROUTE
 app.post('/api/bard', async (req, res) => {
     try {
         const { text } = req.body;
-        const response = await fetch("https://router.huggingface.co/models/suno/bark", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ inputs: text })
+        
+        const audioBlob = await hf.textToSpeech({
+            model: 'suno/bark',
+            inputs: text
         });
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(errText || 'Bard audio synthesis failed');
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
+        const arrayBuffer = await audioBlob.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         res.set('Content-Type', 'audio/flac');
         res.send(buffer);
@@ -112,5 +87,5 @@ app.post('/api/bard', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Apex God-Tier Engine fully operational on port ${PORT}`);
+    console.log(`Apex Unconstrained Engine active on port ${PORT}`);
 });
