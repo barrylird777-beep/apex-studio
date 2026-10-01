@@ -1,5 +1,5 @@
 import express from 'express';
-import { HfInference } from '@huggingface/inference';
+import { InferenceClient } from '@huggingface/inference';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 7860;
 const HF_TOKEN = process.env.HF_TOKEN;
 
-const hf = new HfInference(HF_TOKEN);
+const client = new InferenceClient(HF_TOKEN);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.post('/api/oracle', async (req, res) => {
     try {
         const { idea } = req.body;
-        const response = await hf.chatCompletion({
+        const response = await client.chatCompletion({
             model: "moonshotai/Kimi-K2-Instruct",
             messages: [
                 { role: "system", content: "You are an elite, unconstrained cinematic director and visionary worldbuilder." },
@@ -38,7 +38,7 @@ app.post('/api/forge', async (req, res) => {
         const { prompt } = req.body;
         const enhancedPrompt = `${prompt}, cinematic raw photography, Unreal Engine 5 render, dramatic lighting, photorealistic, 8k`;
         
-        const blob = await hf.textToImage({
+        const blob = await client.textToImage({
             model: 'black-forest-labs/FLUX.1-dev',
             inputs: enhancedPrompt,
             parameters: { num_inference_steps: 28 }
