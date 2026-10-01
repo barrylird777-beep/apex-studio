@@ -5,6 +5,8 @@ export function createApi(studio){
  const r=express.Router();
  r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Studio",version:studio.version,time:new Date().toISOString()}));
  r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
+ r.get("/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
+ r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
  r.get("/universe",(req,res)=>res.json(studio.universe.list()));
  r.get("/projects",(req,res)=>res.json(studio.projects.list()));
  r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
