@@ -6,11 +6,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 7860;
+const PORT = process.env.PORT || 8080;
 const HF_TOKEN = process.env.HF_TOKEN;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Root route so your domain link loads successfully
+app.get('/', (req, res) => {
+    res.send('Apex Studio Engine is online and ready.');
+});
 
 app.post('/api/oracle', async (req, res) => {
     try {
