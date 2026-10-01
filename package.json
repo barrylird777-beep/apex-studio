@@ -1,9 +1,15 @@
 {
-  "name":"apex-studio",
-  "version":"4.0.0",
-  "private":true,
-  "type":"module",
-  "main":"server.mjs",
-  "scripts":{"start":"node server.mjs","check":"node --check server.mjs && node --check src/runtime/studio.mjs && node --check src/api/routes.mjs"},
-  "dependencies":{"express":"^4.19.2"}
+  "name": "apex-studio",
+  "version": "5.0.0",
+  "private": true,
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check src/runtime/studio.mjs && node --check src/api/routes.mjs && node --check src/core/jobs.mjs && node --check src/core/provider.mjs && node --check src/core/scene.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
 }
