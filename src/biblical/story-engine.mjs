@@ -49,6 +49,23 @@ export class BiblicalStoryEngine {
   }
 
   provenance(eventId){const e=this.getEvent(eventId);return e?e.sourceRefs.map(r=>({...r,source:this.sourceRegistry?.get(r.sourceId)??null})):[]}
+  validateStory(storyId){
+    const story=this.getStory(storyId); if(!story) throw new Error("Story not found");
+    const events=this.listEvents(storyId);
+    const errors=[];
+    for(const e of events){
+      if(!e.sourceRefs.length && e.dramatization==="direct") errors.push({eventId:e.id,code:"DIRECT_EVENT_NEEDS_SOURCE",message:"Direct events require at least one source reference"});
+      for(const ref of e.sourceRefs) if(!this.sourceRegistry?.get(ref.sourceId)) errors.push({eventId:e.id,code:"UNKNOWN_SOURCE",sourceId:ref.sourceId});
+    }
+    return {valid:errors.length===0,errors,storyId,eventCount:events.length};
+  }
+  buildProductionPlan(storyId){
+    const check=this.validateStory(storyId); if(!check.valid) throw new Error("Story validation failed: "+check.errors.map(e=>e.code).join(","));
+    return this.listEvents(storyId).map((event,index)=>({
+      order:index,storyId,eventId:event.id,title:event.title,sourceMode:event.dramatization,
+      scene:this.toScene(event),production:{screenplay:true,storyboard:true,shots:true,dialogue:true,narration:true,audio:true,render:true}
+    }));
+  }
   snapshot(){return {stories:this.listStories(),events:[...this.events.values()]}}
   restore(s={}){this.stories.clear();this.events.clear();for(const x of s.stories??[])this.stories.set(x.id,{...x,events:[...(x.events??[])]});for(const x of s.events??[])this.events.set(x.id,{...x,sourceRefs:[...(x.sourceRefs??[])]});return this}
 }
