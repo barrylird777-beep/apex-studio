@@ -86,21 +86,25 @@ app.post('/api/oracle', async (req, res) => {
     }
 });
 
-// UPGRADED FORGE (Ghost API / No-Auth Render)
+// UPGRADED FORGE (Ghost API + FLUX Model + Sanitizer)
 app.post('/api/forge', async (req, res) => {
     try {
         const { scene, shotType, lighting, mood } = req.body;
         
-        // Build the prompt
-        const masterPrompt = `${scene}, ${shotType}, ${lighting}, ${mood}, cinematic documentary footage, highly detailed, 8k resolution`;
+        // 1. Sanitize the prompt: Remove markdown asterisks, brackets, and uppercase script jargon
+        let cleanScene = scene.replace(/\*/g, ''); // Removes all **
+        cleanScene = cleanScene.replace(/\[.*?\]/g, ''); // Removes anything in brackets
+        cleanScene = cleanScene.replace(/(EXT\.|INT\.|CAMERA|SHOT|SLAMS TO A STOP|RUSHES FORWARD)/gi, ''); // Removes script jargon
         
-        // URL-encode the prompt so it can be safely passed in a web link
+        // 2. Build the optimized prompt
+        const masterPrompt = `${cleanScene.trim()}, ${shotType}, ${lighting}, ${mood}, extremely detailed, 8k cinematic masterpiece, photorealistic`;
+        
         const encodedPrompt = encodeURIComponent(masterPrompt);
         
-        // Hit the Pollinations endpoint directly (1920x1080 resolution, no logo)
-        const ghostUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1920&height=1080&nologo=true`;
+        // 3. Force the Ghost API to use FLUX and set a seed for high-quality rendering
+        const ghostUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1920&height=1080&model=flux&nologo=true`;
         
-        console.log("Igniting Forge via Ghost API...");
+        console.log("Igniting Forge with Sanitized FLUX prompt...");
 
         const response = await fetch(ghostUrl);
 
