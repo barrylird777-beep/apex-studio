@@ -7,7 +7,6 @@
     "start": "node server.mjs"
   },
   "dependencies": {
-    "@huggingface/inference": "^3.16.0",
     "express": "^4.19.2"
   }
 }
