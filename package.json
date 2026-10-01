@@ -1,0 +1,13 @@
+{
+  "name": "apex-god-tier-studio",
+  "version": "1.0.0",
+  "description": "Unrestricted God-Tier Multimedia Engine",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^2.8.0",
+    "express": "^4.19.2"
+  }
+}
