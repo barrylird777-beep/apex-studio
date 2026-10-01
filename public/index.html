@@ -1,6 +1,7 @@
+<script>
 // Browser-Native Cinematic Speech Engine
 document.getElementById('synth-button').addEventListener('click', async () => {
-    const textInput = document.getElementById('bard-text').value; // Make sure your input ID matches
+    const textInput = document.getElementById('bard-text').value;
     if (!textInput) return alert('Please enter some text to speak.');
 
     if (!('speechSynthesis' in window)) {
@@ -8,20 +9,19 @@ document.getElementById('synth-button').addEventListener('click', async () => {
         return;
     }
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(textInput);
     
-    // Try to find a deep, dramatic English voice if available
     const voices = window.speechSynthesis.getVoices();
     const preferredVoice = voices.find(v => v.lang.includes('en') && (v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Google') || v.name.includes('Daniel')));
     if (preferredVoice) {
         utterance.voice = preferredVoice;
     }
 
-    utterance.rate = 0.95; // Slightly slower for dramatic cinematic pacing
-    utterance.pitch = 0.9;  // Slightly deeper tone
+    utterance.rate = 0.95; 
+    utterance.pitch = 0.9;  
 
     window.speechSynthesis.speak(utterance);
 });
+</script>
