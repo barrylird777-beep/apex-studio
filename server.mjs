@@ -93,18 +93,17 @@ app.post('/api/forge', async (req, res) => {
         
         console.log("1. Intercepting script...");
 
-        // 1. The "DoP" Instruction Prompt
-        const dopInstruction = `You are an expert AI image prompt engineer. Rewrite this screenplay scene into a highly literal, comma-separated visual prompt. 
-        Focus ONLY on physical geometry, scale, subjects, and environment. 
-        Merge it seamlessly with these parameters: Lens: ${shotType}. Lighting: ${lighting}. Mood: ${mood}. 
-        Do not include narrative text, actions, or camera jargon. Just output the visual keywords.
-        Scene to translate: ${scene}`;
+        // 1. The "DoP" Instruction Prompt (Shortened for safety)
+        const dopInstruction = `Rewrite this screenplay scene into a literal, comma-separated visual prompt for an AI image generator. Focus ONLY on physical geometry, scale, and environment. Merge it with: Lens: ${shotType}. Lighting: ${lighting}. Do not include narrative text or camera jargon. Scene to translate: ${scene}`;
         
-        // 2. Call the free LLM to rewrite the prompt
-        const textResponse = await fetch(`https://text.pollinations.ai/prompt/${encodeURIComponent(dopInstruction)}`);
-        if (!textResponse.ok) throw new Error("DoP AI failed to translate the prompt.");
+        // 2. Call the free LLM to rewrite the prompt (FIXED URL PATH)
+        const textResponse = await fetch(`https://text.pollinations.ai/${encodeURIComponent(dopInstruction)}`);
+        
+        if (!textResponse.ok) {
+            throw new Error(`DoP AI failed with status: ${textResponse.status}`);
+        }
+        
         const optimizedPrompt = await textResponse.text();
-        
         console.log("2. DoP Optimized Prompt:", optimizedPrompt);
 
         // 3. Send the mathematically perfect prompt to the FLUX visual engine
