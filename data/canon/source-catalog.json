@@ -1,0 +1,22 @@
+{
+  "name":"THE BIBLICALLY SEEN — Source Catalog",
+  "policy":"Metadata and provenance only; ingest full text only when public-domain or user-authorized.",
+  "sources":[
+    {"id":"bible-hebrew","title":"Hebrew Bible / Tanakh","sourceClass":"scripture","tradition":"Jewish","canonicalStatus":"tradition-dependent"},
+    {"id":"bible-new-testament","title":"New Testament","sourceClass":"scripture","tradition":"Christian","canonicalStatus":"widely canonical"},
+    {"id":"enoch-1","title":"1 Enoch","sourceClass":"enochic","tradition":"Second Temple / Enochic","canonicalStatus":"canonically distinct by tradition"},
+    {"id":"enoch-2","title":"2 Enoch","sourceClass":"second_temple","tradition":"Enochic literature","canonicalStatus":"non-universal"},
+    {"id":"enoch-3","title":"3 Enoch","sourceClass":"jewish_tradition","tradition":"Jewish mystical literature","canonicalStatus":"non-canonical"},
+    {"id":"jubilees","title":"Book of Jubilees","sourceClass":"second_temple","tradition":"Second Temple Judaism","canonicalStatus":"tradition-dependent"},
+    {"id":"didache","title":"Didache","sourceClass":"patristic","tradition":"Early Christianity","canonicalStatus":"non-canonical"},
+    {"id":"catholic-tradition","title":"Catholic tradition corpus","sourceClass":"catholic","tradition":"Catholic","canonicalStatus":"tradition corpus"},
+    {"id":"orthodox-tradition","title":"Orthodox tradition corpus","sourceClass":"orthodox","tradition":"Eastern Orthodox","canonicalStatus":"tradition corpus"},
+    {"id":"rabbinic-tradition","title":"Rabbinic tradition corpus","sourceClass":"jewish_tradition","tradition":"Jewish","canonicalStatus":"tradition corpus"},
+    {"id":"gnostic-corpus","title":"Gnostic / Nag Hammadi corpus metadata","sourceClass":"gnostic","tradition":"Late antique","canonicalStatus":"non-canonical"},
+    {"id":"ane-corpus","title":"Ancient Near Eastern comparative corpus","sourceClass":"ancient_near_east","tradition":"Ancient Near East","canonicalStatus":"historical corpus"},
+    {"id":"archaeology","title":"Archaeological evidence catalog","sourceClass":"archaeological","canonicalStatus":"evidence"},
+    {"id":"scholarship","title":"Scholarly research catalog","sourceClass":"scholarly","canonicalStatus":"secondary scholarship"},
+    {"id":"esoteric-history","title":"Historical mystical / esoteric literature catalog","sourceClass":"mystical_esoteric","canonicalStatus":"historical corpus"},
+    {"id":"original-universe","title":"THE BIBLICALLY SEEN original universe","sourceClass":"original_fiction","canonicalStatus":"fictional"}
+  ]
+}
