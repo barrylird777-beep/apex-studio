@@ -27,16 +27,38 @@ import { EmbeddingIndex } from "../core/embedding.mjs";
 import { CharacterStore } from "../characters/store.mjs";
 import { SourceRegistry } from "../core/sources.mjs";
 import { CommandRouter } from "../core/command-router.mjs";
-export function createStudio(){
+import { createPrivacyPolicy } from "../core/privacy.mjs";
+import { LocalMode } from "../core/local-mode.mjs";
+import { createSecretStore } from "../core/secrets.mjs";
+
+export function createStudio(options={}){
  const events=new EventBus();
- const studio={version:"5.0.0",events,projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),agents:new AgentRegistry(),characters:new CharacterStore(),sources:new SourceRegistry(),commandsRouter:new CommandRouter(),knowledgeBase:new KnowledgeBase(),render:new RenderQueue(),releases:new ReleaseManager(),collaboration:new CollaborationLog(),embeddings:new EmbeddingIndex(),orchestrator:new AgentOrchestrator(),assets:new AssetRegistry(),world:new WorldState(),universe:new UniverseScale(),jobs:new JobQueue(events),providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),persistence:new JsonStore(),commands:new CommandLog(),metrics:new Metrics(),scenes:new Map()};
+ const privacy=createPrivacyPolicy(options.privacy);
+ const studio={version:"5.0.0",events,privacy,localMode:new LocalMode(privacy),secrets:createSecretStore(),projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),agents:new AgentRegistry(),characters:new CharacterStore(),sources:new SourceRegistry(),commandsRouter:new CommandRouter(),knowledgeBase:new KnowledgeBase(),render:new RenderQueue(),releases:new ReleaseManager(),collaboration:new CollaborationLog(),embeddings:new EmbeddingIndex(),orchestrator:new AgentOrchestrator(),assets:new AssetRegistry(),world:new WorldState(),universe:new UniverseScale(),jobs:new JobQueue(events),providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),persistence:new JsonStore(),commands:new CommandLog(),metrics:new Metrics(),scenes:new Map()};
  studio.universe.seedMilkyWay();
  studio.createScene=input=>{const s=createScene(input);studio.scenes.set(s.id,s);events.emit("scene.created",s);return s;};
  studio.getScene=id=>studio.scenes.get(id)??null;
  studio.listScenes=()=>[...studio.scenes.values()];
- studio.snapshot=()=>({projects:studio.projects.list(),memories:studio.memory.items,agents:studio.agents.list(),assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),universe:studio.universe.list(),scenes:studio.listScenes(),jobs:studio.jobs.list(),graph:studio.graph.snapshot(),characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()});
+ studio.snapshot=()=>({projects:studio.projects.list(),memories:studio.memory.items,agents:studio.agents.list(),assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),universe:studio.universe.list(),scenes:studio.listScenes(),jobs:studio.jobs.list(),graph:studio.graph.snapshot(),characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list(),privacy:{...studio.privacy},secrets:studio.secrets.exportRedacted()});
  studio.search=(query,limit=30)=>universalSearch(query,[{type:"projects",items:studio.projects.list()},{type:"memories",items:studio.memory.items},{type:"assets",items:[...studio.assets.assets.values()]},{type:"scenes",items:studio.listScenes()},{type:"universe",items:studio.universe.list()}],limit);
- studio.restore=()=>studio;
+ studio.command=async(name,args={})=>studio.commandsRouter.dispatch(name,args);
+ studio.commandsRouter
+   .register("search",({query,limit=30})=>studio.search(query,limit))
+   .register("create.scene",input=>studio.createScene(input))
+   .register("create.character",input=>studio.characters.create(input))
+   .register("create.source",input=>studio.sources.add(input))
+   .register("create.document",input=>studio.knowledgeBase.addDocument(input))
+   .register("queue.render",input=>studio.render.enqueue(input))
+   .register("create.release",input=>studio.releases.create(input));
+ studio.restore=snapshot=>{
+   if(!snapshot||typeof snapshot!=="object") return studio;
+   for(const p of snapshot.projects??[]) studio.projects.upsert(p);
+   for(const m of snapshot.memories??[]) studio.memory.items.push(m);
+   for(const c of snapshot.characters??[]) studio.characters.characters.set(c.id,c);
+   for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
+   for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
+   return studio;
+ };
  events.on("asset.created",a=>studio.memory.remember({type:"asset",projectId:a.projectId,content:a.name,importance:.4}));
  studio.jobs.register("memory.remember",p=>studio.memory.remember(p));
  return studio;
