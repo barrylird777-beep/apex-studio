@@ -86,31 +86,34 @@ app.post('/api/oracle', async (req, res) => {
     }
 });
 
-// UPGRADED FORGE (Ghost API + FLUX Model + Sanitizer)
+// UPGRADED FORGE (Dual-AI Pipeline: DoP Translator -> FLUX Engine)
 app.post('/api/forge', async (req, res) => {
     try {
         const { scene, shotType, lighting, mood } = req.body;
         
-        // 1. Sanitize the prompt: Remove markdown asterisks, brackets, and uppercase script jargon
-        let cleanScene = scene.replace(/\*/g, ''); // Removes all **
-        cleanScene = cleanScene.replace(/\[.*?\]/g, ''); // Removes anything in brackets
-        cleanScene = cleanScene.replace(/(EXT\.|INT\.|CAMERA|SHOT|SLAMS TO A STOP|RUSHES FORWARD)/gi, ''); // Removes script jargon
+        console.log("1. Intercepting script...");
+
+        // 1. The "DoP" Instruction Prompt
+        const dopInstruction = `You are an expert AI image prompt engineer. Rewrite this screenplay scene into a highly literal, comma-separated visual prompt. 
+        Focus ONLY on physical geometry, scale, subjects, and environment. 
+        Merge it seamlessly with these parameters: Lens: ${shotType}. Lighting: ${lighting}. Mood: ${mood}. 
+        Do not include narrative text, actions, or camera jargon. Just output the visual keywords.
+        Scene to translate: ${scene}`;
         
-        // 2. Build the optimized prompt
-        const masterPrompt = `${cleanScene.trim()}, ${shotType}, ${lighting}, ${mood}, extremely detailed, 8k cinematic masterpiece, photorealistic`;
+        // 2. Call the free LLM to rewrite the prompt
+        const textResponse = await fetch(`https://text.pollinations.ai/prompt/${encodeURIComponent(dopInstruction)}`);
+        if (!textResponse.ok) throw new Error("DoP AI failed to translate the prompt.");
+        const optimizedPrompt = await textResponse.text();
         
-        const encodedPrompt = encodeURIComponent(masterPrompt);
+        console.log("2. DoP Optimized Prompt:", optimizedPrompt);
+
+        // 3. Send the mathematically perfect prompt to the FLUX visual engine
+        const ghostUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(optimizedPrompt)}?width=1920&height=1080&model=flux&nologo=true`;
         
-        // 3. Force the Ghost API to use FLUX and set a seed for high-quality rendering
-        const ghostUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1920&height=1080&model=flux&nologo=true`;
-        
-        console.log("Igniting Forge with Sanitized FLUX prompt...");
+        console.log("3. Igniting FLUX Forge...");
 
         const response = await fetch(ghostUrl);
-
-        if (!response.ok) {
-            throw new Error(`Ghost API failed with status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Visual API failed with status: ${response.status}`);
 
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
