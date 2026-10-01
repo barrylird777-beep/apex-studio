@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Apex God-Tier Studio</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body { background-color: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    </style>
+</head>
+<body class="p-4 max-w-md mx-auto min-h-screen flex flex-col justify-between">
+
+    <div>
+        <header class="text-center my-6">
+            <h1 class="text-xl font-black tracking-wider text-purple-400">⚡ APEX STUDIO // GOD-TIER</h1>
+            <p class="text-xs text-zinc-500 mt-1">Unrestricted Node Core x FLUX.1</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="flex bg-zinc-900 p-1 rounded-xl mb-6 border border-zinc-800">
+            <button onclick="switchTab('oracle')" id="btn-oracle" class="flex-1 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition">Oracle</button>
+            <button onclick="switchTab('forge')" id="btn-forge" class="flex-1 py-2 text-xs font-bold rounded-lg text-zinc-400 transition">Forge</button>
+        </div>
+
+        <!-- TAB: ORACLE -->
+        <div id="panel-oracle" class="space-y-4">
+            <textarea id="idea-input" rows="4" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 placeholder-zinc-600" placeholder="Enter a dark narrative seed or concept..."></textarea>
+            <button onclick="runOracle()" class="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-purple-900/40">MANIFEST INTELLECT</button>
+            <div id="oracle-output" class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed min-h-[160px] text-zinc-300">Awaiting narrative parameter...</div>
+        </div>
+
+        <!-- TAB: FORGE -->
+        <div id="panel-forge" class="space-y-4 hidden">
+            <input type="text" id="prompt-input" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 placeholder-zinc-600" placeholder="Describe visual masterwork...">
+            <button onclick="runForge()" class="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-purple-900/40">IGNITE FLUX RENDER</button>
+            <div id="forge-output" class="bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center min-h-[260px] overflow-hidden border-zinc-800 text-zinc-600 text-xs">
+                Canvas ready for generation...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.getElementById('panel-oracle').classList.toggle('hidden', tab !== 'oracle');
+            document.getElementById('panel-forge').classList.toggle('hidden', tab !== 'forge');
+            document.getElementById('btn-oracle').className = tab === 'oracle' ? 'flex-1 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition' : 'flex-1 py-2 text-xs font-bold rounded-lg text-zinc-400 transition';
+            document.getElementById('btn-forge').className = tab === 'forge' ? 'flex-1 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition' : 'flex-1 py-2 text-xs font-bold rounded-lg text-zinc-400 transition';
+        }
+
+        async function runOracle() {
+            const idea = document.getElementById('idea-input').value;
+            const output = document.getElementById('oracle-output');
+            if(!idea) return;
+            output.innerText = "Synthesizing intelligence via Kimi K2...";
+            try {
+                const res = await fetch('/api/oracle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ idea })
+                });
+                const data = await res.json();
+                output.innerText = data.result || data.error;
+            } catch(e) {
+                output.innerText = "Network transmission failed: " + e.message;
+            }
+        }
+
+        async function runForge() {
+            const prompt = document.getElementById('prompt-input').value;
+            const container = document.getElementById('forge-output');
+            if(!prompt) return;
+            container.innerHTML = "Rendering FLUX.1-dev masterwork (Takes ~10s)...";
+            try {
+                const res = await fetch('/api/forge', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ prompt })
+                });
+                if (!res.ok) throw new Error("Generation failure");
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                container.innerHTML = `<img src="${url}" class="w-full h-full object-cover rounded-xl">`;
+            } catch(e) {
+                container.innerHTML = "Render failed: " + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
