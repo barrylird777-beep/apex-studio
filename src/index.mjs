@@ -23,3 +23,7 @@ export * from "./core/scene.mjs";
 export * from "./agents/tool-registry.mjs";
 export * from "./agents/specialists.mjs";
 export * from "./runtime/session.mjs";
+export * from "./core/persistence.mjs";
+export * from "./core/undo.mjs";
+export * from "./core/search.mjs";
+export * from "./runtime/observability.mjs";
