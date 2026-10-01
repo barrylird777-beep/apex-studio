@@ -1,12 +1,13 @@
 {
   "name": "apex-studio",
   "version": "1.0.0",
+  "type": "module",
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs"
   },
   "dependencies": {
-    "@huggingface/inference": "^2.8.0",
+    "@huggingface/inference": "^3.16.0",
     "express": "^4.19.2"
   }
 }
