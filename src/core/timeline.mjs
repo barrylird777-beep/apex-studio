@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 export class TimelineEngine {
   constructor() { this.timelines=new Map(); }
   create(name, parentId=null) {
