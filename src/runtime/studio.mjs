@@ -9,8 +9,10 @@ import { MemoryStore } from "../core/memory.mjs";
 import { AssetRegistry } from "../assets/lineage.mjs";
 import { WorldState } from "../world/state.mjs";
 import { EventBus } from "../core/event-bus.mjs";
+import { UniverseScale } from "../core/universe.mjs";
 export function createStudio(){
- const studio={version:"4.0.0",events:new EventBus(),projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),assets:new AssetRegistry(),world:new WorldState()};
+ const studio={version:"4.1.0",events:new EventBus(),projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),assets:new AssetRegistry(),world:new WorldState(),universe:new UniverseScale()};
+ studio.universe.seedMilkyWay();
  studio.events.on("asset.created",a=>studio.memory.remember({type:"asset",projectId:a.projectId,content:a.name,importance:.4}));
  return studio;
 }
