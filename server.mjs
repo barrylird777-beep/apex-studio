@@ -83,7 +83,8 @@ app.post('/api/forge', async (req, res) => {
         const masterPrompt = `${scene}, ${shotType}, ${lighting} lighting, ${mood} atmosphere, 16:9 aspect ratio, 8k resolution, photorealistic cinematic documentary footage, Unreal Engine 5 render, highly detailed`;
 
         // FIXED URL HERE
-        const response = await fetch("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+        const response = await fetch("https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0", {
+
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${HF_TOKEN}`,
