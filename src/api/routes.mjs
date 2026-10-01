@@ -12,8 +12,10 @@ export function createApi(studio){
  r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
  r.get("/memory",(req,res)=>res.json(studio.memory.search(req.query.q??"",{projectId:req.query.projectId})));
  r.post("/memory",(req,res)=>res.status(201).json(studio.memory.remember(req.body??{})));
- r.get("/characters",(req,res)=>res.json(studio.characters?.list?.()??[]));
+ r.get("/characters",(req,res)=>res.json(studio.characters.list()));
  r.post("/characters",(req,res)=>res.status(201).json(studio.characters.create(req.body??{})));
+ r.get("/sources",(req,res)=>res.json(studio.sources.list()));
+ r.post("/sources",(req,res)=>res.status(201).json(studio.sources.add(req.body??{})));
  r.post("/assets",(req,res)=>{const a=studio.assets.create(req.body??{});studio.events.emit("asset.created",a);res.status(201).json(a)});
  r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
  r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
