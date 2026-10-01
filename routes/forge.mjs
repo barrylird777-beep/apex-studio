@@ -1,31 +1,29 @@
 import express from 'express';
 const router = express.Router();
 
-// The Visual Forge Space
+// The Visual Forge Space (Local DoP Pipeline -> FLUX Engine)
 router.post('/', async (req, res) => {
     try {
         const { scene, shotType, lighting, mood } = req.body;
-        console.log("1. Intercepting script in Forge Space...");
+        console.log("1. Local DoP Intercepting script...");
 
-        const dopInstruction = `Rewrite this screenplay scene into a literal, comma-separated visual prompt for an AI image generator. Focus ONLY on physical geometry, scale, subjects, and environment. Merge it with: Lens: ${shotType}. Lighting: ${lighting}. Mood: ${mood}. Do not include narrative text, actions, or camera jargon. Scene to translate: ${scene}`;
+        // 1. Local DoP: Pure JavaScript Prompt Engineering (No fragile external text APIs)
+        // Strip out screenplay jargon, bold asterisks, and bracketed text
+        let cleanScene = scene.replace(/\b(EXT\.|INT\.|NIGHT|DAY|MORNING|EVENING|CAMERA|SLAMS|FADES)\b/g, '');
+        cleanScene = cleanScene.replace(/\[.*?\]/g, ''); 
+        cleanScene = cleanScene.replace(/\*+/g, ''); 
         
-        const textResponse = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [
-                    { role: 'system', content: 'You are an expert AI image prompt engineer.' },
-                    { role: 'user', content: dopInstruction }
-                ],
-                model: 'openai'
-            })
-        });
+        // Remove extra spacing
+        cleanScene = cleanScene.replace(/\s+/g, ' ').trim();
+
+        // 2. Build the mathematically perfect FLUX prompt
+        const optimizedPrompt = `${shotType}, ${cleanScene}, environment lighting: ${lighting}, cinematic mood: ${mood}, highly detailed, 8k resolution, cinematic masterpiece, photorealistic`;
         
-        if (!textResponse.ok) throw new Error(`DoP AI failed with status: ${textResponse.status}`);
-        const optimizedPrompt = await textResponse.text();
         console.log("2. DoP Optimized Prompt:", optimizedPrompt);
 
+        // 3. Send the sanitized prompt directly to the FLUX visual engine
         const ghostUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(optimizedPrompt)}?width=1920&height=1080&model=flux&nologo=true`;
+        
         console.log("3. Igniting FLUX Forge...");
 
         const response = await fetch(ghostUrl);
