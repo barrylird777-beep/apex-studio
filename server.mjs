@@ -86,44 +86,32 @@ app.post('/api/oracle', async (req, res) => {
     }
 });
 
-// UPGRADED FORGE (Cinematic Render Engine)
+// UPGRADED FORGE (Ghost API / No-Auth Render)
 app.post('/api/forge', async (req, res) => {
     try {
         const { scene, shotType, lighting, mood } = req.body;
-        const masterPrompt = `${scene}, ${shotType}, ${lighting}, ${mood}, 16:9 aspect ratio, 8k resolution, photorealistic cinematic documentary footage, Unreal Engine 5 render, highly detailed`;
+        
+        // Build the prompt
+        const masterPrompt = `${scene}, ${shotType}, ${lighting}, ${mood}, cinematic documentary footage, highly detailed, 8k resolution`;
+        
+        // URL-encode the prompt so it can be safely passed in a web link
+        const encodedPrompt = encodeURIComponent(masterPrompt);
+        
+        // Hit the Pollinations endpoint directly (1920x1080 resolution, no logo)
+        const ghostUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1920&height=1080&nologo=true`;
+        
+        console.log("Igniting Forge via Ghost API...");
 
-        console.log("Forge initializing with prompt:", masterPrompt);
+        const response = await fetch(ghostUrl);
 
-        // Swapped to RealVisXL: A highly reliable, photorealistic model that stays warm on the free tier
-        const response = await fetch("https://api-inference.huggingface.co/models/SG161222/RealVisXL_V4.0", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                inputs: masterPrompt,
-                options: { wait_for_model: true }
-            })
-        });
-
-        // Deep error catching so we know EXACTLY what Hugging Face is doing
         if (!response.ok) {
-            const errText = await response.text();
-            console.error("Hugging Face API Error:", errText);
-            throw new Error(`HF Status ${response.status}: ${errText}`);
-        }
-
-        // Sometimes HF returns a 200 OK but sends a JSON error instead of an image
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-            const jsonErr = await response.json();
-            throw new Error(`HF JSON Error: ${JSON.stringify(jsonErr)}`);
+            throw new Error(`Ghost API failed with status: ${response.status}`);
         }
 
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        res.set('Content-Type', 'image/png');
+        
+        res.set('Content-Type', 'image/jpeg');
         res.send(buffer);
     } catch (error) {
         console.error("Forge Error:", error.message);
