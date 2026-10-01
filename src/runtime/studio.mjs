@@ -15,6 +15,8 @@ import { ProviderRegistry } from "../core/provider.mjs";
 import { ToolRegistry } from "../agents/tool-registry.mjs";
 import { SessionManager } from "./session.mjs";
 import { createScene } from "../core/scene.mjs";
+import { BiblicalStoryEngine } from "../biblical/story-engine.mjs";
+import { TORAH_BOOKS, TORAH_TRADITIONS } from "../biblical/torah.mjs";
 import { JsonStore } from "../core/persistence.mjs";
 import { CommandLog } from "../core/undo.mjs";
 import { universalSearch } from "../core/search.mjs";
