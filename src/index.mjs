@@ -39,3 +39,6 @@ export * from "./core/embedding.mjs";
 export * from "./core/privacy.mjs";
 export * from "./core/local-mode.mjs";
 export * from "./core/secrets.mjs";
+export * from "./core/egress.mjs";
+export * from "./core/auth.mjs";
+export * from "./core/encrypted-store.mjs";
