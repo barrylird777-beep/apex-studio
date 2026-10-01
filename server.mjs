@@ -12,12 +12,10 @@ const HF_TOKEN = process.env.HF_TOKEN;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check endpoint to stabilize Railway proxy
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
 
-// Main Route with Fallback
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, 'public', 'index.html');
     res.sendFile(indexPath, (err) => {
@@ -25,8 +23,8 @@ app.get('/', (req, res) => {
             res.status(200).send(`
                 <!DOCTYPE html>
                 <html>
-                <head><title>Apex Studio - Emergency Mode</title></head>
-                <body style="background:#0a0a0f; color:#c6a87c; font-family:sans-serif; text-align:center; padding-top:50px;">
+                <head><title>Apex Studio</title></head>
+                <body style="background:#0a0a0f; color:#c6a87c; text-align:center; padding-top:50px;">
                     <h1>Apex Studio Online</h1>
                     <p>Server is running on port ${PORT}, but public/index.html was not found.</p>
                 </body>
@@ -82,11 +80,10 @@ app.post('/api/oracle', async (req, res) => {
 app.post('/api/forge', async (req, res) => {
     try {
         const { scene, shotType, lighting, mood } = req.body;
-        
-        // FLUX works best with comma-separated, highly descriptive tags
         const masterPrompt = `${scene}, ${shotType}, ${lighting} lighting, ${mood} atmosphere, 16:9 aspect ratio, 8k resolution, photorealistic cinematic documentary footage, Unreal Engine 5 render, highly detailed`;
 
-        const response = await fetch("https://router.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+        // FIXED URL HERE
+        const response = await fetch("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${HF_TOKEN}`,
@@ -117,7 +114,8 @@ app.post('/api/bard', async (req, res) => {
     try {
         const { text } = req.body;
         
-        const response = await fetch("https://router.huggingface.co/models/suno/bark", {
+        // FIXED URL HERE
+        const response = await fetch("https://api-inference.huggingface.co/models/suno/bark", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${HF_TOKEN}`,
