@@ -27,3 +27,8 @@ export * from "./core/persistence.mjs";
 export * from "./core/undo.mjs";
 export * from "./core/search.mjs";
 export * from "./runtime/observability.mjs";
+
+export * from "./characters/store.mjs";
+export * from "./core/sources.mjs";
+export * from "./core/provenance.mjs";
+export * from "./core/command-router.mjs";
