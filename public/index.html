@@ -3,248 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apex Studio | God-Tier Lore & Neural Nexus</title>
+    <title>Apex Studio | Biblical Series Production</title>
     <style>
         :root {
-            --bg-color: #020408;
-            --panel-bg: #070b14;
-            --accent-cyan: #00f0ff;
-            --accent-purple: #9d00ff;
-            --accent-gold: #ffbc00;
-            --text-main: #f0f2f5;
-            --text-muted: #8b93a7;
-            --border-glow: rgba(0, 240, 255, 0.3);
-            --gold-glow: rgba(255, 188, 0, 0.3);
+            --bg-base: #0a0a0f;
+            --surface: #13141c;
+            --surface-hover: #1c1e29;
+            --brand: #c6a87c;
+            --brand-glow: rgba(198, 168, 124, 0.4);
+            --text-main: #f5f5f5;
+            --text-muted: #8b8d98;
+            --border: #2a2d3d;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
-        header { text-align: center; margin-bottom: 2rem; }
-        h1 { font-size: 3rem; background: linear-gradient(45deg, var(--accent-cyan), var(--accent-purple), var(--accent-gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 0.3rem; }
-        p.subtitle { color: var(--text-muted); font-size: 0.95rem; letter-spacing: 3px; text-transform: uppercase; }
-        .main-layout { display: grid; grid-template-columns: 2.2fr 1fr; gap: 2rem; width: 100%; max-width: 1400px; }
-        @media (max-width: 1024px) { .main-layout { grid-template-columns: 1fr; } }
-        .generators-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-        @media (max-width: 768px) { .generators-grid { grid-template-columns: 1fr; } }
-        .panel { background: var(--panel-bg); border: 1px solid var(--border-glow); border-radius: 14px; padding: 1.5rem; box-shadow: 0 0 30px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; gap: 1rem; }
-        .panel.full-width { grid-column: 1 / -1; }
-        .panel h2 { font-size: 1.15rem; color: var(--accent-cyan); border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
-        .control-group { display: flex; flex-direction: column; gap: 0.4rem; }
-        label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
-        select, textarea { width: 100%; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: var(--text-main); padding: 0.75rem; font-size: 0.9rem; outline: none; transition: all 0.3s ease; }
-        select:focus, textarea:focus { border-color: var(--accent-cyan); box-shadow: 0 0 12px rgba(0, 240, 255, 0.25); }
-        textarea { height: 95px; resize: vertical; }
-        button { background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); color: white; border: none; border-radius: 8px; padding: 0.75rem 1.2rem; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-transform: uppercase; letter-spacing: 1.5px; transition: all 0.2s; }
-        button:hover { opacity: 0.95; box-shadow: 0 0 15px rgba(0, 240, 255, 0.4); }
-        .output-box { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1rem; min-height: 130px; max-height: 240px; overflow-y: auto; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; color: #d8dee9; }
-        .image-output { display: flex; justify-content: center; align-items: center; min-height: 220px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; overflow: hidden; }
-        .image-output img { max-width: 100%; height: auto; border-radius: 6px; }
-        .vault-panel { background: var(--panel-bg); border: 1px solid var(--gold-glow); border-radius: 14px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; max-height: 850px; }
-        .vault-panel h2 { color: var(--accent-gold); border-bottom: 1px solid rgba(255, 188, 0, 0.2); padding-bottom: 0.5rem; font-size: 1.15rem; }
-        .vault-list { overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; flex-grow: 1; }
-        .vault-item { background: rgba(0, 0, 0, 0.4); border-left: 3px solid var(--accent-gold); padding: 0.8rem; border-radius: 6px; font-size: 0.8rem; }
-        .vault-item .v-title { color: var(--accent-gold); font-weight: bold; margin-bottom: 0.3rem; text-transform: uppercase; }
-        .vault-item .v-content { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .loading { color: var(--accent-cyan); font-style: italic; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar layout */
+        .sidebar { width: 300px; background: var(--surface); border-right: 1px solid var(--border); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 2rem; overflow-y: auto; }
+        .brand-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; color: var(--brand); text-transform: uppercase; }
+        .brand-subtitle { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        
+        .main-content { flex: 1; padding: 2rem; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        @media (max-width: 1200px) { .main-content { grid-template-columns: 1fr; } }
+        
+        /* Form Controls */
+        .input-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+        label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+        select, input, textarea { width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; color: var(--text-main); font-size: 0.9rem; transition: border-color 0.2s; outline: none; }
+        select:focus, input:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 10px var(--brand-glow); }
+        textarea { height: 120px; resize: vertical; }
+        
+        button { background: var(--brand); color: #000; border: none; border-radius: 6px; padding: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: center; align-items: center; gap: 0.5rem; }
+        button:hover { background: #dcc198; box-shadow: 0 0 15px var(--brand-glow); transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        .btn-secondary { background: transparent; border: 1px solid var(--brand); color: var(--brand); }
+        .btn-secondary:hover { background: rgba(198, 168, 124, 0.1); box-shadow: none; }
+
+        /* Panels */
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; display: flex; flex-direction: column; }
+        .panel h2 { font-size: 1.2rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
+        
+        .output-container { background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; flex-grow: 1; overflow-y: auto; font-size: 0.95rem; line-height: 1.6; color: #d1d5db; position: relative; }
+        .image-preview { width: 100%; height: auto; border-radius: 4px; aspect-ratio: 16/9; object-fit: cover; background: #000; display: flex; justify-content: center; align-items: center; }
+        .image-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+        
+        .toolbar { display: flex; gap: 1rem; margin-top: 1rem; }
+        .loader { display: none; color: var(--brand); font-style: italic; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Apex Studio</h1>
-        <p class="subtitle">God-Tier Lore & Neural Nexus</p>
-    </header>
-    <div class="main-layout">
-        <div class="generators-grid">
-            <div class="panel">
-                <h2>
-                    <span>Oracle // Lore & Script</span>
-                    <select id="oracleModel" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.75rem;">
-                        <option value="moonshotai/Kimi-K2-Instruct">Kimi-K2</option>
-                    </select>
-                </h2>
-                <div class="control-group">
-                    <label>Biblical / Mythic Scenario Preset</label>
-                    <select id="oraclePreset" onchange="loadOraclePreset()">
-                        <option value="">-- Choose Legendary Scenario --</option>
-                        <option value="The Book of Revelation: The Opening of the Sixth Seal amidst a futuristic cyber-colosseum skyline.">Revelation: The Sixth Seal (Cyber-Apocalypse)</option>
-                        <option value="Ezekiel's Vision: The Wheeled Chandelier Throne of Fire and Eyes descending over an orbital metropolis.">Ezekiel's Wheel: Cybernetic Throne Vision</option>
-                        <option value="The Fall of Babylon: The great neon ziggurat collapsing under waves of crimson data-storms and fire.">Fall of Babylon: Neon Ziggurat Collapse</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label>Narrative Directive</label>
-                    <textarea id="oracleInput" placeholder="Select preset or type custom lore scenario..."></textarea>
-                </div>
-                <button onclick="runOracle()">Consult Oracle</button>
-                <div class="output-box" id="oracleOutput">Awaiting command...</div>
-            </div>
 
-            <div class="panel">
-                <h2>
-                    <span>Forge // Vision & Armor</span>
-                    <select id="forgeModel" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.75rem;">
-                        <option value="black-forest-labs/FLUX.1-schnell">FLUX.1-schnell</option>
-                    </select>
-                </h2>
-                <div class="control-group">
-                    <label>Outfit & Aesthetic Style Option</label>
-                    <select id="forgeStyle" onchange="updateForgeStyle()">
-                        <option value="Cyber-Biblical Tactical Armor, glowing gold halo interface, iridescent fiber-optic vestments">Style: Cyber-Biblical Tactical Armor</option>
-                        <option value="Neon-Prophetic Ascetic, silk robes woven with fiber-optic scripture, metallic obsidian cowl">Style: Neon-Prophetic Ascetic</option>
-                        <option value="Void-Wasteland Marauder, heavy carbon-steel plating, cracked holographic visor">Style: Void-Wasteland Marauder</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label>Visual Composition Prompt</label>
-                    <textarea id="forgeInput" placeholder="Describe scene visuals..."></textarea>
-                </div>
-                <button onclick="runForge()">Ignite Forge</button>
-                <div class="image-output" id="forgeOutput">
-                    <span style="color: var(--text-muted); font-size: 0.85rem;">Matrix visual standby</span>
-                </div>
-            </div>
-
-            <div class="panel full-width">
-                <h2>
-                    <span>Bard // Divine Voice Synthesizer</span>
-                    <select id="bardModel" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.75rem;">
-                        <option value="suno/bark">Bark Neural TTS</option>
-                    </select>
-                </h2>
-                <div class="control-group">
-                    <label>Narration / Prophetic Dialogue Text</label>
-                    <textarea id="bardInput" style="height: 65px;" placeholder="Enter script lines to convert to speech..."></textarea>
-                </div>
-                <button onclick="runBard()">Synthesize Voice</button>
-                <div class="output-box" id="bardOutput" style="display: flex; align-items: center; justify-content: center; min-height: 80px;">
-                    <span style="color: var(--text-muted);">Audio deck standing by</span>
-                </div>
-            </div>
+    <!-- SIDEBAR: Master Controls -->
+    <div class="sidebar">
+        <div>
+            <div class="brand-title">Apex Studio</div>
+            <div class="brand-subtitle">Series Production Deck</div>
         </div>
 
-        <div class="vault-panel">
-            <h2>Asset Vault // History</h2>
-            <div class="vault-list" id="vaultList">
-                <div class="vault-item">
-                    <div class="v-title">System Status</div>
-                    <div class="v-content">Vault online. Ready for high-tier generation.</div>
-                </div>
+        <div>
+            <h3 style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Project Parameters</h3>
+            
+            <div class="input-group">
+                <label>Biblical Era / Act</label>
+                <select id="projEra">
+                    <option value="Genesis: The Dawn of Creation and the Fall">Act I: Genesis & Dawn</option>
+                    <option value="Exodus: The Plagues, the Sea, and Sinai">Act II: Exodus & Liberation</option>
+                    <option value="Kings: The rise and catastrophic fall of the Israelite monarchy">Act III: Kings & Prophets</option>
+                    <option value="Gospels: The incarnation, ministry, and crucifixion of Christ">Act IV: The Gospels</option>
+                    <option value="Revelation: The apocalyptic consummation of all things">Act V: Revelation</option>
+                </select>
             </div>
-            <button onclick="clearVault()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem;">Clear Vault</button>
+
+            <div class="input-group">
+                <label>Pacing & Tone</label>
+                <select id="projPacing">
+                    <option value="Slow, awe-inspiring, and profoundly reverent">Reverent & Awe-Inspiring</option>
+                    <option value="Fast, intense, chaotic, and terrifying">Intense & Terrifying</option>
+                    <option value="Melancholic, sorrowful, and deeply emotional">Sorrowful & Emotional</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>Specific Scene Details</label>
+                <textarea id="projDetails" placeholder="E.g., Focus on the sheer scale of the Red Sea parting, the fear of the Israelites, and the thunder of the water..."></textarea>
+            </div>
+
+            <button onclick="generateScript()">1. Draft Script</button>
         </div>
     </div>
 
-    <script>
-        let vaultHistory = JSON.parse(localStorage.getItem('apex_vault') || '[]');
-        renderVault();
+    <!-- MAIN CONTENT: Output & Generation -->
+    <div class="main-content">
+        
+        <!-- SCRIPT PANEL -->
+        <div class="panel">
+            <h2>
+                <span>Script & Voiceover</span>
+                <span id="scriptLoader" class="loader">Writing...</span>
+            </h2>
+            <div class="output-container" id="scriptOutput">
+                <span style="color: var(--text-muted);">Adjust parameters in the sidebar and click 'Draft Script' to begin. Output will be formatted for video production.</span>
+            </div>
+            <div class="toolbar">
+                <button class="btn-secondary" onclick="copyText('scriptOutput')" style="flex:1;">Copy Script</button>
+            </div>
 
-        function loadOraclePreset() {
-            const val = document.getElementById('oraclePreset').value;
-            if (val) document.getElementById('oracleInput').value = val;
-        }
-
-        function updateForgeStyle() {
-            const style = document.getElementById('forgeStyle').value;
-            const current = document.getElementById('forgeInput').value;
-            if (!current.includes(style)) {
-                document.getElementById('forgeInput').value = style + " featuring " + (current || "epic cinematic framing");
-            }
-        }
-
-        function addToVault(type, title, text) {
-            vaultHistory.unshift({ type, title, text, time: new Date().toLocaleTimeString() });
-            if (vaultHistory.length > 15) vaultHistory.pop();
-            localStorage.setItem('apex_vault', JSON.stringify(vaultHistory));
-            renderVault();
-        }
-
-        function renderVault() {
-            const list = document.getElementById('vaultList');
-            if (vaultHistory.length === 0) {
-                list.innerHTML = '<div class="vault-item"><div class="v-title">Empty</div><div class="v-content">No assets generated yet.</div></div>';
-                return;
-            }
-            list.innerHTML = vaultHistory.map(item => `
-                <div class="vault-item">
-                    <div class="v-title">${item.type} // ${item.title}</div>
-                    <div class="v-content">${item.text}</div>
+            <div style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+                <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Audio Synthesizer</h3>
+                <div class="input-group">
+                    <textarea id="audioInput" style="height: 80px;" placeholder="Paste the [NARRATOR] lines here to generate voiceover..."></textarea>
                 </div>
-            `).join('');
-        }
+                <button onclick="generateAudio()">2. Synthesize Voice</button>
+                <div id="audioLoader" class="loader" style="margin-top: 0.5rem;">Rendering Audio...</div>
+                <div id="audioOutput" style="margin-top: 1rem;"></div>
+            </div>
+        </div>
 
-        function clearVault() {
-            vaultHistory = [];
-            localStorage.removeItem('apex_vault');
-            renderVault();
-        }
+        <!-- VISUAL FORGE PANEL -->
+        <div class="panel">
+            <h2>
+                <span>Storyboard & Visuals</span>
+                <span id="visionLoader" class="loader">Rendering...</span>
+            </h2>
+            
+            <div class="input-group">
+                <label>Shot Framing</label>
+                <select id="visShot">
+                    <option value="Sweeping extreme wide drone shot, epic scale">Extreme Wide Shot (Epic Scale)</option>
+                    <option value="Medium tracking shot, focusing on characters">Medium Shot (Character Focus)</option>
+                    <option value="Extreme close up, hyper-detailed texture">Extreme Close-Up (Intense Detail)</option>
+                </select>
+            </div>
 
-        async function runOracle() {
-            const idea = document.getElementById('oracleInput').value;
-            const model = document.getElementById('oracleModel').value;
-            const output = document.getElementById('oracleOutput');
-            if (!idea) return;
-            output.innerHTML = '<span class="loading">Channeling the oracle archives...</span>';
+            <div class="input-group">
+                <label>Lighting & Atmosphere</label>
+                <select id="visLighting">
+                    <option value="God-rays piercing through dust, dramatic chiaroscuro">Divine / God-Rays</option>
+                    <option value="Harsh, gritty, stormy, dark high-contrast">Gritty & Stormy</option>
+                    <option value="Golden hour, warm, peaceful and sweeping">Warm & Peaceful (Golden Hour)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Scene Description (From Script)</label>
+                <textarea id="visScene" style="height: 60px;" placeholder="Paste the [VISUAL] block from your script here..."></textarea>
+            </div>
+
+            <button onclick="generateVision()" style="margin-bottom: 1.5rem;">3. Render Frame</button>
+            
+            <div class="image-preview" id="visionOutput">
+                <span style="color: var(--text-muted); font-size: 0.85rem;">16:9 Render Canvas</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // API Calls
+        async function generateScript() {
+            const era = document.getElementById('projEra').value;
+            const pacing = document.getElementById('projPacing').value;
+            const details = document.getElementById('projDetails').value;
+            const output = document.getElementById('scriptOutput');
+            const loader = document.getElementById('scriptLoader');
+
+            loader.style.display = 'inline';
+            output.innerHTML = '';
+
             try {
                 const res = await fetch('/api/oracle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ idea, model })
+                    body: JSON.stringify({ era, theme: "Biblical Epic Documentary", pacing, details })
                 });
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 output.innerText = data.result;
-                addToVault('Oracle', 'Lore Generation', idea);
             } catch (err) {
-                output.innerText = 'Error: ' + err.message;
+                output.innerHTML = `<span style="color: #ff4444;">Error: ${err.message}</span>`;
+            } finally {
+                loader.style.display = 'none';
             }
         }
 
-        async function runForge() {
-            const prompt = document.getElementById('forgeInput').value;
-            const style = document.getElementById('forgeStyle').value;
-            const output = document.getElementById('forgeOutput');
-            if (!prompt) return;
-            output.innerHTML = '<span class="loading">Forging neural vision...</span>';
+        async function generateVision() {
+            const scene = document.getElementById('visScene').value;
+            const shotType = document.getElementById('visShot').value;
+            const lighting = document.getElementById('visLighting').value;
+            const output = document.getElementById('visionOutput');
+            const loader = document.getElementById('visionLoader');
+
+            if (!scene) return alert("Please enter a scene description first.");
+
+            loader.style.display = 'inline';
+            output.innerHTML = '';
+
             try {
                 const res = await fetch('/api/forge', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: `${prompt}, styled in ${style}` })
+                    body: JSON.stringify({ scene, shotType, lighting, mood: "epic historical" })
                 });
-                if (!res.ok) {
-                    const errData = await res.json();
-                    throw new Error(errData.error || 'Failed to render image');
-                }
+                if (!res.ok) throw new Error('Render failed');
                 const blob = await res.blob();
-                const imageUrl = URL.createObjectURL(blob);
-                output.innerHTML = `<img src="${imageUrl}" alt="Generated Masterpiece">`;
-                addToVault('Forge', 'Aesthetic Render', prompt);
+                output.innerHTML = `<img src="${URL.createObjectURL(blob)}" alt="Render">`;
             } catch (err) {
-                output.innerHTML = `<span style="color: #ff5555; font-size: 0.85rem;">Error: ${err.message}</span>`;
+                output.innerHTML = `<span style="color: #ff4444; font-size: 0.85rem;">Error: ${err.message}</span>`;
+            } finally {
+                loader.style.display = 'none';
             }
         }
 
-        async function runBard() {
-            const text = document.getElementById('bardInput').value;
-            const output = document.getElementById('bardOutput');
-            if (!text) return;
-            output.innerHTML = '<span class="loading">Synthesizing divine frequency...</span>';
+        async function generateAudio() {
+            const text = document.getElementById('audioInput').value;
+            const output = document.getElementById('audioOutput');
+            const loader = document.getElementById('audioLoader');
+
+            if (!text) return alert("Please paste narrator text first.");
+
+            loader.style.display = 'block';
+            output.innerHTML = '';
+
             try {
                 const res = await fetch('/api/bard', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
-                if (!res.ok) {
-                    const errData = await res.json();
-                    throw new Error(errData.error || 'Failed to synthesize audio');
-                }
+                if (!res.ok) throw new Error('Audio failed');
                 const blob = await res.blob();
-                const audioUrl = URL.createObjectURL(blob);
-                output.innerHTML = `<audio controls style="width: 100%;"><source src="${audioUrl}" type="audio/flac"></audio>`;
-                addToVault('Bard', 'Voice Synthesis', text);
+                output.innerHTML = `<audio controls style="width: 100%;"><source src="${URL.createObjectURL(blob)}" type="audio/flac"></audio>`;
             } catch (err) {
-                output.innerHTML = `<span style="color: #ff5555; font-size: 0.85rem;">Error: ${err.message}</span>`;
+                output.innerHTML = `<span style="color: #ff4444; font-size: 0.85rem;">Error: ${err.message}</span>`;
+            } finally {
+                loader.style.display = 'none';
             }
+        }
+
+        function copyText(elementId) {
+            const text = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(text).then(() => alert('Script copied to clipboard!'));
         }
     </script>
 </body>
