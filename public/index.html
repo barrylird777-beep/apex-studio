@@ -16,7 +16,8 @@ html{min-height:100%;background:var(--bg)}body{min-height:100dvh;-webkit-text-si
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.metric,.module,.panel{background:linear-gradient(145deg,rgba(16,22,32,.82),rgba(8,11,17,.76));border:1px solid var(--line);backdrop-filter:blur(18px);box-shadow:0 18px 50px rgba(0,0,0,.16)}.metric{padding:18px 19px;border-radius:16px}.label{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:var(--muted)}.num{font-size:31px;font-weight:750;margin-top:7px;letter-spacing:-.03em}
 .deck{display:grid;grid-template-columns:1.45fr .55fr;gap:14px}.modules{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.module{min-height:155px;border-radius:18px;padding:18px;position:relative;overflow:hidden;cursor:pointer;transition:.2s transform,.2s border-color,.2s background}.module:hover{transform:translateY(-3px);border-color:rgba(184,212,255,.32);background:linear-gradient(145deg,rgba(22,31,45,.9),rgba(8,11,17,.82))}.module:after{content:"↗";position:absolute;right:17px;top:16px;color:#526176;font-size:18px}.module .icon{font-size:21px;margin-bottom:25px}.module h3{margin:0 0 5px;font-size:16px}.module p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.panel{border-radius:18px;padding:20px}.panel h2{font-size:12px;letter-spacing:.15em;text-transform:uppercase;margin:0 0 17px;color:#cbd8e9}.feed{display:grid;gap:0}.row{display:flex;justify-content:space-between;gap:15px;padding:13px 0;border-bottom:1px solid rgba(150,180,220,.09)}.row:last-child{border:0}.row span:first-child{color:#c7d1df}.pill{font-size:9px;letter-spacing:.12em;color:var(--good);padding:4px 7px;border:1px solid rgba(127,240,173,.2);border-radius:99px}.command{margin-top:14px;display:flex;gap:9px}.command input{flex:1;min-width:0;font-size:16px;background:#070a10;border:1px solid var(--line);border-radius:10px;padding:11px 12px;outline:0;color:var(--text)}.command input:focus{border-color:rgba(184,212,255,.38)}.command button{border:1px solid var(--line);background:#101722;border-radius:10px;padding:0 14px;cursor:pointer}.footer{display:flex;justify-content:space-between;align-items:center;color:#526176;font-size:10px;letter-spacing:.12em;margin-top:18px}.kbd{border:1px solid var(--line);border-radius:6px;padding:4px 6px;color:#8796aa}
 @media(max-width:1050px){.deck{grid-template-columns:1fr}.hero{grid-template-columns:1fr}.pulse{display:none}}@media(max-width:760px){.shell{padding:16px}.metrics{grid-template-columns:repeat(2,1fr)}.modules{grid-template-columns:repeat(2,1fr)}.top{padding-bottom:12px}.hero{padding-top:20px}.hero h1{font-size:46px}}@media(max-width:480px){.shell{padding-left:max(14px,calc(14px + var(--safe-left)));padding-right:max(14px,calc(14px + var(--safe-right)))}.hero{padding-bottom:20px}.modules{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.metric{padding:14px}.num{font-size:25px}}
-</style>
+.dock{display:none}.scrim{display:none}
+@media(max-width:760px){.dock{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;z-index:20;left:12px;right:12px;bottom:calc(10px + var(--safe-bottom));padding:7px;border:1px solid rgba(184,212,255,.16);border-radius:18px;background:rgba(9,13,20,.88);backdrop-filter:blur(22px);box-shadow:0 20px 60px rgba(0,0,0,.42)}.dock button{border:0;background:transparent;padding:10px 5px;border-radius:12px;color:#7e8da3;font-size:10px;letter-spacing:.04em}.dock button.active{background:#172235;color:#eef5ff}.dock b{display:block;font-size:16px;margin-bottom:3px}.command{position:relative}.command input{height:46px}.module{min-height:140px}.footer{padding-bottom:82px}.scrim.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:15}}
 </head>
 <body>
 <div class="shell">
@@ -78,9 +79,16 @@ async function refresh(){
  }catch(e){$('status').textContent='RUNTIME UNAVAILABLE'}
 }
 function launch(name){$('cmd').value='Open '+name;document.querySelector('.command').scrollIntoView({behavior:'smooth',block:'center'});$('cmd').focus()}
-function runCommand(){const v=$('cmd').value.trim();if(v){$('status').textContent='COMMAND QUEUED · '+v.toUpperCase().slice(0,42);setTimeout(()=>{$('status').textContent='SYSTEM ONLINE'},1800)}}
+function runCommand(){const v=$('cmd').value.trim();if(v){$('status').textContent='COMMAND QUEUED · '+v.toUpperCase().slice(0,42);setTimeout(()=>{$('status').textContent='SYSTEM ONLINE'},1800)}}\nfunction quick(name,el){document.querySelectorAll('.dock button').forEach(b=>b.classList.remove('active'));el.classList.add('active');launch(name)}\nfunction closeSheet(){$('scrim').classList.remove('open')}
 document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('cmd').focus()}if(e.key.toLowerCase()==='r'&&document.activeElement.tagName!=='INPUT')refresh()});
 refresh();
 </script>
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
+<nav class="dock" aria-label="Quick navigation">
+<button class="active" onclick="quick('Oracle',this)"><b>◈</b>Oracle</button>
+<button onclick="quick('Forge',this)"><b>◇</b>Forge</button>
+<button onclick="quick('Bard',this)"><b>◌</b>Bard</button>
+<button onclick="quick('Command',this)"><b>⌘</b>Command</button>
+</nav>
 </body>
 </html>
