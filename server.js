@@ -1,10 +1,6 @@
-import express from 'express';
-import { HfInference } from '@huggingface/inference';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const express = require('express');
+const { HfInference } = require('@huggingface/inference');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 7860;
