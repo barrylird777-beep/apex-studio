@@ -1,27 +1,21 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// Import our new separated workspaces
-import oracleRoute from './routes/oracle.mjs';
-import forgeRoute from './routes/forge.mjs';
-import bardRoute from './routes/bard.mjs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// The Traffic Cop: Direct frontend requests to the correct workspace
-app.use('/api/oracle', oracleRoute);
-app.use('/api/forge', forgeRoute);
-app.use('/api/bard', bardRoute);
-
-// Start the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Apex Studio Server running smoothly on port ${PORT}`);
-    console.log(`All systems modular and online.`);
-});
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import oracleRoute from "./routes/oracle.mjs";
+import forgeRoute from "./routes/forge.mjs";
+import bardRoute from "./routes/bard.mjs";
+import { bootstrap } from "./src/runtime/bootstrap.mjs";
+import { createApi } from "./src/api/routes.mjs";
+const __filename=fileURLToPath(import.meta.url), __dirname=path.dirname(__filename);
+const app=express();
+const studio=bootstrap();
+app.use(express.json({limit:"2mb"}));
+app.use(express.static(path.join(__dirname,"public")));
+app.get("/api/health",(req,res)=>res.json({ok:true,studio:"Apex Studio",version:studio.version}));
+app.use("/api/studio",createApi(studio));
+app.use("/api/oracle",oracleRoute);
+app.use("/api/forge",forgeRoute);
+app.use("/api/bard",bardRoute);
+app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
+const PORT=process.env.PORT||3000;
+app.listen(PORT,()=>console.log(`Apex Studio ${studio.version} online on :${PORT}`));

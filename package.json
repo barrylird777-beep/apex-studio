@@ -1,12 +1,9 @@
 {
-  "name": "apex-studio",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "server.mjs",
-  "scripts": {
-    "start": "node server.mjs"
-  },
-  "dependencies": {
-    "express": "^4.19.2"
-  }
+  "name":"apex-studio",
+  "version":"4.0.0",
+  "private":true,
+  "type":"module",
+  "main":"server.mjs",
+  "scripts":{"start":"node server.mjs","check":"node --check server.mjs && node --check src/runtime/studio.mjs && node --check src/api/routes.mjs"},
+  "dependencies":{"express":"^4.19.2"}
 }
