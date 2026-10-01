@@ -3,8 +3,9 @@ import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { evaluateArtifact } from "../core/evaluation.mjs";
 export function createApi(studio){
  const r=express.Router();
- r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Studio",version:studio.version,time:new Date().toISOString()}));
+ r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
  r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
+ r.get("/privacy",(req,res)=>res.json(studio.privacy));
  r.get("/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
  r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
  r.get("/universe",(req,res)=>res.json(studio.universe.list()));
@@ -35,6 +36,7 @@ export function createApi(studio){
  r.post("/jobs/:id/run",async(req,res)=>res.json(await studio.jobs.run(req.params.id)));
  r.get("/tools",(req,res)=>res.json(studio.tools.describe()));
  r.get("/providers",(req,res)=>res.json(studio.providers.names()));
+ r.post("/command",async(req,res)=>{try{res.json(await studio.command(req.body?.name,req.body?.args??{}))}catch(e){res.status(400).json({error:e.message})}});
  r.post("/evaluate",(req,res)=>res.json(evaluateArtifact(req.body?.artifact,{requiredFields:req.body?.requiredFields??[],provenance:req.body?.provenance??[],continuity:req.body?.continuity??[]})));
  r.get("/export",(req,res)=>res.json(exportStudio(studio)));
  r.post("/import",(req,res)=>{try{res.json(importStudio(studio,req.body))}catch(e){res.status(400).json({error:e.message})}});
