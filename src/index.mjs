@@ -27,14 +27,15 @@ export * from "./core/persistence.mjs";
 export * from "./core/undo.mjs";
 export * from "./core/search.mjs";
 export * from "./runtime/observability.mjs";
-
 export * from "./characters/store.mjs";
 export * from "./core/sources.mjs";
 export * from "./core/provenance.mjs";
 export * from "./core/command-router.mjs";
-
 export * from "./core/knowledge-base.mjs";
 export * from "./core/render.mjs";
 export * from "./core/release.mjs";
 export * from "./core/collaboration.mjs";
 export * from "./core/embedding.mjs";
+export * from "./core/privacy.mjs";
+export * from "./core/local-mode.mjs";
+export * from "./core/secrets.mjs";
