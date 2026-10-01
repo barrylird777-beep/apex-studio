@@ -14,7 +14,7 @@ Apex is a modular creative operating system for long-form worlds, characters, ti
 - **Asset Lineage** — revisions, parents, specifications, and provenance
 - **Memory** — project-scoped durable notes and lightweight retrieval
 - **Agent Registry / Orchestrator** — specialist agents and auditable jobs
-- **Production Graph** — concept through release dependency planning
+- **Production Graph** — concept through release dependency planning\n- **Knowledge Base + Embeddings** — document ingestion and adapter-ready retrieval\n- **Render + Release** — render queue and publication lifecycle\n- **Collaboration Log** — auditable multi-actor edits
 
 ## System layers
 - **Universe Scale** — nested cosmic/galactic/stellar/world regions
