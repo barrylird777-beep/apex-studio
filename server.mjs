@@ -10,7 +10,9 @@ const __filename=fileURLToPath(import.meta.url), __dirname=path.dirname(__filena
 const app=express();
 const studio=bootstrap();
 app.use(express.json({limit:"2mb"}));
-app.use(express.static(path.join(__dirname,"public")));\napp.get("/sw.js",(req,res)=>res.sendFile(path.join(__dirname,"public","sw.js")));
+app.use(express.static(path.join(__dirname,"public")));
+app.get("/manifest.webmanifest",(req,res)=>res.sendFile(path.join(__dirname,"public","manifest.webmanifest")));
+app.get("/sw.js",(req,res)=>res.sendFile(path.join(__dirname,"public","sw.js")));\napp.get("/sw.js",(req,res)=>res.sendFile(path.join(__dirname,"public","sw.js")));
 app.get("/api/health",(req,res)=>res.json({ok:true,studio:"Apex Studio",version:studio.version}));
 app.use("/api/studio",createApi(studio));
 app.use("/api/oracle",oracleRoute);
