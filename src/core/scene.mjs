@@ -1,0 +1,3 @@
+import { uid, now } from "./id.mjs";
+export function createScene(input={}){return {id:input.id??uid("scene"),title:input.title??"Untitled Scene",projectId:input.projectId??null,timelineId:input.timelineId??null,locationId:input.locationId??null,characters:input.characters??[],beats:input.beats??[],dialogue:input.dialogue??[],shots:input.shots??[],continuityRefs:input.continuityRefs??[],notes:input.notes??"",status:input.status??"draft",createdAt:now(),updatedAt:now()};}
+export function createShot(input={}){return {id:input.id??uid("shot"),sceneId:input.sceneId??null,index:input.index??0,type:input.type??"wide",camera:input.camera??{},visual:input.visual??{},audio:input.audio??{},duration:input.duration??0,assetIds:input.assetIds??[],createdAt:now()};}
