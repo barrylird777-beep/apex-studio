@@ -6,7 +6,7 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check src/runtime/studio.mjs && node --check src/api/routes.mjs && node --check src/core/jobs.mjs && node --check src/core/provider.mjs && node --check src/core/scene.mjs",
+    "check": "node --check server.mjs && node --check src/runtime/studio.mjs && node --check src/api/routes.mjs && node --check src/core/jobs.mjs && node --check src/core/provider.mjs && node --check src/core/scene.mjs && node --check src/core/persistence.mjs && node --check src/core/undo.mjs && node --check src/core/search.mjs && node --check src/runtime/observability.mjs",
     "test": "node --test"
   },
   "dependencies": {
