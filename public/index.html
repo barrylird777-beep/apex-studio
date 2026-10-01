@@ -1,27 +1,120 @@
-<<script>
-// Browser-Native Cinematic Speech Engine
-document.getElementById('synth-button').addEventListener('click', async () => {
-    const textInput = document.getElementById('bard-text').value;
-    if (!textInput) return alert('Please enter some text to speak.');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Studio - Command Deck</title>
+    <style>
+        body { background-color: #0f0f0f; color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; margin: 0; }
+        h1, h2 { color: #d4af37; text-align: center; }
+        .section { background: #1a1a1a; border: 1px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        label { display: block; margin-top: 10px; font-size: 12px; color: #aaa; text-transform: uppercase; }
+        input, textarea, select { width: 100%; padding: 10px; margin-top: 5px; background: #262626; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; background: #d4af37; color: #000; font-weight: bold; padding: 12px; border: none; border-radius: 4px; margin-top: 15px; cursor: pointer; }
+        button:hover { background: #f3c653; }
+        #image-result { width: 100%; margin-top: 15px; border-radius: 4px; display: none; }
+    </style>
+</head>
+<body>
 
-    if (!('speechSynthesis' in window)) {
-        alert('Speech synthesis is not supported on this browser.');
-        return;
-    }
+    <h1>APEX STUDIO</h1>
+    <p style="text-align: center; color: #888; font-size: 14px;">Cinematic Production Command Deck</p>
 
-    window.speechSynthesis.cancel();
+    <!-- 1. VISUAL FORGE -->
+    <div class="section">
+        <h2>VISUAL FORGE</h2>
+        
+        <label>Camera Lens / Framing</label>
+        <select id="shotType">
+            <option>Extreme Wide (Landscape)</option>
+            <option>Close Up (Intimate)</option>
+            <option>Medium Shot (Action)</option>
+            <option>Low Angle (Heroic)</option>
+        </select>
 
-    const utterance = new SpeechSynthesisUtterance(textInput);
-    
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.lang.includes('en') && (v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Google') || v.name.includes('Daniel')));
-    if (preferredVoice) {
-        utterance.voice = preferredVoice;
-    }
+        <label>Lighting & Atmosphere</label>
+        <select id="lighting">
+            <option>Divine God-Rays</option>
+            <option>Stormy & Gritty</option>
+            <option>Golden Hour Desert</option>
+            <option>Deep Shadow & Fire</option>
+        </select>
 
-    utterance.rate = 0.95; 
-    utterance.pitch = 0.9;  
+        <label>Visual Description (Paste from Script)</label>
+        <textarea id="scene" rows="4">EXT. RED SEA - NIGHT — Massive walls of vertical black water stand suspended. Millions of Israelites run through the middle on dry, cracked earth.</textarea>
 
-    window.speechSynthesis.speak(utterance);
-});
-</script>
+        <button id="forge-button">3. IGNITE FORGE</button>
+        
+        <img id="image-result" alt="Generated Visual">
+    </div>
+
+    <!-- 2. BARD AUDIO ENGINE -->
+    <div class="section">
+        <h2>BARD AUDIO ENGINE</h2>
+        
+        <label>Voiceover Script</label>
+        <textarea id="bard-text" rows="3">The waters obey the command of the Almighty. Walk forward into safety.</textarea>
+
+        <button id="synth-button">2. SYNTHESIZE VOICE</button>
+    </div>
+
+    <script>
+        // Visual Forge Frontend Handler
+        document.getElementById('forge-button').addEventListener('click', async () => {
+            const btn = document.getElementById('forge-button');
+            const img = document.getElementById('image-result');
+            
+            btn.innerText = "Forging Visuals...";
+            
+            try {
+                const response = await fetch('/api/forge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scene: document.getElementById('scene').value,
+                        shotType: document.getElementById('shotType').value,
+                        lighting: document.getElementById('lighting').value,
+                        mood: "Epic cinematic"
+                    })
+                });
+
+                if (!response.ok) throw new Error("Forge generation failed");
+
+                const blob = await response.blob();
+                img.src = URL.createObjectURL(blob);
+                img.style.display = 'block';
+            } catch (err) {
+                alert("Error: " + err.message);
+            } finally {
+                btn.innerText = "3. IGNITE FORGE";
+            }
+        });
+
+        // Browser-Native Cinematic Speech Engine Handler
+        document.getElementById('synth-button').addEventListener('click', () => {
+            const textInput = document.getElementById('bard-text').value;
+            if (!textInput) return alert('Please enter some text to speak.');
+
+            if (!('speechSynthesis' in window)) {
+                alert('Speech synthesis is not supported on this browser.');
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(textInput);
+            
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.lang.includes('en') && (v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Google') || v.name.includes('Daniel')));
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+
+            utterance.rate = 0.95; 
+            utterance.pitch = 0.9;  
+
+            window.speechSynthesis.speak(utterance);
+        });
+    </script>
+</body>
+</html>
