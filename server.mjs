@@ -16,6 +16,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Oracle Route (Text Generation)
 app.post('/api/oracle', async (req, res) => {
     try {
         const { idea, model } = req.body;
@@ -39,7 +40,7 @@ app.post('/api/oracle', async (req, res) => {
         });
 
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to reach Hugging Face router');
+        if (!response.ok) throw new Error(data.error?.message || data.error || 'Failed to reach Hugging Face router');
         
         res.json({ result: data.choices[0].message.content });
     } catch (error) {
@@ -47,12 +48,14 @@ app.post('/api/oracle', async (req, res) => {
     }
 });
 
+// Forge Route (Image Generation via Unified Router)
 app.post('/api/forge', async (req, res) => {
     try {
-        const { prompt } = req.body;
+        const { prompt, model } = req.body;
+        const selectedModel = model || "black-forest-labs/FLUX.1-dev";
         const enhancedPrompt = `${prompt}, cinematic raw photography, Unreal Engine 5 render, dramatic lighting, photorealistic, 8k`;
         
-        const response = await fetch("https://router.huggingface.co/models/black-forest-labs/FLUX.1-dev", {
+        const response = await fetch(`https://router.huggingface.co/hf-inference/models/${selectedModel}`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${HF_TOKEN}`,
@@ -78,10 +81,11 @@ app.post('/api/forge', async (req, res) => {
     }
 });
 
+// Bard Route (Audio Generation)
 app.post('/api/bard', async (req, res) => {
     try {
         const { text } = req.body;
-        const response = await fetch("https://router.huggingface.co/models/suno/bark", {
+        const response = await fetch("https://router.huggingface.co/hf-inference/models/suno/bark", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${HF_TOKEN}`,
