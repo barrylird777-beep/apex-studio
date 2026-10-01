@@ -1,6 +1,7 @@
 import express from "express";
 import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { evaluateArtifact } from "../core/evaluation.mjs";
+import { bibleCatalog } from "../biblical/bible-catalog.mjs";
 export function createApi(studio){
  const r=express.Router();
  r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
@@ -16,6 +17,15 @@ export function createApi(studio){
  r.get("/characters",(req,res)=>res.json(studio.characters.list()));
  r.post("/characters",(req,res)=>res.status(201).json(studio.characters.create(req.body??{})));
  r.get("/sources",(req,res)=>res.json(studio.sources.list()));
+ r.get("/bible/catalog",(req,res)=>res.json(bibleCatalog()));
+ r.get("/bible/torah",(req,res)=>res.json(studio.torah));
+ r.get("/biblical/stories",(req,res)=>res.json(studio.biblical.listStories()));
+ r.post("/biblical/stories",(req,res)=>res.status(201).json(studio.biblical.createStory(req.body??{})));
+ r.get("/biblical/stories/:id/events",(req,res)=>res.json(studio.biblical.listEvents(req.params.id)));
+ r.post("/biblical/stories/:id/events",(req,res)=>res.status(201).json(studio.biblical.addEvent(req.params.id,req.body??{})));
+ r.get("/biblical/events/:id/provenance",(req,res)=>res.json(studio.biblical.provenance(req.params.id)));
+ r.get("/biblical/stories/:id/validate",(req,res)=>res.json(studio.biblical.validateStory(req.params.id)));
+ r.get("/biblical/stories/:id/production-plan",(req,res)=>res.json(studio.biblical.buildProductionPlan(req.params.id)));
  r.post("/sources",(req,res)=>res.status(201).json(studio.sources.add(req.body??{})));
  r.get("/documents",(req,res)=>res.json(studio.knowledgeBase.list()));
  r.post("/documents",(req,res)=>res.status(201).json(studio.knowledgeBase.addDocument(req.body??{})));
