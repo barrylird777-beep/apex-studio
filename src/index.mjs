@@ -15,3 +15,4 @@ export * from "./world/state.mjs";
 export * from "./assets/lineage.mjs";
 export * from "./runtime/studio.mjs";
 export * from "./runtime/bootstrap.mjs";
+export * from "./core/universe.mjs";
