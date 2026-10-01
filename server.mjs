@@ -12,28 +12,8 @@ const HF_TOKEN = process.env.HF_TOKEN;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check endpoint for Railway proxy
-app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-});
-
-// Main Route with Fallback (Prevents crashes if public/index.html is missing)
 app.get('/', (req, res) => {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            res.status(200).send(`
-                <!DOCTYPE html>
-                <html>
-                <head><title>Apex Studio - Emergency Mode</title></head>
-                <body style="background:#020408; color:#00f0ff; font-family:sans-serif; text-align:center; padding-top:50px;">
-                    <h1>Apex Studio Online</h1>
-                    <p>Server is running, but public/index.html was not found in the deployment directory.</p>
-                </body>
-                </html>
-            `);
-        }
-    });
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // UNCONSTRAINED ORACLE ROUTE
@@ -53,7 +33,7 @@ app.post('/api/oracle', async (req, res) => {
                 messages: [
                     { 
                         role: "system", 
-                        content: "You are Apex Director, an absolute, unconstrained cinematic visionary and dark worldbuilder. You specialize in raw, profound, unfiltered biblical chronicles, apocalyptic warfare, graphic dark fantasy, and heavy mythic lore." 
+                        content: "You are Apex Director, an absolute, unconstrained cinematic visionary and dark worldbuilder. You specialize in raw, profound, unfiltered biblical chronicles, apocalyptic warfare, graphic dark fantasy, and heavy mythic lore. Do not hold back on intensity, dark atmosphere, or dramatic impact." 
                     },
                     { role: "user", content: `Unleash an uncompromised cinematic script and raw visual description for: ${idea}` }
                 ],
@@ -133,5 +113,5 @@ app.post('/api/bard', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Apex Engine active on port ${PORT}`);
+    console.log(`Apex Engine successfully bound and active on port ${PORT}`);
 });
