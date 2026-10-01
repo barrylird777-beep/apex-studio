@@ -19,12 +19,11 @@
         body { background-color: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
         
         /* Sidebar layout */
-        .sidebar { width: 300px; background: var(--surface); border-right: 1px solid var(--border); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 2rem; overflow-y: auto; }
+        .sidebar { width: 300px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 2rem; overflow-y: auto; }
         .brand-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; color: var(--brand); text-transform: uppercase; }
         .brand-subtitle { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
         
         .main-content { flex: 1; padding: 2rem; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-        @media (max-width: 1200px) { .main-content { grid-template-columns: 1fr; } }
         
         /* Form Controls */
         .input-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
@@ -49,6 +48,15 @@
         
         .toolbar { display: flex; gap: 1rem; margin-top: 1rem; }
         .loader { display: none; color: var(--brand); font-style: italic; font-size: 0.9rem; }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 1200px) { .main-content { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow-y: auto; }
+            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 1.5rem 1rem; }
+            .main-content { padding: 1rem; overflow-y: visible; }
+            .panel { padding: 1.5rem 1rem; }
+        }
     </style>
 </head>
 <body>
