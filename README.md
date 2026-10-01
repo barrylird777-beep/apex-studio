@@ -1,4 +1,4 @@
-# Apex Studio 5.0
+# THE BIBLICALLY SEEN\n\nPowered by Apex Studio 5.0
 
 Apex is a modular creative operating system for long-form worlds, characters, timelines, knowledge, agents, and production assets.
 
@@ -24,7 +24,7 @@ Apex is a modular creative operating system for long-form worlds, characters, ti
 - **Tool Registry** — extensible specialist capabilities
 - **Evaluation Gates** — schema, continuity, provenance, safety, and production checks
 - **Import / Export** — portable studio bundles
-- **Sessions** — project-aware runtime context
+- **Sessions** — project-aware runtime context\n- **THE BIBLICALLY SEEN Source Registry** — Scripture, Enochic, Catholic, Orthodox, Jewish, ancient, historical, scholarly, esoteric, and original-fiction provenance classes
 
 ## API
 - GET `/api/health`
