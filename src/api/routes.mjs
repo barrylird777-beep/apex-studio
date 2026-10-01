@@ -6,8 +6,9 @@ export function createApi(studio){
  r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
  r.get("/projects",(req,res)=>res.json(studio.projects.list()));
  r.post("/memory",(req,res)=>res.status(201).json(studio.memory.remember(req.body??{})));
- r.get("/memory",(req,res)=>res.json(studio.memory.search(req.query.q??"",{projectId:req.query.projectId}))); 
+ r.get("/memory",(req,res)=>res.json(studio.memory.search(req.query.q??"",{projectId:req.query.projectId})));
  r.post("/assets",(req,res)=>{const a=studio.assets.create(req.body??{});studio.events.emit("asset.created",a);res.status(201).json(a)});
  r.post("/characters",(req,res)=>res.status(201).json(studio.characters.create(req.body??{})));
+ r.get("/characters",(req,res)=>res.json(studio.characters.list()));
  return r;
 }
