@@ -1,19 +1,35 @@
-# Apex Studio
+# Apex Studio 4.0
 
-A modular cinematic creative studio foundation.
+Apex is a modular creative operating system for long-form worlds, characters, timelines, knowledge, agents, and production assets.
 
-## Apex 3.0 core
-- Knowledge graph
-- Provenance-aware entities and relations
-- Continuity ledger and conflict detection
-- Branchable timelines
-- Production dependency graph
-- Multi-agent orchestration
-- Canon/source ingestion boundary
+## Command systems
+- **Oracle** — research and source-aware knowledge workflows
+- **Forge** — visual generation workspace
+- **Bard** — audio / narration workspace
+- **Knowledge Graph** — typed entities, relations, and provenance
+- **Continuity Ledger** — persistent facts and contradiction detection
+- **Timeline Engine** — branchable histories and alternate continuities
+- **World State** — event-driven state changes and snapshots
+- **Character DNA** — identity, appearance, personality, relationships, and arc snapshots
+- **Asset Lineage** — revisions, parents, specifications, and provenance
+- **Memory** — project-scoped durable notes and lightweight retrieval
+- **Agent Registry / Orchestrator** — specialist agents and auditable jobs
+- **Production Graph** — concept through release dependency planning
+
+## API
+- GET `/api/health`
+- GET `/api/studio/snapshot`
+- GET/POST `/api/studio/projects`
+- GET/POST `/api/studio/memory`
+- GET/POST `/api/studio/characters`
+- POST `/api/studio/assets`
 
 ## Run
-`npm start`
+```bash
+npm install
+npm start
+```
 
-The existing Oracle, Forge, and Bard routes remain intact. The new core lives under `src/` and is intentionally provider-agnostic.
+Apex deliberately keeps AI providers behind adapters and keeps source provenance separate from generated interpretation. Add only source text you are authorized to use.
 
-See `docs/ARCHITECTURE.md` for the expansion plan.
+See `docs/ARCHITECTURE.md` for the system map.
