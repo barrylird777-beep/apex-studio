@@ -16,6 +16,17 @@ export function createApi(studio){
  r.post("/characters",(req,res)=>res.status(201).json(studio.characters.create(req.body??{})));
  r.get("/sources",(req,res)=>res.json(studio.sources.list()));
  r.post("/sources",(req,res)=>res.status(201).json(studio.sources.add(req.body??{})));
+ r.get("/documents",(req,res)=>res.json(studio.knowledgeBase.list()));
+ r.post("/documents",(req,res)=>res.status(201).json(studio.knowledgeBase.addDocument(req.body??{})));
+ r.post("/documents/:id/chunk",(req,res)=>res.json(studio.knowledgeBase.chunk(req.params.id,Number(req.body?.size??1200))));
+ r.get("/documents/search",(req,res)=>res.json(studio.knowledgeBase.search(req.query.q??"",Number(req.query.limit??20))));
+ r.get("/renders",(req,res)=>res.json(studio.render.list()));
+ r.post("/renders",(req,res)=>res.status(202).json(studio.render.enqueue(req.body??{})));
+ r.get("/releases",(req,res)=>res.json(studio.releases.list()));
+ r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
+ r.post("/releases/:id/publish",(req,res)=>res.json(studio.releases.publish(req.params.id)));
+ r.get("/collaboration",(req,res)=>res.json(studio.collaboration.list()));
+ r.post("/collaboration",(req,res)=>res.status(201).json(studio.collaboration.append(req.body??{})));
  r.post("/assets",(req,res)=>{const a=studio.assets.create(req.body??{});studio.events.emit("asset.created",a);res.status(201).json(a)});
  r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
  r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
