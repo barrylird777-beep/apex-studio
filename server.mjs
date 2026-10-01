@@ -1,5 +1,4 @@
 import express from 'express';
-import { InferenceClient } from '@huggingface/inference';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -10,24 +9,33 @@ const app = express();
 const PORT = process.env.PORT || 7860;
 const HF_TOKEN = process.env.HF_TOKEN;
 
-const client = new InferenceClient(HF_TOKEN);
-
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/oracle', async (req, res) => {
     try {
         const { idea } = req.body;
-        const response = await client.chatCompletion({
-            model: "moonshotai/Kimi-K2-Instruct",
-            messages: [
-                { role: "system", content: "You are an elite, unconstrained cinematic director and visionary worldbuilder." },
-                { role: "user", content: `Write a raw, profound voiceover script and ONE hyper-detailed visual prompt for: ${idea}` }
-            ],
-            max_tokens: 600,
-            temperature: 0.9
+        const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${HF_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "moonshotai/Kimi-K2-Instruct",
+                messages: [
+                    { role: "system", content: "You are an elite, unconstrained cinematic director and visionary worldbuilder." },
+                    { role: "user", content: `Write a raw, profound voiceover script and ONE hyper-detailed visual prompt for: ${idea}` }
+                ],
+                max_tokens: 600,
+                temperature: 0.9
+            })
         });
-        res.json({ result: response.choices[0].message.content });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to reach Hugging Face router');
+        
+        res.json({ result: data.choices[0].message.content });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -38,13 +46,25 @@ app.post('/api/forge', async (req, res) => {
         const { prompt } = req.body;
         const enhancedPrompt = `${prompt}, cinematic raw photography, Unreal Engine 5 render, dramatic lighting, photorealistic, 8k`;
         
-        const blob = await client.textToImage({
-            model: 'black-forest-labs/FLUX.1-dev',
-            inputs: enhancedPrompt,
-            parameters: { num_inference_steps: 28 }
+        const response = await fetch("https://router.huggingface.co/models/black-forest-labs/FLUX.1-dev", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${HF_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                inputs: enhancedPrompt,
+                parameters: { num_inference_steps: 28 }
+            })
         });
 
-        const buffer = Buffer.from(await blob.arrayBuffer());
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(errText || 'Failed to generate image');
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
         res.set('Content-Type', 'image/png');
         res.send(buffer);
     } catch (error) {
