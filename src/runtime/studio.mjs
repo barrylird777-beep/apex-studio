@@ -9,8 +9,22 @@ import { MemoryStore } from "../core/memory.mjs";
 import { AssetRegistry } from "../assets/lineage.mjs";
 import { WorldState } from "../world/state.mjs";
 import { EventBus } from "../core/event-bus.mjs";
+import { UniverseScale } from "../core/universe.mjs";
+import { JobQueue } from "../core/jobs.mjs";
+import { ProviderRegistry } from "../core/provider.mjs";
+import { ToolRegistry } from "../agents/tool-registry.mjs";
+import { SessionManager } from "./session.mjs";
+import { createScene } from "../core/scene.mjs";
 export function createStudio(){
- const studio={version:"4.0.0",events:new EventBus(),projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),assets:new AssetRegistry(),world:new WorldState()};
- studio.events.on("asset.created",a=>studio.memory.remember({type:"asset",projectId:a.projectId,content:a.name,importance:.4}));
+ const events=new EventBus();
+ const studio={version:"5.0.0",events,projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),assets:new AssetRegistry(),world:new WorldState(),universe:new UniverseScale(),jobs:new JobQueue(events),providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),scenes:new Map()};
+ studio.universe.seedMilkyWay();
+ studio.createScene=input=>{const s=createScene(input);studio.scenes.set(s.id,s);events.emit("scene.created",s);return s;};
+ studio.getScene=id=>studio.scenes.get(id)??null;
+ studio.listScenes=()=>[...studio.scenes.values()];
+ studio.snapshot=()=>({projects:studio.projects.list(),memories:studio.memory.items,agents:studio.agents.list(),assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),universe:studio.universe.list(),scenes:studio.listScenes(),jobs:studio.jobs.list(),graph:studio.graph.snapshot()});
+ studio.restore=()=>studio;
+ events.on("asset.created",a=>studio.memory.remember({type:"asset",projectId:a.projectId,content:a.name,importance:.4}));
+ studio.jobs.register("memory.remember",p=>studio.memory.remember(p));
  return studio;
 }
