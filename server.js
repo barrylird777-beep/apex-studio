@@ -51,5 +51,4 @@ app.post('/api/forge', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Apex God-Tier Engine active on port ${PORT}`);
-});
+    console.log(`Apex God-Tier Engine active on port ${
