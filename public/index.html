@@ -2,88 +2,163 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Apex God-Tier Studio</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Studio | God-Tier Engine</title>
     <style>
-        body { background-color: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        :root {
+            --bg-color: #030407;
+            --panel-bg: #090d16;
+            --accent-cyan: #00f0ff;
+            --accent-purple: #8a00ff;
+            --accent-gold: #ffb700;
+            --text-main: #f0f0f5;
+            --text-muted: #8a8fa3;
+            --border-glow: rgba(0, 240, 255, 0.25);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 2.8rem; background: linear-gradient(45deg, var(--accent-cyan), var(--accent-purple), var(--accent-gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 0.3rem; }
+        p.subtitle { color: var(--text-muted); font-size: 0.95rem; letter-spacing: 2px; text-transform: uppercase; }
+        .main-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; width: 100%; max-width: 1350px; }
+        @media (max-width: 992px) { .main-layout { grid-template-columns: 1fr; } }
+        .generators-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 768px) { .generators-grid { grid-template-columns: 1fr; } }
+        .panel { background: var(--panel-bg); border: 1px solid var(--border-glow); border-radius: 12px; padding: 1.5rem; box-shadow: 0 0 25px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 1rem; }
+        .panel.full-width { grid-column: 1 / -1; }
+        .panel h2 { font-size: 1.2rem; color: var(--accent-cyan); border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center; }
+        select, textarea { width: 100%; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: var(--text-main); padding: 0.8rem; font-size: 0.9rem; outline: none; }
+        select { cursor: pointer; }
+        textarea { height: 90px; resize: vertical; }
+        textarea:focus, select:focus { border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(0, 240, 255, 0.2); }
+        button { background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); color: white; border: none; border-radius: 8px; padding: 0.7rem 1.2rem; font-weight: bold; font-size: 0.9rem; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { opacity: 0.9; }
+        .output-box { background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.9rem; min-height: 120px; max-height: 220px; overflow-y: auto; font-size: 0.85rem; line-height: 1.4; white-space: pre-wrap; color: #d1d5db; }
+        .image-output { display: flex; justify-content: center; align-items: center; min-height: 200px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; overflow: hidden; }
+        .image-output img { max-width: 100%; height: auto; border-radius: 6px; }
+        .vault-panel { background: var(--panel-bg); border: 1px solid var(--border-glow); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; max-height: 800px; }
+        .vault-list { overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; flex-grow: 1; }
+        .vault-item { background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--accent-gold); padding: 0.8rem; border-radius: 6px; font-size: 0.8rem; }
+        .vault-item .v-title { color: var(--accent-gold); font-weight: bold; margin-bottom: 0.2rem; text-transform: uppercase; }
+        .vault-item .v-content { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .loading { color: var(--accent-cyan); font-style: italic; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
     </style>
 </head>
-<body class="p-4 max-w-md mx-auto min-h-screen flex flex-col justify-between">
-
-    <div>
-        <header class="text-center my-6">
-            <h1 class="text-xl font-black tracking-wider text-purple-400">⚡ APEX STUDIO // GOD-TIER</h1>
-            <p class="text-xs text-zinc-500 mt-1">Unrestricted Node Core x FLUX.1</p>
-        </header>
-
-        <!-- Tabs -->
-        <div class="flex bg-zinc-900 p-1 rounded-xl mb-6 border border-zinc-800">
-            <button onclick="switchTab('oracle')" id="btn-oracle" class="flex-1 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition">Oracle</button>
-            <button onclick="switchTab('forge')" id="btn-forge" class="flex-1 py-2 text-xs font-bold rounded-lg text-zinc-400 transition">Forge</button>
-        </div>
-
-        <!-- TAB: ORACLE -->
-        <div id="panel-oracle" class="space-y-4">
-            <textarea id="idea-input" rows="4" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 placeholder-zinc-600" placeholder="Enter a dark narrative seed or concept..."></textarea>
-            <button onclick="runOracle()" class="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-purple-900/40">MANIFEST INTELLECT</button>
-            <div id="oracle-output" class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed min-h-[160px] text-zinc-300">Awaiting narrative parameter...</div>
-        </div>
-
-        <!-- TAB: FORGE -->
-        <div id="panel-forge" class="space-y-4 hidden">
-            <input type="text" id="prompt-input" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 placeholder-zinc-600" placeholder="Describe visual masterwork...">
-            <button onclick="runForge()" class="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-purple-900/40">IGNITE FLUX RENDER</button>
-            <div id="forge-output" class="bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center min-h-[260px] overflow-hidden border-zinc-800 text-zinc-600 text-xs">
-                Canvas ready for generation...
+<body>
+    <header>
+        <h1>Apex Studio</h1>
+        <p class="subtitle">God-Tier Multimedia Nexus</p>
+    </header>
+    <div class="main-layout">
+        <div class="generators-grid">
+            <div class="panel">
+                <h2>
+                    <span>Oracle // Text</span>
+                    <select id="oracleModel">
+                        <option value="moonshotai/Kimi-K2-Instruct">Kimi-K2-Instruct</option>
+                    </select>
+                </h2>
+                <textarea id="oracleInput" placeholder="Enter worldbuilding narrative prompt..."></textarea>
+                <button onclick="runOracle()">Consult Oracle</button>
+                <div class="output-box" id="oracleOutput">Awaiting command...</div>
+            </div>
+            <div class="panel">
+                <h2>
+                    <span>Forge // Vision</span>
+                    <select id="forgeModel">
+                        <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev</option>
+                    </select>
+                </h2>
+                <textarea id="forgeInput" placeholder="Describe visual concept..."></textarea>
+                <button onclick="runForge()">Ignite Forge</button>
+                <div class="image-output" id="forgeOutput">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">Matrix standby</span>
+                </div>
+            </div>
+            <div class="panel full-width">
+                <h2>
+                    <span>Bard // Audio Synthesis</span>
+                    <select id="bardModel">
+                        <option value="suno/bark">Bark (Voice Generation)</option>
+                    </select>
+                </h2>
+                <textarea id="bardInput" placeholder="Enter dialogue or narration to synthesize..."></textarea>
+                <button onclick="runBard()">Synthesize Voice</button>
+                <div class="output-box" id="bardOutput" style="display: flex; align-items: center; justify-content: center;">
+                    <span style="color: var(--text-muted);">Audio deck standing by</span>
+                </div>
             </div>
         </div>
+        <div class="vault-panel">
+            <h2>Asset Vault</h2>
+            <div class="vault-list" id="vaultList">
+                <div class="vault-item">
+                    <div class="v-title">System Status</div>
+                    <div class="v-content">Vault initialized. History tracking online.</div>
+                </div>
+            </div>
+            <button onclick="clearVault()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem;">Clear Vault</button>
+        </div>
     </div>
-
     <script>
-        function switchTab(tab) {
-            document.getElementById('panel-oracle').classList.toggle('hidden', tab !== 'oracle');
-            document.getElementById('panel-forge').classList.toggle('hidden', tab !== 'forge');
-            document.getElementById('btn-oracle').className = tab === 'oracle' ? 'flex-1 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition' : 'flex-1 py-2 text-xs font-bold rounded-lg text-zinc-400 transition';
-            document.getElementById('btn-forge').className = tab === 'forge' ? 'flex-1 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition' : 'flex-1 py-2 text-xs font-bold rounded-lg text-zinc-400 transition';
+        let vaultHistory = JSON.parse(localStorage.getItem('apex_vault') || '[]');
+        renderVault();
+        function addToVault(type, title, text) {
+            vaultHistory.unshift({ type, title, text, time: new Date().toLocaleTimeString() });
+            if (vaultHistory.length > 15) vaultHistory.pop();
+            localStorage.setItem('apex_vault', JSON.stringify(vaultHistory));
+            renderVault();
         }
-
+        function renderVault() {
+            const list = document.getElementById('vaultList');
+            if (vaultHistory.length === 0) {
+                list.innerHTML = '<div class="vault-item"><div class="v-title">Empty</div><div class="v-content">No assets generated yet.</div></div>';
+                return;
+            }
+            list.innerHTML = vaultHistory.map(item => `<div class="vault-item"><div class="v-title">${item.type} // ${item.title}</div><div class="v-content">${item.text}</div></div>`).join('');
+        }
+        function clearVault() { vaultHistory = []; localStorage.removeItem('apex_vault'); renderVault(); }
         async function runOracle() {
-            const idea = document.getElementById('idea-input').value;
-            const output = document.getElementById('oracle-output');
-            if(!idea) return;
-            output.innerText = "Synthesizing intelligence via Kimi K2...";
+            const idea = document.getElementById('oracleInput').value;
+            const model = document.getElementById('oracleModel').value;
+            const output = document.getElementById('oracleOutput');
+            if (!idea) return;
+            output.innerHTML = '<span class="loading">Channeling the oracle...</span>';
             try {
-                const res = await fetch('/api/oracle', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ idea })
-                });
+                const res = await fetch('/api/oracle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea, model }) });
                 const data = await res.json();
-                output.innerText = data.result || data.error;
-            } catch(e) {
-                output.innerText = "Network transmission failed: " + e.message;
-            }
+                if (data.error) throw new Error(data.error);
+                output.innerText = data.result;
+                addToVault('Oracle', model.split('/')[1], idea);
+            } catch (err) { output.innerText = 'Error: ' + err.message; }
         }
-
         async function runForge() {
-            const prompt = document.getElementById('prompt-input').value;
-            const container = document.getElementById('forge-output');
-            if(!prompt) return;
-            container.innerHTML = "Rendering FLUX.1-dev masterwork (Takes ~10s)...";
+            const prompt = document.getElementById('forgeInput').value;
+            const model = document.getElementById('forgeModel').value;
+            const output = document.getElementById('forgeOutput');
+            if (!prompt) return;
+            output.innerHTML = '<span class="loading">Forging reality...</span>';
             try {
-                const res = await fetch('/api/forge', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ prompt })
-                });
-                if (!res.ok) throw new Error("Generation failure");
+                const res = await fetch('/api/forge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, model }) });
+                if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || 'Failed to render image'); }
                 const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                container.innerHTML = `<img src="${url}" class="w-full h-full object-cover rounded-xl">`;
-            } catch(e) {
-                container.innerHTML = "Render failed: " + e.message;
-            }
+                output.innerHTML = `<img src="${URL.createObjectURL(blob)}" alt="Generated Masterpiece">`;
+                addToVault('Forge', 'Image Render', prompt);
+            } catch (err) { output.innerHTML = `<span style="color: #ff5555; font-size: 0.85rem;">Error: ${err.message}</span>`; }
+        }
+        async function runBard() {
+            const text = document.getElementById('bardInput').value;
+            const output = document.getElementById('bardOutput');
+            if (!text) return;
+            output.innerHTML = '<span class="loading">Synthesizing voice matrix...</span>';
+            try {
+                const res = await fetch('/api/bard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+                if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || 'Failed to synthesize audio'); }
+                const blob = await res.blob();
+                output.innerHTML = `<audio controls style="width: 100%;"><source src="${URL.createObjectURL(blob)}" type="audio/flac"></audio>`;
+                addToVault('Bard', 'Voice Synthesis', text);
+            } catch (err) { output.innerHTML = `<span style="color: #ff5555; font-size: 0.85rem;">Error: ${err.message}</span>`; }
         }
     </script>
 </body>
