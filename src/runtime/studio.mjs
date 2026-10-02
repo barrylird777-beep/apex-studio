@@ -239,6 +239,7 @@ export function createStudio(options={}) {
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
     studio.projects.restore(snapshot.projects??[]);
+    studio.world.restore(snapshot.world??{});
     studio.canon=createWorldCanon(snapshot.canon??{});
     studio.memory.items=Array.isArray(snapshot.memories)?structuredClone(snapshot.memories):[];
     studio.characters.restore(snapshot.characters??[]);
