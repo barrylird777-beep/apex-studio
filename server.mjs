@@ -10,6 +10,7 @@ import { requestId, securityHeaders, limitQuery, errorHandler } from "./src/api/
 const __filename=fileURLToPath(import.meta.url), __dirname=path.dirname(__filename);
 const app=express();
 const studio=bootstrap();
+await studio.load();
 app.disable("x-powered-by");
 app.use(requestId);
 app.use(securityHeaders);
