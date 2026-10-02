@@ -91,7 +91,7 @@ export function createStudio(options={}) {
     projects:studio.projects.snapshot(),memories:studio.memory.items,canon:studio.canon,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
     stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],episodes:[...studio.episodes.values()],graph:studio.graph.snapshot(),
-    characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
+    characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.snapshot(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list(),agentCrews:studio.agentCrews,growthExperiments:[...studio.growthExperiments.values()]
   });
   studio.snapshot=()=>({...studio._baseSnapshot(),version:studio.version,privacy:{...studio.privacy},
@@ -240,14 +240,21 @@ export function createStudio(options={}) {
     if(!snapshot||typeof snapshot!=="object") return studio;
     studio.projects.restore(snapshot.projects??[]);
     studio.canon=createWorldCanon(snapshot.canon??{});
-    for(const m of snapshot.memories??[]) studio.memory.items.push(m);
+    studio.memory.items=Array.isArray(snapshot.memories)?structuredClone(snapshot.memories):[];
     studio.characters.restore(snapshot.characters??[]);
+    studio.sources.restore(snapshot.sources??[]);
+    studio.knowledgeBase.restore(snapshot.documents??{});
     studio.timelines.restore(snapshot.timelines??[]);
     studio.render.restore(snapshot.renders??[]);
     studio.media.restore(snapshot.media??[]);
+    studio.assets.assets.clear(); for(const a of snapshot.assets??[]) studio.assets.assets.set(a.id,a);
+    studio.jobs.jobs.clear(); for(const j of snapshot.jobs??[]) studio.jobs.jobs.set(j.id,j);
     studio.audio.clear(); for(const a of snapshot.audio??[]) studio.audio.set(a.id,a);
     studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]); studio.releasePackages.clear(); for(const x of snapshot.releasePackages??[]) studio.releasePackages.set(x.id,x);
     studio.episodes.clear(); for(const x of snapshot.episodes??[]) studio.episodes.set(x.id,x);
+    studio.releases.restore(snapshot.releases??[]);
+    studio.collaboration.restore(snapshot.collaboration??[]);
+    studio.graph=new KnowledgeGraph(snapshot.graph??{entities:[],relations:[]});
     studio.agentCrews=Array.isArray(snapshot.agentCrews)?snapshot.agentCrews:[];
     studio.growthExperiments=new Map((snapshot.growthExperiments??[]).map(x=>[x.id,x]));
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
