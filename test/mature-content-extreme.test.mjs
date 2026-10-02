@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { 
+import {
   MatureContentManager,
   AIGirlfriendBot,
   FaceTimeSession,
@@ -21,8 +21,6 @@ import {
   SkinTextureGenerator,
   ArousalStateMachine
 } from "../src/core/mature-content-extreme.mjs";
-
-// EXTREME ADULT AI TEST SUITE
 
 console.log("Initializing Extreme Adult Content Tests...");
 
@@ -181,7 +179,14 @@ const dirtyTalk = new DirtyTalkGenerator({
   style: "filthy_explicit",
   useNames: true,
   moanFrequency: 0.7,
-  categories: ["size_worship", "penetration_describe", "cum_begging", "degradation_light", "body_part_focus", "action_encouragement"]
+  categories: [
+    "size_worship",
+    "penetration_describe",
+    "cum_begging",
+    "degradation_light",
+    "body_part_focus",
+    "action_encouragement"
+  ]
 });
 
 const sampleLines = dirtyTalk.generate(10);
