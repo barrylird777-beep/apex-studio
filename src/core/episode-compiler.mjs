@@ -30,7 +30,7 @@ export function compileEpisode(input={}){
   episode.storyArchitecture=input.storyArchitecture??buildStoryArchitecture({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs,storyIntelligence:episode.storyIntelligence});
   episode.storyArchitectureAudit=auditStoryArchitecture(episode.storyArchitecture);
   episode.qualityGate=episodeQualityGate(episode);
-  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyArchitectureRequired:true,storyIntelligenceRequired:true,storyArchitectureRequired:true};
+  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyArchitectureRequired:true,storyArchitectureRequired:true,storyIntelligenceRequired:true,storyArchitectureRequired:true};
   episode.compiler.canon={entityIds:[...episode.canonEntityIds],entityCount:episode.canonContext.entities.length};
   return episode;
 }
@@ -69,6 +69,7 @@ export function canCompileToStage(episode,stage){
     const checks={
       source:Boolean(episode.passage||episode.sourceRefs?.length),
       truth:Boolean(episode.truthGraph),
+      storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
       storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
       storyIntelligence:Boolean(episode.storyIntelligenceAudit?.ready),
       storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
