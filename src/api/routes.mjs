@@ -37,6 +37,7 @@ export function createApi(studio){
   r.post("/episodes",(req,res)=>{const x=studio.command("episode.create",req.body??{});Promise.resolve(x).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
   r.post("/episodes/plan",(req,res)=>{const x=studio.command("episode.plan",req.body??{});Promise.resolve(x).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
   r.post("/episodes/compile",(req,res)=>{Promise.resolve(studio.command("episode.compile",req.body??{})).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
+  r.post("/episodes/:id/canon",(req,res)=>{Promise.resolve(studio.command("canon.attachEpisode",{episodeId:req.params.id,entityIds:req.body?.entityIds??[]})).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message}));});
   r.post("/episodes/direct",(req,res)=>{Promise.resolve(studio.command("episode.direct",req.body??{})).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
   r.get("/episodes/:id",(req,res)=>{const episode=studio.episodes.get(req.params.id);if(!episode)return res.status(404).json({error:"Episode not found"});res.json(episode);});
   r.get("/episodes/:id/compiler",(req,res)=>{Promise.resolve(studio.command("episode.compilerReport",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
