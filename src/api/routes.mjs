@@ -47,6 +47,13 @@ export function createApi(studio){
  r.post("/mature/media",(req,res)=>res.json(studio.mature.setMediaType(req.body?.mediaType,req.body?.enabled)));
  r.post("/mature/projects",(req,res)=>res.status(201).json(studio.mature.setProject(req.body??{})));
  r.get("/mature/audit",(req,res)=>res.json(studio.mature.listAudit()));
+ r.get("/intimacy",(req,res)=>res.json(studio.intimacy.list()));
+ r.post("/intimacy",(req,res)=>res.status(201).json(studio.intimacy.create(req.body??{})));
+ r.post("/intimacy/:id",(req,res)=>res.json(studio.intimacy.update(req.params.id,req.body??{})));
+ r.post("/intimacy/:id/moments",(req,res)=>res.status(201).json(studio.intimacy.addMoment(req.params.id,req.body??{})));
+ r.get("/intimacy/:id/moments",(req,res)=>res.json(studio.intimacy.momentsFor(req.params.id)));
+ r.post("/intimacy/:id/date-nights",(req,res)=>res.status(201).json(studio.intimacy.startDateNight(req.params.id,req.body??{})));
+ r.post("/intimacy/date-nights/:id/end",(req,res)=>res.json(studio.intimacy.endDateNight(req.params.id)));
  r.get("/presence",(req,res)=>res.json(studio.presence.list()));
  r.post("/presence",(req,res)=>res.status(201).json(studio.presence.create(req.body??{})));
  r.post("/presence/:id",(req,res)=>res.json(studio.presence.update(req.params.id,req.body??{})));
