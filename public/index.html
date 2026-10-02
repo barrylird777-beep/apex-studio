@@ -65,4 +65,5 @@ async function runRender(id){try{await api('/api/studio/renders/'+encodeURICompo
 async function queueRender(){const msg=$("renderMsg");msg.textContent="";try{await api("/api/studio/renders",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sceneId:$("renderScene").value||null,format:$("renderFormat").value})});msg.className="success";msg.textContent="Render queued.";await loadProduction()}catch(e){msg.textContent=e.message}}
 sync();
 </script>
+<script src="/apex-dashboard.js"></script>
 </body></html>
