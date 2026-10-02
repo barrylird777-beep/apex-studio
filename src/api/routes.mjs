@@ -47,6 +47,11 @@ export function createApi(studio){
  r.post("/mature/media",(req,res)=>res.json(studio.mature.setMediaType(req.body?.mediaType,req.body?.enabled)));
  r.post("/mature/projects",(req,res)=>res.status(201).json(studio.mature.setProject(req.body??{})));
  r.get("/mature/audit",(req,res)=>res.json(studio.mature.listAudit()));
+ r.get("/presence",(req,res)=>res.json(studio.presence.list()));
+ r.post("/presence",(req,res)=>res.status(201).json(studio.presence.create(req.body??{})));
+ r.post("/presence/:id",(req,res)=>res.json(studio.presence.update(req.params.id,req.body??{})));
+ r.post("/presence/:id/start",(req,res)=>res.status(201).json(studio.presence.start(req.params.id,req.body?.media??"chat")));
+ r.post("/presence/sessions/:id/stop",(req,res)=>res.json(studio.presence.stop(req.params.id)));
  r.get("/companions",(req,res)=>res.json(studio.companions.list()));
  r.post("/companions",(req,res)=>res.status(201).json(studio.companions.create(req.body??{})));
  r.get("/companions/:id",(req,res)=>res.json(studio.companions.get(req.params.id)));
