@@ -15,6 +15,7 @@ export function createApi(studio){
   const renderWorker=new RenderWorker();
   r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
   r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
+  r.get("/command-center",(req,res)=>{try{res.json(studio.command("command.center",{}));}catch(e){res.status(400).json({error:e.message});}});
   r.get("/privacy",(req,res)=>res.json(studio.privacy));
   r.get("/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
   r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
