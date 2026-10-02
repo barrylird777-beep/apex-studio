@@ -29,6 +29,8 @@ export function createApi(studio){
   r.post("/stories/events/:eventId/scene",(req,res)=>{const scene=studio.biblical.toScene(req.params.eventId,req.body??{});studio.scenes.set(scene.id,scene);return res.status(201).json(scene);});
   r.get("/stories/events/:eventId/provenance",(req,res)=>res.json(studio.biblical.provenance(req.params.eventId)));
 
+  r.post("/retention/opening",(req,res)=>res.status(201).json(studio.retention.create(req.body??{})));
+  r.post("/retention/prompt",(req,res)=>res.json({prompt:studio.retention.prompt(req.body??{})}));
   r.get("/bible/catalog",(req,res)=>res.json(studio.bibleCatalog));
   r.get("/bible/versions",(req,res)=>res.json(studio.bibleCatalog.editions));
   r.get("/bible/search",(req,res)=>{const q=String(req.query.q??"").trim();const version=String(req.query.version??"kjv");if(!q)return res.status(400).json({error:"q is required"});return studio.bibleSearch(version,q).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}))});
