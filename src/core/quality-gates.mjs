@@ -2,6 +2,7 @@ import { auditTruthGraph, buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { auditEntertainment } from "./entertainment.mjs";
 import { auditStoryboard } from "./storyboard.mjs";
 import { auditScenes } from "./scene-purpose.mjs";
+import { auditStoryIntelligence } from "./story-intelligence.mjs";
 
 function result(name,ok,detail,blocker=false){ return {name,ok,detail,blocker}; }
 
@@ -46,8 +47,13 @@ export function releaseGate(episode={}){
   return {name:"release",ok,blockers:ok?[]:[result("release-package",false,"Release package is missing.",true)]};
 }
 
+export function storyIntelligenceGate(episode={}) {
+ const audit=auditStoryIntelligence(episode.storyIntelligence);
+ return {name:"story-intelligence",passed:audit.ready,blockers:audit.blockers,stats:audit.stats};
+}
+
 export function episodeQualityGate(episode={}){
-  const gates=[scriptureGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode)];
+  const gates=[scriptureGate(episode),storyIntelligenceGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode)];
   const blockers=gates.flatMap(g=>g.blockers??[]);
   return {ready:blockers.length===0,gates,blockers,release:releaseGate(episode),
     summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};
