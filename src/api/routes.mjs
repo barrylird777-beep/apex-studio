@@ -36,7 +36,7 @@ export function createApi(studio){
  r.post("/jobs/:id/run",async(req,res)=>res.json(await studio.jobs.run(req.params.id)));
  r.get("/tools",(req,res)=>res.json(studio.tools.describe()));
  r.get("/layers/status",(req,res)=>res.json(studio.mature.layerStatus()));
- r.post("/layers/configure",(req,res)=>res.json(studio.mature.configurePasscode(req.body?.passcode)));
+
  r.post("/layers/unlock",(req,res)=>res.json(studio.mature.unlock(req.body?.passcode,req.body?.ttlMs)));
  r.post("/layers/lock",(req,res)=>res.json(studio.mature.lock(req.body?.token)));
  r.get("/layers/mature",(req,res)=>{try{studio.mature.requireUnlocked(req.get("x-layers-token"));res.json(studio.mature.status())}catch(e){res.status(403).json({error:"Layers locked"})}});
