@@ -7,7 +7,7 @@ const ACTIONS={
  source:"Attach a Scripture passage or source reference.",
  research:"Resolve source-backed research and parallel-passage context.",
  truth:"Build and validate the provenance graph before dramatization.",
- story:"Define the story spine: desire, obstacle, escalation, reversal, payoff, and meaning.",
+ story:"Build and validate the source-bounded story spine: hook, question, stakes, desire, obstacle, escalation, reversal, crisis, payoff, and meaning.",
  script:"Write concise, filmable narration/dialogue with explicit provenance boundaries.",
  scenes:"Turn story beats into purposeful scenes; remove filler and repetitive exposition.",
  storyboard:"Create varied cinematic coverage with purposeful camera language and continuity references.",
@@ -42,6 +42,7 @@ export function directorPlan(episode={}){
   blockers:report.blockers??[],priorityBlocker:priority,quality,
   decisionRules:[
    "Never trade Scripture provenance for entertainment.",
+   "Never turn inference or dramatization into an unmarked Scripture claim.",
    "Never advance past a blocked production stage.",
    "Every scene must have a narrative purpose.",
    "Every shot must have a visual or emotional purpose.",

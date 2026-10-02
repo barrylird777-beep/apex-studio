@@ -6,6 +6,8 @@ import { buildTruthGraphFromEpisode, addClaim, auditTruthGraph } from "../src/co
 import { episodeQualityGate, continuityGate } from "../src/core/quality-gates.mjs";
 import { buildStoryboard, auditStoryboard } from "../src/core/storyboard.mjs";
 import { compileEpisode } from "../src/core/episode-compiler.mjs";
+import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence } from "../src/core/story-intelligence.mjs";
+import { buildStoryArchitecture, auditStoryArchitecture } from "../src/core/story-architect.mjs";
 
 test("episode readiness requires real production assets",()=>{
   const episode=createEpisode({title:"David and Goliath",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
@@ -92,4 +94,50 @@ test("compiled episode inherits selected world canon",async()=>{
   const episode=compileEpisode({title:"David",sourceRefs:["1 Samuel 17"],canonEntityIds:[david.id],worldCanon:canon});
   assert.equal(episode.canonContext.entities[0].name,"David");
   assert.equal(episode.compiler.canon.entityCount,1);
+});
+
+
+test("story intelligence tracks source-backed chronology and provenance",()=>{
+  const graph=createStoryIntelligence({passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
+  const david=addStoryEntity(graph,{name:"David",type:"person",sourceRefs:["1 Samuel 17"]});
+  const event=addStoryEvent(graph,{type:"conflict",title:"Confrontation",description:"Source-backed confrontation",entityIds:[david.id],sourceRefs:["1 Samuel 17"]});
+  addChronology(graph,{eventId:event.id,position:0,sourceRefs:["1 Samuel 17"]});
+  addStoryClaim(graph,{text:"A source-backed claim",classification:"scripture",sourceRefs:["1 Samuel 17"],entityIds:[david.id]});
+  assert.equal(auditStoryIntelligence(graph).ready,true);
+});
+
+test("story intelligence blocks unsupported provenance",()=>{
+  const graph=createStoryIntelligence({sourceRefs:["1 Samuel 17"]});
+  addStoryClaim(graph,{text:"Unreferenced claim",classification:"scripture"});
+  assert.equal(auditStoryIntelligence(graph).ready,false);
+  assert.ok(auditStoryIntelligence(graph).blockers.some(x=>x.code==="claim-provenance-missing"));
+});
+
+
+test("story architecture is source-bounded and auditable",()=>{
+  const intelligence=createStoryIntelligence({passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
+  const david=addStoryEntity(intelligence,{name:"David",type:"person",sourceRefs:["1 Samuel 17"]});
+  const event=addStoryEvent(intelligence,{type:"conflict",title:"Confrontation",description:"David confronts Goliath",entityIds:[david.id],sourceRefs:["1 Samuel 17"]});
+  addChronology(intelligence,{eventId:event.id,position:0,sourceRefs:["1 Samuel 17"]});
+  addStoryClaim(intelligence,{text:"The confrontation occurs in the supplied passage.",classification:"scripture",sourceRefs:["1 Samuel 17"],entityIds:[david.id]});
+  const architecture=buildStoryArchitecture({episodeId:"ep-1",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"],storyIntelligence:intelligence});
+  assert.equal(auditStoryArchitecture(architecture).ready,true);
+  assert.ok(architecture.beats.some(x=>x.type==="hook"));
+  assert.ok(architecture.beats.every(x=>x.dramatization||x.sourceRefs.length>0));
+});
+
+test("compiled episode requires a ready story architecture for the story stage",()=>{
+  const episode=compileEpisode({title:"David",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
+  assert.equal(episode.storyArchitectureAudit.ready,false);
+  const gate=episodeQualityGate(episode);
+  assert.ok(gate.gates.some(x=>x.name==="story-architecture"));
+});
+
+
+test("story architecture remains source-bounded",async()=>{
+ const {buildStoryArchitecture,auditStoryArchitecture}=await import("../src/core/story-architect.mjs");
+ const intelligence={sourceRefs:["1 Samuel 17"],events:[{title:"Confrontation",description:"David confronts Goliath",sourceRefs:["1 Samuel 17"]},{title:"Outcome",description:"The confrontation ends",sourceRefs:["1 Samuel 17"]}],claims:[{classification:"scripture",text:"The source records the confrontation.",sourceRefs:["1 Samuel 17"]}]};
+ const a=buildStoryArchitecture({passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"],storyIntelligence:intelligence});
+ assert.equal(auditStoryArchitecture(a).ready,true);
+ assert.ok(a.beats.every(b=>b.sourceRefs.length>0||b.dramatization));
 });
