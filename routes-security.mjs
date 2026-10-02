@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { sanitizeApexInput } from './sanitize.mjs';
 
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
