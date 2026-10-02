@@ -1,0 +1,6 @@
+node_modules/
+data/runtime/
+.env
+.env.*
+!.env.example
+.DS_Store

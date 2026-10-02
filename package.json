@@ -1,12 +1,12 @@
 {
   "name": "apex-studio",
-  "version": "5.1.0",
+  "version": "5.3.0",
   "private": true,
   "type": "module",
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check src/api/middleware.mjs && node --check src/api/routes.mjs && node --check src/runtime/studio.mjs && node --check src/runtime/bootstrap.mjs && node --check src/biblical/story-engine.mjs && node --check src/biblical/bible-catalog.mjs && node --check src/core/scene.mjs && node --check src/core/timeline.mjs && node --check src/core/render.mjs && node --check src/core/production.mjs && node --check src/core/realism.mjs",
+    "check": "node --check server.mjs && node --check src/api/middleware.mjs && node --check src/api/routes.mjs && node --check src/runtime/studio.mjs && node --check src/runtime/bootstrap.mjs && node --check src/biblical/story-engine.mjs && node --check src/biblical/bible-catalog.mjs && node --check src/core/scene.mjs && node --check src/core/timeline.mjs && node --check src/core/render.mjs && node --check src/core/production.mjs && node --check src/core/realism.mjs && node --check src/api/remote-policy.mjs",
     "test": "node --test",
     "test:core": "node --test test"
   },

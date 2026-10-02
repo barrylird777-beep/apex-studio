@@ -37,7 +37,7 @@ export function createStudio(options={}) {
   const events=new EventBus();
   const privacy=createPrivacyPolicy(options.privacy);
   const studio={
-    version:"5.1.0",events,privacy,localMode:new LocalMode(privacy),
+    version:"5.3.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
     projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
@@ -45,18 +45,19 @@ export function createStudio(options={}) {
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
     realism:new RealismManager(),assets:new AssetRegistry(),world:new WorldState(),jobs:new JobQueue(events),
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
-    persistence:new JsonStore(),commands:new CommandLog(),commandsRouter:new CommandRouter(),
-    metrics:new Metrics(),render:new RenderQueue(),releases:new ReleaseManager(),
-    collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine()
+    persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
+    commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
+    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine()
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
   studio.getScene=id=>studio.scenes.get(id)??null;
   studio.listScenes=()=>[...studio.scenes.values()];
+  studio.autosave=()=>studio.save().catch(error=>{studio.metrics?.increment?.("persistence.error");return null;});
   studio._baseSnapshot=()=>({
-    projects:studio.projects.list(),memories:studio.memory.items,agents:studio.agents.list(),
+    projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
-    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),graph:studio.graph.snapshot(),
+    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
   });
@@ -86,17 +87,21 @@ export function createStudio(options={}) {
     .register("realism.prompt",({id})=>studio.realism.promptSpec(id));
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
-    for(const p of snapshot.projects??[]) studio.projects.upsert(p);
+    studio.projects.restore(snapshot.projects??[]);
     for(const m of snapshot.memories??[]) studio.memory.items.push(m);
     studio.characters.restore(snapshot.characters??[]);
+    studio.timelines.restore(snapshot.timelines??[]);
+    studio.render.restore(snapshot.renders??[]);
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
+    studio.realism.restore(snapshot.realism??{});
     return studio;
   };
   studio.save=async()=>studio.persistence.save(studio.snapshot());
   studio.load=async(fallback={})=>studio.restore(await studio.persistence.load(fallback));
-  events.on("asset.created",asset=>studio.memory.remember({type:"asset",projectId:asset.projectId,content:asset.name,importance:.4}));
+  events.on("asset.created",asset=>{studio.memory.remember({type:"asset",projectId:asset.projectId,content:asset.name,importance:.4});void studio.autosave();});
+  events.on("scene.created",()=>void studio.autosave());
   studio.jobs.register("memory.remember",payload=>studio.memory.remember(payload));
   return studio;
 }
