@@ -18,6 +18,7 @@ export function compileEpisode(input={}){
     generatedAt:now()
   };
   episode.qualityGate=episodeQualityGate(episode);
+  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true};
   return episode;
 }
 
