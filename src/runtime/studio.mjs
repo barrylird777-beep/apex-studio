@@ -51,6 +51,7 @@ import { auditContinuity, continuityReport, continuityPrompt } from "../core/con
 import { createEpisodeGenome, auditEpisodeGenome, compareEpisodeGenomes, buildLearningPrompt } from "../core/episode-genome.mjs";
 import { diagnoseEpisode, repairPlan, productionDoctorPrompt } from "../core/production-doctor.mjs";
 import { createAutonomousPlan, nextDirectorAction, directorDecision } from "../core/autonomous-director.mjs";
+import { createUniverseMemory, recordEpisode, recordThread, openThreads, universeContext, auditUniverseMemory } from "../core/universe-memory.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
@@ -131,6 +132,12 @@ export function createStudio(options={}) {
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
+    .register("universe.create",input=>createUniverseMemory(input))
+    .register("universe.recordEpisode",input=>recordEpisode(input.memory,input.episode))
+    .register("universe.recordThread",input=>recordThread(input.memory,input.thread))
+    .register("universe.openThreads",memory=>openThreads(memory))
+    .register("universe.context",input=>universeContext(input.memory,input.query))
+    .register("universe.audit",memory=>auditUniverseMemory(memory))
     .register("director.autonomousPlan",input=>createAutonomousPlan(input))
     .register("director.nextAction",plan=>nextDirectorAction(plan))
     .register("director.decision",input=>directorDecision(input))
