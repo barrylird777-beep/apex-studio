@@ -22,7 +22,9 @@ export function entertainmentGate(episode={}){
   return {name:"entertainment",ok:blockers.length===0,blockers,audit};
 }
 
-export function sceneGate(episode={}){ const audit=auditScenes(episode.scenes); return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit}; }\n\nexport function continuityGate(episode={}){
+export function sceneGate(episode={}){ const audit=auditScenes(episode.scenes); return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit}; }
+
+export function continuityGate(episode={}){
   const shots=Array.isArray(episode.storyboard)?episode.storyboard:[];
   const audit=auditStoryboard(shots);
   return {name:"continuity",ok:audit.ready,blockers:audit.blockers,audit};
