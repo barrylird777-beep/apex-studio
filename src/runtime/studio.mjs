@@ -53,10 +53,11 @@ export function createStudio(options={}) {
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
   studio.getScene=id=>studio.scenes.get(id)??null;
   studio.listScenes=()=>[...studio.scenes.values()];
+  studio.autosave=()=>studio.save().catch(error=>{studio.metrics?.increment?.("persistence.error");return null;});
   studio._baseSnapshot=()=>({
-    projects:studio.projects.list(),memories:studio.memory.items,agents:studio.agents.list(),
+    projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
-    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),graph:studio.graph.snapshot(),
+    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
   });
@@ -86,9 +87,11 @@ export function createStudio(options={}) {
     .register("realism.prompt",({id})=>studio.realism.promptSpec(id));
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
-    for(const p of snapshot.projects??[]) studio.projects.upsert(p);
+    studio.projects.restore(snapshot.projects??[]);
     for(const m of snapshot.memories??[]) studio.memory.items.push(m);
     studio.characters.restore(snapshot.characters??[]);
+    studio.timelines.restore(snapshot.timelines??[]);
+    studio.render.restore(snapshot.renders??[]);
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
