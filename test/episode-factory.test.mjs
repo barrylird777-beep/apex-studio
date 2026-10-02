@@ -71,3 +71,14 @@ test("storyboard uses varied cinematic coverage",()=>{
   assert.equal(auditStoryboard(shots).ready,true);
   assert.equal(continuityGate({storyboard:shots}).ok,true);
 });
+
+
+test("world canon locks approved continuity fields",async()=>{
+  const {createWorldCanon,addCanonEntity,updateCanonEntity,relateCanon,auditCanon}=await import("../src/core/world-canon.mjs");
+  const canon=createWorldCanon();
+  const david=addCanonEntity(canon,{name:"David",type:"character",state:{wardrobe:"shepherd"},locked:["wardrobe"]});
+  const saul=addCanonEntity(canon,{name:"Saul",type:"character"});
+  relateCanon(canon,{from:david.id,to:saul.id,relation:"serves"});
+  assert.throws(()=>updateCanonEntity(canon,david.id,{wardrobe:"royal"}),/Canon field locked/);
+  assert.equal(auditCanon(canon).ready,true);
+});
