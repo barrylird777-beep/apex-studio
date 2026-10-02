@@ -56,6 +56,20 @@ export function auditCanon(canon,episode={}){
  return {ready:blockers.length===0,blockers,stats:{entities:entities.length,relationships:(canon?.relationships??[]).length,events:(canon?.events??[]).length,motifs:(canon?.motifs??[]).length}};
 }
 
+export function attachEpisodeToCanon(canon,episodeId,entityIds=[]){
+ const ids=new Set(entityIds);
+ for(const entity of canon?.entities??[]) if(ids.has(entity.id)&&!entity.episodeRefs.includes(episodeId)) entity.episodeRefs.push(episodeId);
+ for(const rel of canon?.relationships??[]) if((ids.has(rel.from)||ids.has(rel.to))&&!rel.episodeRefs.includes(episodeId)) rel.episodeRefs.push(episodeId);
+ canon.updatedAt=now(); return canonForEpisode(canon,episodeId);
+}
+
+export function canonContext(canon,entityIds=[]){
+ const ids=new Set(entityIds);
+ const entities=(canon?.entities??[]).filter(x=>ids.has(x.id));
+ const entitySet=new Set(entities.map(x=>x.id));
+ return {entities,relationships:(canon?.relationships??[]).filter(x=>entitySet.has(x.from)||entitySet.has(x.to)),events:(canon?.events??[]).filter(x=>x.entityIds?.some(id=>ids.has(id))),motifs:clone(canon?.motifs??[])};
+}
+
 export function canonForEpisode(canon,episodeId){
  return {
   entities:(canon?.entities??[]).filter(x=>x.episodeRefs?.includes(episodeId)),
