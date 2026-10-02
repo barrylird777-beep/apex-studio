@@ -47,6 +47,7 @@ import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } fro
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
 import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
+import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode } from "../core/world-canon.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -54,7 +55,7 @@ export function createStudio(options={}) {
   const studio={
     version:"5.4.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
-    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),
+    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
     agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),characters:new CharacterStore(),
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
@@ -70,7 +71,7 @@ export function createStudio(options={}) {
   studio.listScenes=()=>[...studio.scenes.values()];
   studio.autosave=()=>studio.save().catch(error=>{studio.metrics?.increment?.("persistence.error");return null;});
   studio._baseSnapshot=()=>({
-    projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
+    projects:studio.projects.snapshot(),memories:studio.memory.items,canon:studio.canon,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
     stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],episodes:[...studio.episodes.values()],graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
@@ -114,6 +115,12 @@ export function createStudio(options={}) {
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
     .register("truth.audit",graph=>auditTruthGraph(graph))
+    .register("canon.entity.add",input=>{const x=addCanonEntity(studio.canon,input);void studio.autosave();return x;})
+    .register("canon.entity.update",({id,...patch})=>{const x=updateCanonEntity(studio.canon,id,patch);void studio.autosave();return x;})
+    .register("canon.relate",input=>{const x=relateCanon(studio.canon,input);void studio.autosave();return x;})
+    .register("canon.event",input=>{const x=recordCanonEvent(studio.canon,input);void studio.autosave();return x;})
+    .register("canon.audit",({episodeId}={})=>auditCanon(studio.canon,episodeId?{episodeRefs:[episodeId]}:{}))
+    .register("canon.episode",({episodeId})=>canonForEpisode(studio.canon,episodeId))
     .register("episode.plan",input=>{const x=buildEpisodePlan(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.readiness",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeReadiness(x);})
     .register("episode.entertainment",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const audit=auditEntertainment(x);x.entertainmentAudit=audit;x.updatedAt=new Date().toISOString();void studio.autosave();return audit;})
@@ -122,6 +129,7 @@ export function createStudio(options={}) {
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
     studio.projects.restore(snapshot.projects??[]);
+    studio.canon=createWorldCanon(snapshot.canon??{});
     for(const m of snapshot.memories??[]) studio.memory.items.push(m);
     studio.characters.restore(snapshot.characters??[]);
     studio.timelines.restore(snapshot.timelines??[]);
