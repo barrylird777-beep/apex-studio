@@ -4,6 +4,7 @@ import { episodeQualityGate } from "./quality-gates.mjs";
 import { uid, now } from "./id.mjs";
 import { canonContext } from "./world-canon.mjs";
 import { createStoryIntelligence, auditStoryIntelligence } from "./story-intelligence.mjs";
+import { createStoryArchitecture, auditStoryArchitecture, buildStoryArchitecture } from "./story-architect.mjs";
 
 export const COMPILER_STAGES=Object.freeze([
   "source","research","truth","story","script","scenes","storyboard","visuals","audio","timeline","review","release"
@@ -22,8 +23,10 @@ export function compileEpisode(input={}){
     generatedAt:now()
   };
   episode.storyIntelligenceAudit=auditStoryIntelligence(episode.storyIntelligence);
+  episode.storyArchitecture=input.storyArchitecture??buildStoryArchitecture({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs,storyIntelligence:episode.storyIntelligence});
+  episode.storyArchitectureAudit=auditStoryArchitecture(episode.storyArchitecture);
   episode.qualityGate=episodeQualityGate(episode);
-  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyIntelligenceRequired:true};
+  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyIntelligenceRequired:true,storyArchitectureRequired:true};
   episode.compiler.canon={entityIds:[...episode.canonEntityIds],entityCount:episode.canonContext.entities.length};
   return episode;
 }
@@ -47,7 +50,7 @@ export function canCompileToStage(episode,stage){
   const required={
     research:["source"],
     truth:["source"],
-    story:["truth","storyIntelligence"],
+    story:["truth","storyIntelligence","storyArchitecture"],
     script:["story"],
     scenes:["script"],
     storyboard:["scenes"],
@@ -62,7 +65,8 @@ export function canCompileToStage(episode,stage){
     const checks={
       source:Boolean(episode.passage||episode.sourceRefs?.length),
       truth:Boolean(episode.truthGraph),
-      storyIntelligence:Boolean(episode.storyIntelligence&&!episode.storyIntelligenceAudit?.blockers?.some(x=>x.code==="analysis-empty")),
+      storyIntelligence:Boolean(episode.storyIntelligenceAudit?.ready),
+      storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
       story:Boolean(episode.storySummary),
       script:Boolean(episode.script),
       scenes:Boolean(episode.scenes?.length),
