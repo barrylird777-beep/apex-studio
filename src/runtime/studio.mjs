@@ -41,7 +41,8 @@ import bibleCatalog from "../../data/bible/catalog.json" with { type:"json" };
 import { searchBibleEdition } from "../bible/library.mjs";
 import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from "../core/release-package.mjs";
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
-import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode, buildEntertainmentPrompt } from "../core/entertainment.mjs";
+import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode } from "../core/episode-factory.mjs";
+import { buildEntertainmentPrompt } from "../core/entertainment.mjs";
 import { auditEntertainment } from "../core/entertainment.mjs";
 import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } from "../core/truth-graph.mjs";
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
@@ -125,7 +126,7 @@ export function createStudio(options={}) {
     .register("episode.plan",input=>{const x=buildEpisodePlan(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.readiness",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeReadiness(x);})
     .register("episode.entertainment",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const audit=auditEntertainment(x);x.entertainmentAudit=audit;x.updatedAt=new Date().toISOString();void studio.autosave();return audit;})
-    .register("episode.entertainmentPrompt",input=>buildEpisodeEntertainmentPrompt(input))
+    .register("episode.entertainmentPrompt",input=>buildEntertainmentPrompt(input))
     .register("episode.advance",({id,stage})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const next=advanceEpisode(x,stage);studio.episodes.set(id,next);void studio.autosave();return next;});
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
