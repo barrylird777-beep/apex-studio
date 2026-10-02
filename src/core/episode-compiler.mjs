@@ -3,6 +3,7 @@ import { buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { episodeQualityGate } from "./quality-gates.mjs";
 import { uid, now } from "./id.mjs";
 import { canonContext } from "./world-canon.mjs";
+import { createStoryIntelligence, auditStoryIntelligence } from "./story-intelligence.mjs";
 
 export const COMPILER_STAGES=Object.freeze([
   "source","research","truth","story","script","scenes","storyboard","visuals","audio","timeline","review","release"
@@ -12,6 +13,7 @@ export function compileEpisode(input={}){
   const episode=createEpisode(input);
   episode.id=input.id??episode.id;
   episode.truthGraph=input.truthGraph??buildTruthGraphFromEpisode(episode);
+  episode.storyIntelligence=input.storyIntelligence??createStoryIntelligence({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs});
   episode.canonContext=input.worldCanon?canonContext(input.worldCanon,episode.canonEntityIds):{entities:[],relationships:[],events:[],motifs:[]};
   episode.compiler={
     id:uid("compile"),
@@ -19,8 +21,9 @@ export function compileEpisode(input={}){
     stages:COMPILER_STAGES.map(name=>({name,status:name==="source"?"ready":"pending"})),
     generatedAt:now()
   };
+  episode.storyIntelligenceAudit=auditStoryIntelligence(episode.storyIntelligence);
   episode.qualityGate=episodeQualityGate(episode);
-  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true};
+  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyIntelligenceRequired:true};
   episode.compiler.canon={entityIds:[...episode.canonEntityIds],entityCount:episode.canonContext.entities.length};
   return episode;
 }
