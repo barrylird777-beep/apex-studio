@@ -37,18 +37,20 @@ import { createAudioTrack } from "../core/audio.mjs";
 import { buildStoryboard } from "../core/storyboard.mjs";
 import { VisualBible } from "../core/visual-bible.mjs";
 import { GenerationQueue, buildVisualPrompt } from "../core/visual-generation.mjs";
-import bibleCatalog from "../../data/bible/catalog.json" with { type:"json" };
+import bibleCatalog from "../data/bible/catalog.json" with { type:"json" };
 import { searchBibleEdition } from "../bible/library.mjs";
 import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from "../core/release-package.mjs";
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
-import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode } from "../core/episode-factory.mjs";
-import { buildEntertainmentPrompt } from "../core/entertainment.mjs";
+import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode, buildEpisodeEntertainmentPrompt } from "../core/episode-factory.mjs";
 import { auditEntertainment } from "../core/entertainment.mjs";
 import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } from "../core/truth-graph.mjs";
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
 import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
+import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
+import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
+import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -111,11 +113,27 @@ export function createStudio(options={}) {
     .register("episode.directReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return directorPlan(x);})
     .register("episode.compilerReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return compilerStageReport(x);})
     .register("episode.qualityGate",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeQualityGate(x);})
+    .register("storyIntelligence.create",input=>createStoryIntelligence(input))
+    .register("storyIntelligence.entity.add",({graph,...input})=>addStoryEntity(graph,input))
+    .register("storyIntelligence.event.add",({graph,...input})=>addStoryEvent(graph,input))
+    .register("storyIntelligence.claim.add",({graph,...input})=>addStoryClaim(graph,input))
+    .register("storyIntelligence.chronology.add",({graph,...input})=>addChronology(graph,input))
+    .register("storyIntelligence.audit",graph=>auditStoryIntelligence(graph))
+    .register("storyIntelligence.prompt",input=>storyIntelligencePrompt(input)).register("storyArchitecture.create",input=>createStoryArchitecture(input))
+    .register("storyArchitecture.build",input=>buildStoryArchitecture(input))
+    .register("storyArchitecture.beat.add",({architecture,...input})=>addStoryBeat(architecture,input))
+    .register("storyArchitecture.audit",architecture=>auditStoryArchitecture(architecture))
+    .register("storyArchitecture.prompt",input=>storyArchitecturePrompt(input))
     .register("truth.create",input=>createTruthGraph(input))
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
     .register("truth.audit",graph=>auditTruthGraph(graph))
+    .register("storyArchitecture.create",input=>createStoryArchitecture(input))
+    .register("storyArchitecture.build",input=>buildStoryArchitecture(input))
+    .register("storyArchitecture.beat.add",({architecture,...input})=>addStoryBeat(architecture,input))
+    .register("storyArchitecture.audit",architecture=>auditStoryArchitecture(architecture))
+    .register("storyArchitecture.prompt",input=>storyArchitecturePrompt(input))
     .register("canon.entity.add",input=>{const x=addCanonEntity(studio.canon,input);void studio.autosave();return x;})
     .register("canon.entity.update",({id,...patch})=>{const x=updateCanonEntity(studio.canon,id,patch);void studio.autosave();return x;})
     .register("canon.relate",input=>{const x=relateCanon(studio.canon,input);void studio.autosave();return x;})
@@ -126,7 +144,7 @@ export function createStudio(options={}) {
     .register("episode.plan",input=>{const x=buildEpisodePlan(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.readiness",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeReadiness(x);})
     .register("episode.entertainment",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const audit=auditEntertainment(x);x.entertainmentAudit=audit;x.updatedAt=new Date().toISOString();void studio.autosave();return audit;})
-    .register("episode.entertainmentPrompt",input=>buildEntertainmentPrompt(input))
+    .register("episode.entertainmentPrompt",input=>buildEpisodeEntertainmentPrompt(input))
     .register("episode.advance",({id,stage})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const next=advanceEpisode(x,stage);studio.episodes.set(id,next);void studio.autosave();return next;});
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
