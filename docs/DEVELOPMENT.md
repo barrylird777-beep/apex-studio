@@ -1,39 +1,20 @@
-## Development: Layers Bypass
-
-For local development only, you can unlock the protected LAYERS system without a passcode.
-
-### Requirements
-- `NODE_ENV=development`
-- `APEX_LAYERS_DEV_BYPASS=true`
-
-### Usage
+# Development
 
 ```bash
-NODE_ENV=development APEX_LAYERS_DEV_BYPASS=true npm start
+npm install
+npm start
+npm run check
+npm test
 ```
 
-Then call:
+Creative flow:
+1. Create a project.
+2. Register Scripture/source metadata.
+3. Create a biblical story and ordered events.
+4. Convert events into scenes.
+5. Build characters, shots, visuals, and narration.
+6. Assemble a timeline.
+7. Queue a render.
+8. Publish the release.
 
-``
-POST /api/studio/layers/unlock
-```
-
-You will receive a temporary session token prefixed with `dev-`. The bypass is recorded in the audit log as `layers.dev-bypass`.
-
-**Important:** This bypass is completely disabled in any non-development environment. Production always requires the real passcode.
-
-## Layers access modes
-
-The Layers wall supports explicit access modes through environment variables:
-
-- `APEX_LAYERS_ACCESS_MODE=passcode` — default; uses the configured Layers passcode.
-- `APEX_LAYERS_ACCESS_MODE=developer` — local development access without entering the passcode. Requires `NODE_ENV=development`.
-- `APEX_LAYERS_ACCESS_MODE=dev-bypass` — legacy compatibility mode; requires both `NODE_ENV=development` and `APEX_LAYERS_DEV_BYPASS=true`.
-
-Example:
-
-```bash
-NODE_ENV=development APEX_LAYERS_ACCESS_MODE=developer npm start
-```
-
-Developer sessions still receive temporary `dev-` tokens, respect the normal 1-minute to 24-hour TTL bounds, and are recorded in the Layers audit log. Production continues to use the passcode path.
+Keep provider credentials outside source control.
