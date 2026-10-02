@@ -43,12 +43,15 @@ import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
 import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode, buildEpisodeEntertainmentPrompt } from "../core/episode-factory.mjs";
 import { auditEntertainment } from "../core/entertainment.mjs";
+import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } from "../core/truth-graph.mjs";
+import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
+import { episodeQualityGate } from "../core/quality-gates.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
   const privacy=createPrivacyPolicy(options.privacy);
   const studio={
-    version:"5.3.0",events,privacy,localMode:new LocalMode(privacy),
+    version:"5.4.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
     projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
@@ -100,6 +103,14 @@ export function createStudio(options={}) {
     .register("realism.update",({id,...input})=>studio.realism.update(id,input))
     .register("realism.prompt",({id})=>studio.realism.promptSpec(id))
     .register("episode.create",input=>{const x=createEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.compile",input=>{const x=compileEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.compilerReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return compilerStageReport(x);})
+    .register("episode.qualityGate",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeQualityGate(x);})
+    .register("truth.create",input=>createTruthGraph(input))
+    .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
+    .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
+    .register("truth.link",({graph,...input})=>linkTruth(graph,input))
+    .register("truth.audit",graph=>auditTruthGraph(graph))
     .register("episode.plan",input=>{const x=buildEpisodePlan(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.readiness",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeReadiness(x);})
     .register("episode.entertainment",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const audit=auditEntertainment(x);x.entertainmentAudit=audit;x.updatedAt=new Date().toISOString();void studio.autosave();return audit;})
