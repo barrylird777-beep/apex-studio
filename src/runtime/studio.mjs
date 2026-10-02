@@ -37,7 +37,7 @@ export function createStudio(options={}) {
   const events=new EventBus();
   const privacy=createPrivacyPolicy(options.privacy);
   const studio={
-    version:"5.1.0",events,privacy,localMode:new LocalMode(privacy),
+    version:"5.3.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
     projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
@@ -45,9 +45,9 @@ export function createStudio(options={}) {
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
     realism:new RealismManager(),assets:new AssetRegistry(),world:new WorldState(),jobs:new JobQueue(events),
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
-    persistence:new JsonStore(),commands:new CommandLog(),commandsRouter:new CommandRouter(),
-    metrics:new Metrics(),render:new RenderQueue(),releases:new ReleaseManager(),
-    collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine()
+    persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
+    commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
+    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine()
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
@@ -92,6 +92,7 @@ export function createStudio(options={}) {
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
+    studio.realism.restore(snapshot.realism??{});
     return studio;
   };
   studio.save=async()=>studio.persistence.save(studio.snapshot());
