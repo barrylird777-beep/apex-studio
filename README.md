@@ -1,45 +1,65 @@
-# THE BIBLICALLY SEEN\n\nPowered by Apex Studio 5.0
+# THE BIBLICALLY SEEN
 
-Apex is a modular creative operating system for long-form worlds, characters, timelines, knowledge, agents, and production assets.
+**Apex Studio 5.0** is a creative operating system for stories, worlds, characters, knowledge, agents, and production.
 
-## Command systems
-- **Oracle** — research and source-aware knowledge workflows
-- **Forge** — visual generation workspace
-- **Bard** — audio / narration workspace
-- **Knowledge Graph** — typed entities, relations, and provenance
-- **Continuity Ledger** — persistent facts and contradiction detection
-- **Timeline Engine** — branchable histories and alternate continuities
-- **World State** — event-driven state changes and snapshots
-- **Character DNA** — identity, appearance, personality, relationships, and arc snapshots
-- **Asset Lineage** — revisions, parents, specifications, and provenance
-- **Memory** — project-scoped durable notes and lightweight retrieval
-- **Agent Registry / Orchestrator** — specialist agents and auditable jobs
-- **Production Graph** — concept through release dependency planning\n- **Knowledge Base + Embeddings** — document ingestion and adapter-ready retrieval\n- **Render + Release** — render queue and publication lifecycle\n- **Collaboration Log** — auditable multi-actor edits
+> **North star:** make the Bible and the human story visible with continuity, provenance, cinematic craft, and respect for the full complexity of human life.
 
-## System layers
-- **Universe Scale** — nested cosmic/galactic/stellar/world regions
-- **Scene + Shot Model** — production-ready story and camera primitives
-- **Job Queue** — long-running task boundary
-- **Provider Registry** — vendor/model-agnostic AI adapter boundary
-- **Tool Registry** — extensible specialist capabilities
-- **Evaluation Gates** — schema, continuity, provenance, safety, and production checks
-- **Import / Export** — portable studio bundles
-- **Sessions** — project-aware runtime context\n- **THE BIBLICALLY SEEN Source Registry** — Scripture, Enochic, Catholic, Orthodox, Jewish, ancient, historical, scholarly, esoteric, and original-fiction provenance classes
+## Product map
 
-## API
-- GET `/api/health`
-- GET `/api/studio/snapshot`
-- GET/POST `/api/studio/projects`
-- GET/POST `/api/studio/memory`
-- GET/POST `/api/studio/characters`
-- POST `/api/studio/assets`
+| Area | Responsibility |
+|---|---|
+| Biblical | Scripture, traditions, provenance, dramatization, biblical story development |
+| Human Life | Embodiment, mind, emotion, relationships, agency, society, culture, meaning, morality, spirituality |
+| Characters | Identity, appearance, personality, relationships, continuity, arcs |
+| World | Geography, environments, cultures, objects, timelines, state |
+| Knowledge | Sources, documents, embeddings, research, provenance |
+| Intelligence | Agents, orchestration, tools, decisions, strategy |
+| Visual | Forge, scene/shot systems, asset lineage, real-life realism |
+| Audio | Bard, narration, voice, music, sound |
+| Production | Planning, render, release, dependencies, continuity |
+| Mature | LAYERS, adult relationship themes, boundaries, consent, policy controls |
+| Runtime | Sessions, commands, persistence, recovery, observability |
+| API | Stable transport and integration surface |
 
-## Run
+## Human-life foundation
+
+Apex treats a person as more than a visual asset or a single trait. Character systems can represent embodied life, cognition, emotion, relationships, agency, social and cultural context, meaning, moral life, and spiritual life.
+
+The project's biblical worldview is that human beings are created by God. Biblical claims, historical claims, scholarly interpretations, traditions, dramatization, and original fiction must remain explicitly distinguishable.
+
+See `docs/HUMAN-LIFE-FOUNDATION.md`.
+
+## Visual realism
+
+Apex includes a reusable realism layer for convincing visual output: identity continuity, natural anatomy and motion, skin/hair/fabric detail, physically plausible lighting, realistic lenses, environmental detail, and continuity across shots.
+
+Realism should never be used to misrepresent generated material as documentary evidence.
+
+## System principles
+
+1. **Person before asset.**
+2. **Source before assertion.**
+3. **Continuity before spectacle.**
+4. **Context before simplification.**
+5. **Consent and boundaries for adult relationship features.**
+6. **Realism without deception.**
+7. **Tradition and dramatization stay labeled.**
+8. **Recovery and auditability are first-class.**
+9. **Capability belongs in reusable modules; workspaces are product surfaces.**
+
+## Core workspaces
+
+- **Oracle** — research and source-aware knowledge
+- **Forge** — visual creation
+- **Bard** — audio and narration
+- **THE BIBLICALLY SEEN** — biblical source and story command center
+- **LAYERS** — mature relationship and adult-theme controls
+
+## Development
+
 ```bash
 npm install
 npm start
 ```
 
-Apex deliberately keeps AI providers behind adapters and keeps source provenance separate from generated interpretation. Add only source text you are authorized to use.
-
-See `docs/ARCHITECTURE.md` for the system map.
+See `docs/ARCHITECTURE.md`, `docs/HUMAN-LIFE-FOUNDATION.md`, and `docs/DEVELOPMENT.md`.

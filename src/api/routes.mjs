@@ -3,6 +3,10 @@ import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { evaluateArtifact } from "../core/evaluation.mjs";
 export function createApi(studio){
  const r=express.Router();
+ const requireLayers=(req,res,next)=>{
+  try{ studio.mature.requireUnlocked(req.get("x-layers-token")); next(); }
+  catch(e){ res.status(403).json({error:"Layers locked"}); }
+ };
  r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
  r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
  r.get("/privacy",(req,res)=>res.json(studio.privacy));
@@ -35,12 +39,20 @@ export function createApi(studio){
  r.post("/jobs",(req,res)=>res.status(202).json(studio.jobs.enqueue(req.body?.type,req.body?.payload,req.body)));
  r.post("/jobs/:id/run",async(req,res)=>res.json(await studio.jobs.run(req.params.id)));
  r.get("/tools",(req,res)=>res.json(studio.tools.describe()));
+ r.get("/realism/status",(req,res)=>res.json({profiles:studio.realism.list().length}));
+ r.get("/adaptive-intimacy/status",(req,res)=>res.json({profiles:studio.adaptiveIntimacy.list().length,sessions:[...studio.adaptiveIntimacy.sessions.values()].length}));
  r.get("/layers/status",(req,res)=>res.json(studio.mature.layerStatus()));
+ r.post("/layers/runtime/open",(req,res)=>{try{res.status(201).json(studio.matureRuntime.open({...(req.body??{}),token:req.get("x-layers-token")}))}catch(e){res.status(403).json({error:e.message})}});
+ r.post("/layers/runtime/:id/close",(req,res)=>{try{res.json(studio.matureRuntime.close(req.params.id,req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
+ r.get("/layers/runtime",(req,res)=>{try{res.json(studio.matureRuntime.list(req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
+ r.get("/layers/runtime/status",(req,res)=>{try{res.json(studio.matureRuntime.status(req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
 
  r.post("/layers/unlock",(req,res)=>res.json(studio.mature.unlock(req.body?.passcode,req.body?.ttlMs)));
  r.post("/layers/lock",(req,res)=>res.json(studio.mature.lock(req.body?.token)));
  r.get("/layers/mature",(req,res)=>{try{studio.mature.requireUnlocked(req.get("x-layers-token"));res.json(studio.mature.status())}catch(e){res.status(403).json({error:"Layers locked"})}});
- r.use("/mature",requireLayers);\n r.use("/companions",requireLayers);\n r.get("/mature/status",(req,res)=>res.json(studio.mature.status()));
+ r.use("/mature",requireLayers);
+ r.use("/companions",requireLayers);
+ r.get("/mature/status",(req,res)=>res.json(studio.mature.status()));
  r.get("/mature/categories",(req,res)=>res.json({categories:studio.mature.status().categories}));
  r.post("/mature/policy",(req,res)=>res.json(studio.mature.updatePolicy(req.body??{})));
  r.post("/mature/category",(req,res)=>res.json(studio.mature.setCategory(req.body?.category,req.body?.enabled)));
@@ -54,6 +66,26 @@ export function createApi(studio){
  r.get("/intimacy/:id/moments",(req,res)=>res.json(studio.intimacy.momentsFor(req.params.id)));
  r.post("/intimacy/:id/date-nights",(req,res)=>res.status(201).json(studio.intimacy.startDateNight(req.params.id,req.body??{})));
  r.post("/intimacy/date-nights/:id/end",(req,res)=>res.json(studio.intimacy.endDateNight(req.params.id)));
+ r.get("/adaptive-intimacy",(req,res)=>res.json(studio.adaptiveIntimacy.list()));
+ r.post("/adaptive-intimacy",(req,res)=>res.status(201).json(studio.adaptiveIntimacy.create(req.body??{})));
+ r.get("/adaptive-intimacy/:id",(req,res)=>res.json(studio.adaptiveIntimacy.get(req.params.id)));
+ r.post("/adaptive-intimacy/:id",(req,res)=>res.json(studio.adaptiveIntimacy.update(req.params.id,req.body??{})));
+ r.post("/adaptive-intimacy/:id/boundaries",(req,res)=>res.json(studio.adaptiveIntimacy.setBoundary(req.params.id,req.body?.key,req.body?.value)));
+ r.post("/adaptive-intimacy/:id/transition",(req,res)=>res.json(studio.adaptiveIntimacy.transition(req.params.id,req.body?.level,{consent:req.body?.consent,reason:req.body?.reason??"user-request"})));
+ r.post("/adaptive-intimacy/:id/signals",(req,res)=>res.json(studio.adaptiveIntimacy.recordSignal(req.params.id,req.body?.signal,req.body?.value)));
+ r.post("/adaptive-intimacy/:id/preferences",(req,res)=>res.json(studio.adaptiveIntimacy.setPreference(req.params.id,req.body?.key,req.body?.value)));
+ r.post("/adaptive-intimacy/:id/evaluate",(req,res)=>res.json(studio.adaptiveIntimacy.evaluate(req.params.id,{requestedLevel:req.body?.level??null,consent:req.body?.consent===true})));
+ r.post("/adaptive-intimacy/:id/sessions",(req,res)=>res.status(201).json(studio.adaptiveIntimacy.startSession(req.params.id,req.body?.media??"chat")));
+ r.get("/adaptive-intimacy/:id/sessions",(req,res)=>res.json(studio.adaptiveIntimacy.session(req.params.id)));
+ r.post("/adaptive-intimacy/sessions/:id/pause",(req,res)=>res.json(studio.adaptiveIntimacy.pauseSession(req.params.id)));
+ r.post("/adaptive-intimacy/sessions/:id/resume",(req,res)=>res.json(studio.adaptiveIntimacy.resumeSession(req.params.id)));
+ r.post("/adaptive-intimacy/sessions/:id/end",(req,res)=>res.json(studio.adaptiveIntimacy.endSession(req.params.id)));
+ r.get("/adaptive-intimacy/:id/events",(req,res)=>res.json(studio.adaptiveIntimacy.eventsFor(req.params.id)));
+ r.get("/realism",(req,res)=>res.json(studio.realism.list()));
+ r.post("/realism",(req,res)=>res.status(201).json(studio.realism.create(req.body??{})));
+ r.get("/realism/:id",(req,res)=>res.json(studio.realism.get(req.params.id)));
+ r.post("/realism/:id",(req,res)=>res.json(studio.realism.update(req.params.id,req.body??{})));
+ r.post("/realism/:id/prompt",(req,res)=>res.json(studio.realism.promptSpec(req.params.id)));
  r.get("/presence",(req,res)=>res.json(studio.presence.list()));
  r.post("/presence",(req,res)=>res.status(201).json(studio.presence.create(req.body??{})));
  r.post("/presence/:id",(req,res)=>res.json(studio.presence.update(req.params.id,req.body??{})));
