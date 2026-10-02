@@ -2,7 +2,6 @@
 let visionScenes=[],visionSelected=null,visionSearchTimer=null;
 function renderVisionScenes(items){
   $("visionSceneList").innerHTML=items.map(x=>"<button class=\"row\" style=\"text-align:left;width:100%\" data-vision-id=\""+esc(x.id)+"\"><div><b>"+esc(x.title)+"</b><span class=\"muted\">"+(x.shots?.length??0)+" shots · "+esc(x.status||"draft")+"</span></div><span class=\"pill\">"+esc(x.id)+"</span></button>").join("")||empty("No scenes match.");$("visionSceneList").querySelectorAll("[data-vision-id]").forEach(b=>b.addEventListener("click",()=>selectVisionScene(b.dataset.visionId)));
-  $("visionSceneList").innerHTML=items.map(x=>"<button class='row' style='text-align:left;width:100%' onclick='selectVisionScene(""+esc(x.id)+"")'><div><b>"+esc(x.title)+"</b><span class='muted'>"+(x.shots?.length??0)+" shots · "+esc(x.status||"draft")+"</span></div><span class='pill'>"+esc(x.id)+"</span></button>").join("")||empty("No scenes match.");
 }
 async function loadVisionEditor(){try{const a=await api("/api/studio/scenes");renderVisionScenes(a);if(visionSelected)selectVisionScene(visionSelected.id)}catch(e){$("visionSceneList").innerHTML=empty(e.message)}}
 async function visionSearch(){
