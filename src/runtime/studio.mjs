@@ -50,6 +50,7 @@ import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
 import { auditContinuity, continuityReport, continuityPrompt } from "../core/continuity-engine.mjs";
 import { createEpisodeGenome, auditEpisodeGenome, compareEpisodeGenomes, buildLearningPrompt } from "../core/episode-genome.mjs";
 import { diagnoseEpisode, repairPlan, productionDoctorPrompt } from "../core/production-doctor.mjs";
+import { createAutonomousPlan, nextDirectorAction, directorDecision } from "../core/autonomous-director.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
@@ -130,6 +131,9 @@ export function createStudio(options={}) {
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
+    .register("director.autonomousPlan",input=>createAutonomousPlan(input))
+    .register("director.nextAction",plan=>nextDirectorAction(plan))
+    .register("director.decision",input=>directorDecision(input))
     .register("doctor.diagnose",input=>diagnoseEpisode(input))
     .register("doctor.repairPlan",diagnosis=>repairPlan(diagnosis))
     .register("doctor.prompt",input=>productionDoctorPrompt(input))
