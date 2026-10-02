@@ -22,6 +22,8 @@ export function entertainmentGate(episode={}){
   return {name:"entertainment",ok:blockers.length===0,blockers,audit};
 }
 
+export function productionDoctorGate(episode={}){return {name:"production-doctor",ok:true,blockers:[],audit:null};}
+
 export function sceneGate(episode={}){ const audit=auditScenes(episode.scenes); return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit}; }
 
 export function continuityGate(episode={}){
