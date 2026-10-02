@@ -53,6 +53,7 @@ import { diagnoseEpisode, repairPlan, productionDoctorPrompt } from "../core/pro
 import { createAutonomousPlan, nextDirectorAction, directorDecision } from "../core/autonomous-director.mjs";
 import { createUniverseMemory, recordEpisode, recordThread, openThreads, universeContext, auditUniverseMemory } from "../core/universe-memory.mjs";
 import { createProductionJob, planProductionJobs, runnableJobs, startJob, completeJob, failJob, blockPlan, auditProductionPlan, orchestratorDecision } from "../core/production-orchestrator.mjs";
+import { createArtifact, addArtifactCheck, validateArtifact, promoteArtifact, artifactLineage, auditArtifactGraph } from "../core/artifact-provenance.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
@@ -133,6 +134,12 @@ export function createStudio(options={}) {
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
+    .register("artifact.create",input=>createArtifact(input))
+    .register("artifact.check",input=>addArtifactCheck(input.artifact,input.check))
+    .register("artifact.validate",artifact=>validateArtifact(artifact))
+    .register("artifact.promote",input=>promoteArtifact(input.artifact,input.status))
+    .register("artifact.lineage",input=>artifactLineage(input.artifact,input.artifacts))
+    .register("artifact.audit",artifacts=>auditArtifactGraph(artifacts))
     .register("orchestrator.plan",input=>planProductionJobs(input))
     .register("orchestrator.job.create",input=>createProductionJob(input))
     .register("orchestrator.runnable",input=>runnableJobs(input.plan,input.completedIds))
