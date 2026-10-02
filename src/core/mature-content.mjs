@@ -26,7 +26,35 @@ export class MatureContentManager{
  constructor(input={}){this.policy=createMaturePolicy(input.policy);this.projects=new Map();this.audit=[];this.providers=new Map();this.layers={label:"LAYERS",configured:false,locked:true,session:null};if(input.passcode)this.configurePasscode(input.passcode);}
  configurePasscode(passcode){if(this.layers.configured)throw new Error("Layers passcode is already configured");if(String(passcode).length<6)throw new Error("Layers passcode must be at least 6 characters");const stored=hashPasscode(passcode);this.layers={label:"LAYERS",configured:true,locked:true,session:null,...stored};delete this.layers.hash;this._passcodeHash=stored.hash;this._passcodeSalt=stored.salt;this.record("layers.configured");return this.layerStatus();}
  layerStatus(){return {label:"LAYERS",configured:this.layers.configured,locked:this.layers.locked,expiresAt:this.layers.session?.expiresAt??null};}
- unlock(passcode,ttlMs=30*60*1000){if(process.env.NODE_ENV==="development"&&process.env.APEX_LAYERS_DEV_BYPASS==="true"){const token="dev-"+crypto.randomBytes(16).toString("hex");this.layers.session={token,expiresAt:Date.now()+30*60*1000};this.layers.locked=false;this.record("layers.dev-bypass");return {token,expiresAt:this.layers.session.expiresAt,mode:"development"};}if(!this.layers.configured||!this._passcodeHash)throw new Error("Layers passcode is not configured");const ok=verifyPasscode(passcode,{salt:this._passcodeSalt,hash:this._passcodeHash});if(!ok){this.record("layers.unlock.failed");throw new Error("Invalid Layers passcode");}const token=crypto.randomBytes(24).toString("hex");this.layers.session={token,expiresAt:Date.now()+Math.max(60_000,Math.min(Number(ttlMs)||30*60*1000,24*60*60*1000))};this.layers.locked=false;this.record("layers.unlocked");return {token,expiresAt:this.layers.session.expiresAt};}
+ unlock(passcode, ttlMs = 30 * 60 * 1000) {
+  // Development-only bypass
+  if (process.env.NODE_ENV === "development" && process.env.APEX_LAYERS_DEV_BYPASS === "true") {
+    const effectiveTtl = Math.max(60_000, Math.min(Number(ttlMs) || 30 * 60 * 1000, 24 * 60 * 60 * 1000));
+    const token = "dev-" + crypto.randomBytes(16).toString("hex");
+    this.layers.session = { token, expiresAt: Date.now() + effectiveTtl };
+    this.layers.locked = false;
+    this.record("layers.dev-bypass");
+    return { token, expiresAt: this.layers.session.expiresAt, mode: "development" };
+  }
+
+  // Normal production path
+  if (!this.layers.configured || !this._passcodeHash) {
+    throw new Error("Layers passcode is not configured");
+  }
+  const ok = verifyPasscode(passcode, { salt: this._passcodeSalt, hash: this._passcodeHash });
+  if (!ok) {
+    this.record("layers.unlock.failed");
+    throw new Error("Invalid Layers passcode");
+  }
+  const token = crypto.randomBytes(24).toString("hex");
+  this.layers.session = {
+    token,
+    expiresAt: Date.now() + Math.max(60_000, Math.min(Number(ttlMs) || 30 * 60 * 1000, 24 * 60 * 60 * 1000))
+  };
+  this.layers.locked = false;
+  this.record("layers.unlocked");
+  return { token, expiresAt: this.layers.session.expiresAt };
+}
  lock(token){if(token&&this.layers.session?.token!==token)throw new Error("Invalid Layers session");this.layers.session=null;this.layers.locked=true;this.record("layers.locked");return this.layerStatus();}
  isUnlocked(token){const s=this.layers.session;if(!s||s.token!==token)return false;if(Date.now()>s.expiresAt){this.lock(token);return false;}return true;}
  status(token){return {...this.layerStatus(),unlocked:this.isUnlocked(token)};}
