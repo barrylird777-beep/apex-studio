@@ -14,6 +14,7 @@ Apex uses defense-in-depth at the application and deployment boundaries. It does
 - Release authority remains human-controlled.
 - FFmpeg is launched with `spawn()` and an argument array rather than a shell command string.
 - No dynamic `eval()` or `Function()` execution is part of the application runtime.
+- The HTTP server binds to `127.0.0.1` by default outside Railway; deployments can explicitly set `APEX_BIND_HOST`.
 
 ## Deployment-level equivalents
 
