@@ -49,7 +49,7 @@ export function createApi(studio){
   r.post("/renders",(req,res)=>res.status(202).json(studio.render.enqueue(req.body??{})));
   r.patch("/renders/:id",(req,res)=>{const job=studio.render.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(job);});
   r.get("/renders/:id",(req,res)=>{const j=studio.render.get(req.params.id);if(!j)return res.status(404).json({error:"Render job not found"});res.json(j);});
-  r.post("/renders/:id/prepare",async(req,res)=>{const job=studio.render.get(req.params.id);if(!job)return res.status(404).json({error:"Render job not found"});const manifest=await studio.render.writeManifest(job,studio.listScenes(),req.body?.outDir);void studio.autosave();res.json(manifest);});
+  r.post("/renders/:id/prepare",async(req,res)=>{const job=studio.render.get(req.params.id);if(!job)return res.status(404).json({error:"Render job not found"});const manifest=await studio.render.writeManifest(job,studio.listScenes(),req.body?.outDir,studio.media.list(),[...studio.audio.values()]);void studio.autosave();res.json(manifest);});
 
   r.get("/releases",(req,res)=>res.json(studio.releases.list()));
   r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
