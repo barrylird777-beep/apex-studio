@@ -181,14 +181,17 @@ export function createStudio(options={}) {
     .register("growth.observation.record",input=>{const x=recordGrowthObservation(studio.growthExperiments.get(input.id),input.observation);studio.growthExperiments.set(x.id,x);return x;})
     .register("growth.report",({id})=>growthLearningReport(studio.growthExperiments.get(id)))
     .register("growth.prompt",input=>buildGrowthPrompt(input))
-    .register("command.center",()=>{
+    .register("command.center",async()=>{
       const episodes=[...studio.episodes.values()];
       const crews=studio.agentCrews??[];
       const growth=[...studio.growthExperiments.values()];
+      const blockers=await Promise.all(
+        episodes.map(async e=>({id:e.id,gate:await studio.command("episode.qualityGate",{id:e.id})}))
+      );
       return {
         version:studio.version,
         episodes:episodes.map(e=>({id:e.id,title:e.title,stage:e.stage,readiness:e.readiness})),
-        blockers:episodes.map(e=>({id:e.id,gate:studio.command("episode.qualityGate",{id:e.id})})),
+        blockers,
         crews:crews.map(c=>({id:c.id,episodeId:c.episodeId,agents:c.agents.length,approval:c.approval})),
         growth:growth.map(x=>({id:x.id,episodeId:x.episodeId,metrics:x.metrics,observations:x.observations.length})),
         humanAuthority:{finalDecisionRequired:true,releaseRequiresApproval:true}
