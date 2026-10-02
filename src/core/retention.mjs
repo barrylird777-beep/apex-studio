@@ -1,6 +1,7 @@
 import { uid, now } from "./id.mjs";
 
 export const RETENTION_OPENING_SECONDS=30;
+export const ENTERTAINMENT_PILLARS=Object.freeze(["curiosity","stakes","emotion","spectacle","character","escalation","surprise","payoff","pacing","sound_design"]);
 export const RETENTION_BEATS=Object.freeze([
  {start:0,end:3,name:"pattern_interrupt",goal:"Create immediate curiosity with a striking visual, question, or moment."},
  {start:3,end:8,name:"stakes",goal:"Make the viewer understand what could be lost, gained, revealed, or changed."},
@@ -41,7 +42,7 @@ RULES:
 - Use short, speakable narration.
 - Every visual beat must be filmable.
 - The final 2-3 seconds should naturally make the viewer want the next scene rather than ending the hook.
-- The opening should feel like part of the story, not an advertisement.
+- The opening should feel like part of the story, not an advertisement.\n- Every major sequence should contain at least one of: a question, conflict, reveal, emotional turn, visual spectacle, reversal, or payoff.\n- Avoid filler exposition; convert background information into visual storytelling whenever possible.\n- Vary shot scale, motion, silence, impact, and pacing so the episode does not feel visually or emotionally flat.\n- Build toward earned payoffs and callbacks rather than constant empty cliffhangers.
 
 OUTPUT:
 Return:
