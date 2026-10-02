@@ -7,6 +7,7 @@ import { episodeQualityGate, continuityGate } from "../src/core/quality-gates.mj
 import { buildStoryboard, auditStoryboard } from "../src/core/storyboard.mjs";
 import { compileEpisode } from "../src/core/episode-compiler.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence } from "../src/core/story-intelligence.mjs";
+import { buildStoryArchitecture, auditStoryArchitecture } from "../src/core/story-architect.mjs";
 
 test("episode readiness requires real production assets",()=>{
   const episode=createEpisode({title:"David and Goliath",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
@@ -110,4 +111,24 @@ test("story intelligence blocks unsupported provenance",()=>{
   addStoryClaim(graph,{text:"Unreferenced claim",classification:"scripture"});
   assert.equal(auditStoryIntelligence(graph).ready,false);
   assert.ok(auditStoryIntelligence(graph).blockers.some(x=>x.code==="claim-provenance-missing"));
+});
+
+
+test("story architecture is source-bounded and auditable",()=>{
+  const intelligence=createStoryIntelligence({passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
+  const david=addStoryEntity(intelligence,{name:"David",type:"person",sourceRefs:["1 Samuel 17"]});
+  const event=addStoryEvent(intelligence,{type:"conflict",title:"Confrontation",description:"David confronts Goliath",entityIds:[david.id],sourceRefs:["1 Samuel 17"]});
+  addChronology(intelligence,{eventId:event.id,position:0,sourceRefs:["1 Samuel 17"]});
+  addStoryClaim(intelligence,{text:"The confrontation occurs in the supplied passage.",classification:"scripture",sourceRefs:["1 Samuel 17"],entityIds:[david.id]});
+  const architecture=buildStoryArchitecture({episodeId:"ep-1",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"],storyIntelligence:intelligence});
+  assert.equal(auditStoryArchitecture(architecture).ready,true);
+  assert.ok(architecture.beats.some(x=>x.type==="hook"));
+  assert.ok(architecture.beats.every(x=>x.dramatization||x.sourceRefs.length>0));
+});
+
+test("compiled episode requires a ready story architecture for the story stage",()=>{
+  const episode=compileEpisode({title:"David",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
+  assert.equal(episode.storyArchitectureAudit.ready,false);
+  const gate=episodeQualityGate(episode);
+  assert.ok(gate.gates.some(x=>x.name==="story-architecture"));
 });
