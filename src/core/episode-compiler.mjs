@@ -47,7 +47,7 @@ export function canCompileToStage(episode,stage){
   const required={
     research:["source"],
     truth:["source"],
-    story:["truth"],
+    story:["truth","storyIntelligence"],
     script:["story"],
     scenes:["script"],
     storyboard:["scenes"],
@@ -62,6 +62,7 @@ export function canCompileToStage(episode,stage){
     const checks={
       source:Boolean(episode.passage||episode.sourceRefs?.length),
       truth:Boolean(episode.truthGraph),
+      storyIntelligence:Boolean(episode.storyIntelligence&&!episode.storyIntelligenceAudit?.blockers?.some(x=>x.code==="analysis-empty")),
       story:Boolean(episode.storySummary),
       script:Boolean(episode.script),
       scenes:Boolean(episode.scenes?.length),
