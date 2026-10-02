@@ -83,6 +83,27 @@ export function createApi(studio){
   r.post("/documents/:id/chunk",(req,res)=>res.json(studio.knowledgeBase.chunk(req.params.id,Number(req.body?.size??1200))));
   r.get("/documents/search",(req,res)=>res.json(studio.knowledgeBase.search(req.query.q??"",Number(req.query.limit??20))));
 
+  r.get("/editor/state",(req,res)=>res.json({scenes:studio.listScenes(),search:studio.search("",50)}));
+  r.get("/editor/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
+  r.patch("/editor/scenes/:id",async(req,res)=>{
+    const scene=studio.getScene(req.params.id);
+    if(!scene)return res.status(404).json({error:"Scene not found"});
+    const allowed=["title","notes","locationId","characters","beats","dialogue","continuityRefs","sourceRefs","status"];
+    const patch=Object.fromEntries(Object.entries(req.body??{}).filter(([k])=>allowed.includes(k)));
+    const before=structuredClone(scene);
+    try{
+      const result=studio.commands.execute({
+        targetId:scene.id,
+        type:"scene.patch",
+        do(){Object.assign(scene,structuredClone(patch));scene.updatedAt=new Date().toISOString();return scene;},
+        undo(){Object.assign(scene,structuredClone(before));return scene;}
+      });
+      await studio.save();
+      res.json(result);
+    }catch(e){res.status(400).json({error:e.message});}
+  });
+  r.post("/editor/undo",async(req,res)=>{try{const result=studio.commands.undo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/editor/redo",async(req,res)=>{try{const result=studio.commands.redo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
   r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
   r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
   r.post("/scenes/:id/storyboard",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});scene.shots=buildStoryboard(scene).map((s,i)=>({...s,index:i}));scene.updatedAt=new Date().toISOString();void studio.autosave();return res.status(201).json(scene.shots);});
