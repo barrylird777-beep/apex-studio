@@ -24,6 +24,7 @@ function textOf(value){
 }
 
 function hasSignal(text,terms){
+  if(!Array.isArray(terms)||terms.length===0) return false;
   const value=text.toLowerCase();
   return terms.some(term=>value.includes(term));
 }
