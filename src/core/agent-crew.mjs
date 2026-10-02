@@ -1,5 +1,5 @@
 import { uid, now } from "./id.mjs";
-import { createApprovalRecord, approveRecord, revokeRecord, approvalMatches } from "./approval-lineage.mjs";
+import { createApprovalRecord, approveRecord, revokeRecord } from "./approval-lineage.mjs";
 
 export const HUMAN_AUTHORITY=Object.freeze({
   finalDecisionRequired:true,
