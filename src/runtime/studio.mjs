@@ -58,6 +58,8 @@ import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recor
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, availableAgents, requestHumanApproval, approveCrewDecision, revokeCrewApproval, canRelease, auditCrew } from "../core/agent-crew.mjs";
+import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, recordGrowthObservation, growthLearningReport, buildGrowthPrompt } from "../core/growth-engine.mjs";
+
 
 
 export function createStudio(options={}) {
@@ -66,7 +68,7 @@ export function createStudio(options={}) {
   const studio={
     version:"5.4.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
-    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),agentCrews:[],
+    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),agentCrews:[],growthExperiments:new Map(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
     agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),characters:new CharacterStore(),
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
@@ -86,7 +88,7 @@ export function createStudio(options={}) {
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
     stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],episodes:[...studio.episodes.values()],graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
-    renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list(),agentCrews:studio.agentCrews
+    renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list(),agentCrews:studio.agentCrews,growthExperiments:[...studio.growthExperiments.values()]
   });
   studio.snapshot=()=>({...studio._baseSnapshot(),version:studio.version,privacy:{...studio.privacy},
     egressAudit:studio.egress.listAudit(),secrets:studio.secrets.exportRedacted(),
@@ -171,6 +173,12 @@ export function createStudio(options={}) {
     .register("crew.approval.approve",input=>approveCrewDecision(input.crew,input))
     .register("crew.approval.revoke",input=>revokeCrewApproval(input.crew,input.reason))
     .register("crew.canRelease",crew=>canRelease(crew))
+    .register("growth.variant.create",input=>createPackagingVariant(input))
+    .register("growth.experiment.create",input=>{const x=createGrowthExperiment(input);studio.growthExperiments.set(x.id,x);return x;})
+    .register("growth.metrics.record",input=>{const x=recordGrowthMetrics(studio.growthExperiments.get(input.id),input.metrics);studio.growthExperiments.set(x.id,x);return x;})
+    .register("growth.observation.record",input=>{const x=recordGrowthObservation(studio.growthExperiments.get(input.id),input.observation);studio.growthExperiments.set(x.id,x);return x;})
+    .register("growth.report",({id})=>growthLearningReport(studio.growthExperiments.get(id)))
+    .register("growth.prompt",input=>buildGrowthPrompt(input))
     .register("doctor.diagnose",input=>diagnoseEpisode(input))
     .register("doctor.repairPlan",diagnosis=>repairPlan(diagnosis))
     .register("doctor.prompt",input=>productionDoctorPrompt(input))
@@ -212,6 +220,7 @@ export function createStudio(options={}) {
     studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]); studio.releasePackages.clear(); for(const x of snapshot.releasePackages??[]) studio.releasePackages.set(x.id,x);
     studio.episodes.clear(); for(const x of snapshot.episodes??[]) studio.episodes.set(x.id,x);
     studio.agentCrews=Array.isArray(snapshot.agentCrews)?snapshot.agentCrews:[];
+    studio.growthExperiments=new Map((snapshot.growthExperiments??[]).map(x=>[x.id,x]));
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
