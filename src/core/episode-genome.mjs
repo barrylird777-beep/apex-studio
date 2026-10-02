@@ -78,6 +78,7 @@ export function buildLearningPrompt({genome={},history=[]}={}) {
     "Do not alter Scripture provenance.",
     "Use observed analytics only; separate measurements from hypotheses.",
     "Recommend the next experiment by identifying one variable to change and the metric that would test it.",
+    "Prefer evidence-backed iteration over assumed virality.",
     `Current genome: ${JSON.stringify(genome)}`,
     `History: ${JSON.stringify(history)}`
   ].join(" ");
