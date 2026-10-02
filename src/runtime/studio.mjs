@@ -49,6 +49,7 @@ import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
+import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -117,7 +118,11 @@ export function createStudio(options={}) {
     .register("storyIntelligence.claim.add",({graph,...input})=>addStoryClaim(graph,input))
     .register("storyIntelligence.chronology.add",({graph,...input})=>addChronology(graph,input))
     .register("storyIntelligence.audit",graph=>auditStoryIntelligence(graph))
-    .register("storyIntelligence.prompt",input=>storyIntelligencePrompt(input))
+    .register("storyIntelligence.prompt",input=>storyIntelligencePrompt(input)).register("storyArchitecture.create",input=>createStoryArchitecture(input))
+    .register("storyArchitecture.build",input=>buildStoryArchitecture(input))
+    .register("storyArchitecture.beat.add",({architecture,...input})=>addStoryBeat(architecture,input))
+    .register("storyArchitecture.audit",architecture=>auditStoryArchitecture(architecture))
+    .register("storyArchitecture.prompt",input=>storyArchitecturePrompt(input))
     .register("truth.create",input=>createTruthGraph(input))
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
