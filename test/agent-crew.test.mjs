@@ -13,12 +13,16 @@ test("crew defaults to recommendation-only agents and requires human approval",(
 
 test("release gate blocks until a human approves",()=>{
   const crew=createCrew();
-  const pending=requestHumanApproval(crew,{action:"release",reason:"Final release review"});
-  assert.equal(releaseGate({releasePackage:{},agentCrew:pending}).ok,false);
+  const releasePackage={id:"release_test_1",version:"1.0.0"};
+  const approval={action:"release",artifactIds:[releasePackage.id],episodeId:"episode_test_1",version:releasePackage.version,reason:"Final release review"};
+  const pending=requestHumanApproval(crew,approval);
+  assert.equal(releaseGate({id:"episode_test_1",releasePackage,agentCrew:pending}).ok,false);
   const approved=approveCrewDecision(pending,{approver:"human",decisionId:pending.approval.decisionId});
-  assert.equal(canRelease(approved),true);
-  assert.equal(releaseGate({releasePackage:{},agentCrew:approved}).ok,true);
+  assert.equal(canRelease(approved,approval),true);
+  assert.equal(releaseGate({id:"episode_test_1",releasePackage,agentCrew:approved}).ok,true);
+  assert.equal(canRelease(approved,{...approval,artifactIds:["tampered"]}),false);
+  assert.equal(canRelease(approved,{...approval,version:"2.0.0"}),false);
   const revoked=revokeCrewApproval(approved,"Changed mind");
   assert.equal(canRelease(revoked),false);
-  assert.equal(releaseGate({releasePackage:{},agentCrew:revoked}).ok,false);
+  assert.equal(releaseGate({id:"episode_test_1",releasePackage,agentCrew:revoked}).ok,false);
 });
