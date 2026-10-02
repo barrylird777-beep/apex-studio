@@ -4,3 +4,7 @@ data/runtime/
 .env.*
 !.env.example
 .DS_Store
+.apex_auth/
+uploads/
+.apex_vault/
+.apex_vault_backups/
