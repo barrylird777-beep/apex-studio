@@ -3,8 +3,24 @@ import { auditEntertainment } from "./entertainment.mjs";
 import { auditStoryboard } from "./storyboard.mjs";
 import { auditScenes } from "./scene-purpose.mjs";
 import { canRelease } from "./agent-crew.mjs";
+import { auditApexCoreContract } from "./apex-core.mjs";
 
 function result(name,ok,detail,blocker=false){ return {name,ok,detail,blocker}; }
+
+export function apexCoreGate(episode={}){
+  const audit=auditApexCoreContract(episode);
+  return {
+    name:"apex-core",
+    ok:audit.ready,
+    blockers:audit.blockers.map(x=>result(x.code,false,x.message,true)),
+    audit,
+    checks:[
+      result("god-centered",true,"God is the foundational center of Apex."),
+      result("truth-over-growth",true,"Growth objectives remain subordinate to source truth."),
+      result("human-final-authority",true,"Apex does not replace the human final decision.")
+    ]
+  };
+}
 
 export function scriptureGate(episode={}){
   const graph=episode.truthGraph??buildTruthGraphFromEpisode(episode);
@@ -28,8 +44,8 @@ export function entertainmentGate(episode={}){
 
 export function productionDoctorGate(episode={}){
   const checks=[
-    result("story-grounded",Boolean(episode.truthGraph||episode.storyIntelligence),"Story has source-grounded intelligence.",true),
-    result("story-structured",Boolean(episode.storyArchitecture||episode.storyPlan),"Story has an explicit architecture/plan.",true),
+    result("story-grounded",Boolean(episode.truthGraph||episode.storyIntelligence||episode.passage),"Story has source-grounded intelligence.",true),
+    result("story-structured",Boolean(episode.storyArchitecture||episode.storyPlan||episode.storySummary),"Story has an explicit architecture/summary.",true),
     result("continuity-reviewed",Boolean(episode.continuityAudit||episode.storyboard?.length),"Production has continuity evidence.",true),
     result("production-artifacts",Boolean(episode.script&&episode.scenes?.length&&episode.storyboard?.length&&episode.timeline),"Core production artifacts are present.",true)
   ];
@@ -60,7 +76,9 @@ export function productionGate(episode={}){
 
 export function releaseGate(episode={}){
   const packageReady=Boolean(episode.releasePackage);
-  const pkg=episode.releasePackage??{};\n  const approvalInput={action:"release",artifactIds:[pkg.id].filter(Boolean),episodeId:episode.id??episode.agentCrew?.episodeId??null,version:pkg.version??episode.version??null};\n  const authorityReady=canRelease(episode.agentCrew??{approval:{required:true,status:"pending"}},approvalInput);
+  const pkg=episode.releasePackage??{};
+  const approvalInput={action:"release",artifactIds:[pkg.id].filter(Boolean),episodeId:episode.id??episode.agentCrew?.episodeId??null,version:pkg.version??episode.version??null};
+  const authorityReady=canRelease(episode.agentCrew??{approval:{required:true,status:"pending"}},approvalInput);
   const blockers=[];
   if(!packageReady) blockers.push(result("release-package",false,"Release package is missing.",true));
   if(!authorityReady) blockers.push(result("human-approval",false,"Final human approval is required before release.",true));
@@ -68,7 +86,7 @@ export function releaseGate(episode={}){
 }
 
 export function episodeQualityGate(episode={}){
-  const gates=[scriptureGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode),productionDoctorGate(episode)];
+  const gates=[apexCoreGate(episode),scriptureGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode),productionDoctorGate(episode)];
   const blockers=gates.flatMap(g=>g.blockers??[]);
   return {ready:blockers.length===0,gates,blockers,release:releaseGate(episode),
     summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};
