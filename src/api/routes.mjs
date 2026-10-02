@@ -20,6 +20,7 @@ export function createApi(studio){
   r.get("/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
   r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
   r.get("/biblical/catalog",(req,res)=>res.json(bibleCatalog()));
+  r.get("/sacred/catalog",(req,res)=>res.json(studio.command("sacred.catalog",{})));
 
   r.get("/projects",(req,res)=>res.json(studio.projects.list()));
   r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
