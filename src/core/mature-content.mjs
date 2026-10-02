@@ -27,17 +27,21 @@ export class MatureContentManager{
  configurePasscode(passcode){if(this.layers.configured)throw new Error("Layers passcode is already configured");if(String(passcode).length<6)throw new Error("Layers passcode must be at least 6 characters");const stored=hashPasscode(passcode);this.layers={label:"LAYERS",configured:true,locked:true,session:null,...stored};delete this.layers.hash;this._passcodeHash=stored.hash;this._passcodeSalt=stored.salt;this.record("layers.configured");return this.layerStatus();}
  layerStatus(){return {label:"LAYERS",configured:this.layers.configured,locked:this.layers.locked,expiresAt:this.layers.session?.expiresAt??null};}
  unlock(passcode, ttlMs = 30 * 60 * 1000) {
-  // Development-only bypass
-  if (process.env.NODE_ENV === "development" && process.env.APEX_LAYERS_DEV_BYPASS === "true") {
+  const accessMode = process.env.APEX_LAYERS_ACCESS_MODE ?? "passcode";
+  const development = process.env.NODE_ENV === "development";
+  const developerMode = accessMode === "developer" && development;
+  const legacyDevBypass = accessMode === "dev-bypass" && development && process.env.APEX_LAYERS_DEV_BYPASS === "true";
+
+  if (developerMode || legacyDevBypass) {
     const effectiveTtl = Math.max(60_000, Math.min(Number(ttlMs) || 30 * 60 * 1000, 24 * 60 * 60 * 1000));
     const token = "dev-" + crypto.randomBytes(16).toString("hex");
     this.layers.session = { token, expiresAt: Date.now() + effectiveTtl };
     this.layers.locked = false;
-    this.record("layers.dev-bypass");
-    return { token, expiresAt: this.layers.session.expiresAt, mode: "development" };
+    this.record("layers.dev-bypass", { accessMode: developerMode ? "developer" : "dev-bypass" });
+    return { token, expiresAt: this.layers.session.expiresAt, mode: developerMode ? "developer" : "development" };
   }
 
-  // Normal production path
+  // Normal production/passcode path
   if (!this.layers.configured || !this._passcodeHash) {
     throw new Error("Layers passcode is not configured");
   }
