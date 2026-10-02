@@ -1,6 +1,6 @@
 import { uid, now } from "./id.mjs";
 
-export const GENOME_VERSION = "1.0.0";
+export const GENOME_VERSION = "1.1.0";
 
 const arr = value => Array.isArray(value) ? value : [];
 const clean = value => String(value ?? "").trim();
@@ -34,7 +34,8 @@ export function createEpisodeGenome(input = {}) {
     outcomes: {
       published: Boolean(input.published),
       metrics: input.metrics ?? {},
-      notes: arr(input.notes)
+      notes: arr(input.notes),
+      growth: input.growth ?? null
     },
     createdAt: input.createdAt ?? now(),
     updatedAt: now()
@@ -75,6 +76,8 @@ export function buildLearningPrompt({genome={},history=[]}={}) {
     "Identify repeatable production patterns, continuity risks, pacing opportunities, and workflow bottlenecks.",
     "Do not infer audience preferences from missing data.",
     "Do not alter Scripture provenance.",
+    "Use observed analytics only; separate measurements from hypotheses.",
+    "Recommend the next experiment by identifying one variable to change and the metric that would test it.",
     `Current genome: ${JSON.stringify(genome)}`,
     `History: ${JSON.stringify(history)}`
   ].join(" ");
