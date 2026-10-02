@@ -1,11 +1,12 @@
 import { uid, now } from "./id.mjs";
 
 export const GENERATION_MODES=Object.freeze(["local-comfyui","remote-provider","manual"]);
-export function buildVisualPrompt({shot,characters=[],location=null,style="cinematic biblical drama"}={}){
+export const APEX_VISUAL_STYLE=Object.freeze({name:"APEX Dark Fantasy Anime",prompt:"dark fantasy anime, sharp cel-shading, high-contrast cinematic lighting, epic and intense, highly detailed, dramatic composition, expressive anime character design, atmospheric depth, rich environmental detail, cinematic color grading",negative:"photorealistic, western cartoon, flat lighting, low detail, soft cel shading, chibi, modern clothing, modern architecture, text, watermark, extra limbs, inconsistent face, inconsistent wardrobe"});
+export function buildVisualPrompt({shot,characters=[],location=null,style=APEX_VISUAL_STYLE.prompt}={}){
  const refs=characters.map(c=>c?("Character "+c.name+": "+c.description+"; appearance: "+JSON.stringify(c.appearance)+"; wardrobe: "+JSON.stringify(c.wardrobe)):"").filter(Boolean);
  const loc=location?("Location "+location.name+": "+location.description+"; environment: "+JSON.stringify(location.environment)+"; architecture: "+JSON.stringify(location.architecture)):"";
  const provenance=(shot.sourceRefs??[]).map(x=>x.locator??x.sourceId).filter(Boolean).join(", ");
- return {positive:[style,shot.visualPrompt,refs.join(" "),loc,"Maintain continuity with reference media.",provenance?"Biblical source context: "+provenance:""].filter(Boolean).join("\n"),negative:"modern clothing, modern architecture, text, watermark, extra limbs, inconsistent face, inconsistent wardrobe",seed:shot.seed??null};
+ return {positive:[style,shot.visualPrompt,refs.join(" "),loc,"Maintain continuity with reference media.",provenance?"Biblical source context: "+provenance:""].filter(Boolean).join("\n"),negative:[APEX_VISUAL_STYLE.negative,shot.negativePrompt??""] .filter(Boolean).join(", "),seed:shot.seed??null};
 }
 export function createGenerationJob(input={}){
  return {id:input.id??uid("gen"),type:input.type??"image",mode:input.mode??"local-comfyui",shotId:input.shotId??null,prompt:input.prompt??null,workflow:input.workflow??null,status:"queued",createdAt:now(),updatedAt:now(),resultMediaId:null,error:null};
