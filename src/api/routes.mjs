@@ -47,6 +47,14 @@ export function createApi(studio){
  r.post("/mature/media",(req,res)=>res.json(studio.mature.setMediaType(req.body?.mediaType,req.body?.enabled)));
  r.post("/mature/projects",(req,res)=>res.status(201).json(studio.mature.setProject(req.body??{})));
  r.get("/mature/audit",(req,res)=>res.json(studio.mature.listAudit()));
+ r.get("/adaptive-intimacy",(req,res)=>res.json(studio.adaptiveIntimacy.list()));
+ r.post("/adaptive-intimacy",(req,res)=>res.status(201).json(studio.adaptiveIntimacy.create(req.body??{})));
+ r.get("/adaptive-intimacy/:id",(req,res)=>res.json(studio.adaptiveIntimacy.get(req.params.id)));
+ r.post("/adaptive-intimacy/:id",(req,res)=>res.json(studio.adaptiveIntimacy.update(req.params.id,req.body??{})));
+ r.post("/adaptive-intimacy/:id/boundaries",(req,res)=>res.json(studio.adaptiveIntimacy.setBoundary(req.params.id,req.body?.key,req.body?.value)));
+ r.post("/adaptive-intimacy/:id/transition",(req,res)=>res.json(studio.adaptiveIntimacy.transition(req.params.id,req.body?.level,{consent:req.body?.consent,reason:req.body?.reason??"user-request"})));
+ r.post("/adaptive-intimacy/:id/signals",(req,res)=>res.json(studio.adaptiveIntimacy.recordSignal(req.params.id,req.body?.signal,req.body?.value)));
+ r.get("/adaptive-intimacy/:id/events",(req,res)=>res.json(studio.adaptiveIntimacy.eventsFor(req.params.id)));
  r.get("/presence",(req,res)=>res.json(studio.presence.list()));
  r.post("/presence",(req,res)=>res.status(201).json(studio.presence.create(req.body??{})));
  r.post("/presence/:id",(req,res)=>res.json(studio.presence.update(req.params.id,req.body??{})));
