@@ -32,6 +32,9 @@ import { LocalMode } from "../core/local-mode.mjs";
 import { createSecretStore } from "../core/secrets.mjs";
 import { EgressPolicy } from "../core/egress.mjs";
 import { RealismManager } from "../core/realism.mjs";
+import { MediaRegistry } from "../core/media.mjs";
+import { createAudioTrack } from "../core/audio.mjs";
+import { buildStoryboard } from "../core/storyboard.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -47,7 +50,7 @@ export function createStudio(options={}) {
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
     persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
     commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
-    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine()
+    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map()
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
@@ -57,7 +60,7 @@ export function createStudio(options={}) {
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
-    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),graph:studio.graph.snapshot(),
+    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
   });
@@ -80,6 +83,9 @@ export function createStudio(options={}) {
     .register("create.source",input=>studio.sources.add(input))
     .register("create.document",input=>studio.knowledgeBase.addDocument(input))
     .register("queue.render",input=>studio.render.enqueue(input))
+    .register("create.media",input=>studio.media.add(input))
+    .register("create.audio",input=>{const a=createAudioTrack(input);studio.audio.set(a.id,a);return a;})
+    .register("storyboard.build",({sceneId})=>{const scene=studio.getScene(sceneId);if(!scene)throw new Error("Scene not found");const shots=buildStoryboard(scene);scene.shots=shots.map((s,i)=>({...s,index:i}));scene.updatedAt=new Date().toISOString();return scene.shots;})
     .register("create.release",input=>studio.releases.create(input))
     .register("research.create",input=>studio.research.create(input))
     .register("realism.create",input=>studio.realism.create(input))
@@ -92,6 +98,8 @@ export function createStudio(options={}) {
     studio.characters.restore(snapshot.characters??[]);
     studio.timelines.restore(snapshot.timelines??[]);
     studio.render.restore(snapshot.renders??[]);
+    studio.media.restore(snapshot.media??[]);
+    studio.audio.clear(); for(const a of snapshot.audio??[]) studio.audio.set(a.id,a);
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
