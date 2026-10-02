@@ -45,6 +45,7 @@ export function createApi(studio){
   r.get("/episodes/:id",(req,res)=>{const episode=studio.episodes.get(req.params.id);if(!episode)return res.status(404).json({error:"Episode not found"});res.json(episode);});
   r.get("/episodes/:id/compiler",(req,res)=>{Promise.resolve(studio.command("episode.compilerReport",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
   r.get("/episodes/:id/director",(req,res)=>{Promise.resolve(studio.command("episode.directReport",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
+  r.get("/episodes/:id/story-architecture",(req,res)=>{Promise.resolve(studio.command("storyArchitecture.audit",studio.episodes.get(req.params.id)?.storyArchitecture)).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
   r.get("/episodes/:id/quality-gate",(req,res)=>{Promise.resolve(studio.command("episode.qualityGate",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
   r.get("/episodes/:id/readiness",(req,res)=>{Promise.resolve(episodeReadinessRoute(studio,req.params.id)).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
   r.post("/episodes/:id/entertainment-audit",(req,res)=>{Promise.resolve(studio.command("episode.entertainment",{id:req.params.id})).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}));});
