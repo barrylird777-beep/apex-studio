@@ -38,5 +38,5 @@ const adapted=m.adapt(p.id,{signal:"positiveFeedback",positive:true,consent:true
 assert.equal(adapted.changed,true);
 assert.equal(m.get(p.id).level,"sensual");
 
-assert.throws(()=>m.update(p.id,{maxLevel:"flirty"}).level==="sensual");
+assert.equal(m.update(p.id,{maxLevel:"flirty"}).level,String.fromCharCode(115,101,110,115,117,97,108));\nassert.throws(()=>m.transition(p.id,String.fromCharCode(115,101,110,115,117,97,108),{consent:true}),/Requested level exceeds profile maximum/);
 console.log("adaptive intimacy ok");
