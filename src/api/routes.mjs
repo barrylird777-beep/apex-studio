@@ -54,6 +54,14 @@ export function createApi(studio){
  r.post("/adaptive-intimacy/:id/boundaries",(req,res)=>res.json(studio.adaptiveIntimacy.setBoundary(req.params.id,req.body?.key,req.body?.value)));
  r.post("/adaptive-intimacy/:id/transition",(req,res)=>res.json(studio.adaptiveIntimacy.transition(req.params.id,req.body?.level,{consent:req.body?.consent,reason:req.body?.reason??"user-request"})));
  r.post("/adaptive-intimacy/:id/signals",(req,res)=>res.json(studio.adaptiveIntimacy.recordSignal(req.params.id,req.body?.signal,req.body?.value)));
+ r.post("/adaptive-intimacy/:id/preferences",(req,res)=>res.json(studio.adaptiveIntimacy.setPreference(req.params.id,req.body?.key,req.body?.value)));
+ r.post("/adaptive-intimacy/:id/evaluate",(req,res)=>res.json(studio.adaptiveIntimacy.evaluate(req.params.id,{requestedLevel:req.body?.level??null,consent:req.body?.consent===true})));
+ r.post("/adaptive-intimacy/:id/sessions",(req,res)=>res.status(201).json(studio.adaptiveIntimacy.startSession(req.params.id,req.body?.media??"chat")));
+ r.get("/adaptive-intimacy/:id/sessions",(req,res)=>res.json(studio.adaptiveIntimacy.session(req.params.id)));
+ r.post("/adaptive-intimacy/sessions/:id/pause",(req,res)=>res.json(studio.adaptiveIntimacy.pauseSession(req.params.id)));
+ r.post("/adaptive-intimacy/sessions/:id/resume",(req,res)=>res.json(studio.adaptiveIntimacy.resumeSession(req.params.id)));
+ r.post("/adaptive-intimacy/sessions/:id/end",(req,res)=>res.json(studio.adaptiveIntimacy.endSession(req.params.id)));
+
  r.get("/adaptive-intimacy/:id/events",(req,res)=>res.json(studio.adaptiveIntimacy.eventsFor(req.params.id)));
  r.get("/presence",(req,res)=>res.json(studio.presence.list()));
  r.post("/presence",(req,res)=>res.status(201).json(studio.presence.create(req.body??{})));
