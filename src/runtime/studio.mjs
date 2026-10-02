@@ -47,6 +47,7 @@ import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } fro
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
 import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
+import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
@@ -128,6 +129,11 @@ export function createStudio(options={}) {
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
     .register("truth.audit",graph=>auditTruthGraph(graph))
+    .register("storyArchitecture.create",input=>createStoryArchitecture(input))
+    .register("storyArchitecture.build",input=>buildStoryArchitecture(input))
+    .register("storyArchitecture.beat.add",({architecture,...input})=>addStoryBeat(architecture,input))
+    .register("storyArchitecture.audit",architecture=>auditStoryArchitecture(architecture))
+    .register("storyArchitecture.prompt",input=>storyArchitecturePrompt(input))
     .register("canon.entity.add",input=>{const x=addCanonEntity(studio.canon,input);void studio.autosave();return x;})
     .register("canon.entity.update",({id,...patch})=>{const x=updateCanonEntity(studio.canon,id,patch);void studio.autosave();return x;})
     .register("canon.relate",input=>{const x=relateCanon(studio.canon,input);void studio.autosave();return x;})
