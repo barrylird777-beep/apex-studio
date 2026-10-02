@@ -26,7 +26,7 @@ function textOf(value){
 
 function hasSignal(text,terms){
   const value=text.toLowerCase();
-  return terms.some(term=>value.includes(term));
+  return Array.isArray(terms) && terms.some(term=>value.includes(term));
 }
 
 function durationOf(shot){
