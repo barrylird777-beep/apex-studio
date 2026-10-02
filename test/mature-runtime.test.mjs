@@ -7,15 +7,14 @@ const runtime = new MatureRuntimeBoundary(mature);
 
 assert.throws(() => runtime.open({ token: "missing" }), /Layers is locked/);
 
-mature.updatePolicy({
+const configured = new MatureContentManager({ passcode: "test-passcode" });
+configured.updatePolicy({
   enabled: true,
   ageVerified: true,
   consentConfirmed: true,
   enabledCategories: ["mature-themes"],
   enabledMedia: { script: true }
 });
-
-const configured = new MatureContentManager({ passcode: "test-passcode" });
 const token = configured.unlock("test-passcode").token;
 const guarded = new MatureRuntimeBoundary(configured);
 const session = guarded.open({ token, category: "mature-themes", mediaType: "script" });
