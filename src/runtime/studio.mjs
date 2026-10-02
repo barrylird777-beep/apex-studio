@@ -48,6 +48,7 @@ import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mj
 import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
+import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -110,6 +111,13 @@ export function createStudio(options={}) {
     .register("episode.directReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return directorPlan(x);})
     .register("episode.compilerReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return compilerStageReport(x);})
     .register("episode.qualityGate",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeQualityGate(x);})
+    .register("storyIntelligence.create",input=>createStoryIntelligence(input))
+    .register("storyIntelligence.entity.add",({graph,...input})=>addStoryEntity(graph,input))
+    .register("storyIntelligence.event.add",({graph,...input})=>addStoryEvent(graph,input))
+    .register("storyIntelligence.claim.add",({graph,...input})=>addStoryClaim(graph,input))
+    .register("storyIntelligence.chronology.add",({graph,...input})=>addChronology(graph,input))
+    .register("storyIntelligence.audit",graph=>auditStoryIntelligence(graph))
+    .register("storyIntelligence.prompt",input=>storyIntelligencePrompt(input))
     .register("truth.create",input=>createTruthGraph(input))
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
