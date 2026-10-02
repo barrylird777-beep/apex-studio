@@ -60,6 +60,7 @@ import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildSto
 import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, availableAgents, requestHumanApproval, approveCrewDecision, revokeCrewApproval, canRelease, auditCrew } from "../core/agent-crew.mjs";
 import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, recordGrowthObservation, growthLearningReport, buildGrowthPrompt } from "../core/growth-engine.mjs";
 import { groundPassageFromBible, seedStoryIntelligenceFromHits, sourceGroundingPrompt } from "../core/source-grounding.mjs";
+import { sacredTextCatalog } from "../biblical/sacred-library.mjs";
 
 
 
@@ -197,6 +198,7 @@ export function createStudio(options={}) {
         humanAuthority:{finalDecisionRequired:true,releaseRequiresApproval:true}
       };
     })
+    .register("sacred.catalog",()=>sacredTextCatalog())
     .register("source.ground",input=>groundPassageFromBible(input.root,input.slug,input.query,input))
     .register("source.seedStory",input=>seedStoryIntelligenceFromHits(input))
     .register("source.prompt",input=>sourceGroundingPrompt(input))
