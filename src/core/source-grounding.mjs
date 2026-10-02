@@ -27,3 +27,34 @@ export function sourceGroundingPrompt(input={}) {
     input.context??""
   ].join("\n");
 }
+
+
+function normalizeRef(ref={}){
+  return {type:"bible",version:String(ref.version??""),book:String(ref.book??""),chapter:Number(ref.chapter),verse:Number(ref.verse)};
+}
+
+export async function resolveBiblePassage(root,slug,passage,options={}){
+  const match=String(passage??"").trim().match(/^(.+?)\\s+(\\d+):(\\d+)(?:-(\\d+))?$/);
+  if(!match) throw new TypeError("Passage must look like Book 1:1 or Book 1:1-4.");
+  const [,book,chapterRaw,startRaw,endRaw]=match;
+  const chapter=Number(chapterRaw), start=Number(startRaw), end=endRaw?Number(endRaw):start;
+  if(end<start) throw new RangeError("Passage verse range is reversed.");
+  const bible=await (await import("../bible/library.mjs")).loadBibleEdition(root,slug);
+  const target=(bible.books??[]).find(x=>String(x.book).toLowerCase()===book.toLowerCase());
+  if(!target) throw new Error(`Book not found: ${book}`);
+  const chapterData=target.chapters?.[chapter-1];
+  if(!chapterData) throw new Error(`Chapter not found: ${book} ${chapter}`);
+  const verses=(chapterData.verses??[]).filter(v=>Number(v.number)>=start&&Number(v.number)<=end);
+  if(verses.length!==end-start+1) throw new Error(`Verse range not fully available: ${book} ${chapter}:${start}-${end}`);
+  const sourceRefs=verses.map(v=>normalizeRef({version:slug,book:target.book,chapter,verse:v.number}));
+  return {passage:`${target.book} ${chapter}:${start}${end===start?"":`-${end}`}`,version:slug,book:target.book,chapter,start,end,verses,sourceRefs,count:verses.length};
+}
+
+export function auditSourceRefs(sourceRefs=[]){
+  const blockers=[];
+  for(const ref of sourceRefs){
+    if(!ref?.type||!ref?.version||!ref?.book||!Number.isInteger(Number(ref.chapter))||!Number.isInteger(Number(ref.verse)))
+      blockers.push({code:"invalid-source-ref",ref});
+  }
+  return {ready:blockers.length===0,blockers,count:sourceRefs.length};
+}
