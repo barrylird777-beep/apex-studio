@@ -39,6 +39,7 @@ import { VisualBible } from "../core/visual-bible.mjs";
 import { GenerationQueue, buildVisualPrompt } from "../core/visual-generation.mjs";
 import bibleCatalog from "../data/bible/catalog.json" with { type:"json" };
 import { searchBibleEdition } from "../bible/library.mjs";
+import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from "../core/release-package.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -54,7 +55,7 @@ export function createStudio(options={}) {
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
     persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
     commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
-    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map(),visualBible:new VisualBible(),generation:new GenerationQueue(),bibleCatalog,bibleSearch:(version,q)=>searchBibleEdition(process.env.APEX_BIBLE_DIR||"./data/bibles",version,q)
+    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map(),visualBible:new VisualBible(),generation:new GenerationQueue(),releasePackages:new Map(),bibleCatalog,bibleSearch:(version,q)=>searchBibleEdition(process.env.APEX_BIBLE_DIR||"./data/bibles",version,q),createReleasePackage:(i)=>{const x=createReleasePackage(i);studio.releasePackages.set(x.id,x);return x},buildYouTubeDescription,buildSubtitleCues
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
