@@ -1,40 +1,16 @@
-import express from 'express';
-const router = express.Router();
-
-// The Master Oracle Space (Script Engine)
-router.post('/', async (req, res) => {
-    try {
-        const { era, duration, pacing, score, details } = req.body;
-        
-        console.log("Consulting Oracle...");
-
-        const prompt = `Write a cinematic production script for a biblical scene. 
-        Epoch: ${era}. Duration: ${duration}. Pacing/Tone: ${pacing}. Score: ${score}. 
-        Details: ${details}. 
-        Format it professionally. Include [VISUAL] blocks for scene descriptions and [NARRATOR / AUDIO] blocks for voiceover.`;
-
-        // Using the secure POST method for the Oracle text generation
-        const textResponse = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [
-                    { role: 'system', content: 'You are an expert cinematic screenwriter.' },
-                    { role: 'user', content: prompt }
-                ],
-                model: 'openai'
-            })
-        });
-
-        if (!textResponse.ok) throw new Error(`Oracle AI failed with status: ${textResponse.status}`);
-        
-        const scriptText = await textResponse.text();
-        res.json({ result: scriptText });
-
-    } catch (error) {
-        console.error("Oracle Error:", error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-export default router;
+import express from "express";
+import { asyncRoute } from "../src/api/middleware.mjs";
+import { remoteProviderGuard } from "../src/api/remote-policy.mjs";
+export default function oracleRoute(studio){
+  const router=express.Router();
+  router.use(remoteProviderGuard(studio));
+  router.post("/",asyncRoute(async(req,res)=>{
+    const {era,duration,pacing,score,details}=req.body??{};
+    if(!details) return res.status(400).json({error:"details is required"});
+    const prompt="Write a cinematic production script for a biblical scene. Epoch: "+(era??"unspecified")+". Duration: "+(duration??"unspecified")+". Pacing/Tone: "+(pacing??"unspecified")+". Score: "+(score??"unspecified")+". Details: "+details+". Include [VISUAL] blocks and [NARRATOR / AUDIO] blocks.";
+    const response=await fetch("https://text.pollinations.ai/",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"system",content:"You are an expert cinematic screenwriter."},{role:"user",content:prompt}],model:"openai"})});
+    if(!response.ok) throw new Error("Oracle AI failed with status: "+response.status);
+    res.json({result:await response.text()});
+  }));
+  return router;
+}
