@@ -86,7 +86,7 @@ export function createStudio(options={}) {
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
     stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],episodes:[...studio.episodes.values()],graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
-    renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
+    renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list(),agentCrews:studio.agentCrews
   });
   studio.snapshot=()=>({...studio._baseSnapshot(),version:studio.version,privacy:{...studio.privacy},
     egressAudit:studio.egress.listAudit(),secrets:studio.secrets.exportRedacted(),
@@ -211,6 +211,7 @@ export function createStudio(options={}) {
     studio.audio.clear(); for(const a of snapshot.audio??[]) studio.audio.set(a.id,a);
     studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]); studio.releasePackages.clear(); for(const x of snapshot.releasePackages??[]) studio.releasePackages.set(x.id,x);
     studio.episodes.clear(); for(const x of snapshot.episodes??[]) studio.episodes.set(x.id,x);
+    studio.agentCrews=Array.isArray(snapshot.agentCrews)?snapshot.agentCrews:[];
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
