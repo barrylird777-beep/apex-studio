@@ -73,6 +73,11 @@ export function createApi(studio){
  r.post("/adaptive-intimacy/sessions/:id/resume",(req,res)=>res.json(studio.adaptiveIntimacy.resumeSession(req.params.id)));
  r.post("/adaptive-intimacy/sessions/:id/end",(req,res)=>res.json(studio.adaptiveIntimacy.endSession(req.params.id)));
  r.get("/adaptive-intimacy/:id/events",(req,res)=>res.json(studio.adaptiveIntimacy.eventsFor(req.params.id)));
+ r.get("/realism",(req,res)=>res.json(studio.realism.list()));
+ r.post("/realism",(req,res)=>res.status(201).json(studio.realism.create(req.body??{})));
+ r.get("/realism/:id",(req,res)=>res.json(studio.realism.get(req.params.id)));
+ r.post("/realism/:id",(req,res)=>res.json(studio.realism.update(req.params.id,req.body??{})));
+ r.post("/realism/:id/prompt",(req,res)=>res.json(studio.realism.promptSpec(req.params.id)));
  r.get("/presence",(req,res)=>res.json(studio.presence.list()));
  r.post("/presence",(req,res)=>res.status(201).json(studio.presence.create(req.body??{})));
  r.post("/presence/:id",(req,res)=>res.json(studio.presence.update(req.params.id,req.body??{})));
