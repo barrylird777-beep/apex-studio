@@ -31,7 +31,11 @@ export function createEpisode(input={}){
     storySummary:input.storySummary??"", hook:null, script:null, scenes:[],
     storyboard:[], visualBible:{characters:[],locations:[]}, audio:[], timeline:null,
     releasePackage:null, entertainmentAudit:null, truthGraph:input.truthGraph??null, canonEntityIds:[...(input.canonEntityIds??[])],
-    provenance:{sourceRefs,rules:["Scripture must remain distinguishable from paraphrase, inference, history, tradition, and dramatization."]},
+    provenance:{sourceRefs,rules:[
+      "God is the ultimate center of Apex.",
+      "Scripture must remain distinguishable from paraphrase, inference, history, tradition, and dramatization.",
+      "Entertainment, virality, growth, and revenue must not override source truth or human final authority."
+    ]},
     stage:"source", createdAt:input.createdAt??now(), updatedAt:now()
   };
 }
