@@ -5,9 +5,12 @@ import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { createShot } from "../core/scene.mjs";
 import { buildStoryboard } from "../core/storyboard.mjs";
 import { createAudioTrack } from "../core/audio.mjs";
+import { RenderWorker } from "../core/render-worker.mjs";
+import { buildVisualPrompt } from "../core/visual-generation.mjs";
 
 export function createApi(studio){
   const r=express.Router();
+  const renderWorker=new RenderWorker();
   r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
   r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
   r.get("/privacy",(req,res)=>res.json(studio.privacy));
@@ -26,6 +29,19 @@ export function createApi(studio){
   r.post("/stories/events/:eventId/scene",(req,res)=>{const scene=studio.biblical.toScene(req.params.eventId,req.body??{});studio.scenes.set(scene.id,scene);return res.status(201).json(scene);});
   r.get("/stories/events/:eventId/provenance",(req,res)=>res.json(studio.biblical.provenance(req.params.eventId)));
 
+  r.post("/retention/opening",(req,res)=>res.status(201).json(studio.retention.create(req.body??{})));
+  r.post("/retention/prompt",(req,res)=>res.json({prompt:studio.retention.prompt(req.body??{})}));
+  r.get("/bible/catalog",(req,res)=>res.json(studio.bibleCatalog));
+  r.get("/bible/versions",(req,res)=>res.json(studio.bibleCatalog.editions));
+  r.get("/bible/search",(req,res)=>{const q=String(req.query.q??"").trim();const version=String(req.query.version??"kjv");if(!q)return res.status(400).json({error:"q is required"});return studio.bibleSearch(version,q).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}))});
+  r.get("/visual-bible/characters",(req,res)=>res.json(studio.visualBible.listCharacters()));
+  r.post("/visual-bible/characters",(req,res)=>{const x=studio.visualBible.createCharacter(req.body??{});void studio.autosave();res.status(201).json(x);});
+  r.get("/visual-bible/locations",(req,res)=>res.json(studio.visualBible.listLocations()));
+  r.post("/visual-bible/locations",(req,res)=>{const x=studio.visualBible.createLocation(req.body??{});void studio.autosave();res.status(201).json(x);});
+  r.get("/scenes/:id/visual-prompts",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shots=scene.shots??[];res.json(shots.map(shot=>buildVisualPrompt({shot,characters:(shot.characterIds??[]).map(id=>studio.visualBible.getCharacter(id)).filter(Boolean),location:studio.visualBible.getLocation(shot.locationId)})));});
+  r.post("/generation",(req,res)=>{const j=studio.generation.enqueue(req.body??{});void studio.autosave();res.status(202).json(j);});
+  r.get("/generation",(req,res)=>res.json(studio.generation.list()));
+  r.patch("/generation/:id",(req,res)=>{const j=studio.generation.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(j);});
   r.get("/characters",(req,res)=>res.json(studio.characters.list()));
   r.post("/characters",(req,res)=>res.status(201).json(studio.characters.create(req.body??{})));
   r.get("/sources",(req,res)=>res.json(studio.sources.list()));
@@ -49,6 +65,9 @@ export function createApi(studio){
   r.post("/renders",(req,res)=>res.status(202).json(studio.render.enqueue(req.body??{})));
   r.patch("/renders/:id",(req,res)=>{const job=studio.render.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(job);});
   r.get("/renders/:id",(req,res)=>{const j=studio.render.get(req.params.id);if(!j)return res.status(404).json({error:"Render job not found"});res.json(j);});
+  r.get("/renders/:id/availability",async(req,res)=>res.json({available:await renderWorker.available(),ffmpegPath:renderWorker.ffmpegPath}));
+  r.post("/renders/:id/run",async(req,res)=>{const job=studio.render.get(req.params.id);if(!job)return res.status(404).json({error:"Render job not found"});try{const manifest=await studio.render.writeManifest(job,studio.listScenes(),req.body?.outDir,studio.media.list(),[...studio.audio.values()]);const result=await renderWorker.render(job,manifest.ffmpeg);studio.render.mark(job.id,"completed",{output:result.output,finishedAt:result.finishedAt});void studio.autosave();res.json(result)}catch(error){studio.render.mark(job.id,"failed",{error:error.message,renderResult:error.result??null});void studio.autosave();res.status(500).json({error:error.message,result:error.result??null})}});
+  r.post("/renders/:id/cancel",(req,res)=>res.json({cancelled:renderWorker.cancel(req.params.id)}));
   r.post("/renders/:id/prepare",async(req,res)=>{const job=studio.render.get(req.params.id);if(!job)return res.status(404).json({error:"Render job not found"});const manifest=await studio.render.writeManifest(job,studio.listScenes(),req.body?.outDir,studio.media.list(),[...studio.audio.values()]);void studio.autosave();res.json(manifest);});
 
   r.get("/releases",(req,res)=>res.json(studio.releases.list()));
