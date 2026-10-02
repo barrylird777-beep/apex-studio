@@ -1,21 +1,17 @@
 import { auditTruthGraph, buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { auditEntertainment } from "./entertainment.mjs";
+import { auditStoryboard } from "./storyboard.mjs";
+import { auditScenes } from "./scene-purpose.mjs";
 
 function result(name,ok,detail,blocker=false){ return {name,ok,detail,blocker}; }
 
 export function scriptureGate(episode={}){
   const graph=episode.truthGraph??buildTruthGraphFromEpisode(episode);
   const audit=auditTruthGraph(graph);
-  return {
-    name:"scripture",
-    ok:audit.ready,
-    blockers:audit.blockers,
-    audit,
-    checks:[
-      result("source-attached",Boolean(episode.passage||episode.sourceRefs?.length),"Episode has a passage or source references.",true),
-      result("provenance-graph",audit.ready,"Truth claims have valid provenance and source boundaries.",true)
-    ]
-  };
+  return {name:"scripture",ok:audit.ready,blockers:audit.blockers,audit,checks:[
+    result("source-attached",Boolean(episode.passage||episode.sourceRefs?.length),"Episode has a passage or source references.",true),
+    result("provenance-graph",audit.ready,"Truth claims have valid provenance and source boundaries.",true)
+  ]};
 }
 
 export function entertainmentGate(episode={}){
@@ -24,6 +20,12 @@ export function entertainmentGate(episode={}){
   const core=audit.checks.filter(x=>coreNames.includes(x.name));
   const blockers=core.filter(x=>!x.ok);
   return {name:"entertainment",ok:blockers.length===0,blockers,audit};
+}
+
+export function sceneGate(episode={}){ const audit=auditScenes(episode.scenes); return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit}; }\n\nexport function continuityGate(episode={}){
+  const shots=Array.isArray(episode.storyboard)?episode.storyboard:[];
+  const audit=auditStoryboard(shots);
+  return {name:"continuity",ok:audit.ready,blockers:audit.blockers,audit};
 }
 
 export function productionGate(episode={}){
@@ -45,13 +47,8 @@ export function releaseGate(episode={}){
 }
 
 export function episodeQualityGate(episode={}){
-  const gates=[scriptureGate(episode),entertainmentGate(episode),productionGate(episode)];
+  const gates=[scriptureGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode)];
   const blockers=gates.flatMap(g=>g.blockers??[]);
-  return {
-    ready:blockers.length===0,
-    gates,
-    blockers,
-    release:releaseGate(episode),
-    summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}
-  };
+  return {ready:blockers.length===0,gates,blockers,release:releaseGate(episode),
+    summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};
 }

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { createEpisode, episodeReadiness, episodeStageGate } from "../src/core/episode-factory.mjs";
 import { auditEntertainment } from "../src/core/entertainment.mjs";
 import { buildTruthGraphFromEpisode, addClaim, auditTruthGraph } from "../src/core/truth-graph.mjs";
-import { episodeQualityGate } from "../src/core/quality-gates.mjs";
+import { episodeQualityGate, continuityGate } from "../src/core/quality-gates.mjs";
+import { buildStoryboard, auditStoryboard } from "../src/core/storyboard.mjs";
 import { compileEpisode } from "../src/core/episode-compiler.mjs";
 
 test("episode readiness requires real production assets",()=>{
@@ -56,4 +57,17 @@ test("entertainment audit detects pacing",()=>{
     scenes:[{description:"battle"}]
   });
   assert.equal(audit.checks.find(x=>x.name==="pacing_variation").ok,true);
+});
+
+
+test("storyboard uses varied cinematic coverage",()=>{
+  const shots=buildStoryboard({id:"scene-1",title:"The confrontation",characters:["david","goliath"],locationId:"valley",sourceRefs:["1 Samuel 17"],beats:[
+    {id:"b1",title:"The valley opens",description:"An army waits below the mountain.",duration:5},
+    {id:"b2",title:"Fear spreads",description:"A soldier reacts in fear.",duration:3},
+    {id:"b3",title:"The weapon",description:"A close detail of the sling and stone.",duration:2}
+  ]});
+  assert.equal(shots.length,3);
+  assert.ok(new Set(shots.map(x=>x.type)).size>=2);
+  assert.equal(auditStoryboard(shots).ready,true);
+  assert.equal(continuityGate({storyboard:shots}).ok,true);
 });

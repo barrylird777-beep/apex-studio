@@ -4,47 +4,50 @@ import { advanceEpisode } from "./episode-factory.mjs";
 import { uid, now } from "./id.mjs";
 
 const ACTIONS={
-  source:"Attach a Scripture passage or source reference.",
-  research:"Resolve source-backed research and parallel-passage context.",
-  truth:"Build and validate the provenance graph before dramatization.",
-  story:"Define the story spine, character desire, obstacle, escalation, reversal, and payoff.",
-  script:"Write concise, filmable narration/dialogue with provenance boundaries.",
-  scenes:"Turn story beats into purposeful scenes; remove filler.",
-  storyboard:"Cover emotional and cinematic beats with varied shot grammar.",
-  visuals:"Lock character/location continuity before generation.",
-  audio:"Plan voice, music, ambience, silence, and impact sound.",
-  timeline:"Assemble the edit and verify pacing.",
-  review:"Run Scripture, entertainment, continuity, and production gates.",
-  release:"Build the release package and publish-ready assets."
+ source:"Attach a Scripture passage or source reference.",
+ research:"Resolve source-backed research and parallel-passage context.",
+ truth:"Build and validate the provenance graph before dramatization.",
+ story:"Define the story spine: desire, obstacle, escalation, reversal, payoff, and meaning.",
+ script:"Write concise, filmable narration/dialogue with explicit provenance boundaries.",
+ scenes:"Turn story beats into purposeful scenes; remove filler and repetitive exposition.",
+ storyboard:"Create varied cinematic coverage with purposeful camera language and continuity references.",
+ visuals:"Lock character/location continuity before generation; reject inconsistent designs.",
+ audio:"Plan voice, music, ambience, silence, impacts, and recurring sonic motifs.",
+ timeline:"Assemble the edit and verify pacing, scene transitions, and payoff timing.",
+ review:"Run Scripture, entertainment, continuity, and production gates.",
+ release:"Build the release package and publish-ready assets."
 };
 
+function highestPriorityBlocker(quality){
+ for(const gate of quality.gates??[]){
+   if(!gate.ok && gate.blockers?.length) return {gate:gate.name,blockers:gate.blockers};
+ }
+ return null;
+}
+
 export function createDirectorPlan(input={}){
-  const episode=compileEpisode(input);
-  return directorPlan(episode);
+ const episode=compileEpisode(input);
+ return {...directorPlan(episode),episode};
 }
 
 export function directorPlan(episode={}){
-  const report=compilerStageReport(episode);
-  const quality=episodeQualityGate(episode);
-  const currentIndex=COMPILER_STAGES.indexOf(episode.stage??"source");
-  const next=COMPILER_STAGES.slice(currentIndex+1).find(stage=>{
-    if(stage==="review") return !quality.ready;
-    return true;
-  })??null;
-  const blockers=report.blockers??[];
-  return {
-    id:uid("director-plan"),
-    createdAt:now(),
-    episodeId:episode.id,
-    currentStage:episode.stage??"source",
-    nextStage:next,
-    nextAction:next?ACTIONS[next]:"Episode is at the final compiler stage.",
-    blockers,
-    quality,
-    principle:"Never trade Scripture provenance or production integrity for entertainment."
-  };
+ const report=compilerStageReport(episode);
+ const quality=episodeQualityGate(episode);
+ const currentIndex=COMPILER_STAGES.indexOf(episode.stage??"source");
+ const next=COMPILER_STAGES.slice(currentIndex+1).find(stage=>stage!=="review"||!quality.ready)??null;
+ const priority=highestPriorityBlocker(quality);
+ return {
+  id:uid("director-plan"),createdAt:now(),episodeId:episode.id,currentStage:episode.stage??"source",
+  nextStage:next,nextAction:next?ACTIONS[next]:"Episode is at the final compiler stage.",
+  blockers:report.blockers??[],priorityBlocker:priority,quality,
+  decisionRules:[
+   "Never trade Scripture provenance for entertainment.",
+   "Never advance past a blocked production stage.",
+   "Every scene must have a narrative purpose.",
+   "Every shot must have a visual or emotional purpose.",
+   "Continuity errors are production blockers, not cosmetic warnings."
+  ]
+ };
 }
 
-export function directAdvance(episode,stage){
-  return advanceEpisode(episode,stage);
-}
+export function directAdvance(episode,stage){ return advanceEpisode(episode,stage); }
