@@ -21,6 +21,8 @@ export function createApi(studio){
   r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
   r.get("/biblical/catalog",(req,res)=>res.json(bibleCatalog()));
   r.get("/sacred/catalog",async(req,res)=>{try{res.json(await studio.command("sacred.catalog",{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/quirks/suggest",(req,res)=>Promise.resolve(studio.command("quirk.suggest",req.body??{})).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message})));
+  r.post("/quirks/audit",(req,res)=>Promise.resolve(studio.command("quirk.audit",req.body?.quirks??[])).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message})));
 
   r.get("/projects",(req,res)=>res.json(studio.projects.list()));
   r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
