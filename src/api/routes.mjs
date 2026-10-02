@@ -2,6 +2,7 @@ import express from "express";
 import { bibleCatalog } from "../biblical/bible-catalog.mjs";
 import { evaluateArtifact } from "../core/evaluation.mjs";
 import { exportStudio, importStudio } from "../core/import-export.mjs";
+import { createShot } from "../core/scene.mjs";
 
 export function createApi(studio){
   const r=express.Router();
@@ -11,17 +12,18 @@ export function createApi(studio){
   r.get("/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
   r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
   r.get("/biblical/catalog",(req,res)=>res.json(bibleCatalog()));
+
+  r.get("/projects",(req,res)=>res.json(studio.projects.list()));
+  r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
+
   r.get("/stories",(req,res)=>res.json(studio.biblical.listStories()));
   r.post("/stories",(req,res)=>res.status(201).json(studio.biblical.createStory(req.body??{})));
   r.get("/stories/:id",(req,res)=>{const story=studio.biblical.getStory(req.params.id);if(!story)return res.status(404).json({error:"Story not found"});res.json({...story,events:studio.biblical.listEvents(req.params.id)});});
   r.post("/stories/:id/events",(req,res)=>res.status(201).json(studio.biblical.addEvent(req.params.id,req.body??{})));
   r.get("/stories/:id/events",(req,res)=>res.json(studio.biblical.listEvents(req.params.id)));
-  r.post("/stories/events/:eventId/scene",(req,res)=>res.status(201).json(studio.biblical.toScene(req.params.eventId,req.body??{})));
+  r.post("/stories/events/:eventId/scene",(req,res)=>{const scene=studio.biblical.toScene(req.params.eventId,req.body??{});studio.scenes.set(scene.id,scene);return res.status(201).json(scene);});
   r.get("/stories/events/:eventId/provenance",(req,res)=>res.json(studio.biblical.provenance(req.params.eventId)));
-  r.get("/projects",(req,res)=>res.json(studio.projects.list()));
-  r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
-  r.get("/memory",(req,res)=>res.json(studio.memory.search(req.query.q??"",{projectId:req.query.projectId})));
-  r.post("/memory",(req,res)=>res.status(201).json(studio.memory.remember(req.body??{})));
+
   r.get("/characters",(req,res)=>res.json(studio.characters.list()));
   r.post("/characters",(req,res)=>res.status(201).json(studio.characters.create(req.body??{})));
   r.get("/sources",(req,res)=>res.json(studio.sources.list()));
@@ -30,29 +32,38 @@ export function createApi(studio){
   r.post("/documents",(req,res)=>res.status(201).json(studio.knowledgeBase.addDocument(req.body??{})));
   r.post("/documents/:id/chunk",(req,res)=>res.json(studio.knowledgeBase.chunk(req.params.id,Number(req.body?.size??1200))));
   r.get("/documents/search",(req,res)=>res.json(studio.knowledgeBase.search(req.query.q??"",Number(req.query.limit??20))));
+
   r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
   r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
+  r.post("/scenes/:id/shots",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shot=createShot({...req.body,sceneId:scene.id,index:scene.shots.length});scene.shots.push(shot);scene.updatedAt=new Date().toISOString();return res.status(201).json(shot);});
+
+  r.get("/timelines",(req,res)=>res.json(studio.timelines.list()));
+  r.post("/timelines",(req,res)=>res.status(201).json(studio.timelines.create(req.body?.name,req.body?.parentId??null)));
+  r.post("/timelines/:id/events",(req,res)=>res.status(201).json(studio.timelines.addEvent(req.params.id,req.body??{})));
+  r.post("/timelines/:id/branch",(req,res)=>res.status(201).json(studio.timelines.branch(req.params.id,req.body?.name??"Branch")));
+
   r.get("/renders",(req,res)=>res.json(studio.render.list()));
   r.post("/renders",(req,res)=>res.status(202).json(studio.render.enqueue(req.body??{})));
+  r.patch("/renders/:id",(req,res)=>res.json(studio.render.mark(req.params.id,req.body?.status,req.body?.patch??{})));
+
   r.get("/releases",(req,res)=>res.json(studio.releases.list()));
   r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
   r.post("/releases/:id/publish",(req,res)=>res.json(studio.releases.publish(req.params.id)));
-  r.get("/collaboration",(req,res)=>res.json(studio.collaboration.list()));
-  r.post("/collaboration",(req,res)=>res.status(201).json(studio.collaboration.append(req.body??{})));
+
   r.get("/assets",(req,res)=>res.json([...studio.assets.assets.values()]));
   r.post("/assets",(req,res)=>{const a=studio.assets.create(req.body??{});studio.events.emit("asset.created",a);res.status(201).json(a);});
   r.get("/jobs",(req,res)=>res.json(studio.jobs.list()));
   r.post("/jobs",(req,res)=>res.status(202).json(studio.jobs.enqueue(req.body?.type,req.body?.payload,req.body)));
   r.post("/jobs/:id/run",async(req,res)=>res.json(await studio.jobs.run(req.params.id)));
-  r.get("/tools",(req,res)=>res.json(studio.tools.describe()));
-  r.get("/realism/status",(req,res)=>res.json({profiles:studio.realism.list().length}));
-  r.post("/realism",(req,res)=>res.status(201).json(studio.realism.create(req.body??{})));
+
   r.get("/realism",(req,res)=>res.json(studio.realism.list()));
+  r.post("/realism",(req,res)=>res.status(201).json(studio.realism.create(req.body??{})));
   r.post("/realism/:id",(req,res)=>res.json(studio.realism.update(req.params.id,req.body??{})));
   r.get("/realism/:id/prompt",(req,res)=>res.json(studio.realism.promptSpec(req.params.id)));
-  r.post("/evaluate",(req,res)=>res.json(evaluateArtifact(req.body?.artifact??{},req.body?.options??{})));
+
   r.get("/research",(req,res)=>res.json(studio.research.list()));
   r.post("/research",(req,res)=>res.status(201).json(studio.research.create(req.body??{})));
+  r.post("/evaluate",(req,res)=>res.json(evaluateArtifact(req.body?.artifact??{},req.body?.options??{})));
   r.get("/export",(req,res)=>res.json(exportStudio(studio)));
   r.post("/import",(req,res)=>res.json(importStudio(studio,req.body??{})));
   return r;
