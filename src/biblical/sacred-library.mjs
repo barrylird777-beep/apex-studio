@@ -20,3 +20,25 @@ export const SACRED_LIBRARY_RULES = Object.freeze({
   comparison:"Readers may place editions and traditions side-by-side without Apex declaring one tradition authoritative over another."
 });
 export function sacredTextCatalog(){return {families:SACRED_TEXT_FAMILIES.map(x=>({...x,includes:[...x.includes]})),rules:{...SACRED_LIBRARY_RULES}};}
+
+export const SACRED_TEXT_TYPES = Object.freeze(["scripture","translation","commentary","manuscript","historical-witness"]);
+
+export function createSacredTextRecord(input={}){
+  return Object.freeze({
+    id:String(input.id??"").trim(), familyId:String(input.familyId??"").trim(),
+    tradition:String(input.tradition??"").trim(), textType:String(input.textType??"").trim(),
+    title:String(input.title??"").trim(), language:String(input.language??"").trim(),
+    edition:String(input.edition??"").trim(), source:String(input.source??"").trim(),
+    sourceUrl:String(input.sourceUrl??"").trim(), license:String(input.license??"").trim(),
+    format:String(input.format??"").trim(), publicationDate:input.publicationDate??null,
+    textualDate:input.textualDate??null, checksum:String(input.checksum??"").trim()
+  });
+}
+
+export function validateSacredTextRecord(record={}){
+  const required=["id","familyId","textType","title","language","source","license"];
+  const errors=required.filter(key=>!String(record[key]??"").trim()).map(key=>`${key} is required`);
+  if(record.textType&&!SACRED_TEXT_TYPES.includes(record.textType)) errors.push(`textType must be one of: ${SACRED_TEXT_TYPES.join(", ")}`);
+  if(record.familyId&&!SACRED_TEXT_FAMILIES.some(x=>x.id===record.familyId)) errors.push("familyId is not registered");
+  return {ok:errors.length===0,errors};
+}
