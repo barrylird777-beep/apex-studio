@@ -6,6 +6,7 @@ import { buildTruthGraphFromEpisode, addClaim, auditTruthGraph } from "../src/co
 import { episodeQualityGate, continuityGate } from "../src/core/quality-gates.mjs";
 import { buildStoryboard, auditStoryboard } from "../src/core/storyboard.mjs";
 import { compileEpisode } from "../src/core/episode-compiler.mjs";
+import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence } from "../src/core/story-intelligence.mjs";
 
 test("episode readiness requires real production assets",()=>{
   const episode=createEpisode({title:"David and Goliath",passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
@@ -92,4 +93,21 @@ test("compiled episode inherits selected world canon",async()=>{
   const episode=compileEpisode({title:"David",sourceRefs:["1 Samuel 17"],canonEntityIds:[david.id],worldCanon:canon});
   assert.equal(episode.canonContext.entities[0].name,"David");
   assert.equal(episode.compiler.canon.entityCount,1);
+});
+
+
+test("story intelligence tracks source-backed chronology and provenance",()=>{
+  const graph=createStoryIntelligence({passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"]});
+  const david=addStoryEntity(graph,{name:"David",type:"person",sourceRefs:["1 Samuel 17"]});
+  const event=addStoryEvent(graph,{type:"conflict",title:"Confrontation",description:"Source-backed confrontation",entityIds:[david.id],sourceRefs:["1 Samuel 17"]});
+  addChronology(graph,{eventId:event.id,position:0,sourceRefs:["1 Samuel 17"]});
+  addStoryClaim(graph,{text:"A source-backed claim",classification:"scripture",sourceRefs:["1 Samuel 17"],entityIds:[david.id]});
+  assert.equal(auditStoryIntelligence(graph).ready,true);
+});
+
+test("story intelligence blocks unsupported provenance",()=>{
+  const graph=createStoryIntelligence({sourceRefs:["1 Samuel 17"]});
+  addStoryClaim(graph,{text:"Unreferenced claim",classification:"scripture"});
+  assert.equal(auditStoryIntelligence(graph).ready,false);
+  assert.ok(auditStoryIntelligence(graph).blockers.some(x=>x.code==="claim-provenance-missing"));
 });
