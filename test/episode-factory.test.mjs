@@ -82,3 +82,14 @@ test("world canon locks approved continuity fields",async()=>{
   assert.throws(()=>updateCanonEntity(canon,david.id,{wardrobe:"royal"}),/Canon field locked/);
   assert.equal(auditCanon(canon).ready,true);
 });
+
+
+test("compiled episode inherits selected world canon",async()=>{
+  const {createWorldCanon,addCanonEntity}=await import("../src/core/world-canon.mjs");
+  const {compileEpisode}=await import("../src/core/episode-compiler.mjs");
+  const canon=createWorldCanon();
+  const david=addCanonEntity(canon,{name:"David",type:"character",state:{wardrobe:"shepherd"}}); 
+  const episode=compileEpisode({title:"David",sourceRefs:["1 Samuel 17"],canonEntityIds:[david.id],worldCanon:canon});
+  assert.equal(episode.canonContext.entities[0].name,"David");
+  assert.equal(episode.compiler.canon.entityCount,1);
+});
