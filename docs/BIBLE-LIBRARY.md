@@ -4,7 +4,7 @@ Apex includes a dedicated Bible Library designed for production use: source look
 
 ## Local corpus
 
-The repository currently catalogs 33 openly redistributable editions across 22 languages from the open `midvash/bible-data` corpus. The upstream project publishes each edition as whole-Bible JSON, per-book JSON, and SQLite, with license metadata. citeturn0search0turn0search1
+The repository currently catalogs 33 openly redistributable editions across 22 languages from the open `midvash/bible-data` corpus. The upstream project publishes each edition as whole-Bible JSON, per-book JSON, and SQLite, with license metadata. (source: https://github.com/midvash/bible-data)
 
 Install the complete local corpus:
 
@@ -22,7 +22,7 @@ The downloaded text is intentionally kept out of Git history because a full mult
 
 ## Included catalog
 
-The catalog covers the currently verified open corpus: KJV, ASV, WEB, Geneva 1599, Douay-Rheims, German, French, Italian, Portuguese, Russian, Ukrainian, Polish, Czech, Hungarian, Romanian, Scandinavian, Dutch, Chinese, Arabic, Vietnamese, Hebrew source texts, Greek Textus Receptus, and Latin Vulgate/Clementine Vulgate. citeturn0search2turn0search6
+The catalog covers the currently verified open corpus: KJV, ASV, WEB, Geneva 1599, Douay-Rheims, German, French, Italian, Portuguese, Russian, Ukrainian, Polish, Czech, Hungarian, Romanian, Scandinavian, Dutch, Chinese, Arabic, Vietnamese, Hebrew source texts, Greek Textus Receptus, and Latin Vulgate/Clementine Vulgate. (source: https://github.com/midvash/bible-data)
 
 ## Canons
 
@@ -30,7 +30,7 @@ Apex tracks canon families separately from translations because "the Bible" does
 
 ## Copyright boundary
 
-Apex does **not** copy modern copyrighted translations into the repository merely because they are available online. The open corpus itself explicitly excludes active-copyright translations and points users toward licensed APIs/publishers for those editions. citeturn0search2
+Apex does **not** copy modern copyrighted translations into the repository merely because they are available online. The open corpus itself explicitly excludes active-copyright translations and points users toward licensed APIs/publishers for those editions. (source: https://github.com/midvash/bible-data)
 
 For example, a provider adapter can retrieve a licensed modern translation at generation time without storing the full text in Git.
 
