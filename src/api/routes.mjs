@@ -40,7 +40,9 @@ export function createApi(studio){
  r.post("/layers/unlock",(req,res)=>res.json(studio.mature.unlock(req.body?.passcode,req.body?.ttlMs)));
  r.post("/layers/lock",(req,res)=>res.json(studio.mature.lock(req.body?.token)));
  r.get("/layers/mature",(req,res)=>{try{studio.mature.requireUnlocked(req.get("x-layers-token"));res.json(studio.mature.status())}catch(e){res.status(403).json({error:"Layers locked"})}});
- r.use("/mature",requireLayers);\n r.use("/companions",requireLayers);\n r.get("/mature/status",(req,res)=>res.json(studio.mature.status()));
+ r.use("/mature",requireLayers);
+ r.use("/companions",requireLayers);
+ r.get("/mature/status",(req,res)=>res.json(studio.mature.status()));
  r.get("/mature/categories",(req,res)=>res.json({categories:studio.mature.status().categories}));
  r.post("/mature/policy",(req,res)=>res.json(studio.mature.updatePolicy(req.body??{})));
  r.post("/mature/category",(req,res)=>res.json(studio.mature.setCategory(req.body?.category,req.body?.enabled)));
