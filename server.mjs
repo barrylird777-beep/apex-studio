@@ -26,4 +26,5 @@ app.use("/api/bard",bardRoute(studio));
 app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 app.use(errorHandler);
 const PORT=process.env.PORT||3000;
-app.listen(PORT,()=>console.log("Apex Studio "+studio.version+" online on :"+PORT));
+const HOST=process.env.APEX_BIND_HOST||(process.env.RAILWAY_ENVIRONMENT?"0.0.0.0":"127.0.0.1");
+app.listen(PORT,HOST,()=>console.log("Apex Studio "+studio.version+" online on "+HOST+":"+PORT));
