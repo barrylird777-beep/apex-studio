@@ -2,7 +2,7 @@ import { uid, now } from "./id.mjs";
 
 export function createReleasePackage(input={}){
  const title=String(input.title??"").trim();if(!title)throw new TypeError("title is required");
- return {id:input.id??uid("release"),title,description:input.description??"",platforms:[...(input.platforms??["youtube"])],tags:[...(input.tags??[])],chapters:[...(input.chapters??[])],scriptureRefs:[...(input.scriptureRefs??[])],subtitleMediaId:input.subtitleMediaId??null,videoMediaId:input.videoMediaId??null,thumbnail:{...(input.thumbnail??{})},channel:{...(input.channel??{})},disclosure:input.disclosure??"AI-assisted production where applicable; Scripture references are provided for verification.",status:input.status??"draft",createdAt:input.createdAt??now(),updatedAt:now()};
+ return {id:input.id??uid("release"),version:input.version??"1.0.0",title,description:input.description??"",platforms:[...(input.platforms??["youtube"])],tags:[...(input.tags??[])],chapters:[...(input.chapters??[])],scriptureRefs:[...(input.scriptureRefs??[])],subtitleMediaId:input.subtitleMediaId??null,videoMediaId:input.videoMediaId??null,thumbnail:{...(input.thumbnail??{})},channel:{...(input.channel??{})},disclosure:input.disclosure??"AI-assisted production where applicable; Scripture references are provided for verification.",status:input.status??"draft",createdAt:input.createdAt??now(),updatedAt:now()};
 }
 export function buildYouTubeDescription(pkg){
  const refs=pkg.scriptureRefs?.length?"\n\nScripture references:\n"+pkg.scriptureRefs.map(x=>"- "+x).join("\n"):"";
