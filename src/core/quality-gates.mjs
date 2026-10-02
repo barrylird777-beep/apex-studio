@@ -58,7 +58,7 @@ export function storyIntelligenceGate(episode={}) {
 }
 
 export function episodeQualityGate(episode={}){
-  const gates=[scriptureGate(episode),storyIntelligenceGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode)];
+  const gates=[scriptureGate(episode),storyIntelligenceGate(episode),storyArchitectureGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode)];
   const blockers=gates.flatMap(g=>g.blockers??[]);
   return {ready:blockers.length===0,gates,blockers,release:releaseGate(episode),
     summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};
