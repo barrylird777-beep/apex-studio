@@ -7,6 +7,7 @@ import { buildStoryboard } from "../core/storyboard.mjs";
 import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
+import { verifyApexCommander } from "../../routes-security.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
@@ -103,7 +104,7 @@ export function createApi(studio){
 
   r.get("/releases",(req,res)=>res.json(studio.releases.list()));
   r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
-  r.post("/releases/:id/publish",(req,res)=>res.json(studio.releases.publish(req.params.id)));
+  r.post("/releases/:id/publish",verifyApexCommander,(req,res)=>res.json(studio.releases.publish(req.params.id)));
 
   r.get("/assets",(req,res)=>res.json([...studio.assets.assets.values()]));
   r.get("/media",(req,res)=>res.json(studio.media.list()));
@@ -123,7 +124,7 @@ export function createApi(studio){
   r.get("/research",(req,res)=>res.json(studio.research.list()));
   r.post("/research",(req,res)=>res.status(201).json(studio.research.create(req.body??{})));
   r.post("/evaluate",(req,res)=>res.json(evaluateArtifact(req.body?.artifact??{},req.body?.options??{})));
-  r.get("/export",(req,res)=>res.json(exportStudio(studio)));
-  r.post("/import",(req,res)=>res.json(importStudio(studio,req.body??{})));
+  r.get("/export",verifyApexCommander,(req,res)=>res.json(exportStudio(studio)));
+  r.post("/import",verifyApexCommander,(req,res)=>res.json(importStudio(studio,req.body??{})));
   return r;
 }
