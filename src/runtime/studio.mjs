@@ -61,6 +61,7 @@ import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, 
 import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, recordGrowthObservation, growthLearningReport, buildGrowthPrompt } from "../core/growth-engine.mjs";
 import { groundPassageFromBible, resolveBiblePassage, auditSourceRefs, seedStoryIntelligenceFromHits, sourceGroundingPrompt } from "../core/source-grounding.mjs";
 import { sacredTextCatalog } from "../biblical/sacred-library.mjs";
+import { createQuirk, suggestQuirks, auditQuirks } from "../core/quirks.mjs";
 
 
 
@@ -199,6 +200,9 @@ export function createStudio(options={}) {
       };
     })
     .register("sacred.catalog",()=>sacredTextCatalog())
+    .register("quirk.create",input=>createQuirk(input))
+    .register("quirk.suggest",input=>suggestQuirks(input))
+    .register("quirk.audit",quirks=>auditQuirks(quirks))
     .register("source.ground",input=>groundPassageFromBible(input.root,input.slug,input.query,input))
     .register("source.resolvePassage",input=>resolveBiblePassage(input.root,input.slug,input.passage,input))
     .register("source.auditRefs",input=>auditSourceRefs(input.sourceRefs))
