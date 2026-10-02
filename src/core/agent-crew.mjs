@@ -1,5 +1,5 @@
 import { uid, now } from "./id.mjs";
-import { createApprovalRecord, approveRecord, revokeRecord } from "./approval-lineage.mjs";
+import { createApprovalRecord, approveRecord, revokeRecord, approvalMatches } from "./approval-lineage.mjs";
 
 export const HUMAN_AUTHORITY=Object.freeze({
   finalDecisionRequired:true,
@@ -54,16 +54,25 @@ export function availableAgents(crew={}) {
 
 export function requestHumanApproval(crew={},input={}) {
   const decision={id:input.decisionId??uid("decision"),action:input.action??"release",
-    artifactIds:arr(input.artifactIds),reason:input.reason??"",requestedAt:now(),status:"pending"};
+    artifactIds:arr(input.artifactIds),version:input.version??null,reason:input.reason??"",requestedAt:now(),status:"pending"};
+  const record=createApprovalRecord({
+    action:decision.action,artifactIds:decision.artifactIds,episodeId:crew.episodeId,
+    version:decision.version,reason:decision.reason
+  });
   return {...crew,decisions:[...arr(crew.decisions),decision],
-    approval:{...crew.approval,status:"pending",required:true,decisionId:decision.id,record:createApprovalRecord({action:decision.action,artifactIds:decision.artifactIds,episodeId:crew.episodeId,reason:decision.reason})},updatedAt:now()};
+    approval:{...crew.approval,status:"pending",required:true,decisionId:decision.id,record},updatedAt:now()};
 }
 
 export function approveCrewDecision(crew={},input={}) {
   if(!input.approver) throw new Error("Human approver is required");
   const id=input.decisionId??crew.approval?.decisionId;
+  const decision=arr(crew.decisions).find(x=>x.id===id);
+  if(!decision) throw new Error("Approval decision not found");
+  const record=crew.approval?.record;
+  if(!record) throw new Error("Approval record is missing");
   return {...crew,decisions:arr(crew.decisions).map(x=>x.id===id?{...x,status:"approved",approvedBy:input.approver,approvedAt:now()}:x),
-    approval:{...crew.approval,status:"approved",approvedBy:input.approver,approvedAt:now(),decisionId:id,record:approveRecord(crew.approval?.record??createApprovalRecord({action:"release",episodeId:crew.episodeId}),input.approver)},updatedAt:now()};
+    approval:{...crew.approval,status:"approved",approvedBy:input.approver,approvedAt:now(),decisionId:id,
+      record:approveRecord(record,input.approver)},updatedAt:now()};
 }
 
 export function revokeCrewApproval(crew={},reason="Approval revoked") {
@@ -71,14 +80,21 @@ export function revokeCrewApproval(crew={},reason="Approval revoked") {
     decisions:arr(crew.decisions).map(x=>x.id===crew.approval?.decisionId?{...x,status:"revoked",reason,revokedAt:now()}:x),updatedAt:now()};
 }
 
-export function canRelease(crew={}) {
-  return crew.approval?.required===true && crew.approval?.status==="approved" && Boolean(crew.approval?.approvedBy) && crew.approval?.record?.status==="approved";
+export function canRelease(crew={},releaseInput={}) {
+  return crew.approval?.required===true &&
+    crew.approval?.status==="approved" &&
+    Boolean(crew.approval?.approvedBy) &&
+    approvalMatches(crew.approval?.record,{
+      action:releaseInput.action??"release",
+      artifactIds:arr(releaseInput.artifactIds),
+      episodeId:releaseInput.episodeId??crew.episodeId,
+      version:releaseInput.version??null
+    });
 }
 
 export function auditCrew(crew={}) {
   const blockers=[];
   if(crew.authority?.finalDecisionRequired!==true) blockers.push("human-final-authority-disabled");
   if(crew.approval?.required!==true) blockers.push("release-approval-disabled");
-  if(canRelease(crew) && !crew.approval?.approvedBy) blockers.push("approval-without-human");
   return {ready:blockers.length===0,blockers,agentCount:arr(crew.agents).length,handoffs:arr(crew.handoffs).length};
 }
