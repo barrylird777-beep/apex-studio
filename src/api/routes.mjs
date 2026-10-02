@@ -48,6 +48,13 @@ export function createApi(studio){
   r.get("/bible/catalog",(req,res)=>res.json(studio.bibleCatalog));
   r.get("/bible/versions",(req,res)=>res.json(studio.bibleCatalog.editions));
   r.get("/bible/search",(req,res)=>{const q=String(req.query.q??"").trim();const version=String(req.query.version??"kjv");if(!q)return res.status(400).json({error:"q is required"});return studio.bibleSearch(version,q).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}))});
+  r.get("/canon",(req,res)=>res.json(studio.canon));
+  r.get("/canon/audit",(req,res)=>res.json(studio.command("canon.audit",{})));
+  r.get("/canon/episodes/:episodeId",(req,res)=>res.json(studio.command("canon.episode",{episodeId:req.params.episodeId})));
+  r.post("/canon/entities",(req,res)=>res.status(201).json(studio.command("canon.entity.add",req.body??{})));
+  r.patch("/canon/entities/:id",(req,res)=>{try{res.json(studio.command("canon.entity.update",{id:req.params.id,...(req.body??{})}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/canon/relationships",(req,res)=>res.status(201).json(studio.command("canon.relate",req.body??{})));
+  r.post("/canon/events",(req,res)=>res.status(201).json(studio.command("canon.event",req.body??{})));
   r.get("/visual-bible/characters",(req,res)=>res.json(studio.visualBible.listCharacters()));
   r.post("/visual-bible/characters",(req,res)=>{const x=studio.visualBible.createCharacter(req.body??{});void studio.autosave();res.status(201).json(x);});
   r.get("/visual-bible/locations",(req,res)=>res.json(studio.visualBible.listLocations()));
