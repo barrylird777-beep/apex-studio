@@ -2,6 +2,7 @@ import { auditTruthGraph, buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { auditEntertainment } from "./entertainment.mjs";
 import { auditStoryboard } from "./storyboard.mjs";
 import { auditScenes } from "./scene-purpose.mjs";
+import { auditStoryArchitecture } from "./story-architect.mjs";
 import { auditStoryIntelligence } from "./story-intelligence.mjs";
 
 function result(name,ok,detail,blocker=false){ return {name,ok,detail,blocker}; }
@@ -22,6 +23,8 @@ export function entertainmentGate(episode={}){
   const blockers=core.filter(x=>!x.ok);
   return {name:"entertainment",ok:blockers.length===0,blockers,audit};
 }
+
+export function storyArchitectureGate(episode={}){ const audit=auditStoryArchitecture(episode.storyArchitecture); return {name:"story-architecture",ok:audit.ready,blockers:audit.blockers,audit}; }
 
 export function sceneGate(episode={}){ const audit=auditScenes(episode.scenes); return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit}; }
 
