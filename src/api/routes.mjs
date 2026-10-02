@@ -8,6 +8,8 @@ import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
 
+function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
+
 export function createApi(studio){
   const r=express.Router();
   const renderWorker=new RenderWorker();
@@ -31,6 +33,18 @@ export function createApi(studio){
 
   r.post("/retention/opening",(req,res)=>res.status(201).json(studio.retention.create(req.body??{})));
   r.post("/retention/prompt",(req,res)=>res.json({prompt:studio.retention.prompt(req.body??{})}));
+  r.get("/episodes",(req,res)=>res.json([...studio.episodes.values()]));
+  r.post("/episodes",(req,res)=>{const x=studio.command("episode.create",req.body??{});Promise.resolve(x).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
+  r.post("/episodes/plan",(req,res)=>{const x=studio.command("episode.plan",req.body??{});Promise.resolve(x).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
+  r.post("/episodes/compile",(req,res)=>{Promise.resolve(studio.command("episode.compile",req.body??{})).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
+  r.post("/episodes/direct",(req,res)=>{Promise.resolve(studio.command("episode.direct",req.body??{})).then(v=>res.status(201).json(v)).catch(e=>res.status(400).json({error:e.message}));});
+  r.get("/episodes/:id",(req,res)=>{const episode=studio.episodes.get(req.params.id);if(!episode)return res.status(404).json({error:"Episode not found"});res.json(episode);});
+  r.get("/episodes/:id/compiler",(req,res)=>{Promise.resolve(studio.command("episode.compilerReport",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
+  r.get("/episodes/:id/director",(req,res)=>{Promise.resolve(studio.command("episode.directReport",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
+  r.get("/episodes/:id/quality-gate",(req,res)=>{Promise.resolve(studio.command("episode.qualityGate",{id:req.params.id})).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
+  r.get("/episodes/:id/readiness",(req,res)=>{Promise.resolve(episodeReadinessRoute(studio,req.params.id)).then(v=>res.json(v)).catch(e=>res.status(404).json({error:e.message}));});
+  r.post("/episodes/:id/entertainment-audit",(req,res)=>{Promise.resolve(studio.command("episode.entertainment",{id:req.params.id})).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}));});
+  r.post("/episodes/:id/advance",(req,res)=>{studio.command("episode.advance",{id:req.params.id,stage:req.body?.stage}).then(x=>res.json(x)).catch(e=>res.status(400).json({error:e.message}));});
   r.get("/bible/catalog",(req,res)=>res.json(studio.bibleCatalog));
   r.get("/bible/versions",(req,res)=>res.json(studio.bibleCatalog.editions));
   r.get("/bible/search",(req,res)=>{const q=String(req.query.q??"").trim();const version=String(req.query.version??"kjv");if(!q)return res.status(400).json({error:"q is required"});return studio.bibleSearch(version,q).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}))});

@@ -41,12 +41,18 @@ import bibleCatalog from "../data/bible/catalog.json" with { type:"json" };
 import { searchBibleEdition } from "../bible/library.mjs";
 import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from "../core/release-package.mjs";
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
+import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode, buildEpisodeEntertainmentPrompt } from "../core/episode-factory.mjs";
+import { auditEntertainment } from "../core/entertainment.mjs";
+import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } from "../core/truth-graph.mjs";
+import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
+import { episodeQualityGate } from "../core/quality-gates.mjs";
+import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
   const privacy=createPrivacyPolicy(options.privacy);
   const studio={
-    version:"5.3.0",events,privacy,localMode:new LocalMode(privacy),
+    version:"5.4.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
     projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
@@ -56,7 +62,7 @@ export function createStudio(options={}) {
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
     persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
     commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
-    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map(),visualBible:new VisualBible(),generation:new GenerationQueue(),releasePackages:new Map(),retention:{create:createRetentionOpening,prompt:buildRetentionPrompt},bibleCatalog,bibleSearch:(version,q)=>searchBibleEdition(process.env.APEX_BIBLE_DIR||"./data/bibles",version,q),createReleasePackage:(i)=>{const x=createReleasePackage(i);studio.releasePackages.set(x.id,x);return x},buildYouTubeDescription,buildSubtitleCues
+    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map(),visualBible:new VisualBible(),generation:new GenerationQueue(),releasePackages:new Map(),episodes:new Map(),retention:{create:createRetentionOpening,prompt:buildRetentionPrompt},bibleCatalog,bibleSearch:(version,q)=>searchBibleEdition(process.env.APEX_BIBLE_DIR||"./data/bibles",version,q),createReleasePackage:(i)=>{const x=createReleasePackage(i);studio.releasePackages.set(x.id,x);return x},buildYouTubeDescription,buildSubtitleCues
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
@@ -66,7 +72,7 @@ export function createStudio(options={}) {
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
-    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],graph:studio.graph.snapshot(),
+    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],episodes:[...studio.episodes.values()],graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
   });
@@ -96,7 +102,23 @@ export function createStudio(options={}) {
     .register("research.create",input=>studio.research.create(input))
     .register("realism.create",input=>studio.realism.create(input))
     .register("realism.update",({id,...input})=>studio.realism.update(id,input))
-    .register("realism.prompt",({id})=>studio.realism.promptSpec(id));
+    .register("realism.prompt",({id})=>studio.realism.promptSpec(id))
+    .register("episode.create",input=>{const x=createEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.compile",input=>{const x=compileEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.direct",input=>{const x=createDirectorPlan(input);studio.episodes.set(x.episodeId,x);void studio.autosave();return x;})
+    .register("episode.directReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return directorPlan(x);})
+    .register("episode.compilerReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return compilerStageReport(x);})
+    .register("episode.qualityGate",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeQualityGate(x);})
+    .register("truth.create",input=>createTruthGraph(input))
+    .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
+    .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
+    .register("truth.link",({graph,...input})=>linkTruth(graph,input))
+    .register("truth.audit",graph=>auditTruthGraph(graph))
+    .register("episode.plan",input=>{const x=buildEpisodePlan(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.readiness",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeReadiness(x);})
+    .register("episode.entertainment",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const audit=auditEntertainment(x);x.entertainmentAudit=audit;x.updatedAt=new Date().toISOString();void studio.autosave();return audit;})
+    .register("episode.entertainmentPrompt",input=>buildEpisodeEntertainmentPrompt(input))
+    .register("episode.advance",({id,stage})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const next=advanceEpisode(x,stage);studio.episodes.set(id,next);void studio.autosave();return next;});
   studio.restore=snapshot=>{
     if(!snapshot||typeof snapshot!=="object") return studio;
     studio.projects.restore(snapshot.projects??[]);
@@ -107,6 +129,7 @@ export function createStudio(options={}) {
     studio.media.restore(snapshot.media??[]);
     studio.audio.clear(); for(const a of snapshot.audio??[]) studio.audio.set(a.id,a);
     studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]); studio.releasePackages.clear(); for(const x of snapshot.releasePackages??[]) studio.releasePackages.set(x.id,x);
+    studio.episodes.clear(); for(const x of snapshot.episodes??[]) studio.episodes.set(x.id,x);
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
