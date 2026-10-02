@@ -132,3 +132,12 @@ test("compiled episode requires a ready story architecture for the story stage",
   const gate=episodeQualityGate(episode);
   assert.ok(gate.gates.some(x=>x.name==="story-architecture"));
 });
+
+
+test("story architecture remains source-bounded",async()=>{
+ const {buildStoryArchitecture,auditStoryArchitecture}=await import("../src/core/story-architect.mjs");
+ const intelligence={sourceRefs:["1 Samuel 17"],events:[{title:"Confrontation",description:"David confronts Goliath",sourceRefs:["1 Samuel 17"]},{title:"Outcome",description:"The confrontation ends",sourceRefs:["1 Samuel 17"]}],claims:[{classification:"scripture",text:"The source records the confrontation.",sourceRefs:["1 Samuel 17"]}]};
+ const a=buildStoryArchitecture({passage:"1 Samuel 17",sourceRefs:["1 Samuel 17"],storyIntelligence:intelligence});
+ assert.equal(auditStoryArchitecture(a).ready,true);
+ assert.ok(a.beats.every(b=>b.sourceRefs.length>0||b.dramatization));
+});
