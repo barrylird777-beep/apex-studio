@@ -48,7 +48,7 @@ export function productionGate(episode={}){
 
 export function releaseGate(episode={}){
   const packageReady=Boolean(episode.releasePackage);
-  const authorityReady=canRelease(episode.agentCrew??{approval:{required:true,status:"pending"}});
+  const pkg=episode.releasePackage??{};\n  const approvalInput={action:"release",artifactIds:[pkg.id].filter(Boolean),episodeId:episode.id??episode.agentCrew?.episodeId??null,version:pkg.version??episode.version??null};\n  const authorityReady=canRelease(episode.agentCrew??{approval:{required:true,status:"pending"}},approvalInput);
   const blockers=[];
   if(!packageReady) blockers.push(result("release-package",false,"Release package is missing.",true));
   if(!authorityReady) blockers.push(result("human-approval",false,"Final human approval is required before release.",true));
