@@ -35,6 +35,8 @@ import { RealismManager } from "../core/realism.mjs";
 import { MediaRegistry } from "../core/media.mjs";
 import { createAudioTrack } from "../core/audio.mjs";
 import { buildStoryboard } from "../core/storyboard.mjs";
+import { VisualBible } from "../core/visual-bible.mjs";
+import { GenerationQueue, buildVisualPrompt } from "../core/visual-generation.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -50,7 +52,7 @@ export function createStudio(options={}) {
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
     persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
     commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
-    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map()
+    releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map(),visualBible:new VisualBible(),generation:new GenerationQueue()
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
@@ -60,7 +62,7 @@ export function createStudio(options={}) {
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
-    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],graph:studio.graph.snapshot(),
+    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
   });
@@ -100,6 +102,7 @@ export function createStudio(options={}) {
     studio.render.restore(snapshot.renders??[]);
     studio.media.restore(snapshot.media??[]);
     studio.audio.clear(); for(const a of snapshot.audio??[]) studio.audio.set(a.id,a);
+    studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]);
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
