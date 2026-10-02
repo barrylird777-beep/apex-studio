@@ -3,6 +3,8 @@ import { bibleCatalog } from "../biblical/bible-catalog.mjs";
 import { evaluateArtifact } from "../core/evaluation.mjs";
 import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { createShot } from "../core/scene.mjs";
+import { buildStoryboard } from "../core/storyboard.mjs";
+import { createAudioTrack } from "../core/audio.mjs";
 
 export function createApi(studio){
   const r=express.Router();
@@ -35,6 +37,7 @@ export function createApi(studio){
 
   r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
   r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
+  r.post("/scenes/:id/storyboard",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});scene.shots=buildStoryboard(scene).map((s,i)=>({...s,index:i}));scene.updatedAt=new Date().toISOString();void studio.autosave();return res.status(201).json(scene.shots);});
   r.post("/scenes/:id/shots",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shot=createShot({...req.body,sceneId:scene.id,index:scene.shots.length});scene.shots.push(shot);scene.updatedAt=new Date().toISOString();return res.status(201).json(shot);});
 
   r.get("/timelines",(req,res)=>res.json(studio.timelines.list()));
@@ -45,13 +48,18 @@ export function createApi(studio){
   r.get("/renders",(req,res)=>res.json(studio.render.list()));
   r.post("/renders",(req,res)=>res.status(202).json(studio.render.enqueue(req.body??{})));
   r.patch("/renders/:id",(req,res)=>{const job=studio.render.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(job);});
-  r.post("/renders/:id/prepare",async(req,res)=>{const job=studio.render.get(req.params.id);if(!job)return res.status(404).json({error:"Render job not found"});const manifest=await studio.render.writeManifest(job,studio.listScenes(),req.body?.outDir);void studio.autosave();res.json(manifest);});
+  r.get("/renders/:id",(req,res)=>{const j=studio.render.get(req.params.id);if(!j)return res.status(404).json({error:"Render job not found"});res.json(j);});
+  r.post("/renders/:id/prepare",async(req,res)=>{const job=studio.render.get(req.params.id);if(!job)return res.status(404).json({error:"Render job not found"});const manifest=await studio.render.writeManifest(job,studio.listScenes(),req.body?.outDir,studio.media.list(),[...studio.audio.values()]);void studio.autosave();res.json(manifest);});
 
   r.get("/releases",(req,res)=>res.json(studio.releases.list()));
   r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
   r.post("/releases/:id/publish",(req,res)=>res.json(studio.releases.publish(req.params.id)));
 
   r.get("/assets",(req,res)=>res.json([...studio.assets.assets.values()]));
+  r.get("/media",(req,res)=>res.json(studio.media.list()));
+  r.post("/media",(req,res)=>{const m=studio.media.add(req.body??{});void studio.autosave();res.status(201).json(m);});
+  r.get("/audio",(req,res)=>res.json([...studio.audio.values()]));
+  r.post("/audio",(req,res)=>{const a=createAudioTrack(req.body??{});studio.audio.set(a.id,a);void studio.autosave();res.status(201).json(a);});
   r.post("/assets",(req,res)=>{const a=studio.assets.create(req.body??{});studio.events.emit("asset.created",a);res.status(201).json(a);});
   r.get("/jobs",(req,res)=>res.json(studio.jobs.list()));
   r.post("/jobs",(req,res)=>res.status(202).json(studio.jobs.enqueue(req.body?.type,req.body?.payload,req.body)));
