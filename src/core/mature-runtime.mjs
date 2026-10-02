@@ -47,6 +47,15 @@ export class MatureRuntimeBoundary {
     return [...this.sessions.values()];
   }
 
+  status(token) {
+    this.mature.requireUnlocked(token);
+    const sessions = [...this.sessions.values()];
+    return {
+      active: sessions.filter((session) => session.state === "active").length,
+      total: sessions.length
+    };
+  }
+
   snapshot() {
     return { sessions: [...this.sessions.values()] };
   }
