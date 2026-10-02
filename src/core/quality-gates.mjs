@@ -2,6 +2,7 @@ import { auditTruthGraph, buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { auditEntertainment } from "./entertainment.mjs";
 import { auditStoryboard } from "./storyboard.mjs";
 import { auditScenes } from "./scene-purpose.mjs";
+import { canRelease } from "./agent-crew.mjs";
 
 function result(name,ok,detail,blocker=false){ return {name,ok,detail,blocker}; }
 
@@ -46,8 +47,12 @@ export function productionGate(episode={}){
 }
 
 export function releaseGate(episode={}){
-  const ok=Boolean(episode.releasePackage);
-  return {name:"release",ok,blockers:ok?[]:[result("release-package",false,"Release package is missing.",true)]};
+  const packageReady=Boolean(episode.releasePackage);
+  const authorityReady=canRelease(episode.agentCrew??{approval:{required:true,status:"pending"}});
+  const blockers=[];
+  if(!packageReady) blockers.push(result("release-package",false,"Release package is missing.",true));
+  if(!authorityReady) blockers.push(result("human-approval",false,"Final human approval is required before release.",true));
+  return {name:"release",ok:blockers.length===0,blockers};
 }
 
 export function episodeQualityGate(episode={}){
