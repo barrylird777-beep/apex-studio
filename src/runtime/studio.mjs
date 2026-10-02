@@ -100,7 +100,8 @@ export function createStudio(options={}) {
   };
   studio.save=async()=>studio.persistence.save(studio.snapshot());
   studio.load=async(fallback={})=>studio.restore(await studio.persistence.load(fallback));
-  events.on("asset.created",asset=>studio.memory.remember({type:"asset",projectId:asset.projectId,content:asset.name,importance:.4}));
+  events.on("asset.created",asset=>{studio.memory.remember({type:"asset",projectId:asset.projectId,content:asset.name,importance:.4});void studio.autosave();});
+  events.on("scene.created",()=>void studio.autosave());
   studio.jobs.register("memory.remember",payload=>studio.memory.remember(payload));
   return studio;
 }
