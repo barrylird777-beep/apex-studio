@@ -61,9 +61,8 @@ export class MatureContentManager{
 }
  lock(token){if(token&&this.layers.session?.token!==token)throw new Error("Invalid Layers session");this.layers.session=null;this.layers.locked=true;this.record("layers.locked");return this.layerStatus();}
  isUnlocked(token){const s=this.layers.session;if(!s||s.token!==token)return false;if(Date.now()>s.expiresAt){this.lock(token);return false;}return true;}
- status(token){return {...this.layerStatus(),unlocked:this.isUnlocked(token)};}
+ status(token=null){return {label:"LAYERS",configured:this.layers.configured,locked:this.layers.locked,expiresAt:this.layers.session?.expiresAt??null,unlocked:token==null?false:this.isUnlocked(token),policy:{...this.policy,enabledCategories:{...this.policy.enabledCategories},enabledMedia:{...this.policy.enabledMedia}},categories:MATURE_WORKSPACES,projectCount:this.projects.size,providers:[...this.providers.values()],auditCount:this.audit.length};}
  requireUnlocked(token){if(!this.isUnlocked(token))throw new Error("Layers is locked");return true;}
- status(){return {policy:{...this.policy,enabledCategories:{...this.policy.enabledCategories},enabledMedia:{...this.policy.enabledMedia}},categories:MATURE_WORKSPACES,projectCount:this.projects.size,providers:[...this.providers.values()],auditCount:this.audit.length};}
  updatePolicy(input={}){this.policy=createMaturePolicy({...this.policy,...input,enabledCategories:input.enabledCategories??MATURE_CATEGORIES.filter(c=>this.policy.enabledCategories[c]),enabledMedia:{...this.policy.enabledMedia,...input.enabledMedia}});this.record("policy.updated");return this.status();}
  setCategory(category,enabled){if(!MATURE_CATEGORIES.includes(category))throw new Error("Unknown mature category: "+category);this.policy.enabledCategories[category]=Boolean(enabled);this.record("category.updated",{category,enabled:Boolean(enabled)});return this.status();}
  setMediaType(mediaType,enabled){if(!MATURE_MEDIA_TYPES.includes(mediaType))throw new Error("Unknown media type: "+mediaType);this.policy.enabledMedia[mediaType]=Boolean(enabled);this.record("media.updated",{mediaType,enabled:Boolean(enabled)});return this.status();}
