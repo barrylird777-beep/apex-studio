@@ -1,6 +1,7 @@
 import { auditTruthGraph, buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { auditEntertainment } from "./entertainment.mjs";
 import { auditStoryboard } from "./storyboard.mjs";
+import { auditScenes } from "./scene-purpose.mjs";
 
 function result(name,ok,detail,blocker=false){ return {name,ok,detail,blocker}; }
 
@@ -21,7 +22,7 @@ export function entertainmentGate(episode={}){
   return {name:"entertainment",ok:blockers.length===0,blockers,audit};
 }
 
-export function continuityGate(episode={}){
+export function sceneGate(episode={}){ const audit=auditScenes(episode.scenes); return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit}; }\n\nexport function continuityGate(episode={}){
   const shots=Array.isArray(episode.storyboard)?episode.storyboard:[];
   const audit=auditStoryboard(shots);
   return {name:"continuity",ok:audit.ready,blockers:audit.blockers,audit};
@@ -46,7 +47,7 @@ export function releaseGate(episode={}){
 }
 
 export function episodeQualityGate(episode={}){
-  const gates=[scriptureGate(episode),entertainmentGate(episode),continuityGate(episode),productionGate(episode)];
+  const gates=[scriptureGate(episode),entertainmentGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode)];
   const blockers=gates.flatMap(g=>g.blockers??[]);
   return {ready:blockers.length===0,gates,blockers,release:releaseGate(episode),
     summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};
