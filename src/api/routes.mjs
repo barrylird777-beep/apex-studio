@@ -3,6 +3,14 @@ import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { evaluateArtifact } from "../core/evaluation.mjs";
 export function createApi(studio){
  const r=express.Router();
+ const requireLayers=(req,res,next)=>{
+  try{
+   studio.mature.requireUnlocked(req.get("x-layers-token"));
+   next();
+  }catch(e){
+   res.status(403).json({error:"Layers locked"});
+  }
+ };
  r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
  r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
  r.get("/privacy",(req,res)=>res.json(studio.privacy));
