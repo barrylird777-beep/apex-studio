@@ -7,21 +7,19 @@ export const OUTPUT_PRESETS=Object.freeze({
  square:{width:1080,height:1080,fps:30,videoCodec:"libx264",audioCodec:"aac"}
 });
 
-function q(v){return String(v).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\n/g," ");}
-
 export function buildFfmpegPlan({media=[],audio=[],format="master",output="output.mp4"}={}){
  const preset=OUTPUT_PRESETS[format]??OUTPUT_PRESETS.master;
- const inputs=media.filter(m=>m?.uri).map(m=>path.resolve(m.uri));
- const audioInputs=audio.filter(a=>a?.uri).map(a=>path.resolve(a.uri));
+ const video=media.filter(m=>m?.uri&&m.type!=="audio");
+ const audioInputs=audio.filter(a=>a?.uri);
+ if(!video.length) return {command:"ffmpeg",args:["-y","-f","lavfi","-i","color=c=black:s="+preset.width+"x"+preset.height+":r="+preset.fps,"-t","1","-c:v",preset.videoCodec,output],preset,inputCount:1,ready:false,reason:"No visual media is attached yet."};
  const args=["-y"];
- for(const input of inputs)args.push("-i",input);
- for(const input of audioInputs)args.push("-i",input);
- const filter="[0:v]scale="+preset.width+":"+preset.height+":force_original_aspect_ratio=decrease,pad="+preset.width+":"+preset.height+":(ow-iw)/2:(oh-ih)/2,format=yuv420p[v]";
- return {command:"ffmpeg",args:[...args,"-filter_complex",filter,"-map","[v]",audioInputs.length?"-map":"-an",...(audioInputs.length?[""+(inputs.length)+":a:0","-c:a",preset.audioCodec]:[]),"-r",String(preset.fps),"-c:v",preset.videoCodec,output],preset,inputCount:inputs.length+audioInputs.length};
-}
-
-export function manifestToFfmpegPlan(manifest){
- const media=manifest.media??[];
- const audio=manifest.audio??[];
- return buildFfmpegPlan({media,audio,format:manifest.format,output:manifest.output??"output.mp4"});
+ for(const m of video)args.push("-i",path.resolve(m.uri));
+ for(const a of audioInputs)args.push("-i",path.resolve(a.uri));
+ const concat=video.map((_,i)=>"["+i+":v]scale="+preset.width+":"+preset.height+":force_original_aspect_ratio=decrease,pad="+preset.width+":"+preset.height+":(ow-iw)/2:(oh-ih)/2,setsar=1[v"+i+"]").join(";");
+ const chain=video.map((_,i)=>"[v"+i+"]").join("")+"concat=n="+video.length+":v=1:a=0[v]";
+ const filters=concat+";"+chain;
+ const out=["-filter_complex",filters,"-map","[v]"];
+ if(audioInputs.length)out.push("-map",video.length+":a:0","-c:a",preset.audioCodec);else out.push("-an");
+ out.push("-r",String(preset.fps),"-c:v",preset.videoCodec,"-movflags","+faststart",output);
+ return {command:"ffmpeg",args:[...args,...out],preset,inputCount:video.length+audioInputs.length,ready:true};
 }
