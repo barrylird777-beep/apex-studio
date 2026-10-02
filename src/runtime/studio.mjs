@@ -59,6 +59,8 @@ import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, 
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, availableAgents, requestHumanApproval, approveCrewDecision, revokeCrewApproval, canRelease, auditCrew } from "../core/agent-crew.mjs";
 import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, recordGrowthObservation, growthLearningReport, buildGrowthPrompt } from "../core/growth-engine.mjs";
+import { groundPassageFromBible, seedStoryIntelligenceFromHits, sourceGroundingPrompt } from "../core/source-grounding.mjs";
+
 
 
 
@@ -179,6 +181,9 @@ export function createStudio(options={}) {
     .register("growth.observation.record",input=>{const x=recordGrowthObservation(studio.growthExperiments.get(input.id),input.observation);studio.growthExperiments.set(x.id,x);return x;})
     .register("growth.report",({id})=>growthLearningReport(studio.growthExperiments.get(id)))
     .register("growth.prompt",input=>buildGrowthPrompt(input))
+    .register("source.ground",input=>groundPassageFromBible(input.root,input.slug,input.query,input))
+    .register("source.seedStory",input=>seedStoryIntelligenceFromHits(input))
+    .register("source.prompt",input=>sourceGroundingPrompt(input))
     .register("doctor.diagnose",input=>diagnoseEpisode(input))
     .register("doctor.repairPlan",diagnosis=>repairPlan(diagnosis))
     .register("doctor.prompt",input=>productionDoctorPrompt(input))
