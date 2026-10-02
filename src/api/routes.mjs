@@ -9,6 +9,7 @@ import { RenderWorker } from "../core/render-worker.mjs";
 
 export function createApi(studio){
   const r=express.Router();
+  const renderWorker=new RenderWorker();
   r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
   r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
   r.get("/privacy",(req,res)=>res.json(studio.privacy));
