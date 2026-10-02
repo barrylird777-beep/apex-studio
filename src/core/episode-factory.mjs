@@ -15,6 +15,7 @@ export function createEpisode(input={}){
     sourceRefs,
     audience:input.audience??"general audience",
     tone:input.tone??"cinematic, reverent, emotionally gripping",
+    visualStyle:input.visualStyle??"dark fantasy anime, sharp cel-shading, high-contrast cinematic lighting, epic and intense, highly detailed",
     storySummary:input.storySummary??"",
     hook:null,
     script:null,
