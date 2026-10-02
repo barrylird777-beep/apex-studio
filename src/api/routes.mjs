@@ -59,7 +59,7 @@ export function createApi(studio){
   r.post("/visual-bible/characters",(req,res)=>{const x=studio.visualBible.createCharacter(req.body??{});void studio.autosave();res.status(201).json(x);});
   r.get("/visual-bible/locations",(req,res)=>res.json(studio.visualBible.listLocations()));
   r.post("/visual-bible/locations",(req,res)=>{const x=studio.visualBible.createLocation(req.body??{});void studio.autosave();res.status(201).json(x);});
-  r.get("/scenes/:id/visual-prompts",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shots=scene.shots??[];res.json(shots.map(shot=>buildVisualPrompt({shot,characters:(shot.characterIds??[]).map(id=>studio.visualBible.getCharacter(id)).filter(Boolean),location:studio.visualBible.getLocation(shot.locationId)})));});
+  r.get("/scenes/:id/visual-prompts",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shots=scene.shots??[];res.json(shots.map(shot=>buildVisualPrompt({shot,characters:(shot.characterIds??[]).map(id=>studio.visualBible.getCharacter(id)).filter(Boolean),location:studio.visualBible.getLocation(shot.locationId),canonEntities:(shot.canonEntityIds??[]).map(id=>studio.canon.entities.find(x=>x.id===id)).filter(Boolean)})));});
   r.post("/generation",(req,res)=>{const j=studio.generation.enqueue(req.body??{});void studio.autosave();res.status(202).json(j);});
   r.get("/generation",(req,res)=>res.json(studio.generation.list()));
   r.patch("/generation/:id",(req,res)=>{const j=studio.generation.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(j);});
