@@ -15,8 +15,24 @@
   sacredButton.textContent = "Sacred Library";
   sacredButton.onclick = () => sacredLibraryView();
   nav.appendChild(sacredButton);
+  const quirkButton = document.createElement("button");
+  quirkButton.dataset.view = "quirk-lab";
+  quirkButton.textContent = "Quirk Lab";
+  quirkButton.onclick = () => quirkLabView();
+  nav.appendChild(quirkButton);
+
 
   const main = document.querySelector("main");
+  const quirk = document.createElement("section");
+  quirk.id = "quirk-lab";
+  quirk.className = "view hidden";
+  quirk.innerHTML = `
+    <div class="top"><div><div class="eyebrow">Apex playful intelligence</div><h1>Quirk Lab</h1><p>Optional little details that make episodes more replayable, memorable, and fun without changing Scripture.</p></div></div>
+    <div class="workspace">
+      <section class="panel"><h2>Generate sparks</h2><div class="form"><input id="quirkPassage" placeholder="Genesis 22:1-19"><input id="quirkThreads" placeholder="Universe threads (optional)"><button class="primary" id="quirkGenerate">Surprise me</button><div id="quirkMsg" class="error"></div></div></section>
+      <section class="panel"><h2>Suggested quirks</h2><div id="quirkList" class="list"></div></section>
+    </div>`;
+  main.appendChild(quirk);
   const section = document.createElement("section");
   section.id = "apex-command-center";
   section.className = "view hidden";
@@ -62,6 +78,19 @@
     $(name).classList.remove("hidden");
     document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("active", x.dataset.view === name));
   }
+
+  window.quirkLabView = function() {
+    activate("quirk-lab");
+    $("quirkGenerate").onclick = async () => {
+      $("quirkMsg").textContent = "";
+      try {
+        const refs = $("quirkPassage").value.trim() ? [{ type:"bible", passage:$("quirkPassage").value.trim() }] : [];
+        const threads = $("quirkThreads").value.split(",").map(x=>x.trim()).filter(Boolean);
+        const data = await api("/api/studio/quirks/suggest", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sourceRefs:refs,canonThreads:threads,count:5})});
+        $("quirkList").innerHTML = data.map(x => "<div class='row'><div><b>"+esc(x.title)+"</b><span class='muted'>"+esc(x.description)+"</span></div><span class='pill'>OPTIONAL</span></div>").join("");
+      } catch(e) { $("quirkMsg").textContent = e.message; }
+    };
+  };
 
   window.apexCommandView = async function() {
     activate("apex-command-center");
