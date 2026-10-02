@@ -46,6 +46,7 @@ import { auditEntertainment } from "../core/entertainment.mjs";
 import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } from "../core/truth-graph.mjs";
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
 import { episodeQualityGate } from "../core/quality-gates.mjs";
+import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -104,6 +105,8 @@ export function createStudio(options={}) {
     .register("realism.prompt",({id})=>studio.realism.promptSpec(id))
     .register("episode.create",input=>{const x=createEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.compile",input=>{const x=compileEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.direct",input=>{const x=createDirectorPlan(input);studio.episodes.set(x.episodeId,x);void studio.autosave();return x;})
+    .register("episode.directReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return directorPlan(x);})
     .register("episode.compilerReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return compilerStageReport(x);})
     .register("episode.qualityGate",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeQualityGate(x);})
     .register("truth.create",input=>createTruthGraph(input))
