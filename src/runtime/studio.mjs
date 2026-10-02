@@ -41,7 +41,7 @@ import bibleCatalog from "../../data/bible/catalog.json" with { type:"json" };
 import { searchBibleEdition } from "../bible/library.mjs";
 import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from "../core/release-package.mjs";
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
-import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode, buildEpisodeEntertainmentPrompt } from "../core/episode-factory.mjs";
+import { createEpisode, buildEpisodePlan, episodeReadiness, advanceEpisode, buildEntertainmentPrompt } from "../core/entertainment.mjs";
 import { auditEntertainment } from "../core/entertainment.mjs";
 import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } from "../core/truth-graph.mjs";
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
