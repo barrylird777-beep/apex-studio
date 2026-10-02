@@ -45,6 +45,7 @@ export function createApi(studio){
  r.post("/layers/runtime/open",(req,res)=>{try{res.status(201).json(studio.matureRuntime.open({...(req.body??{}),token:req.get("x-layers-token")}))}catch(e){res.status(403).json({error:e.message})}});
  r.post("/layers/runtime/:id/close",(req,res)=>{try{res.json(studio.matureRuntime.close(req.params.id,req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
  r.get("/layers/runtime",(req,res)=>{try{res.json(studio.matureRuntime.list(req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
+ r.get("/layers/runtime/status",(req,res)=>{try{res.json(studio.matureRuntime.status(req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
 
  r.post("/layers/unlock",(req,res)=>res.json(studio.mature.unlock(req.body?.passcode,req.body?.ttlMs)));
  r.post("/layers/lock",(req,res)=>res.json(studio.mature.lock(req.body?.token)));
