@@ -22,4 +22,21 @@ assert.equal(m.eventsFor(p.id).length,1);
 const restored=new AdaptiveIntimacyManager().restore(m.snapshot());
 assert.equal(restored.get(p.id).level,"flirty");
 assert.equal(restored.get(p.id).boundaries.privateOnly,true);
+
+m.setMood(p.id,"mischievous");
+m.setEnergy(p.id,"lively");
+m.setCue(p.id,"challenge",true);
+assert.equal(m.get(p.id).mood,"mischievous");
+assert.equal(m.get(p.id).energy,"lively");
+assert.ok(m.getCues(p.id).includes("challenge"));
+
+const suggestion=m.suggestCue(p.id,{avoid:["compliment"]});
+assert.ok(suggestion.cue);
+assert.equal(suggestion.mood,"mischievous");
+
+const adapted=m.adapt(p.id,{signal:"positiveFeedback",positive:true,consent:true});
+assert.equal(adapted.changed,true);
+assert.equal(m.get(p.id).level,"sensual");
+
+assert.throws(()=>m.update(p.id,{maxLevel:"flirty"}).level==="sensual");
 console.log("adaptive intimacy ok");
