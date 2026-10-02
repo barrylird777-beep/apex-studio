@@ -57,6 +57,8 @@ import { createArtifact, addArtifactCheck, validateArtifact, promoteArtifact, ar
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
+import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, availableAgents, requestHumanApproval, approveCrewDecision, revokeCrewApproval, canRelease, auditCrew } from "../core/agent-crew.mjs";
+
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -64,7 +66,7 @@ export function createStudio(options={}) {
   const studio={
     version:"5.4.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
-    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),
+    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),agentCrews:[],
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
     agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),characters:new CharacterStore(),
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
@@ -158,6 +160,17 @@ export function createStudio(options={}) {
     .register("director.autonomousPlan",input=>createAutonomousPlan(input))
     .register("director.nextAction",plan=>nextDirectorAction(plan))
     .register("director.decision",input=>directorDecision(input))
+    .register("crew.create",input=>{const x=createCrew(input);studio.agentCrews.push(x);return x;})
+    .register("crew.agent.create",input=>createAgent(input))
+    .register("crew.handoff.create",input=>createHandoff(input))
+    .register("crew.handoff.queue",input=>queueHandoff(input.crew,input.handoff))
+    .register("crew.handoff.complete",input=>completeHandoff(input.crew,input.handoffId,input.result))
+    .register("crew.available",crew=>availableAgents(crew))
+    .register("crew.audit",crew=>auditCrew(crew))
+    .register("crew.approval.request",input=>requestHumanApproval(input.crew,input))
+    .register("crew.approval.approve",input=>approveCrewDecision(input.crew,input))
+    .register("crew.approval.revoke",input=>revokeCrewApproval(input.crew,input.reason))
+    .register("crew.canRelease",crew=>canRelease(crew))
     .register("doctor.diagnose",input=>diagnoseEpisode(input))
     .register("doctor.repairPlan",diagnosis=>repairPlan(diagnosis))
     .register("doctor.prompt",input=>productionDoctorPrompt(input))
