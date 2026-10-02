@@ -39,6 +39,8 @@ export function createApi(studio){
  r.post("/jobs",(req,res)=>res.status(202).json(studio.jobs.enqueue(req.body?.type,req.body?.payload,req.body)));
  r.post("/jobs/:id/run",async(req,res)=>res.json(await studio.jobs.run(req.params.id)));
  r.get("/tools",(req,res)=>res.json(studio.tools.describe()));
+ r.get("/realism/status",(req,res)=>res.json({profiles:studio.realism.list().length}));
+ r.get("/adaptive-intimacy/status",(req,res)=>res.json({profiles:studio.adaptiveIntimacy.list().length,sessions:[...studio.adaptiveIntimacy.sessions.values()].length}));
  r.get("/layers/status",(req,res)=>res.json(studio.mature.layerStatus()));
 
  r.post("/layers/unlock",(req,res)=>res.json(studio.mature.unlock(req.body?.passcode,req.body?.ttlMs)));
