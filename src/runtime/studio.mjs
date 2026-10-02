@@ -47,7 +47,7 @@ import { createTruthGraph, addEntity, addClaim, linkTruth, auditTruthGraph } fro
 import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mjs";
 import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
-import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode } from "../core/world-canon.mjs";
+import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -105,7 +105,7 @@ export function createStudio(options={}) {
     .register("realism.update",({id,...input})=>studio.realism.update(id,input))
     .register("realism.prompt",({id})=>studio.realism.promptSpec(id))
     .register("episode.create",input=>{const x=createEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
-    .register("episode.compile",input=>{const x=compileEpisode(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
+    .register("episode.compile",input=>{const x=compileEpisode({...input,worldCanon:input.worldCanon??studio.canon});if(x.canonEntityIds.length)attachEpisodeToCanon(studio.canon,x.id,x.canonEntityIds);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.direct",input=>{const x=createDirectorPlan(input);studio.episodes.set(x.episodeId,x);void studio.autosave();return x;})
     .register("episode.directReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return directorPlan(x);})
     .register("episode.compilerReport",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return compilerStageReport(x);})
@@ -121,6 +121,7 @@ export function createStudio(options={}) {
     .register("canon.event",input=>{const x=recordCanonEvent(studio.canon,input);void studio.autosave();return x;})
     .register("canon.audit",({episodeId}={})=>auditCanon(studio.canon,episodeId?{episodeRefs:[episodeId]}:{}))
     .register("canon.episode",({episodeId})=>canonForEpisode(studio.canon,episodeId))
+    .register("canon.attachEpisode",({episodeId,entityIds=[]})=>{const x=attachEpisodeToCanon(studio.canon,episodeId,entityIds);void studio.autosave();return x;})
     .register("episode.plan",input=>{const x=buildEpisodePlan(input);studio.episodes.set(x.id,x);void studio.autosave();return x;})
     .register("episode.readiness",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");return episodeReadiness(x);})
     .register("episode.entertainment",({id})=>{const x=studio.episodes.get(id);if(!x)throw new Error("Episode not found");const audit=auditEntertainment(x);x.entertainmentAudit=audit;x.updatedAt=new Date().toISOString();void studio.autosave();return audit;})

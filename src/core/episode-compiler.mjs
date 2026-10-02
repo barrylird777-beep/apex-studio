@@ -2,6 +2,7 @@ import { createEpisode } from "./episode-factory.mjs";
 import { buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { episodeQualityGate } from "./quality-gates.mjs";
 import { uid, now } from "./id.mjs";
+import { canonContext } from "./world-canon.mjs";
 
 export const COMPILER_STAGES=Object.freeze([
   "source","research","truth","story","script","scenes","storyboard","visuals","audio","timeline","review","release"
@@ -11,6 +12,7 @@ export function compileEpisode(input={}){
   const episode=createEpisode(input);
   episode.id=input.id??episode.id;
   episode.truthGraph=input.truthGraph??buildTruthGraphFromEpisode(episode);
+  episode.canonContext=input.worldCanon?canonContext(input.worldCanon,episode.canonEntityIds):{entities:[],relationships:[],events:[],motifs:[]};
   episode.compiler={
     id:uid("compile"),
     version:1,
@@ -18,7 +20,8 @@ export function compileEpisode(input={}){
     generatedAt:now()
   };
   episode.qualityGate=episodeQualityGate(episode);
-  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true};
+  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true};
+  episode.compiler.canon={entityIds:[...episode.canonEntityIds],entityCount:episode.canonContext.entities.length};
   return episode;
 }
 
