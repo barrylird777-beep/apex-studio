@@ -65,7 +65,7 @@ export function createStudio(options={}) {
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),scenes:studio.listScenes(),
-    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),graph:studio.graph.snapshot(),
+    stories:studio.biblical.snapshot(),jobs:studio.jobs.list(),timelines:studio.timelines.snapshot(),renders:studio.render.snapshot(),media:studio.media.snapshot(),audio:[...studio.audio.values()],visualBible:studio.visualBible.snapshot(),generation:studio.generation.snapshot(),releasePackages:[...studio.releasePackages.values()],graph:studio.graph.snapshot(),
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.list(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list()
   });
@@ -105,7 +105,7 @@ export function createStudio(options={}) {
     studio.render.restore(snapshot.renders??[]);
     studio.media.restore(snapshot.media??[]);
     studio.audio.clear(); for(const a of snapshot.audio??[]) studio.audio.set(a.id,a);
-    studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]);
+    studio.visualBible.restore(snapshot.visualBible??{}); studio.generation.restore(snapshot.generation??[]); studio.releasePackages.clear(); for(const x of snapshot.releasePackages??[]) studio.releasePackages.set(x.id,x);
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
