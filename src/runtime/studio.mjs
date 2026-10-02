@@ -59,7 +59,7 @@ import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, 
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
 import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, availableAgents, requestHumanApproval, approveCrewDecision, revokeCrewApproval, canRelease, auditCrew } from "../core/agent-crew.mjs";
 import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, recordGrowthObservation, growthLearningReport, buildGrowthPrompt } from "../core/growth-engine.mjs";
-import { groundPassageFromBible, seedStoryIntelligenceFromHits, sourceGroundingPrompt } from "../core/source-grounding.mjs";
+import { groundPassageFromBible, resolveBiblePassage, auditSourceRefs, seedStoryIntelligenceFromHits, sourceGroundingPrompt } from "../core/source-grounding.mjs";
 import { sacredTextCatalog } from "../biblical/sacred-library.mjs";
 
 
@@ -200,6 +200,8 @@ export function createStudio(options={}) {
     })
     .register("sacred.catalog",()=>sacredTextCatalog())
     .register("source.ground",input=>groundPassageFromBible(input.root,input.slug,input.query,input))
+    .register("source.resolvePassage",input=>resolveBiblePassage(input.root,input.slug,input.passage,input))
+    .register("source.auditRefs",input=>auditSourceRefs(input.sourceRefs))
     .register("source.seedStory",input=>seedStoryIntelligenceFromHits(input))
     .register("source.prompt",input=>sourceGroundingPrompt(input))
     .register("doctor.diagnose",input=>diagnoseEpisode(input))

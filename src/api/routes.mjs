@@ -55,6 +55,7 @@ export function createApi(studio){
   r.get("/bible/catalog",(req,res)=>res.json(studio.bibleCatalog));
   r.get("/bible/versions",(req,res)=>res.json(studio.bibleCatalog.editions));
   r.get("/bible/search",(req,res)=>{const q=String(req.query.q??"").trim();const version=String(req.query.version??"kjv");if(!q)return res.status(400).json({error:"q is required"});return studio.bibleSearch(version,q).then(x=>res.json(x)).catch(e=>res.status(404).json({error:e.message}))});
+  r.get("/bible/passage",(req,res)=>{const root=process.env.APEX_BIBLE_DIR||"./data/bibles";const version=String(req.query.version??"kjv");const passage=String(req.query.passage??"").trim();if(!passage)return res.status(400).json({error:"passage is required"});Promise.resolve(studio.command("source.resolvePassage",{root,slug:version,passage})).then(x=>res.json(x)).catch(e=>res.status(400).json({error:e.message}));});
   r.get("/canon",(req,res)=>res.json(studio.canon));
   r.get("/canon/audit",(req,res)=>res.json(studio.command("canon.audit",{})));
   r.get("/canon/episodes/:episodeId",(req,res)=>res.json(studio.command("canon.episode",{episodeId:req.params.episodeId})));
