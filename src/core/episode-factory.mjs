@@ -30,7 +30,7 @@ export function createEpisode(input={}){
     visualStyle:input.visualStyle??"dark fantasy anime, sharp cel-shading, high-contrast cinematic lighting, epic and intense, highly detailed",
     storySummary:input.storySummary??"", hook:null, script:null, scenes:[],
     storyboard:[], visualBible:{characters:[],locations:[]}, audio:[], timeline:null,
-    releasePackage:null, entertainmentAudit:null, truthGraph:input.truthGraph??null,
+    releasePackage:null, entertainmentAudit:null, truthGraph:input.truthGraph??null, canonEntityIds:[...(input.canonEntityIds??[])],
     provenance:{sourceRefs,rules:["Scripture must remain distinguishable from paraphrase, inference, history, tradition, and dramatization."]},
     stage:"source", createdAt:input.createdAt??now(), updatedAt:now()
   };
