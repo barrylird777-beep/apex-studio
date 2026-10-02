@@ -3,9 +3,8 @@ import { buildTruthGraphFromEpisode } from "./truth-graph.mjs";
 import { episodeQualityGate } from "./quality-gates.mjs";
 import { uid, now } from "./id.mjs";
 import { canonContext } from "./world-canon.mjs";
-import { auditStoryArchitecture, buildStoryArchitecture } from "./story-architect.mjs";
 import { createStoryIntelligence, auditStoryIntelligence } from "./story-intelligence.mjs";
-import { createStoryArchitecture, auditStoryArchitecture, buildStoryArchitecture } from "./story-architect.mjs";
+import { auditStoryArchitecture, buildStoryArchitecture } from "./story-architect.mjs";
 
 export const COMPILER_STAGES=Object.freeze([
   "source","research","truth","story","script","scenes","storyboard","visuals","audio","timeline","review","release"
@@ -15,10 +14,7 @@ export function compileEpisode(input={}){
   const episode=createEpisode(input);
   episode.id=input.id??episode.id;
   episode.truthGraph=input.truthGraph??buildTruthGraphFromEpisode(episode);
-  episode.storyIntelligence=input.storyIntelligence??null;
-  episode.storyArchitecture=input.storyArchitecture??(episode.storyIntelligence?buildStoryArchitecture({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs,storyIntelligence:episode.storyIntelligence}):null);
-  episode.storyArchitectureAudit=episode.storyArchitecture?auditStoryArchitecture(episode.storyArchitecture):null;
-  episode.storyIntelligence=input.storyIntelligence??createStoryIntelligence({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs});
+      episode.storyIntelligence=input.storyIntelligence??createStoryIntelligence({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs});
   episode.canonContext=input.worldCanon?canonContext(input.worldCanon,episode.canonEntityIds):{entities:[],relationships:[],events:[],motifs:[]};
   episode.compiler={
     id:uid("compile"),
@@ -30,7 +26,7 @@ export function compileEpisode(input={}){
   episode.storyArchitecture=input.storyArchitecture??buildStoryArchitecture({episodeId:episode.id,passage:episode.passage,sourceRefs:episode.sourceRefs,storyIntelligence:episode.storyIntelligence});
   episode.storyArchitectureAudit=auditStoryArchitecture(episode.storyArchitecture);
   episode.qualityGate=episodeQualityGate(episode);
-  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyArchitectureRequired:true,storyArchitectureRequired:true,storyIntelligenceRequired:true,storyArchitectureRequired:true};
+  episode.compiler.rules={provenanceLocked:true,scenePurposeRequired:true,cinematicCoverageRequired:true,canonContinuityRequired:true,storyArchitectureRequired:true,storyIntelligenceRequired:true};
   episode.compiler.canon={entityIds:[...episode.canonEntityIds],entityCount:episode.canonContext.entities.length};
   return episode;
 }
@@ -69,7 +65,6 @@ export function canCompileToStage(episode,stage){
     const checks={
       source:Boolean(episode.passage||episode.sourceRefs?.length),
       truth:Boolean(episode.truthGraph),
-      storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
       storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
       storyIntelligence:Boolean(episode.storyIntelligenceAudit?.ready),
       storyArchitecture:Boolean(episode.storyArchitectureAudit?.ready),
