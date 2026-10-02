@@ -42,6 +42,9 @@ export function createApi(studio){
  r.get("/realism/status",(req,res)=>res.json({profiles:studio.realism.list().length}));
  r.get("/adaptive-intimacy/status",(req,res)=>res.json({profiles:studio.adaptiveIntimacy.list().length,sessions:[...studio.adaptiveIntimacy.sessions.values()].length}));
  r.get("/layers/status",(req,res)=>res.json(studio.mature.layerStatus()));
+ r.post("/layers/runtime/open",(req,res)=>{try{res.status(201).json(studio.matureRuntime.open({...(req.body??{}),token:req.get("x-layers-token")}))}catch(e){res.status(403).json({error:e.message})}});
+ r.post("/layers/runtime/:id/close",(req,res)=>{try{res.json(studio.matureRuntime.close(req.params.id,req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
+ r.get("/layers/runtime",(req,res)=>{try{res.json(studio.matureRuntime.list(req.get("x-layers-token")))}catch(e){res.status(403).json({error:e.message})}});
 
  r.post("/layers/unlock",(req,res)=>res.json(studio.mature.unlock(req.body?.passcode,req.body?.ttlMs)));
  r.post("/layers/lock",(req,res)=>res.json(studio.mature.lock(req.body?.token)));
