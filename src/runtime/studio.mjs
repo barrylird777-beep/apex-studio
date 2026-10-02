@@ -48,6 +48,7 @@ import { compileEpisode, compilerStageReport } from "../core/episode-compiler.mj
 import { episodeQualityGate } from "../core/quality-gates.mjs";
 import { createDirectorPlan, directorPlan } from "../core/apex-director.mjs";
 import { auditContinuity, continuityReport, continuityPrompt } from "../core/continuity-engine.mjs";
+import { createEpisodeGenome, auditEpisodeGenome, compareEpisodeGenomes, buildLearningPrompt } from "../core/episode-genome.mjs";
 import { createWorldCanon, addCanonEntity, updateCanonEntity, relateCanon, recordCanonEvent, auditCanon, canonForEpisode, attachEpisodeToCanon } from "../core/world-canon.mjs";
 import { createStoryIntelligence, addStoryEntity, addStoryEvent, addStoryClaim, addChronology, auditStoryIntelligence, storyIntelligencePrompt } from "../core/story-intelligence.mjs";
 import { createStoryArchitecture, addStoryBeat, auditStoryArchitecture, buildStoryArchitecture, storyArchitecturePrompt } from "../core/story-architect.mjs";
@@ -128,6 +129,10 @@ export function createStudio(options={}) {
     .register("truth.addEntity",({graph,...input})=>addEntity(graph,input))
     .register("truth.addClaim",({graph,...input})=>addClaim(graph,input))
     .register("truth.link",({graph,...input})=>linkTruth(graph,input))
+    .register("genome.create",input=>createEpisodeGenome(input))
+    .register("genome.audit",genome=>auditEpisodeGenome(genome))
+    .register("genome.compare",input=>compareEpisodeGenomes(input.current,input.history))
+    .register("genome.learningPrompt",input=>buildLearningPrompt(input))
     .register("continuity.audit",input=>auditContinuity(input))
     .register("continuity.report",input=>continuityReport(input))
     .register("continuity.prompt",input=>continuityPrompt(input))
