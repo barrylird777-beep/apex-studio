@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import { PresenceManager } from "../src/core/presence.mjs";
+const m=new PresenceManager();
+const p=m.create({style:"flirty",intimacy:"intimate",media:{video:true}});
+assert.equal(p.style,"flirty");
+const s=m.start(p.id,"video");
+assert.equal(s.active,true);
+m.stop(s.id);
+m.update(p.id,{pace:"slow",teasing:false});
+assert.equal(m.get(p.id).pace,"slow");
+assert.equal(m.get(p.id).teasing,false);
+assert.throws(()=>m.create({style:"unknown"}),/Unknown presence style/);
+console.log("presence ok");
