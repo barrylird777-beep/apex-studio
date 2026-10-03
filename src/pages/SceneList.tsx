@@ -231,10 +231,10 @@ export default function SceneList() {
                     <td className="max-w-md px-4 py-3 align-top">{scene.actionSummary || "—"}</td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" disabled={index === 0} onClick={() => move(scene, -1)} title="Move up"><ArrowUp className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" disabled={index === scenes.length - 1} onClick={() => move(scene, 1)} title="Move down"><ArrowDown className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEditor(scene)} title="Edit scene"><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => remove(scene)} title="Delete scene"><Trash2 className="h-4 w-4" /></Button>
+                        <Button className="h-8 w-8 p-2 bg-white text-slate-900 hover:bg-slate-100" disabled={index === 0} onClick={() => move(scene, -1)} title="Move up"><ArrowUp className="h-4 w-4" /></Button>
+                        <Button className="h-8 w-8 p-2 bg-white text-slate-900 hover:bg-slate-100" disabled={index === scenes.length - 1} onClick={() => move(scene, 1)} title="Move down"><ArrowDown className="h-4 w-4" /></Button>
+                        <Button className="h-8 w-8 p-2 bg-white text-slate-900 hover:bg-slate-100" onClick={() => openEditor(scene)} title="Edit scene"><Pencil className="h-4 w-4" /></Button>
+                        <Button className="h-8 w-8 p-2 bg-white text-slate-900 hover:bg-slate-100" onClick={() => remove(scene)} title="Delete scene"><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -246,7 +246,7 @@ export default function SceneList() {
       )}
 
       <Dialog open={!!editing} onOpenChange={open => { if (!open) setEditing(null); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent>
           <DialogHeader><DialogTitle>Edit Scene {editing?.sceneNumber ?? ""}</DialogTitle></DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
