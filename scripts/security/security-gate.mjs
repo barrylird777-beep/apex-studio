@@ -5,7 +5,8 @@ const AUTHORITATIVE_CHECKS = [
   { name: "storage", script: "security:storage" },
   { name: "tls", script: "security:tls" },
   { name: "crypto", script: "security:crypto" },
-  { name: "network", script: "security:network" }
+  { name: "network", script: "security:network" },
+  { name: "negative-tls", script: "security:negative-tls" }
 ];
 
 console.log("=== APEX SECURITY CHECK GATES ===");
@@ -15,7 +16,8 @@ for (const check of AUTHORITATIVE_CHECKS) {
   process.stdout.write(`Testing layer [${check.name}]... `);
   try {
     execFileSync("npm", ["run", check.script, "--", "--silent"], {
-      stdio: "inherit"
+      stdio: "inherit",
+      env: { ...process.env, APEX_RUN_DEPLOYED_TLS_TESTS: "true" }
     });
     console.log("PASS");
   } catch (error) {
