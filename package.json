@@ -29,7 +29,8 @@
     "production:execute": "node src/core/operations/active-execution-daemon.mjs",
     "apex:run": "node apex-run.mjs",
     "mesh:ignite": "node master-ignite.mjs",
-    "ai:smoke": "node scripts/ai-smoke.mjs"
+    "ai:smoke": "node scripts/ai-smoke.mjs",
+    "production:voiceover": "node src/workers/voiceover-worker.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
