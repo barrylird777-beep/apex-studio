@@ -67,35 +67,6 @@ export function analyzeScript(input="",{wordsPerMinute=145}={}){
   return {words,estimatedMinutes:Number(minutes.toFixed(2)),estimatedSeconds:Math.round(minutes*60),wordsPerMinute:wpm,dialogueLines:dialogue,paragraphs,charactersPerMinute:Number((words/Math.max(minutes,0.01)/60).toFixed(1))};
 }
 
-export function auditShotList(shots=[]){
-  const items=Array.isArray(shots)?shots:[];
-  const durations=items.map(x=>finite(x.duration,4)).filter(x=>x>0);
-  const types=new Set(items.map(x=>x.type).filter(Boolean));
-  const issues=[];
-  if(!items.length) issues.push({code:"empty",severity:"blocker",detail:"No shots supplied."});
-  if(items.length>1&&types.size<2) issues.push({code:"flat-coverage",severity:"warning",detail:"Only one shot type is used."});
-  items.forEach((x,i)=>{
-    if(!String(x.visualPrompt??"").trim()) issues.push({code:"missing-visual-prompt",severity:"blocker",index:i});
-    if(!Array.isArray(x.sourceRefs)||!x.sourceRefs.length) issues.push({code:"missing-source",severity:"warning",index:i});
-    if(finite(x.duration,0)<=0) issues.push({code:"invalid-duration",severity:"blocker",index:i});
-  });
-  return {ready:!issues.some(x=>x.severity==="blocker"),issues,stats:{shots:items.length,shotTypes:types.size,totalSeconds:Number(durations.reduce((a,b)=>a+b,0).toFixed(2)),averageSeconds:durations.length?Number((durations.reduce((a,b)=>a+b,0)/durations.length).toFixed(2)):0}};
-}
-
-export function buildPromptPack(input={}){
-  const subject=String(input.subject??input.prompt??"").trim();
-  if(!subject) throw new Error("subject is required");
-  const style=String(input.style??"cinematic production frame").trim();
-  const characters=Array.isArray(input.characters)?input.characters.filter(Boolean):[];
-  const location=String(input.location??"").trim();
-  const camera=String(input.camera??"").trim();
-  const lighting=String(input.lighting??"").trim();
-  const motion=String(input.motion??"").trim();
-  const negative=String(input.negative??"3d, CGI, plastic skin, text, watermark, malformed hands").trim();
-  const visual=[subject,location&&`Location: ${location}`,characters.length&&`Characters: ${characters.join(", ")}`,camera&&`Camera: ${camera}`,lighting&&`Lighting: ${lighting}`,style].filter(Boolean).join(". ")+".";
-  return {visualPrompt:visual,motionPrompt:[motion,camera&&`Camera motion: ${camera}`].filter(Boolean).join(". "),negativePrompt:negative};
-}
-
 export const DELIVERY_PRESETS=Object.freeze({
   master:{width:1920,height:1080,fps:24,label:"Master 16:9"},
   "youtube-1080p":{width:1920,height:1080,fps:24,label:"YouTube 1080p"},
@@ -106,27 +77,13 @@ export const DELIVERY_PRESETS=Object.freeze({
 
 export function deliveryPreset(id="master"){ return {...(DELIVERY_PRESETS[id]??DELIVERY_PRESETS.master),id:id in DELIVERY_PRESETS?id:"master"}; }
 
-export function safeAssetFilename({project="apex",episode="episode",scene="scene",kind="asset",ext="bin"}={}){
+export function safeAssetFilename({project="apex",batch="batch",kind="asset",ext="bin"}={}){
   const clean=v=>String(v).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)||"untitled";
   const e=String(ext).replace(/[^a-z0-9]/gi,"").toLowerCase()||"bin";
-  return [clean(project),clean(episode),clean(scene),clean(kind)].join("_")+"."+e;
+  return [clean(project),clean(batch),clean(kind)].join("_")+"."+e;
 }
 
-export function productionChecklist(input={}){
-  const checks=[
-    ["source",Boolean(input.source||input.sourceRefs?.length),"Source/provenance attached."],
-    ["script",Boolean(String(input.script??"").trim()),"Script exists."],
-    ["scenes",Array.isArray(input.scenes)&&input.scenes.length>0,"Scenes exist."],
-    ["storyboard",Array.isArray(input.storyboard)&&input.storyboard.length>0,"Storyboard exists."],
-    ["visuals",Boolean(input.visuals||input.visualBible||input.media?.length),"Visual assets/plan exists."],
-    ["audio",Boolean(input.audio||input.audioTracks?.length),"Audio exists."],
-    ["timeline",Boolean(input.timeline),"Timeline exists."],
-    ["release",Boolean(input.releasePackage||input.release),"Release package exists."]
-  ].map(([id,ok,detail])=>({id,ok,detail}));
-  return {ready:checks.every(x=>x.ok),checks};
-}
-
-export function runStudioTool(tool,input={}){
+export function productionChecklist(input={}){\n  const checks=[\n    ["source",Boolean(input.source||input.sourceRefs?.length),"Source/provenance attached."],\n    ["script",Boolean(String(input.script??"").trim()),"Production script exists."],\n    ["visuals",Boolean(input.visuals||input.media?.length),"Visual assets/plan exists."],\n    ["audio",Boolean(input.audio||input.audioTracks?.length),"Audio exists."],\n    ["timeline",Boolean(input.timeline),"Timeline exists."],\n    ["release",Boolean(input.releasePackage||input.release),"Release package exists."]\n  ].map(([id,ok,detail])=>({id,ok,detail}));\n  return {ready:checks.every(x=>x.ok),checks};\n}\n\nexport function runStudioTool(tool,input={}){
   switch(tool){
     case "timecode": return input.direction==="toSeconds"?{seconds:timecodeToSeconds(input.value,input.fps)}:{timecode:secondsToTimecode(input.seconds,input.fps)};
     case "subtitles": return buildSubtitles(input.cues,input);
