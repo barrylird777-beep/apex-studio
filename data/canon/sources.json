@@ -1,8 +1,0 @@
-{
-  "version":"1.0.0",
-  "sources":[
-    {"id":"bible","name":"Bible","kind":"canonical_collection","rights":"supply_text_you_are_authorized_to_use"},
-    {"id":"enoch-1","name":"1 Enoch","kind":"ancient_text","rights":"public_domain_translation_or_user_supplied_text"}
-  ],
-  "policy":"Store provenance and source metadata separately from text. Ingest only text the operator is authorized to use."
-}
