@@ -5,8 +5,9 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
-import { unlink } from 'node:fs/promises';
+import { access, readFile, unlink } from 'node:fs/promises';
 import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
+import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { initStorage, STORAGE_DIR, getProjectState, saveSceneAsset, saveProjectAsset } from './src/services/projectManager.mjs';
 
@@ -877,6 +878,10 @@ app.get('/api/render/status', async (_req, res) => {
 });
 
 app.post('/api/render/export', async (req, res) => {
+  let stitchedVideoPath = null;
+  let masteredAudioPath = null;
+  let finalExportPath = null;
+
   try {
     const format = String(req.body?.format || 'master');
     const requestedIds = Array.isArray(req.body?.sceneIds) ? req.body.sceneIds.map(String) : [];
@@ -897,24 +902,64 @@ app.post('/api/render/export', async (req, res) => {
       audioUri: scene.audio ? storagePathFromFileUrl(scene.audio) : null
     }));
 
-    const outputName = `render_master_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`;
+    if (clips.some(clip => !clip.audioUri)) {
+      return res.status(409).json({ success: false, error: 'Every exported scene must have a persistent audio asset' });
+    }
+
+    const bgmPath = path.join(STORAGE_DIR, 'bgm.wav');
+    try {
+      await access(bgmPath);
+    } catch {
+      return res.status(409).json({ success: false, error: 'Missing bgm.wav in storage directory for mastering' });
+    }
+
+    const stamp = Date.now();
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const stitchedFilename = 'render_stitched_' + stamp + '_' + suffix + '.mp4';
+    const masteredAudioFilename = 'render_mastered_audio_' + stamp + '_' + suffix + '.m4a';
+    const finalFilename = 'project_master_' + stamp + '_' + suffix + '.mp4';
+
+    stitchedVideoPath = path.join(STORAGE_DIR, stitchedFilename);
+    masteredAudioPath = path.join(STORAGE_DIR, masteredAudioFilename);
+    finalExportPath = path.join(STORAGE_DIR, finalFilename);
+
     const worker = new RenderWorker({ outputDir: STORAGE_DIR });
     if (!(await worker.available())) {
       return res.status(503).json({ success: false, error: 'FFmpeg is not available on the server' });
     }
 
-    const plan = buildTimelineFfmpegPlan({ clips, format, output: outputName });
-    if (!plan.ready) return res.status(409).json({ success: false, error: plan.reason });
+    const stitchOutputName = path.basename(stitchedVideoPath);
+    const plan = buildTimelineFfmpegPlan({
+      clips,
+      format,
+      output: stitchOutputName
+    });
+    if (!plan.ready) {
+      return res.status(409).json({ success: false, error: plan.reason });
+    }
 
-    const job = {
-      id: `master_${Date.now()}`,
-      settings: { output: outputName }
+    const stitchJob = {
+      id: 'stitch_' + stamp,
+      settings: { output: stitchOutputName }
     };
 
-    const result = await worker.render(job, plan);
-    const buffer = await (await import('node:fs/promises')).readFile(result.output);
+    await worker.render(stitchJob, plan);
+
+    let currentDelayMs = 0;
+    const timelineAudioItems = selected.map((scene) => {
+      const item = {
+        filePath: storagePathFromFileUrl(scene.audio),
+        startTimeMs: currentDelayMs
+      };
+      currentDelayMs += Math.max(1, Number(scene.durationMs) || 4000);
+      return item;
+    });
+
+    await masterSoundtrack(timelineAudioItems, bgmPath, masteredAudioPath);
+    await masterFinalVideo(stitchedVideoPath, masteredAudioPath, finalExportPath);
+
+    const buffer = await readFile(finalExportPath);
     const saved = await saveProjectAsset('master', buffer, 'mp4');
-    await unlink(result.output).catch(() => {});
 
     return res.json({
       success: true,
@@ -922,11 +967,19 @@ app.post('/api/render/export', async (req, res) => {
       format,
       sceneCount: selected.length,
       bytes: saved.bytes,
-      generatedAt: saved.updatedAt
+      generatedAt: saved.updatedAt,
+      mastering: {
+        audio: '320k AAC / 48kHz / stereo / loudnorm',
+        video: 'H.264 CRF 17 / veryslow / 24fps / cinematic grade'
+      }
     });
   } catch (error) {
     console.error('[render-export-fatal]', error);
     return res.status(500).json({ success: false, error: error.message });
+  } finally {
+    for (const file of [stitchedVideoPath, masteredAudioPath, finalExportPath]) {
+      if (file) await unlink(file).catch(() => {});
+    }
   }
 });
 
