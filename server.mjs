@@ -487,6 +487,10 @@ app.post('/api/forge', async (req, res) => {
       success: true,
       rawPrompt,
       cinematicPrompt: sanitizedPrompt,
+      // Forge remains the visual prompt authority. The deterministic narration
+      // fallback keeps the full-scene pipeline executable even when no separate
+      // script-generation provider is available.
+      voiceoverScript: rawPrompt,
       imageUrl: primaryUrl,
       fallbackImageUrl: mirrorUrl,
       provider: activeProvider,
