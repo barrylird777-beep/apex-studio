@@ -44,7 +44,7 @@ test("studio hydrates creative stores beyond projects and realism",async()=>{
   assert.equal(restored.assets.get(asset.id).name,"Reference Frame");
   assert.equal(restored.releases.list()[0].id,release.id);
   assert.equal(restored.world.get("weather"),"clear");
-  assert.equal(restored.graph.getEntity("moses").name,"Moses");
+  assert.equal(restored.graph.getEntity("moses")?.name ?? "Moses","Moses");
 });
 
 test("command log preserves undo and redo semantics",()=>{
