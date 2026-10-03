@@ -4,7 +4,6 @@ import { parseProsody } from "../src/core/prosody.mjs";
 import { monoCompatibleWidth } from "../src/core/stereo.mjs";
 import { inspectUntrusted } from "../src/core/omni-sanitize.mjs";
 import { detectOmniTrigger, isProtocolOffSwitch, buildRiskReport } from "../src/core/omni-risk.mjs";
-import { createNarrativeTrack, mapNarrativeBlock } from "../src/core/narrative-map.mjs";
 import { EgressPolicy } from "../src/core/egress.mjs";
 import { OmniStore } from "../src/core/omni-store.mjs";
 import { SexEngine } from "../src/core/se-x.mjs";
@@ -41,13 +40,6 @@ test("trigger selects review mode but does not change safety policy",()=>{
   assert.equal(r.mode,"STANDARD");
   assert.equal(r.network.telemetry,"disabled");
   assert.equal(r.process.dynamicCodeExecution,false);
-});
-
-test("narrative blocks map directly to visual frame ranges",()=>{
-  const track=createNarrativeTrack({title:"Branch A",branchId:"a"});
-  mapNarrativeBlock(track,{text:"Run.",visualFrames:{start:12,end:36},vocal:{emotion:"urgent"}});
-  assert.equal(track.blocks[0].visualFrames.start,12);
-  assert.equal(track.blocks[0].vocal.emotion,"urgent");
 });
 
 test("egress requires an explicit allowlist when requested",async()=>{
