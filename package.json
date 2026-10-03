@@ -28,7 +28,8 @@
     "production:pm2:logs": "pm2 logs apex-av1-production",
     "production:execute": "node src/core/operations/active-execution-daemon.mjs",
     "apex:run": "node apex-run.mjs",
-    "mesh:ignite": "node master-ignite.mjs"
+    "mesh:ignite": "node master-ignite.mjs",
+    "ai:smoke": "node scripts/ai-smoke.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
