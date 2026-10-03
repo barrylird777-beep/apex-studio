@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createPermanentWorkerFleet } from "../src/core/mesh/permanent-worker-fleet.mjs";
-import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from "../src/core/mesh/overseer.mjs";
+import { createOverseer, isWorkerStale, overseerCycle, overseerStatus, overseerTaskFor } from "../src/core/mesh/overseer.mjs";
 
 test("overseer manages all permanent workers",()=>{
   const fleet=createPermanentWorkerFleet();
@@ -13,4 +13,9 @@ test("overseer manages all permanent workers",()=>{
   assert.equal(next.assignments,144);
   assert.equal(overseerStatus(next,fleet).activeAssignments,144);
   assert.ok(fleet.workers.every(w=>w.currentTask===overseerTaskFor(w)));
+});
+
+test("overseer marks a hung task stale even when its heartbeat is fresh",()=>{
+  const worker={status:"running",startedAt:new Date().toISOString(),lastHeartbeatAt:new Date().toISOString(),taskStartedAt:new Date(Date.now()-60000).toISOString(),currentTask:"long-running task"};
+  assert.equal(isWorkerStale(worker,45000),true);
 });
