@@ -5,6 +5,8 @@ import { parentPort, workerData } from "node:worker_threads";
 const file = path.resolve(workerData.file);
 const busyTimeout = Math.max(5000, Math.min(120000, Number(workerData.busyTimeout ?? 60000)));
 let db;
+const readers = [];
+let readIndex = 0;
 const prepared = new Map();
 
 const json = (v, fallback = null) => v == null ? fallback : JSON.stringify(v);
@@ -19,11 +21,19 @@ function run(sql, params = []) {
     resolve({ changes: this.changes, lastID: this.lastID });
   }));
 }
+function readDb() {
+  if (!readers.length) return db;
+  const connection = readers[readIndex % readers.length];
+  readIndex = (readIndex + 1) % readers.length;
+  return connection;
+}
 function get(sql, params = []) {
-  return new Promise((resolve, reject) => db.get(sql, params, (error, row) => error ? reject(error) : resolve(row ?? null)));
+  const connection = readDb();
+  return new Promise((resolve, reject) => connection.get(sql, params, (error, row) => error ? reject(error) : resolve(row ?? null)));
 }
 function all(sql, params = []) {
-  return new Promise((resolve, reject) => db.all(sql, params, (error, rows) => error ? reject(error) : resolve(rows ?? [])));
+  const connection = readDb();
+  return new Promise((resolve, reject) => connection.all(sql, params, (error, rows) => error ? reject(error) : resolve(rows ?? [])));
 }
 function exec(sql) {
   return new Promise((resolve, reject) => db.exec(sql, error => error ? reject(error) : resolve()));
@@ -266,12 +276,21 @@ async function init() {
   db.configure("busyTimeout", busyTimeout);
   await exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;");
   await migrate();
+  const readerCount = Math.max(1, Math.min(8, Number(workerData.readConnections ?? 2)));
+  for (let i=0;i<readerCount;i++) {
+    const reader=await new Promise((resolve,reject)=>{
+      const x=new sqlite3.Database(file, sqlite3.OPEN_READWRITE|sqlite3.OPEN_CREATE, e=>e?reject(e):resolve(x));
+    });
+    reader.configure("busyTimeout", busyTimeout);
+    await new Promise((resolve,reject)=>reader.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;",e=>e?reject(e):resolve()));
+    readers.push(reader);
+  }
   prepared.set("search_results_by_run", db.prepare("SELECT id,url,status,content_type,created_at FROM search_results WHERE run_id=? ORDER BY rowid DESC LIMIT ?"));
   prepared.set("narrative_blocks_by_track", db.prepare("SELECT * FROM narrative_blocks WHERE track_id=? ORDER BY position"));
   prepared.set("mutation_visual_by_parent", db.prepare("SELECT value FROM timeline_mutation_visual WHERE mutation_id=? ORDER BY position"));
   prepared.set("mutation_vocal_by_parent", db.prepare("SELECT value FROM timeline_mutation_vocal WHERE mutation_id=? ORDER BY position"));
   prepared.set("timeline_audio_tags", db.prepare("SELECT tag FROM production_timeline_audio_tags WHERE timeline_id=? ORDER BY position"));
-  parentPort.postMessage({id:0,ok:true,value:{ready:true,file,busyTimeout}});
+  parentPort.postMessage({id:0,ok:true,value:{ready:true,file,busyTimeout,readConnections:readers.length}});
 }
 
 
