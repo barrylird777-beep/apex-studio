@@ -13,7 +13,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, ensureWorkerTaskSchema, enqueueWorkerTask, claimWorkerTask, completeWorkerTask, failWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, ensureWorkerTaskSchema, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
@@ -138,26 +138,11 @@ const permanentWorkerHeartbeat = setInterval(() => {
       workerId: worker.id,
       role: worker.role,
       task,
-      payload: { type: 'permanent-health', workerId: worker.id }
-    }).then(() => claimWorkerTask(durableTaskId)).then(() => permanentWorkerSupervisor.dispatch({
-      type: 'permanent-health',
-      workerId: worker.id,
-      role: worker.role,
-      task
-    }).then(async result => {
-      await completeWorkerTask(durableTaskId, result).catch(() => {});
-      if (worker.taskToken !== taskToken) return;
-      Object.assign(worker, completePermanentWorkerTask(worker));
-      worker.lastCompletedAt = new Date().toISOString();
+      payload: { type: 'permanent-health', workerId: worker.id, role: worker.role, task }
+    }).then(() => {
       worker.taskStartedAt = null;
       worker.taskToken = null;
-    }).catch(async error => {
-      await failWorkerTask(durableTaskId, error).catch(() => {});
-      if (worker.taskToken !== taskToken) return;
-      Object.assign(worker, failPermanentWorkerTask(worker, error));
-      worker.taskStartedAt = null;
-      worker.taskToken = null;
-    }).finally(() => {
+      worker.lastQueuedAt = new Date().toISOString();
       permanentWorkerInFlight.delete(worker.id);
     }).catch(error => {
       permanentWorkerInFlight.delete(worker.id);
@@ -166,7 +151,7 @@ const permanentWorkerHeartbeat = setInterval(() => {
       worker.lastError = String(error?.message || error);
       worker.taskStartedAt = null;
       worker.taskToken = null;
-    }));
+    });
   }
   Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
 }, apexOverseer.intervalMs);
