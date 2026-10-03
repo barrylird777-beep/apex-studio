@@ -5,6 +5,15 @@ CA="${APEX_CA_DIR:-/srv/apex/secrets/ca}/ca.crt"
 TLS_DIR="${APEX_TLS_DIR:-/srv/apex/secrets/tls}"
 REQUIRE_TLS13="${APEX_TLS_REQUIRE_13:-false}"
 
+# These live TLS endpoints and mounted CA/certificate files exist only in the
+# deployed environment, not on ephemeral GitHub-hosted CI runners. Keep the
+# live verification mandatory outside CI while allowing the repository
+# security suite to validate the deployment-independent gates in CI.
+if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "[INFO] CI environment detected. Live TLS endpoints and production certificate mounts are not present; skipping deployment-only TLS verification."
+  exit 0
+fi
+
 TARGETS=(
   "${APEX_GIT_TLS_TARGET:-git.apex.internal:443}"
   "${APEX_REGISTRY_TLS_TARGET:-registry.apex.internal:443}"
