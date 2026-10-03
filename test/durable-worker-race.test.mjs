@@ -9,7 +9,9 @@ import {
   claimWorkerTask,
   completeWorkerTask,
   requeueExpiredWorkerTasks,
-  closeWorkerStore
+  closeWorkerStore,
+  claimExternalEffect,
+  completeExternalEffect
 } from "../src/core/mesh/durable-worker-store.mjs";
 
 const hasDatabase = Boolean(String(process.env.DATABASE_URL || "").trim());
@@ -77,4 +79,16 @@ test("lease heartbeat extends the active fence", { skip: !hasDatabase }, async (
     await db.end();
     await closeWorkerStore();
   }
+});
+
+
+test("external side effect idempotency key admits only one caller", { skip: !hasDatabase }, async () => {
+  const key = "race-effect-" + crypto.randomUUID();
+  await ensureWorkerTaskSchema();
+  const [a, b] = await Promise.all([claimExternalEffect(key), claimExternalEffect(key)]);
+  assert.equal([a, b].filter(Boolean).length, 1);
+  assert.equal(await completeExternalEffect(key, { ok: true }), true);
+  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  try { await db.query("DELETE FROM apex_external_effects WHERE idempotency_key=$1", [key]); }
+  finally { await db.end(); await closeWorkerStore(); }
 });
