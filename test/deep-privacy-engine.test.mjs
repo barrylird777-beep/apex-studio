@@ -82,13 +82,14 @@ test("stop clears the rotation timer and exposes clearance metrics", async () =>
 test("rotation write failures are captured without leaving a live timer", async () => {
   const { directory } = await tempMatrixPath();
   const engine = new DeepPrivacyEngine({
-    matrixPath: path.join(directory, "missing-parent", "matrix.json"),
+    matrixPath: directory,
     startTimer: false
   });
 
-  await assert.doesNotReject(async () => {
+  assert.throws(() => {
     engine.rotateRoutingArchitecture();
   });
+  assert.match(engine.metrics().lastWriteError, /EISDIR|directory/i);
   engine.stop();
   await fs.rm(directory, { recursive: true, force: true });
 });
