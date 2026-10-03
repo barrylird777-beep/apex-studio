@@ -1,10 +1,8 @@
 node_modules/
-data/runtime/
 .env
 .env.*
 !.env.example
-.DS_Store
 .apex_auth/
+apex-production.sqlite
+apex-production.sqlite-*
 uploads/
-.apex_vault/
-.apex_vault_backups/
