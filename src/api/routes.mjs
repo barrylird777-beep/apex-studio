@@ -99,7 +99,7 @@ export function createApi(studio){
   r.post("/jobs",(req,res)=>res.status(202).json(studio.jobs.enqueue(req.body?.type,req.body?.payload,req.body)));
   r.post("/jobs/:id/run",async(req,res)=>res.json(await studio.jobs.run(req.params.id)));
 
-,(req,res)=>res.json(studio.research.list()));
+ r.get('/research',(req,res)=>res.json(studio.research.list()));
   r.post("/research",(req,res)=>res.status(201).json(studio.research.create(req.body??{})));
   r.post("/evaluate",(req,res)=>res.json(evaluateArtifact(req.body?.artifact??{},req.body?.options??{})));
   r.get("/export",verifyApexCommander,(req,res)=>res.json(exportStudio(studio)));
