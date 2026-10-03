@@ -80,7 +80,6 @@ export function createApi(studio){
   r.patch("/renders/:id",(req,res)=>{const job=studio.render.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(job);});
   r.get("/renders/:id",(req,res)=>{const j=studio.render.get(req.params.id);if(!j)return res.status(404).json({error:"Render job not found"});res.json(j);});
   r.get("/renders/:id/availability",async(req,res)=>res.json({available:await renderWorker.available(),ffmpegPath:renderWorker.ffmpegPath}));
-,(req,res)=>res.json(studio.releases.list()));
   r.get("/releases",(req,res)=>res.json(studio.releases.list()));
   r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
   r.post("/releases/:id/publish",verifyApexCommander,(req,res)=>res.json(studio.releases.publish(req.params.id)));
