@@ -53,11 +53,26 @@ export function createPermanentWorker(input={}) {
 }
 
 export function createPermanentWorkerFleet(input={}) {
+  const requested = Math.max(
+    WORKER_ASSIGNMENTS.length,
+    Number(input.workerCount ?? process.env.APEX_PERMANENT_WORKERS ?? 144)
+  );
+  const assignments = Array.from({length: requested}, (_, index) => {
+    const base = WORKER_ASSIGNMENTS[index % WORKER_ASSIGNMENTS.length];
+    if (index < WORKER_ASSIGNMENTS.length) return base;
+    const [id, role, job] = base;
+    return [
+      `${id}-${String(Math.floor(index / WORKER_ASSIGNMENTS.length) + 1).padStart(2, "0")}`,
+      role,
+      `${job}; additional capacity`
+    ];
+  });
   return {
     id:input.id??crypto.randomUUID(),
     status:"stopped",
     createdAt:now(),
-    workers:WORKER_ASSIGNMENTS.map(([id,role,job])=>createPermanentWorker({id,role,job}))
+    configuredWorkers:requested,
+    workers:assignments.map(([id,role,job])=>createPermanentWorker({id,role,job}))
   };
 }
 
