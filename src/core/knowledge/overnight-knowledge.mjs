@@ -11,7 +11,14 @@ const TASKS = Object.freeze([
   ["publishing","Normalize knowledge packets, metadata, indexes, provenance, and retrieval-ready exports."],
   ["automation","Keep the overnight queue flowing: retries, deduplication, checkpoints, recovery, and worker balancing."],
   ["qa","Cross-check claims, provenance, contradictions, missing citations, and schema integrity before promotion."],
-  ["infrastructure","Monitor worker health, provider availability, queue latency, storage, and deployment reliability."]
+  ["infrastructure","Monitor worker health, provider availability, queue latency, storage, and deployment reliability."],
+  ["editor-core","Upgrade the all-in-one editor: multitrack timeline, trimming, snapping, ripple edits, keyframes, transitions, and undo/redo."],
+  ["video-engine","Upgrade video processing: proxies, hardware encoding, color transforms, effects, compositing, frame accuracy, and render performance."],
+  ["audio-engine","Upgrade audio: multitrack mixing, loudness, ducking, fades, time-stretching, cleanup, meters, and synchronization."],
+  ["captions","Upgrade captions/subtitles: styling, animation, timing, import/export, burn-in, and accessibility."],
+  ["export","Upgrade delivery: H.264/H.265/AV1, 4K/60, presets, bitrate control, batch exports, validation, and recovery."],
+  ["editor-ux","Upgrade editor interaction speed: keyboard workflows, selection, snapping, inspector controls, responsive previews, and project recovery."],
+  ["editor-qa","Continuously test editor operations, media edge cases, export correctness, performance regressions, and data integrity." ]
 ]);
 
 export function createOvernightKnowledgePlan({hours=10}={}) {
