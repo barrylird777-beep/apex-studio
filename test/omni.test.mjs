@@ -48,7 +48,7 @@ test("egress has no hostname allowlist but rejects non-public targets",async()=>
   await assert.rejects(()=>new EgressPolicy({resolve:async()=>[{address:"127.0.0.1"}]}).check("http://example.org"));
 });
 
-test("OMNI persistence uses relational SQLite timeline tables",async()=>{
+test("OMNI FTS indexes stored fragments",async()=>{\n  const db="./apex-omni-fts-test-"+Date.now()+".sqlite";\n  const store=new OmniStore(db);\n  await store.append("search_runs",{id:"run-fts",query:"sample",mode:"search",fragments:["sample fragment"],sources:[],results:[]});\n  await store.append("search_results",{id:"result-fts",runId:"run-fts",url:"https://example.org",status:200,contentType:"text/plain",text:"sample searchable fragment",createdAt:new Date().toISOString()});\n  const hits=await store.searchPassages("searchable");\n  assert.equal(hits.length,1);\n  assert.equal(hits[0].result_id,"result-fts");\n  await store.close();\n});\n\ntest("OMNI persistence uses relational SQLite timeline tables",async()=>{
   const db="./apex-omni-test-"+Date.now()+".sqlite";
   const store=new OmniStore(db);
   const node=await store.createProductionTimeline({
