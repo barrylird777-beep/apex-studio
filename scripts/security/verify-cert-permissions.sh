@@ -4,6 +4,13 @@ set -euo pipefail
 TLS_DIR="${APEX_TLS_DIR:-/srv/apex/secrets/tls}"
 CA_DIR="${APEX_CA_DIR:-/srv/apex/secrets/ca}"
 
+if [ "${CI:-false}" = "true" ] && { [ ! -d "$TLS_DIR" ] || [ ! -d "$CA_DIR" ]; }; then
+  echo "CI environment detected; deployment-only TLS/CA directory validation is not applicable."
+  echo "TLS directory: $TLS_DIR"
+  echo "CA directory: $CA_DIR"
+  exit 0
+fi
+
 echo "== TLS directory =="
 ls -ld "$TLS_DIR"
 find "$TLS_DIR" -maxdepth 2 -printf '%M %u:%g %p\\n'
