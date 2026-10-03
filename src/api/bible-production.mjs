@@ -1,6 +1,5 @@
 import express from "express";
 import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import crypto from "node:crypto";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
@@ -9,11 +8,11 @@ const router = express.Router();
 const DB_DIR = process.env.APEX_DATA_DIR || "./data";
 const DB_PATH = path.join(DB_DIR, "bible-production.sqlite");
 let dbPromise;
-
+function wrap(raw) { return { exec:s=>new Promise((ok,no)=>raw.exec(s,e=>e?no(e):ok())), get:(s,...p)=>new Promise((ok,no)=>raw.get(s,...p,(e,r)=>e?no(e):ok(r))), all:(s,...p)=>new Promise((ok,no)=>raw.all(s,...p,(e,r)=>e?no(e):ok(r))), run:(s,...p)=>new Promise((ok,no)=>raw.run(s,...p,function(e){if(e)no(e);else ok({changes:this.changes,lastID:this.lastID});})), prepare:async(s)=>{const st=await new Promise((ok,no)=>raw.prepare(s,e=>e?no(e):ok(e)));return {run:(...p)=>new Promise((ok,no)=>st.run(...p,function(e){e?no(e):ok({changes:this.changes,lastID:this.lastID})})),finalize:()=>new Promise((ok,no)=>st.finalize(e=>e?no(e):ok()))}}}; }
 async function db() {
   if (!dbPromise) {
     await mkdir(DB_DIR, { recursive: true });
-    dbPromise = open({ filename: DB_PATH, driver: sqlite3.Database });
+    dbPromise = new Promise((resolve,reject)=>{ const raw=new sqlite3.Database(DB_PATH,e=>e?reject(e):resolve(wrap(raw))); });
     const d = await dbPromise;
     await d.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS characters (
