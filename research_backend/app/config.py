@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     secure_drop_url: str | None = None
     allowed_sensitive_cidrs: str = "127.0.0.1/32"
     cors_origins: str = "http://localhost:5173"
+    air_gapped_mode: bool = False
+    retention_days: int = 2555
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
