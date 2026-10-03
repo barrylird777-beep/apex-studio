@@ -41,6 +41,7 @@ import { OmniStore } from "../core/omni-store.mjs";
 import { buildRiskReport, createRiskHandshake } from "../core/omni-risk.mjs";
 import { parseProsody } from "../core/prosody.mjs";
 import { monoCompatibleWidth } from "../core/stereo.mjs";
+import { createEditorProject, addTrack, addClip, addKeyframe, addEffect, addCaption, addMarker, setTransition, createExportPlan, validateEditorProject } from "../core/editor-engine.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -122,6 +123,16 @@ export function createStudio(options={}) {
     .register("growth.observation.record",input=>{const x=recordGrowthObservation(studio.growthExperiments.get(input.id),input.observation);studio.growthExperiments.set(x.id,x);return x})
     .register("growth.report",({id})=>growthLearningReport(studio.growthExperiments.get(id)))
     .register("growth.prompt",input=>buildGrowthPrompt(input))
+    .register("editor.project.create",input=>createEditorProject(input))
+    .register("editor.track.add",input=>addTrack(input.project,input.type,input.name))
+    .register("editor.clip.add",input=>addClip(input.project,input.trackId,input))
+    .register("editor.keyframe.add",input=>addKeyframe(input.project,input.trackId,input.clipId,input))
+    .register("editor.effect.add",input=>addEffect(input.project,input.trackId,input.clipId,input.effect||input))
+    .register("editor.caption.add",input=>addCaption(input.project,input))
+    .register("editor.marker.add",input=>addMarker(input.project,input))
+    .register("editor.transition.set",input=>setTransition(input.project,input.trackId,input.clipId,input.edge,input.type,input.duration))
+    .register("editor.export.plan",input=>createExportPlan(input.project,input))
+    .register("editor.validate",project=>validateEditorProject(project))
     .register("command.center",()=>({version:studio.version,projects:studio.projects.list().length,jobs:studio.jobs.list().length,renders:studio.render.list().length,research:studio.research.list().length,assets:studio.assets.assets.size,growthExperiments:studio.growthExperiments.size,humanAuthority:{finalDecisionRequired:true}}));
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
