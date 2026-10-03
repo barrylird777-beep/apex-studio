@@ -1104,11 +1104,11 @@ app.post('/api/ai/generate', async (req, res) => {
   try {
     if (requested === 'gemini') {
       const text = await geminiMeshProvider.generate(prompt, { system });
-      return res.json({ success: true, provider: 'gemini', text });
+      return res.json({ success: true, provider: 'gemini', model: geminiMeshProvider.model, text });
     }
     if (requested === 'claude') {
       const text = await claudeMeshProvider.generate(prompt, { system });
-      return res.json({ success: true, provider: 'claude', text });
+      return res.json({ success: true, provider: 'claude', model: claudeMeshProvider.model, text });
     }
     const result = await executeInference(prompt, system);
     return res.json({ success: true, ...result });
