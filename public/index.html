@@ -39,7 +39,7 @@ header{height:64px;border-bottom:1px solid var(--line);background:#080c13e8;back
 
 <section id="scenes" class="view hidden"><div class="workspace"><section class="panel"><h2>Scene builder</h2><div class="form"><label>Scene title</label><input id="sceneTitle" placeholder="Moses before Pharaoh"><div class="inline"><div><label>Story ID</label><input id="sceneStoryId" placeholder="story_..."></div><div><label>Location ID</label><input id="sceneLocationId" placeholder="location_..."></div></div><label>Notes</label><textarea id="sceneNotes" placeholder="Visual intent, continuity, blocking..."></textarea><button class="primary" onclick="createScene()">Create scene</button><div id="sceneMsg" class="error"></div></div></section><section class="panel"><h2>Scene library</h2><div id="sceneList" class="list"></div></section></div></section>
 
-<section id="oracle" class="view hidden"><div class="workspace"><section class="panel"><h2>Oracle</h2><div class="form"><label>Narrative prompt</label><textarea id="oraclePrompt" placeholder="Ask Oracle for a scene outline, narration, or lore..."></textarea><button class="primary" onclick="generateOracle()">Generate + Speak</button><div id="oracleMsg" class="error"></div></div></section><section class="panel"><h2>Oracle output</h2><div id="oracleOutput" class="notice" style="white-space:pre-wrap;min-height:180px">No Oracle response yet.</div><div class="actions"><button onclick="speakOracle()">Speak again</button><button onclick="stopOracleSpeech()">Stop</button></div><div id="oracleProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="storyboard" class="view hidden"><div class="workspace"><section class="panel"><h2>Storyboard generator</h2><div class="form"><label>Scene ID</label><input id="boardScene" placeholder="scene_..."><button class="primary" onclick="buildBoard()">Generate shots</button><div id="boardMsg" class="error"></div></div><h3>Shot list</h3><div id="boardList" class="list"></div></section><section class="panel"><h2>Shot direction</h2><div class="notice">Generate a deterministic first pass from the scene's beats, then attach generated or locally created media to individual shots. Scripture provenance travels with the shot.</div><div id="boardDetails" class="empty">No storyboard selected.</div></section></div></section><section id="visuals" class="view hidden"><div class="workspace"><section class="panel"><h2>Character Bible</h2><div class="form"><input id="charName" placeholder="Moses"><textarea id="charDescription" placeholder="Role and visual identity"></textarea><input id="charAppearance" placeholder="Appearance JSON or notes"><input id="charWardrobe" placeholder="Wardrobe JSON or notes"><button class="primary" onclick="createCharacter()">Save character</button><div id="charMsg" class="error"></div></div><h3>Characters</h3><div id="charList" class="list"></div></section><section class="panel"><h2>Location Bible</h2><div class="form"><input id="locName" placeholder="Wilderness of Zin"><textarea id="locDescription" placeholder="Environment and architecture"></textarea><button class="primary" onclick="createLocation()">Save location</button><div id="locMsg" class="error"></div></div><h3>Locations</h3><div id="locList" class="list"></div></section></div></section><section id="bible" class="view hidden"><div class="workspace"><section class="panel"><h2>Bible Library</h2><div class="notice">Public-domain and explicitly redistributable editions can be installed locally. Modern copyrighted translations can be connected through licensed APIs instead of copied into the repository.</div><div class="form"><select id="bibleVersion"></select><input id="bibleQuery" placeholder="Search a word, phrase, or passage"><button class="primary" onclick="searchBible()">Search</button><div id="bibleMsg" class="error"></div></div><div id="bibleResults" class="list"></div></section><section class="panel"><h2>Traditions & canons</h2><div id="canonList" class="list"></div><h3>Available editions</h3><div id="versionList" class="list"></div></section></div></section><section id="retention" class="view hidden"><div class="workspace"><section class="panel"><h2>30-Second Retention Hook</h2><div class="notice">Every video idea starts with a cold open built around immediate curiosity, stakes, mystery, escalation, and a promise. No filler intro.</div><div class="form"><input id="hookTitle" placeholder="Video title"><input id="hookPassage" placeholder="Genesis 22:1-19"><textarea id="hookSummary" placeholder="Brief verified story summary"></textarea><select id="hookTone"><option>cinematic, reverent, emotionally gripping</option><option>mysterious and cinematic</option><option>urgent and dramatic</option><option>warm and intimate</option></select><button class="primary" onclick="makeHook()">Generate 30-second hook</button><div id="hookMsg" class="error"></div></div></section><section class="panel"><h2>Hook blueprint</h2><div id="hookOutput" class="empty">Your opening will appear here.</div></section></div></section><section id="omni" class="view hidden">
+<section id="oracle" class="view hidden"><div class="workspace"><section class="panel"><h2>Oracle</h2><div class="form"><label>Narrative prompt</label><textarea id="oraclePrompt" placeholder="Azazel teaching humanity weaponry..."></textarea><button id="generate-lore-btn" class="primary" onclick="generateOracle()">Generate & Narrate</button><div id="oracleMsg" class="error"></div></div></section><section class="panel"><h2>Oracle output</h2><div id="oracleOutput" class="notice" style="white-space:pre-wrap;min-height:180px">No Oracle response yet.</div><div class="actions"><button id="replay-audio-btn" onclick="speakOracle()" style="display:none">Replay Narration</button><button onclick="stopOracleSpeech()">Stop</button></div><div id="oracleProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="storyboard" class="view hidden"><div class="workspace"><section class="panel"><h2>Storyboard generator</h2><div class="form"><label>Scene ID</label><input id="boardScene" placeholder="scene_..."><button class="primary" onclick="buildBoard()">Generate shots</button><div id="boardMsg" class="error"></div></div><h3>Shot list</h3><div id="boardList" class="list"></div></section><section class="panel"><h2>Shot direction</h2><div class="notice">Generate a deterministic first pass from the scene's beats, then attach generated or locally created media to individual shots. Scripture provenance travels with the shot.</div><div id="boardDetails" class="empty">No storyboard selected.</div></section></div></section><section id="visuals" class="view hidden"><div class="workspace"><section class="panel"><h2>Character Bible</h2><div class="form"><input id="charName" placeholder="Moses"><textarea id="charDescription" placeholder="Role and visual identity"></textarea><input id="charAppearance" placeholder="Appearance JSON or notes"><input id="charWardrobe" placeholder="Wardrobe JSON or notes"><button class="primary" onclick="createCharacter()">Save character</button><div id="charMsg" class="error"></div></div><h3>Characters</h3><div id="charList" class="list"></div></section><section class="panel"><h2>Location Bible</h2><div class="form"><input id="locName" placeholder="Wilderness of Zin"><textarea id="locDescription" placeholder="Environment and architecture"></textarea><button class="primary" onclick="createLocation()">Save location</button><div id="locMsg" class="error"></div></div><h3>Locations</h3><div id="locList" class="list"></div></section></div></section><section id="bible" class="view hidden"><div class="workspace"><section class="panel"><h2>Bible Library</h2><div class="notice">Public-domain and explicitly redistributable editions can be installed locally. Modern copyrighted translations can be connected through licensed APIs instead of copied into the repository.</div><div class="form"><select id="bibleVersion"></select><input id="bibleQuery" placeholder="Search a word, phrase, or passage"><button class="primary" onclick="searchBible()">Search</button><div id="bibleMsg" class="error"></div></div><div id="bibleResults" class="list"></div></section><section class="panel"><h2>Traditions & canons</h2><div id="canonList" class="list"></div><h3>Available editions</h3><div id="versionList" class="list"></div></section></div></section><section id="retention" class="view hidden"><div class="workspace"><section class="panel"><h2>30-Second Retention Hook</h2><div class="notice">Every video idea starts with a cold open built around immediate curiosity, stakes, mystery, escalation, and a promise. No filler intro.</div><div class="form"><input id="hookTitle" placeholder="Video title"><input id="hookPassage" placeholder="Genesis 22:1-19"><textarea id="hookSummary" placeholder="Brief verified story summary"></textarea><select id="hookTone"><option>cinematic, reverent, emotionally gripping</option><option>mysterious and cinematic</option><option>urgent and dramatic</option><option>warm and intimate</option></select><button class="primary" onclick="makeHook()">Generate 30-second hook</button><div id="hookMsg" class="error"></div></div></section><section class="panel"><h2>Hook blueprint</h2><div id="hookOutput" class="empty">Your opening will appear here.</div></section></div></section><section id="omni" class="view hidden">
 <div class="omni-grid">
 <section class="panel"><div class="top"><div><div class="eyebrow">Viewport Alpha</div><h2>Production Studio</h2></div><span class="pill">LAN / LOCAL-FIRST</span></div>
 <div class="form">
@@ -65,19 +65,23 @@ const $=id=>document.getElementById(id);
 async function api(path,opts){const r=await fetch(path,opts);let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||"Request failed");return d}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 let oracleText="";
-let oracleSpeechUnlocked=false;
+let synth=window.speechSynthesis;
+let dramaticVoice=null;
+
+function loadVoices(){
+  const voices=synth.getVoices();
+  dramaticVoice=voices.find(v=>v.name.includes("Daniel")||v.name.includes("Alex")||v.lang==="en-GB")
+    ||voices.find(v=>v.lang&&v.lang.startsWith("en"))||null;
+}
+synth.onvoiceschanged=loadVoices;
+loadVoices();
 
 function unlockSpeech(){
-  if(!("speechSynthesis" in window))return false;
   try{
-    window.speechSynthesis.cancel();
-    const warmup=new SpeechSynthesisUtterance(" ");
-    warmup.volume=0.01;
-    warmup.rate=1;
-    window.speechSynthesis.speak(warmup);
-    window.speechSynthesis.resume();
-    setTimeout(()=>{try{window.speechSynthesis.cancel()}catch{}},120);
-    oracleSpeechUnlocked=true;
+    synth.cancel();
+    const unlockUtterance=new SpeechSynthesisUtterance("");
+    synth.speak(unlockUtterance);
+    synth.resume();
     return true;
   }catch(e){
     console.warn("Speech unlock failed",e);
@@ -85,51 +89,70 @@ function unlockSpeech(){
   }
 }
 
-function speakText(text){
+function cleanNarrationText(text){
+  return String(text||"").replace(/[*_#]/g,"").trim();
+}
+
+function narrateText(text){
   if(!text||!("speechSynthesis" in window))return;
   try{
-    window.speechSynthesis.cancel();
-    const utterance=new SpeechSynthesisUtterance(String(text));
-    utterance.lang=navigator.language||"en-US";
+    synth.cancel();
+    const utterance=new SpeechSynthesisUtterance(text);
+    if(dramaticVoice)utterance.voice=dramaticVoice;
+    utterance.pitch=0.85;
     utterance.rate=0.95;
-    utterance.pitch=1;
-    utterance.volume=1;
-    window.speechSynthesis.speak(utterance);
-    window.speechSynthesis.resume();
+    synth.speak(utterance);
+    synth.resume();
   }catch(e){
-    console.warn("Speech synthesis failed",e);
+    console.warn("Narration failed",e);
   }
 }
 
 function speakOracle(){
-  if(oracleText)speakText(oracleText);
+  if(oracleText)narrateText(oracleText);
 }
 
 function stopOracleSpeech(){
-  if("speechSynthesis" in window)window.speechSynthesis.cancel();
+  if("speechSynthesis" in window)synth.cancel();
 }
 
 async function generateOracle(){
+  const promptText=$("oraclePrompt").value.trim();
+  const outputDiv=$("oracleOutput");
+  const replayBtn=$("replay-audio-btn");
   const msg=$("oracleMsg");
-  const output=$("oracleOutput");
   msg.textContent="";
-  const prompt=$("oraclePrompt").value.trim();
-  if(!prompt){msg.textContent="Prompt is required";return}
+  if(!promptText){
+    msg.textContent="Prompt is required";
+    return;
+  }
+
+  // Unlock iOS Safari speech authorization synchronously from the tap.
   unlockSpeech();
-  output.textContent="Generating…";
+
+  outputDiv.textContent="Oracle is channeling...";
+  replayBtn.style.display="none";
+
   try{
-    const data=await api("/api/oracle",{
+    const res=await fetch("/api/oracle",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt})
+      body:JSON.stringify({
+        prompt:promptText,
+        systemPrompt:"You are a dark fantasy narrator. Write a brief, cinematic description of the scene. Do not include asterisks or emojis."
+      })
     });
-    oracleText=String(data.text||"");
-    output.textContent=oracleText||"Oracle returned no text.";
+    const data=await res.json();
+    if(!res.ok||!data.success)throw new Error(data.error||"Oracle request failed");
+
+    oracleText=cleanNarrationText(data.text);
+    outputDiv.textContent=oracleText||"Oracle returned no text.";
     $("oracleProvider").textContent="Provider: "+(data.provider||"unknown");
-    if(oracleText)speakText(oracleText);
-  }catch(e){
-    msg.textContent=e.message;
-    output.textContent="Oracle request failed.";
+
+    if(oracleText)narrateText(oracleText);
+    replayBtn.style.display=oracleText?"inline-block":"none";
+  }catch(err){
+    outputDiv.textContent="Network Error: "+err.message;
   }
 }
 
