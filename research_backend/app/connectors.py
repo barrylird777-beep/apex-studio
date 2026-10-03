@@ -1,7 +1,6 @@
 import httpx
 from fastapi import HTTPException
 from .config import settings
-from .config import settings
 
 def require_network():
  if settings.air_gapped_mode: raise HTTPException(503,"External connectors disabled in air-gapped mode")
