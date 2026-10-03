@@ -16,12 +16,24 @@ import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
 import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
+import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
+const permanentWorkerFleet = createPermanentWorkerFleet();
+for (const worker of permanentWorkerFleet.workers) Object.assign(worker, startPermanentWorker(worker));
+permanentWorkerFleet.status = 'running';
+const permanentWorkerHeartbeat = setInterval(() => {
+  for (const worker of permanentWorkerFleet.workers) {
+    const next = heartbeatPermanentWorker(worker, worker.currentTask || `continuous:${worker.role}`);
+    Object.assign(worker, next);
+  }
+}, Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)));
+permanentWorkerHeartbeat.unref?.();
+
 const meshWorkerSupervisor = new WorkerSupervisor({
   workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4)),
   handler: async (payload) => {
@@ -48,6 +60,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
+app.get('/api/workers/permanent', (_req,res)=>res.json({success:true,...fleetStatus(permanentWorkerFleet)}));
 
 app.use(cors());
 app.use(express.json({ limit: CAPACITY.jsonBody }));
