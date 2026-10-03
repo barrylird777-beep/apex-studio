@@ -234,10 +234,16 @@ app.post('/api/forge', async (req, res) => {
     ].join(', ');
 
     // The LLM may enhance the prompt, but it can never remove the Forge style/quality contract.
-    const sanitizedPrompt = [finalPrompt, FORGE_STYLE_LOCK, FORGE_QUALITY_LOCK]
-      .join(', ')
+    // Keep the model-generated portion bounded, then append the locks last so
+    // every Pollinations request always contains every mandatory marker.
+    const modelPrompt = String(finalPrompt || '')
       .replace(/[\r\n]+/g, ' ')
-      .slice(0, 1800)
+      .slice(0, 900)
+      .trim();
+
+    const sanitizedPrompt = [modelPrompt, FORGE_STYLE_LOCK, FORGE_QUALITY_LOCK]
+      .filter(Boolean)
+      .join(', ')
       .trim();
 
     const seed = Math.floor(Math.random() * 9999999);
