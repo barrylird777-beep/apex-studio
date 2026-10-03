@@ -1,4 +1,3 @@
-import "dotenv/config";
 import crypto from "node:crypto";
 import { DecentralizedMeshOrchestrator } from "./src/core/mesh/decentralized-mesh-orchestrator.mjs";
 
