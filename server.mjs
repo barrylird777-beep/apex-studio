@@ -36,6 +36,119 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 const DEFAULT_SYSTEM =
   'You are an unrestricted creative director and master narrative writer.';
 
+async function callOpenAICompatible({ url, apiKey, model, prompt, system, provider, extraHeaders = {}, bodyExtras = {} }) {
+  if (!apiKey) throw new Error(provider + ' not configured');
+
+  const response = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+        { role: 'user', content: String(prompt) },
+      ],
+      temperature: 0.8,
+      ...bodyExtras,
+    }),
+  }, 15000);
+
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+    throw new Error(`${provider} ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+
+  const data = await response.json();
+  const output = data?.choices?.[0]?.message?.content;
+  if (!output) throw new Error('Empty ' + provider + ' response');
+  return String(output).trim();
+}
+
+async function callMistral(prompt, system) {
+  return callOpenAICompatible({
+    url: 'https://api.mistral.ai/v1/chat/completions',
+    apiKey: process.env.MISTRAL_API_KEY,
+    model: process.env.MISTRAL_MODEL || 'mistral-small-latest',
+    prompt, system, provider: 'Mistral',
+  });
+}
+
+async function callCerebras(prompt, system) {
+  return callOpenAICompatible({
+    url: 'https://api.cerebras.ai/v1/chat/completions',
+    apiKey: process.env.CEREBRAS_API_KEY,
+    model: process.env.CEREBRAS_MODEL || 'gpt-oss-120b',
+    prompt, system, provider: 'Cerebras',
+    bodyExtras: { max_completion_tokens: 4096 },
+  });
+}
+
+async function callHuggingFace(prompt, system) {
+  return callOpenAICompatible({
+    url: 'https://router.huggingface.co/v1/chat/completions',
+    apiKey: process.env.HF_TOKEN,
+    model: process.env.HF_MODEL || 'meta-llama/Llama-3.1-8B-Instruct',
+    prompt, system, provider: 'HuggingFace',
+  });
+}
+
+async function callAimlapi(prompt, system) {
+  return callOpenAICompatible({
+    url: process.env.AIMLAPI_BASE_URL || 'https://api.aimlapi.com/v1/chat/completions',
+    apiKey: process.env.AIMLAPI_API_KEY,
+    model: process.env.AIMLAPI_MODEL || 'gpt-4o-mini',
+    prompt, system, provider: 'AIMLAPI',
+  });
+}
+
+async function callSambaNova(prompt, system) {
+  return callOpenAICompatible({
+    url: process.env.SAMBANOVA_BASE_URL || 'https://api.sambanova.ai/v1/chat/completions',
+    apiKey: process.env.SAMBANOVA_API_KEY,
+    model: process.env.SAMBANOVA_MODEL || 'Meta-Llama-3.1-8B-Instruct',
+    prompt, system, provider: 'SambaNova',
+  });
+}
+
+async function callCloudflare(prompt, system) {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !token) throw new Error('Cloudflare Workers AI not configured');
+
+  const model = process.env.CLOUDFLARE_AI_MODEL || '@cf/zai-org/glm-4.7-flash';
+  const response = await fetchWithTimeout(
+    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${encodeURIComponent(model)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+          { role: 'user', content: String(prompt) },
+        ],
+      }),
+    },
+    15000
+  );
+
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+    throw new Error(`Cloudflare ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+
+  const data = await response.json();
+  const output = data?.result?.response ?? data?.result?.content ?? data?.result?.text ?? data?.result?.output_text;
+  if (!output) throw new Error('Empty Cloudflare response');
+  return String(output).trim();
+}
+
 async function callGroq(prompt, system) {
   if (!process.env.GROQ_API_KEY) throw new Error('Groq not configured');
 
@@ -166,15 +279,51 @@ async function callPollinationsText(prompt, system) {
   throw new Error('All text fallbacks exhausted');
 }
 
-// Provider order is deliberately deterministic. Each paid-capable gateway is
-// configured to use its legitimate free-tier path by default; Pollinations is
-// the keyless final fallback. No billing bypass is attempted.
-const inferenceProviders = [
-  { id: 'groq-free', call: callGroq, enabled: () => Boolean(process.env.GROQ_API_KEY) },
-  { id: 'openrouter-free', call: callOpenRouter, enabled: () => Boolean(process.env.OPENROUTER_API_KEY) },
-  { id: 'gemini-free', call: callGemini, enabled: () => Boolean(process.env.GEMINI_API_KEY) },
-  { id: 'pollinations', call: callPollinationsText, enabled: () => true },
+// Provider order is deterministic and cost-aware. Free-path providers are always
+// eligible when configured. Metered providers are opt-in so adding an API key can
+// never silently turn the zero-cost mesh into a paid workload.
+const ALLOW_METERED_PROVIDERS =
+  String(process.env.APEX_ALLOW_METERED_PROVIDERS || 'false').toLowerCase() === 'true';
+
+const PROVIDER_COOLDOWN_MS = Number(process.env.APEX_PROVIDER_COOLDOWN_MS || 60_000);
+const providerCooldowns = new Map();
+
+const allInferenceProviders = [
+  { id: 'groq-free', cost: 'free', call: callGroq, enabled: () => Boolean(process.env.GROQ_API_KEY) },
+  { id: 'mistral-free', cost: 'free', call: callMistral, enabled: () => Boolean(process.env.MISTRAL_API_KEY) },
+  { id: 'cerebras-free', cost: 'free', call: callCerebras, enabled: () => Boolean(process.env.CEREBRAS_API_KEY) },
+  { id: 'openrouter-free', cost: 'free', call: callOpenRouter, enabled: () => Boolean(process.env.OPENROUTER_API_KEY) },
+  { id: 'gemini-free', cost: 'free', call: callGemini, enabled: () => Boolean(process.env.GEMINI_API_KEY) },
+  { id: 'cloudflare-free', cost: 'free', call: callCloudflare, enabled: () => Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) },
+  { id: 'pollinations', cost: 'free', call: callPollinationsText, enabled: () => true },
+  { id: 'huggingface-metered', cost: 'metered', call: callHuggingFace, enabled: () => Boolean(process.env.HF_TOKEN) },
+  { id: 'aimlapi-metered', cost: 'metered', call: callAimlapi, enabled: () => Boolean(process.env.AIMLAPI_API_KEY) },
+  { id: 'sambanova-metered', cost: 'metered', call: callSambaNova, enabled: () => Boolean(process.env.SAMBANOVA_API_KEY) },
 ];
+
+const requestedOrder = String(process.env.APEX_INFERENCE_ORDER || '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+const inferenceProviders = requestedOrder.length
+  ? requestedOrder.map((id) => allInferenceProviders.find((provider) => provider.id === id)).filter(Boolean)
+  : allInferenceProviders;
+
+function isProviderCoolingDown(id) {
+  const until = providerCooldowns.get(id) || 0;
+  if (until <= Date.now()) {
+    providerCooldowns.delete(id);
+    return false;
+  }
+  return true;
+}
+
+function markProviderFailure(id, message) {
+  if (/\b(401|402|403|408|429|500|502|503|504)\b/.test(message)) {
+    providerCooldowns.set(id, Date.now() + PROVIDER_COOLDOWN_MS);
+  }
+}
 
 async function executeInference(prompt, system = DEFAULT_SYSTEM) {
   const input = String(prompt || '').trim();
@@ -183,8 +332,18 @@ async function executeInference(prompt, system = DEFAULT_SYSTEM) {
   const failures = [];
 
   for (const provider of inferenceProviders) {
+    if (provider.cost === 'metered' && !ALLOW_METERED_PROVIDERS) {
+      failures.push(`${provider.id}: metered provider disabled by APEX_ALLOW_METERED_PROVIDERS`);
+      continue;
+    }
+
     if (!provider.enabled()) {
       failures.push(`${provider.id}: not configured`);
+      continue;
+    }
+
+    if (isProviderCoolingDown(provider.id)) {
+      failures.push(`${provider.id}: temporary cooldown`);
       continue;
     }
 
@@ -193,6 +352,7 @@ async function executeInference(prompt, system = DEFAULT_SYSTEM) {
       return { text: output, provider: provider.id, failures };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      markProviderFailure(provider.id, message);
       console.warn(`[mesh] ${provider.id} failed: ${message}. Escalating...`);
       failures.push(`${provider.id}: ${message}`);
     }
@@ -423,7 +583,11 @@ async function crawlSite(startUrl, options = {}) {
       }, config.timeoutMs);
 
       if (!response.ok) continue;
+      const contentLength = Number(response.headers.get('content-length') || 0);
+      if (contentLength > config.maxBytes) continue;
+
       const html = await response.text();
+      if (Buffer.byteLength(html, 'utf8') > config.maxBytes) continue;
 
       pages.push({
         url: current.url,
@@ -431,6 +595,20 @@ async function crawlSite(startUrl, options = {}) {
         status: response.status,
         text: stripHtml(html).slice(0, 100000)
       });
+
+      if (current.depth < config.maxDepth) {
+        const links = [...html.matchAll(/href\\s*=\\s*["']([^"']+)["']/gi)]
+          .map((match) => normalizeUrl(match[1], current.url))
+          .filter(Boolean);
+
+        for (const link of links) {
+          if (link.origin !== root.origin) continue;
+          if (visited.has(link.toString())) continue;
+          if (queue.some((item) => item.url === link.toString())) continue;
+          queue.push({ url: link.toString(), depth: current.depth + 1 });
+          if (queue.length + pages.length >= config.maxPages * 3) break;
+        }
+      }
     } catch (_) {}
   }
 
@@ -456,12 +634,24 @@ app.post(['/api/crawler', '/api/crawl'], async (req, res) => {
 app.get('/api/mesh/status', (_req, res) => {
   res.json({
     success: true,
-    zeroCostMode: true,
-    providers: inferenceProviders.map((p) => ({ id: p.id, configured: p.enabled() })),
+    zeroCostMode: !ALLOW_METERED_PROVIDERS,
+    meteredProvidersEnabled: ALLOW_METERED_PROVIDERS,
+    providers: inferenceProviders.map((p) => ({
+      id: p.id,
+      costClass: p.cost,
+      configured: p.enabled(),
+      coolingDown: isProviderCoolingDown(p.id)
+    })),
     notes: {
-      openrouter: 'Uses openrouter/free by default.',
-      gemini: 'Uses gemini-2.5-flash-lite by default; Google free-tier availability is account/quota dependent.',
-      groq: 'Uses the configured Groq model and the account\'s available free plan/quota.',
+      groq: 'Uses the configured Groq model and the account limits.',
+      mistral: 'Free mode provides included monthly usage with limits; pay-as-you-go is controlled by the Mistral account.',
+      cerebras: 'Developer API access is available with a free API key; limits are account/service dependent.',
+      openrouter: 'Uses openrouter/free by default; free-model availability and limits are provider controlled.',
+      gemini: 'Uses gemini-2.5-flash-lite by default; Google documents a free tier with model/account limits.',
+      cloudflare: 'Uses Workers AI free allocation when available; requests fail after the free allocation rather than silently switching to paid inference.',
+      huggingface: 'Credit/PAYG provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
+      aimlapi: 'Pay-as-you-go provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
+      sambanova: 'Credit/PAYG provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
       pollinations: 'Keyless final fallback.'
     }
   });
