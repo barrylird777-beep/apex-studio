@@ -88,10 +88,8 @@ test("SE-X rejects non-HTTPS sources before network access",async()=>{
     resolve:async()=>[{address:"93.184.216.34"}]
   });
   const sex=new SexEngine({egress});
-  await assert.rejects(
-    ()=>sex.search("research",{sources:["http://example.org"],approved:true}),
-    /protocol is not permitted/
-  );
+  const run=await sex.search("research",{sources:["http://example.org"],approved:true});
+  assert.match(run.results[0].error,/protocol is not permitted/);
 });
 
 test("OMNI persistence uses relational SQLite timeline tables",async()=>{
