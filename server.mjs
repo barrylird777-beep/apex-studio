@@ -5,6 +5,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
+import { initStorage, STORAGE_DIR } from './src/core/storage.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -18,6 +19,16 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+// Persistent SE-X assets are served through a dedicated static mount. The
+// storage module validates all filenames before they are written, while
+// Express prevents traversal outside STORAGE_DIR when serving them.
+app.use('/files', express.static(STORAGE_DIR, {
+  fallthrough: false,
+  dotfiles: 'deny',
+  index: false,
+  redirect: false,
+  maxAge: '1h'
+}));
 
 // Helper for guaranteed-timeout fetch
 async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
@@ -824,6 +835,9 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+await initStorage();
+
 app.listen(PORT, HOST, () => {
   console.log(`Apex Studio active on http://${HOST}:${PORT}`);
+  console.log(`SE-X persistent asset storage: ${STORAGE_DIR}`);
 });
