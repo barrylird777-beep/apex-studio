@@ -392,6 +392,16 @@ async function op(message) {
   if (op==="createTimelineMutation") return createTimelineMutation(payload.input);
   if (op==="getTimelineMutation") return getTimelineMutation(payload.id);
   if (op==="listTimelineMutations") return listTimelineMutations(payload.parentNodeId??null,payload.limit??500);
+  if (op==="indexPassage") {
+    const fragments=await fragmentText(payload.text);
+    await run("BEGIN");
+    try {
+      await run("DELETE FROM parsed_passage_fragments WHERE result_id IS ?",[payload.resultId??null]);
+      for(const part of fragments) await run("INSERT INTO parsed_passage_fragments(run_id,result_id,fragment_index,char_offset,text) VALUES(?,?,?,?,?)",[payload.runId??null,payload.resultId??null,part.index,part.offset,part.text]);
+      await run("COMMIT");
+    } catch(e) { await run("ROLLBACK").catch(()=>{}); throw e; }
+    return fragments;
+  }
   if (op==="searchPassages") {
     const q=String(payload.query??"").trim(); if(!q)return [];
     const n=Math.max(1,Math.min(500,Number(payload.limit)||50));
