@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#08090c">
+<title>Apex Overseer — Worker Command</title>
+<style>
+:root{color-scheme:dark;--bg:#08090c;--panel:#111318;--line:#262a33;--text:#f4f6f8;--muted:#8f98a6;--good:#48d597;--warn:#f2c35b;--bad:#ff6875}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1500px;margin:auto;padding:20px}.top{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:22px;margin:0}.sub{color:var(--muted);margin-top:4px}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 11px;background:var(--panel)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.label{color:var(--muted);font-size:12px}.value{font-size:25px;font-weight:700;margin-top:4px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}input,select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:10px}
+.workers{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}.worker{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px}.row{display:flex;justify-content:space-between;gap:10px}.name{font-weight:700}.role{color:var(--muted);font-size:12px;margin-top:3px}.status{font-size:11px;border-radius:999px;padding:4px 7px;height:max-content}.running{color:var(--good);background:#123326}.idle{color:var(--warn);background:#332a12}.failed{color:var(--bad);background:#39171d}
+.task{margin-top:12px;min-height:38px;color:#d8dde5}.meta{margin-top:10px;color:var(--muted);font-size:11px;display:grid;grid-template-columns:1fr 1fr;gap:5px}.bar{height:4px;background:#20242c;border-radius:99px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:var(--good);width:100%}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:500px){main{padding:12px}.grid{grid-template-columns:1fr 1fr}.workers{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><div><h1>Apex Overseer</h1><div class="sub">Persistent runtime view of the worker fleet</div></div><div id="connection" class="pill">Connecting…</div></div>
+  <section class="grid">
+    <div class="card"><div class="label">Overseer</div><div id="ov" class="value">—</div></div>
+    <div class="card"><div class="label">Running workers</div><div id="running" class="value">—</div></div>
+    <div class="card"><div class="label">Active assignments</div><div id="active" class="value">—</div></div>
+    <div class="card"><div class="label">Stale workers</div><div id="stale" class="value">—</div></div>
+  </section>
+  <div class="controls"><input id="filter" placeholder="Filter workers or tasks…"><select id="status"><option value="">All statuses</option><option value="running">Running</option><option value="idle">Idle</option><option value="failed">Failed</option></select><span class="pill" id="updated">Never updated</span></div>
+  <section id="workers" class="workers"></section>
+</main>
+<script>
+const $=id=>document.getElementById(id), state={workers:[]};
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function age(s){if(!s)return'never';const n=Math.max(0,Date.now()-Date.parse(s));if(n<1000)return'now';if(n<60000)return Math.round(n/1000)+'s ago';if(n<3600000)return Math.round(n/60000)+'m ago';return Math.round(n/3600000)+'h ago'}
+function render(){const q=$('filter').value.toLowerCase(), st=$('status').value;const list=state.workers.filter(w=>(!st||w.status===st)&&(!q||[w.id,w.name,w.role,w.job,w.currentTask,w.lastError].join(' ').toLowerCase().includes(q)));$('workers').innerHTML=list.map(w=>`<article class="worker"><div class="row"><div><div class="name">${esc(w.id)} · ${esc(w.name)}</div><div class="role">${esc(w.role)}</div></div><span class="status ${esc(w.status)}">${esc(w.status)}</span></div><div class="task">${esc(w.currentTask||w.job||'No current assignment')}</div><div class="bar"><i></i></div><div class="meta"><span>Heartbeat: ${age(w.lastHeartbeatAt)}</span><span>Started: ${age(w.startedAt)}</span><span>Completed: ${w.completed||0}</span><span>Failed: ${w.failed||0}</span></div></article>`).join('')||'<div class="card">No workers match this filter.</div>'}
+async function refresh(){try{const [a,b]=await Promise.all([fetch('/api/workers/permanent',{cache:'no-store'}),fetch('/api/workers/overseer',{cache:'no-store'})]);if(!a.ok||!b.ok)throw new Error('status endpoint unavailable');const fleet=await a.json(), ov=await b.json();state.workers=fleet.workers||[];$('ov').textContent=ov.overseer?.status||'unknown';$('running').textContent=(ov.overseer?.runningWorkers??fleet.running??0)+' / '+(fleet.total??0);$('active').textContent=ov.overseer?.activeAssignments??0;$('stale').textContent=ov.overseer?.staleWorkers??0;$('connection').textContent='LIVE · '+new Date().toLocaleTimeString();$('updated').textContent='Updated '+new Date().toLocaleTimeString();render()}catch(e){$('connection').textContent='OFFLINE';$('connection').style.color='var(--bad)'}}
+$('filter').addEventListener('input',render);$('status').addEventListener('change',render);refresh();setInterval(refresh,5000);
+</script>
+</body>
+</html>
