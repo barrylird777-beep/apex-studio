@@ -1,0 +1,10 @@
+{
+  "profile": "ALPHA",
+  "profileIndex": 0,
+  "rotationCount": 0,
+  "updatedAt": null,
+  "routing": {
+    "mode": "local-profile",
+    "externalConnections": false
+  }
+}
