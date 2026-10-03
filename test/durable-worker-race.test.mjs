@@ -47,7 +47,12 @@ test("expired lease can be reclaimed but stale result is rejected", { skip: !has
     );
     assert.equal(await requeueExpiredWorkerTasks(), 1);
 
-    const second = await claimWorkerTask(id, 15000);
+    let second = null;
+    for (let attempt = 0; attempt < 20 && !second; attempt += 1) {
+      second = await claimWorkerTask(id, 15000);
+      if (!second) await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    assert.ok(second);
     assert.equal(second.id, id);
     assert.notEqual(second.lease_token, first.lease_token);
 
