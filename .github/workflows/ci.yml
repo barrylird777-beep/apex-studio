@@ -51,7 +51,6 @@ jobs:
   mesh-smoke:
     name: Mesh smoke
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
