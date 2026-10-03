@@ -60,17 +60,17 @@ if (!workerOnly) {
 
   const executeTask = async (task) => {
     const heartbeat = setInterval(() => {
-      void heartbeatWorkerTask(task.id, leaseMs).catch(error => {
+      void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
         console.error("[apex-worker] heartbeat failed:", error?.message || error);
       });
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
       const result = await executePermanentHealthTask(task.payload || {});
-      await completeWorkerTask(task.id, result);
+      await completeWorkerTask(task.id, result, task.lease_token);
       console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
-      await failWorkerTask(task.id, error).catch(failure => {
+      await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
       });
       console.error("[apex-worker] task failed:", task.id, error?.message || error);
