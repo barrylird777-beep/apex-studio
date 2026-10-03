@@ -5,6 +5,9 @@ from .db import get_db
 from .models import Agency,FoiaRequest,Document,Source,Investigation,User
 from .schemas import *
 from .security import *
+from .compliance import sensitive_access_guard
+from .audit import record_access
+from .appeals import appeal_template
 
 api=APIRouter(prefix="/api")
 
@@ -64,8 +67,8 @@ async def dashboard(db:AsyncSession=Depends(get_db)):
 
 @api.get("/connectors/{provider}")
 async def connector_search(provider:str,q:str):
- from .connectors import CongressConnector,CourtListenerConnector,InternetArchiveConnector,MuckRockConnector,DocumentCloudConnector
- connectors={"congress":CongressConnector(),"courtlistener":CourtListenerConnector(),"internet_archive":InternetArchiveConnector(),"muckrock":MuckRockConnector(),"documentcloud":DocumentCloudConnector()}
+ from .connectors import FoiaGovConnector,CongressConnector,CourtListenerConnector,InternetArchiveConnector,MuckRockConnector,DocumentCloudConnector
+ connectors={"foia":FoiaGovConnector(),"congress":CongressConnector(),"courtlistener":CourtListenerConnector(),"internet_archive":InternetArchiveConnector(),"muckrock":MuckRockConnector(),"documentcloud":DocumentCloudConnector()}
  if provider not in connectors: raise HTTPException(404,"Connector not configured")
  return await connectors[provider].search(q)
 
@@ -94,5 +97,31 @@ async def render_request_template(payload:dict):
  text=TEMPLATES[kind]
  return {"kind":kind,"text":re.sub(r"{{\s*([\w_]+)\s*}}",lambda m:str(payload.get("variables",{}).get(m.group(1),m.group(0))),text)}
 
+@api.get("/sources/{source_id}/contact",dependencies=[Depends(require_role("editor","admin")),Depends(sensitive_access_guard)])
+async def source_contact(source_id:int,db:AsyncSession=Depends(get_db)):
+ row=await db.get(Source,source_id)
+ if not row: raise HTTPException(404,"Source not found")
+ return {"id":row.id,"contact_info":decrypt_source(row.encrypted_contact_info) if row.encrypted_contact_info else None}
+
+@api.delete("/sources/{source_id}",dependencies=[Depends(require_role("admin")),Depends(sensitive_access_guard)])
+async def delete_source(source_id:int,db:AsyncSession=Depends(get_db)):
+ row=await db.get(Source,source_id)
+ if not row: raise HTTPException(404,"Source not found")
+ row.encrypted_contact_info=None
+ await db.delete(row); await db.commit()
+ return {"deleted":True,"id":source_id}
+
+@api.get("/documents/{document_id}")
+async def document_detail(document_id:int,db:AsyncSession=Depends(get_db),claims=Depends(current_claims)):
+ row=await db.get(Document,document_id)
+ if not row: raise HTTPException(404,"Document not found")
+ await record_access(db,int(claims["sub"]),"document.read","document",document_id)
+ return row
+
+@api.get("/investigations/{investigation_id}/appeal-template")
+async def investigation_appeal_template(investigation_id:int,db:AsyncSession=Depends(get_db),claims=Depends(current_claims)):
+ row=await db.get(Investigation,investigation_id)
+ if not row: raise HTTPException(404,"Investigation not found")
+ return {"text":appeal_template({"tracking_number":investigation_id,"request_text":row.description or ""})}
 @api.get("/health")
 async def health(): return {"ok":True,"service":"apex-research"}
