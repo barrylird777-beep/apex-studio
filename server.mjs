@@ -5,7 +5,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
-import { initStorage, STORAGE_DIR, getProjectState } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveSceneAsset } from './src/services/projectManager.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -516,8 +516,12 @@ app.post('/api/forge', async (req, res) => {
 app.post('/api/audio', async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim();
+    const sceneId = String(req.body?.sceneId || '').trim();
     if (!text) {
       return res.status(400).json({ success: false, error: 'Text script required' });
+    }
+    if (sceneId && (!/^[A-Za-z0-9._-]+$/.test(sceneId) || sceneId === '.' || sceneId === '..')) {
+      return res.status(400).json({ success: false, error: 'Invalid sceneId' });
     }
     if (!process.env.HF_TOKEN) {
       return res.status(503).json({ success: false, error: 'HF_TOKEN is not configured' });
@@ -555,6 +559,17 @@ app.post('/api/audio', async (req, res) => {
 
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!buffer.length) throw new Error('TTS provider returned an empty audio file');
+    if (sceneId) {
+      const savedScene = await saveSceneAsset(sceneId, 'audio', buffer, 'wav');
+      return res.json({
+        success: true,
+        sceneId,
+        url: savedScene.audio,
+        audioUrl: savedScene.audio,
+        contentType: contentType || 'audio/wav',
+        bytes: buffer.length
+      });
+    }
 
     res.set({
       'Content-Type': contentType || 'audio/wav',
@@ -641,7 +656,34 @@ app.post('/api/media/video', async (req, res) => {
     const duration = Math.min(Math.max(Number(req.body?.duration || 4), 1), 10);
     const aspectRatio = String(req.body?.aspectRatio || '16:9').slice(0, 20);
     const model = String(req.body?.model || process.env.POLLINATIONS_VIDEO_MODEL || 'alibaba/wan-2.2-fast').slice(0, 120);
-    return await proxyPollinationsMedia('video', prompt, { model, duration, aspectRatio }, res);
+    const sceneId = String(req.body?.sceneId || '').trim();
+
+    if (!sceneId) {
+      return await proxyPollinationsMedia('video', prompt, { model, duration, aspectRatio }, res);
+    }
+    if (!/^[A-Za-z0-9._-]+$/.test(sceneId) || sceneId === '.' || sceneId === '..') {
+      return res.status(400).json({ success: false, error: 'Invalid sceneId' });
+    }
+
+    const request = buildPollinationsMediaRequest('video', prompt, { model, duration, aspectRatio });
+    const response = await fetchWithTimeout(request.url, { headers: request.headers }, 120000);
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
+      throw new Error(`Pollinations video ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) throw new Error('Pollinations returned an empty video response');
+
+    const savedScene = await saveSceneAsset(sceneId, 'video', buffer, 'mp4');
+    return res.json({
+      success: true,
+      sceneId,
+      url: savedScene.video,
+      videoUrl: savedScene.video,
+      contentType,
+      bytes: buffer.length
+    });
   } catch (error) {
     console.error('[media-video-fatal]', error);
     return res.status(502).json({ success: false, error: error.message });
