@@ -80,7 +80,8 @@ async function callOpenRouter(prompt, system) {
         'X-Title': 'Apex Studio',
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free',
+        // Explicit free router: never silently upgrade this provider to a paid model.
+        model: process.env.OPENROUTER_MODEL || 'openrouter/free',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
@@ -94,6 +95,51 @@ async function callOpenRouter(prompt, system) {
   const data = await response.json();
   const output = data?.choices?.[0]?.message?.content;
   if (!output) throw new Error('Empty OpenRouter response');
+  return output;
+}
+
+async function callGemini(prompt, system) {
+  if (!process.env.GEMINI_API_KEY) throw new Error('Gemini not configured');
+
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+  const response = await fetchWithTimeout(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': process.env.GEMINI_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: String(system || DEFAULT_SYSTEM) }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: String(prompt) }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.8,
+        },
+      }),
+    },
+    15000
+  );
+
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    throw new Error(`Gemini ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+
+  const data = await response.json();
+  const output = data?.candidates?.[0]?.content?.parts
+    ?.map((part) => part?.text || '')
+    .join('')
+    .trim();
+
+  if (!output) throw new Error('Empty Gemini response');
   return output;
 }
 
@@ -120,9 +166,13 @@ async function callPollinationsText(prompt, system) {
   throw new Error('All text fallbacks exhausted');
 }
 
+// Provider order is deliberately deterministic. Each paid-capable gateway is
+// configured to use its legitimate free-tier path by default; Pollinations is
+// the keyless final fallback. No billing bypass is attempted.
 const inferenceProviders = [
-  { id: 'groq', call: callGroq, enabled: () => Boolean(process.env.GROQ_API_KEY) },
-  { id: 'openrouter', call: callOpenRouter, enabled: () => Boolean(process.env.OPENROUTER_API_KEY) },
+  { id: 'groq-free', call: callGroq, enabled: () => Boolean(process.env.GROQ_API_KEY) },
+  { id: 'openrouter-free', call: callOpenRouter, enabled: () => Boolean(process.env.OPENROUTER_API_KEY) },
+  { id: 'gemini-free', call: callGemini, enabled: () => Boolean(process.env.GEMINI_API_KEY) },
   { id: 'pollinations', call: callPollinationsText, enabled: () => true },
 ];
 
@@ -142,7 +192,9 @@ async function executeInference(prompt, system = DEFAULT_SYSTEM) {
       const output = await provider.call(input, system);
       return { text: output, provider: provider.id, failures };
     } catch (err) {
-      failures.push(`${provider.id}: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[mesh] ${provider.id} failed: ${message}. Escalating...`);
+      failures.push(`${provider.id}: ${message}`);
     }
   }
 
@@ -404,7 +456,14 @@ app.post(['/api/crawler', '/api/crawl'], async (req, res) => {
 app.get('/api/mesh/status', (_req, res) => {
   res.json({
     success: true,
-    providers: inferenceProviders.map((p) => ({ id: p.id, configured: p.enabled() }))
+    zeroCostMode: true,
+    providers: inferenceProviders.map((p) => ({ id: p.id, configured: p.enabled() })),
+    notes: {
+      openrouter: 'Uses openrouter/free by default.',
+      gemini: 'Uses gemini-2.5-flash-lite by default; Google free-tier availability is account/quota dependent.',
+      groq: 'Uses the configured Groq model and the account\'s available free plan/quota.',
+      pollinations: 'Keyless final fallback.'
+    }
   });
 });
 
