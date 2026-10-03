@@ -29,11 +29,11 @@ test("editor supports snapping, track state, grouping and snapped moves",()=>{
  const p=createEditorProject(); const a=addTrack(p,"video","A"); const b=addTrack(p,"video","B");
  const c1=addClip(p,a.id,{start:0,duration:5}); const c2=addClip(p,a.id,{start:10,duration:5});
  addClip(p,b.id,{start:20,duration:4});
- setTrackState(p,a.id,{muted:true,locked:true,visible:false,height:72});
  const g=addTrackGroup(p,"Picture",[a.id,b.id]); toggleTrackGroup(p,g.id,true);
  const s=snapTime(p,9.94,{trackId:a.id,excludeClipId:c2.id,threshold:.1});
  assert.equal(s.snapped,true); assert.equal(s.time,5);
  const moved=moveClipSnapped(p,a.id,c2.id,5.04,{threshold:.1});
  assert.equal(moved.snapped,true); assert.equal(c2.start,5);
+ setTrackState(p,a.id,{muted:true,locked:true,visible:false,height:72});
  assert.equal(a.muted,true); assert.equal(a.locked,true); assert.equal(g.collapsed,true);
 });
