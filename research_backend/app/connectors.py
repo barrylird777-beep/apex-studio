@@ -5,6 +5,15 @@ from .config import settings
 def require_network():
  if settings.air_gapped_mode: raise HTTPException(503,"External connectors disabled in air-gapped mode")
 
+class FoiaGovConnector:
+ async def agencies(self):
+  require_network()
+  headers={"X-API-Key":settings.foia_api_key} if settings.foia_api_key else {}
+  async with httpx.AsyncClient(timeout=30) as client:
+   r=await client.get("https://api.foia.gov/api/agency_components",headers=headers)
+   r.raise_for_status()
+   return r.json()
+
 class CongressConnector:
  async def search(self,query:str):
   require_network()
