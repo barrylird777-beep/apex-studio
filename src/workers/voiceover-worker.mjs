@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { uid } from "../core/id.mjs";
-import { synthesizeSpeech } from "../core/audio-station.mjs";
+import { synthesizeSpeech, listVoiceOptions } from "../core/audio-station.mjs";
 
 const DB_FILE=process.env.APEX_VOICEOVER_DB_FILE||process.env.APEX_PRODUCTION_DB_FILE||"./apex-production.sqlite";
 const CONCURRENCY=Math.max(1,Number(process.env.APEX_VOICEOVER_CONCURRENCY||process.env.APEX_JOB_CONCURRENCY||4));
@@ -31,6 +31,23 @@ async function generate(job){const p={voice:job.voice,language:job.language,spee
 async function claim(){const now=Math.floor(Date.now()/1000);return new Promise((resolve,reject)=>{openDb().serialize(()=>{db.run("BEGIN IMMEDIATE",e=>{if(e)return reject(e);db.get("SELECT * FROM voiceover_jobs WHERE status='queued' AND available_at<=? ORDER BY priority DESC,created_at ASC LIMIT 1",[now],(se,row)=>{if(se)return db.run("ROLLBACK",()=>reject(se));if(!row)return db.run("COMMIT",e2=>e2?reject(e2):resolve(null));db.run("UPDATE voiceover_jobs SET status='running',attempts=attempts+1,started_at=? WHERE id=? AND status='queued'",[now,row.id],function(ue){if(ue)return db.run("ROLLBACK",()=>reject(ue));db.run("COMMIT",ce=>ce?reject(ce):resolve({...row,attempts:row.attempts+1}))})})})})})}
 async function loop(){while(!stopping){const j=await claim();if(!j){await sleep(POLL_MS);continue}try{const r=await generate(j);await run("UPDATE voiceover_jobs SET status='completed',finished_at=?,output_path=?,bytes=?,result_json=?,error=NULL WHERE id=?",[Math.floor(Date.now()/1000),r.file,r.bytes,JSON.stringify(r),j.id])}catch(e){const retry=j.attempts<Number(process.env.APEX_VOICEOVER_MAX_ATTEMPTS||3);await run("UPDATE voiceover_jobs SET status=?,available_at=?,error=? WHERE id=?",[retry?"queued":"failed",Math.floor(Date.now()/1000)+(retry?Math.min(300,2**j.attempts*5):0),String(e?.stack||e).slice(0,20000),j.id])}}}
 export async function startVoiceoverWorker(){await initSchema();await Promise.all(Array.from({length:CONCURRENCY},loop))}
+export async function listVoiceCatalog(){
+  const voices=[...(await listVoiceOptions()).map(v=>({...v,provider:"local"}))];
+  if(process.env.ELEVENLABS_API_KEY)try{
+    const r=await fetch("https://api.elevenlabs.io/v2/voices",{headers:{"xi-api-key":process.env.ELEVENLABS_API_KEY}});
+    if(r.ok){const d=await r.json();for(const v of d.voices||[])voices.push({id:v.voice_id,provider:"elevenlabs",label:v.name,language:v.labels?.language||"multilingual",category:v.category||"library",labels:v.labels||{}})}
+  }catch{}
+  if(process.env.GOOGLE_TTS_API_KEY)try{
+    const r=await fetch("https://texttospeech.googleapis.com/v1/voices?key="+encodeURIComponent(process.env.GOOGLE_TTS_API_KEY));
+    if(r.ok){const d=await r.json();for(const v of d.voices||[])for(const x of v.voice||[])voices.push({id:x.name,provider:"google",label:x.name,language:v.languageCodes?.[0]||"",gender:x.ssmlGender||"unspecified"})}
+  }catch{}
+  if(process.env.AZURE_SPEECH_KEY&&process.env.AZURE_SPEECH_REGION)try{
+    const r=await fetch("https://"+process.env.AZURE_SPEECH_REGION+".tts.speech.microsoft.com/cognitiveservices/voices/list",{headers:{"Ocp-Apim-Subscription-Key":process.env.AZURE_SPEECH_KEY}});
+    if(r.ok){const d=await r.json();for(const v of d)voices.push({id:v.ShortName,provider:"azure",label:v.DisplayName,language:v.Locale,styles:v.StyleList||[]})}
+  }catch{}
+  return voices;
+}
+
 export async function voiceoverWorkerStatus(){await initSchema();const q=await get("SELECT COUNT(*) AS n FROM voiceover_jobs WHERE status='queued'");const r=await get("SELECT COUNT(*) AS n FROM voiceover_jobs WHERE status='running'");return {concurrency:CONCURRENCY,queued:q?.n||0,running:r?.n||0,providers:{elevenlabs:Boolean(process.env.ELEVENLABS_API_KEY),azure:Boolean(process.env.AZURE_SPEECH_KEY),google:Boolean(process.env.GOOGLE_TTS_API_KEY),local:true}}}
 for(const s of ["SIGINT","SIGTERM"])process.once(s,()=>{stopping=true});
 if(process.argv[1]&&new URL(import.meta.url).pathname===new URL(process.argv[1],"file:").pathname)await startVoiceoverWorker();
