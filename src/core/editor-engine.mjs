@@ -53,3 +53,12 @@ export function validateEditorProject(project) {
   }
   return {ok:errors.length===0,errors,tracks:project.tracks?.length??0,clips:ids.size,captions:project.captions?.length??0};
 }
+
+function findClip(project,trackId,clipId){const t=project.tracks.find(x=>x.id===trackId);if(!t)throw new Error("Track not found");const clip=t.clips.find(x=>x.id===clipId);if(!clip)throw new Error("Clip not found");return {t,clip};}
+function touch(project){project.updatedAt=new Date().toISOString();}
+export function trimClip(project,trackId,clipId,{start,duration}={}){const {clip}=findClip(project,trackId,clipId);if(start!=null)clip.start=Math.max(0,n(start,clip.start));if(duration!=null)clip.duration=Math.max(0,n(duration,clip.duration));touch(project);return clip;}
+export function splitClip(project,trackId,clipId,time){const {t,clip}=findClip(project,trackId,clipId);const cut=n(time,clip.start);if(cut<=clip.start||cut>=clip.start+clip.duration)throw new Error("Split time must be inside clip");const left={...structuredClone(clip),id:uid(),duration:cut-clip.start};const right={...structuredClone(clip),id:uid(),start:cut,duration:clip.start+clip.duration-cut};t.clips=t.clips.flatMap(x=>x.id===clipId?[left,right]:[x]);touch(project);return {left,right};}
+export function moveClip(project,trackId,clipId,start,{ripple=false}={}){const {t,clip}=findClip(project,trackId,clipId);const previous=clip.start;clip.start=Math.max(0,n(start,previous));if(ripple){const delta=clip.start-previous;for(const other of t.clips)if(other.id!==clip.id&&other.start>=previous)other.start=Math.max(0,other.start+delta);}t.clips.sort((a,b)=>a.start-b.start);touch(project);return clip;}
+export function removeClip(project,trackId,clipId,{ripple=false}={}){const {t,clip}=findClip(project,trackId,clipId);const end=clip.start+clip.duration;t.clips=t.clips.filter(x=>x.id!==clipId);if(ripple)for(const other of t.clips)if(other.start>=end)other.start=Math.max(0,other.start-clip.duration);project.duration=Math.max(0,...project.tracks.flatMap(x=>x.clips.map(y=>y.start+y.duration)),0);touch(project);return clip;}
+export function snapshotEditor(project){return structuredClone(project);}
+export function restoreEditor(project,snapshot){if(!snapshot||typeof snapshot!=="object")throw new TypeError("Invalid editor snapshot");return Object.assign(project,structuredClone(snapshot));}
