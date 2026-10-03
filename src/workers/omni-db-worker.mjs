@@ -236,13 +236,13 @@ async function migrate() {
     "(id,project_id,branch_id,timeline_id,created_at) SELECT id,project_id,branch_id,timeline_id,created_at");
   if (voice.has("filepath")) await rebuild("voice_assets",
     "id TEXT PRIMARY KEY,track_id TEXT,playback_uri TEXT,media_uri TEXT,asset_id TEXT,content_type TEXT,content_length INTEGER,content_hash TEXT,metadata TEXT,created_at TEXT",
-    "(id,track_id,playback_uri,media_uri,asset_id,content_type,content_length,content_hash,metadata,created_at) SELECT id,track_id,filepath,NULL,NULL,content_type,content_length,content_hash,metadata,created_at FROM voice_assets_legacy");
+    "(id,track_id,playback_uri,media_uri,asset_id,content_type,content_length,content_hash,metadata,created_at) SELECT id,track_id,filepath,NULL,NULL,content_type,content_length,content_hash,metadata,created_at FROM voice_assets");
   if (results.has("text")) await rebuild("search_results",
     "id TEXT PRIMARY KEY,run_id TEXT NOT NULL,url TEXT NOT NULL,status INTEGER,content_type TEXT,created_at TEXT,FOREIGN KEY(run_id) REFERENCES search_runs(id) ON DELETE CASCADE",
-    "(id,run_id,url,status,content_type,created_at) SELECT id,run_id,url,status,content_type,created_at FROM search_results_legacy");
+    "(id,run_id,url,status,content_type,created_at) SELECT id,run_id,url,status,content_type,created_at FROM search_results");
   if (runs.has("fragments")) await rebuild("search_runs",
     "id TEXT PRIMARY KEY,query TEXT NOT NULL,mode TEXT,started_at TEXT,finished_at TEXT,status TEXT,sources TEXT,results TEXT",
-    "(id,query,mode,started_at,finished_at,status,sources,results) SELECT id,query,mode,started_at,finished_at,status,sources,results FROM search_runs_legacy");
+    "(id,query,mode,started_at,finished_at,status,sources,results) SELECT id,query,mode,started_at,finished_at,status,sources,results FROM search_runs");
 
 
   await exec(`
