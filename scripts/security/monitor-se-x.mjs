@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import fs from "node:fs";\nimport path from "node:path";
+import fs from "node:fs";
+import path from "node:path";
 
 const container = process.env.APEX_SEX_CONTAINER ?? "apex-se-x";
 const network = process.env.APEX_SEX_NETWORK ?? "apex-search";
@@ -10,14 +11,19 @@ const evidenceDir = process.env.APEX_SECURITY_EVIDENCE_DIR ?? "./data/security";
 const lockFile = process.env.APEX_SECURITY_LOCK_FILE ?? "./data/security/production.lock";
 const expectedMembers = new Set(
   String(process.env.APEX_SEX_EXPECTED_NETWORK_MEMBERS ?? container)
-    .split(",").map(value => value.trim()).filter(Boolean)
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean)
 );
 
 fs.mkdirSync(evidenceDir, { recursive: true });
 
 function run(command, args) {
   try {
-    return execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    return execFileSync(command, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
   } catch (error) {
     return `ERROR: ${String(error.stderr ?? error.stdout ?? error.message ?? error).trim()}`;
   }
@@ -26,18 +32,26 @@ function run(command, args) {
 function snapshot() {
   return {
     network: run("docker", ["network", "inspect", network]),
-    inspect: run("docker", ["inspect", "--format={{.HostConfig.Privileged}}|{{json .HostConfig.Binds}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.NetworkMode}}", container]),
+    inspect: run("docker", [
+      "inspect",
+      "--format={{.HostConfig.Privileged}}|{{json .HostConfig.Binds}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.NetworkMode}}",
+      container
+    ]),
     routes: run("ip", ["route", "show", "table", "all"]),
     rules: run("ip", ["rule", "show"]),
     listeners: run("ss", ["-lntup"]),
-    namespace: run("docker", ["inspect", "--format={{.State.Pid}}", container]),
+    namespace: run("docker", ["inspect", "--format={{.State.Pid}}", container])
   };
 }
 
 function networkMembers(raw) {
   try {
     const parsed = JSON.parse(raw);
-    return new Set(Object.values(parsed?.[0]?.Containers ?? {}).map(entry => entry.Name).filter(Boolean));
+    return new Set(
+      Object.values(parsed?.[0]?.Containers ?? {})
+        .map(entry => entry.Name)
+        .filter(Boolean)
+    );
   } catch {
     return new Set();
   }
@@ -51,14 +65,34 @@ function logEvent(type, detail, severity = "info") {
     type,
     detail
   }) + "\n";
-  fs.appendFileSync(`${evidenceDir}/se-x-monitor.jsonl`, record, { mode: 0o600 });
+
+  fs.appendFileSync(
+    path.join(evidenceDir, "se-x-monitor.jsonl"),
+    record,
+    { mode: 0o600 }
+  );
   console.log(record.trim());
 }
 
 const bootMonotonic = process.hrtime.bigint();
 const bootWallMs = Date.now();
 let baseline = snapshot();
-let lastAlert = new Map();
+const lastAlert = new Map();
+
+function lockProduction(type, detail) {
+  fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+  fs.writeFileSync(
+    lockFile,
+    JSON.stringify({
+      lockedAt: new Date().toISOString(),
+      reason: type,
+      container,
+      network,
+      detail
+    }, null, 2) + "\n",
+    { mode: 0o600 }
+  );
+}
 
 function alert(type, detail) {
   const nowMono = process.hrtime.bigint();
@@ -68,6 +102,7 @@ function alert(type, detail) {
     : Number(nowMono - previous) / 1e6;
 
   if (elapsedMs < debounceMs) return;
+
   lastAlert.set(type, nowMono);
   logEvent(type, detail, "alert");
 
@@ -84,13 +119,7 @@ function alert(type, detail) {
 
   if (!critical.has(type)) return;
 
-  fs.mkdirSync(path.dirname(lockFile), { recursive: true });
-  fs.writeFileSync(lockFile, JSON.stringify({
-    lockedAt: new Date().toISOString(),
-    reason: type,
-    container,
-    network
-  }, null, 2) + "\n", { mode: 0o600 });
+  lockProduction(type, detail);
 
   if (autoIsolate) {
     const result = run("docker", ["network", "disconnect", network, container]);
@@ -100,27 +129,63 @@ function alert(type, detail) {
 
 function compare(next) {
   if (next.inspect !== baseline.inspect) {
-    if (next.inspect.includes("true|")) alert("container-privilege-change", next.inspect);
-    if (next.inspect.includes("/var/run/docker.sock")) alert("docker-socket-bind", next.inspect);
-    if (next.inspect.includes("/:/")) alert("host-root-or-bind-change", next.inspect);
-    if (next.inspect.includes("ERROR:")) alert("container-inspection-failure", next.inspect);
+    if (next.inspect.startsWith("true|")) {
+      alert("container-privilege-change", next.inspect);
+    }
+    if (next.inspect.includes("/var/run/docker.sock")) {
+      alert("docker-socket-bind", next.inspect);
+    }
+    if (next.inspect.includes("\"/:")) {
+      alert("host-root-or-bind-change", next.inspect);
+    }
+    if (next.inspect.includes("ERROR:")) {
+      alert("container-inspection-failure", next.inspect);
+    }
   }
 
-  if (next.namespace !== baseline.namespace) alert("network-namespace-change", { before: baseline.namespace, after: next.namespace });
-  if (next.routes !== baseline.routes) alert("route-change", { before: baseline.routes, after: next.routes });
-  if (next.listeners !== baseline.listeners) alert("listener-change", { before: baseline.listeners, after: next.listeners });
+  if (next.namespace !== baseline.namespace) {
+    alert("network-namespace-change", {
+      before: baseline.namespace,
+      after: next.namespace
+    });
+  }
+
+  if (next.routes !== baseline.routes) {
+    alert("route-change", {
+      before: baseline.routes,
+      after: next.routes
+    });
+  }
+
+  if (next.listeners !== baseline.listeners) {
+    alert("listener-change", {
+      before: baseline.listeners,
+      after: next.listeners
+    });
+  }
+
   if (next.network !== baseline.network) {
     const members = [...networkMembers(next.network)];
     const unexpected = members.filter(member => !expectedMembers.has(member));
     const missing = [...expectedMembers].filter(member => !members.includes(member));
-    alert("network-membership-change", { members, unexpected, missing });
+
+    alert("network-membership-change", {
+      members,
+      unexpected,
+      missing
+    });
   }
 
   const wallElapsed = Date.now() - bootWallMs;
-  const monoElapsed = Number(process.hrtime.bigint() - bootMonotonic) / 1e6;
-  const driftMs = wallElapsed - monoElapsed;
+  const monotonicElapsed = Number(process.hrtime.bigint() - bootMonotonic) / 1e6;
+  const driftMs = wallElapsed - monotonicElapsed;
+
   if (Math.abs(driftMs) > Math.max(5000, intervalMs * 4)) {
-    alert("clock-anomaly", { wallElapsedMs: wallElapsed, monotonicElapsedMs: monoElapsed, driftMs });
+    alert("clock-anomaly", {
+      wallElapsedMs: wallElapsed,
+      monotonicElapsedMs: monotonicElapsed,
+      driftMs
+    });
   }
 }
 
@@ -129,7 +194,8 @@ logEvent("monitor-started", {
   network,
   expectedMembers: [...expectedMembers],
   intervalMs,
-  debounceMs
+  debounceMs,
+  autoIsolate
 });
 
 console.log(`SE-X runtime monitor active: ${container} on ${network}`);
