@@ -38,6 +38,6 @@ app.use("/api/forge",apexRouterGate,forgeRoute(studio));
 app.use("/api/bard",apexRouterGate,bardRoute(studio));
 app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 app.use(errorHandler);
-const PORT=process.env.PORT||3000;
+const PORT=process.env.PORT||3010;
 const HOST=process.env.APEX_BIND_HOST??"0.0.0.0";
 app.listen(PORT,HOST,()=>console.log("Apex Studio "+studio.version+" online on "+HOST+":"+PORT));
