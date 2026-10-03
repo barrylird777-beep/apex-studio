@@ -7,7 +7,6 @@ import { detectOmniTrigger, buildRiskReport } from "../src/core/omni-risk.mjs";
 import { createNarrativeTrack, mapNarrativeBlock } from "../src/core/narrative-map.mjs";
 import { EgressPolicy } from "../src/core/egress.mjs";
 import { OmniStore } from "../src/core/omni-store.mjs";
-import fs from "node:fs/promises";
 
 test("prosody parser preserves plain speech and extracts supported tags",()=>{
   const x=parseProsody("[emotion=urgent][pace=fast]Open the gate.");
@@ -49,11 +48,24 @@ test("egress has no hostname allowlist but rejects non-public targets",async()=>
   await assert.rejects(()=>new EgressPolicy({resolve:async()=>[{address:"127.0.0.1"}]}).check("http://example.org"));
 });
 
-test("OMNI persistence stores raw structured JSONL without encryption framing",async()=>{
-  const root="./data/omni/test-"+Date.now();
-  const store=new OmniStore(root);
-  await store.append("search_results",{id:"r1",text:"research",status:200});
-  const raw=await fs.readFile(root+"/search_results.jsonl","utf8");
-  assert.match(raw,/{"id":"r1"/);
-  assert.deepEqual(await store.list("search_results"),[{id:"r1",text:"research",status:200}]);
+test("OMNI persistence uses relational SQLite timeline tables",async()=>{
+  const db="./data/test-omni-"+Date.now()+".sqlite";
+  const store=new OmniStore(db);
+  const node=await store.createProductionTimeline({
+    nodeId:"node-1", sceneLabel:"Opening", timecode:"00:00:12:00",
+    aestheticProfile:"mature-shonen", prompt:"Hero enters the city.",
+    audioTags:["breath","impact"]
+  });
+  assert.equal(node.nodeId,"node-1");
+  assert.deepEqual(node.audioTags,["breath","impact"]);
+  const mutation=await store.createTimelineMutation({
+    parentNodeId:"node-1", branchId:"branch-a",
+    alteredVisual:[{shot:"wide"}], alteredVocal:[{emotion:"urgent"}]
+  });
+  assert.equal(mutation.parentNodeId,"node-1");
+  assert.deepEqual(mutation.alteredVisual,[{shot:"wide"}]);
+  assert.deepEqual(mutation.alteredVocal,[{emotion:"urgent"}]);
+  assert.equal((await store.listProductionTimelines()).length,1);
+  assert.equal((await store.listTimelineMutations("node-1")).length,1);
+  await store.close();
 });
