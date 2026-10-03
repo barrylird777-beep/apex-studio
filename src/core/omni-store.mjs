@@ -168,7 +168,7 @@ export class OmniStore {
         `INSERT OR REPLACE INTO search_results
           (id, run_id, url, status, content_type, text, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [record.id, record.runId, record.url, record.status, record.contentType, record.text, record.createdAt]
+        [record.id, record.runId, record.url, record.status, record.contentType, encryptText(record.text, this.key), record.createdAt]
       );
       return record;
     }
@@ -206,7 +206,7 @@ export class OmniStore {
         sources: parseJson(row.sources, []),
         results: parseJson(row.results, [])
       })],
-      search_results: [`SELECT * FROM search_results ORDER BY rowid DESC LIMIT ?`, row => row],
+      search_results: [`SELECT * FROM search_results ORDER BY rowid DESC LIMIT ?`, row => ({ ...row, text: decryptText(row.text, this.key) })],
       narrative_tracks: [`SELECT * FROM narrative_tracks ORDER BY rowid DESC LIMIT ?`, row => ({
         ...row,
         blocks: parseJson(row.blocks, [])
