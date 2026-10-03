@@ -8,7 +8,7 @@ const router = express.Router();
 const DB_DIR = process.env.APEX_DATA_DIR || "./data";
 const DB_PATH = path.join(DB_DIR, "bible-production.sqlite");
 let dbPromise;
-function wrap(raw) { return { exec:s=>new Promise((ok,no)=>raw.exec(s,e=>e?no(e):ok())), get:(s,...p)=>new Promise((ok,no)=>raw.get(s,...p,(e,r)=>e?no(e):ok(r))), all:(s,...p)=>new Promise((ok,no)=>raw.all(s,...p,(e,r)=>e?no(e):ok(r))), run:(s,...p)=>new Promise((ok,no)=>raw.run(s,...p,function(e){if(e)no(e);else ok({changes:this.changes,lastID:this.lastID});})), prepare:async(s)=>{const st=await new Promise((ok,no)=>raw.prepare(s,e=>e?no(e):ok(e)));return {run:(...p)=>new Promise((ok,no)=>st.run(...p,function(e){e?no(e):ok({changes:this.changes,lastID:this.lastID})})),finalize:()=>new Promise((ok,no)=>st.finalize(e=>e?no(e):ok()))}}}; }
+function wrap(raw) { return { exec:s=>new Promise((ok,no)=>raw.exec(s,e=>e?no(e):ok())), get:(s,...p)=>new Promise((ok,no)=>raw.get(s,...p,(e,r)=>e?no(e):ok(r))), all:(s,...p)=>new Promise((ok,no)=>raw.all(s,...p,(e,r)=>e?no(e):ok(r))), run:(s,...p)=>new Promise((ok,no)=>raw.run(s,...p,function(e){if(e)no(e);else ok({changes:this.changes,lastID:this.lastID});})), prepare:async(s)=>{const st=raw.prepare(s);return {run:(...p)=>new Promise((ok,no)=>st.run(...p,function(e){e?no(e):ok({changes:this.changes,lastID:this.lastID})})),finalize:()=>new Promise((ok,no)=>st.finalize(e=>e?no(e):ok()))}}}; }
 async function db() {
   if (!dbPromise) {
     await mkdir(DB_DIR, { recursive: true });
