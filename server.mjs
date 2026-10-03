@@ -18,6 +18,7 @@ import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
 import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
+import bibleProductionRouter from './src/api/bible-production.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
@@ -172,6 +173,7 @@ app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:ove
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
+app.use('/api/bible-production', bibleProductionRouter);
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
