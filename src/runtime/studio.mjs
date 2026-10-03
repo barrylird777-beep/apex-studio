@@ -121,7 +121,8 @@ export function createStudio(options={}) {
     .register("growth.metrics.record",input=>{const x=recordGrowthMetrics(studio.growthExperiments.get(input.id),input.metrics);studio.growthExperiments.set(x.id,x);return x})
     .register("growth.observation.record",input=>{const x=recordGrowthObservation(studio.growthExperiments.get(input.id),input.observation);studio.growthExperiments.set(x.id,x);return x})
     .register("growth.report",({id})=>growthLearningReport(studio.growthExperiments.get(id)))
-    .register("growth.prompt",input=>buildGrowthPrompt(input));
+    .register("growth.prompt",input=>buildGrowthPrompt(input))
+    .register("command.center",()=>({version:studio.version,projects:studio.projects.list().length,jobs:studio.jobs.list().length,renders:studio.render.list().length,research:studio.research.list().length,assets:studio.assets.assets.size,growthExperiments:studio.growthExperiments.size,humanAuthority:{finalDecisionRequired:true}}));
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),jobs:studio.jobs.list(),
