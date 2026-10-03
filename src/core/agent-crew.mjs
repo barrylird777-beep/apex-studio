@@ -25,7 +25,15 @@ export const AGENT_ROLES=Object.freeze([
   ["captions","Caption Engineer","subtitles, styling, animation, timing, accessibility"],
   ["export","Export Engineer","H.264, H.265, AV1, 4K60, bitrate, batch export, recovery"],
   ["editor-ux","Editor UX Engineer","keyboard workflows, selection, snapping, inspector, preview, recovery"],
-  ["editor-qa","Editor QA Engineer","media edge cases, export validation, performance, data integrity"]
+  ["editor-qa","Editor QA Engineer","media edge cases, export validation, performance, data integrity"],
+  ["voiceover","Voiceover Worker","voice catalog, synthesis, pronunciation, long-form stitching, provider failover"],
+  ["media-ingest","Media Ingest Worker","upload, probing, thumbnails, metadata, proxies, asset validation"],
+  ["project-storage","Project Storage Worker","autosave, versioning, snapshots, recovery, storage integrity"],
+  ["render-cache","Render Cache Worker","incremental renders, cache reuse, invalidation, preview acceleration"],
+  ["performance","Performance Worker","latency, memory, CPU/GPU utilization, profiling"],
+  ["observability","Observability Worker","metrics, health checks, logs, failure detection, telemetry"],
+  ["accessibility","Accessibility Worker","captions, contrast, keyboard access, audio descriptions, export checks"],
+  ["release-qa","Release QA Worker","integration validation, smoke tests, deployment readiness, rollback checks"]
 ]);
 
 const arr=v=>Array.isArray(v)?v:[];
