@@ -62,6 +62,12 @@ import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, re
 import { groundPassageFromBible, resolveBiblePassage, auditSourceRefs, seedStoryIntelligenceFromHits, sourceGroundingPrompt } from "../core/source-grounding.mjs";
 import { sacredTextCatalog } from "../biblical/sacred-library.mjs";
 import { createQuirk, suggestQuirks, auditQuirks } from "../core/quirks.mjs";
+import { SexEngine } from "../core/se-x.mjs";
+import { OmniStore } from "../core/omni-store.mjs";
+import { buildRiskReport, createRiskHandshake, detectOmniTrigger } from "../core/omni-risk.mjs";
+import { parseProsody } from "../core/prosody.mjs";
+import { monoCompatibleWidth } from "../core/stereo.mjs";
+import { createNarrativeTrack, mapNarrativeBlock } from "../core/narrative-map.mjs";
 
 
 
@@ -72,7 +78,7 @@ export function createStudio(options={}) {
   const studio={
     version:"5.4.0",events,privacy,localMode:new LocalMode(privacy),
     egress:new EgressPolicy(options.egress),secrets:createSecretStore(),
-    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),agentCrews:[],growthExperiments:new Map(),
+    projects:new ProjectStore(),memory:new MemoryStore(),graph:new KnowledgeGraph(),canon:createWorldCanon(),agentCrews:[],growthExperiments:new Map(),omniStore:new OmniStore(),sex:null,omniHandshakes:new Map(),narrativeTracks:new Map(),
     continuity:new ContinuityLedger(),timelines:new TimelineEngine(),production:new ProductionGraph(),
     agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),characters:new CharacterStore(),
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
@@ -83,6 +89,7 @@ export function createStudio(options={}) {
     releases:new ReleaseManager(),collaboration:new CollaborationLog(),scenes:new Map(),biblical:new BiblicalStoryEngine(),media:new MediaRegistry(),audio:new Map(),visualBible:new VisualBible(),generation:new GenerationQueue(),releasePackages:new Map(),episodes:new Map(),retention:{create:createRetentionOpening,prompt:buildRetentionPrompt},bibleCatalog,bibleSearch:(version,q)=>searchBibleEdition(process.env.APEX_BIBLE_DIR||"./data/bibles",version,q),createReleasePackage:(i)=>{const x=createReleasePackage(i);studio.releasePackages.set(x.id,x);return x},buildYouTubeDescription,buildSubtitleCues
   };
   studio.biblical.sourceRegistry=studio.sources;
+  studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
   studio.getScene=id=>studio.scenes.get(id)??null;
   studio.listScenes=()=>[...studio.scenes.values()];
@@ -94,7 +101,7 @@ export function createStudio(options={}) {
     characters:studio.characters.list(),sources:studio.sources.list(),documents:studio.knowledgeBase.snapshot(),
     renders:studio.render.list(),releases:studio.releases.list(),collaboration:studio.collaboration.list(),agentCrews:studio.agentCrews,growthExperiments:[...studio.growthExperiments.values()]
   });
-  studio.snapshot=()=>({...studio._baseSnapshot(),version:studio.version,privacy:{...studio.privacy},
+  studio.snapshot=()=>({...studio._baseSnapshot(),version:studio.version,privacy:{...studio.privacy},narrativeTracks:[...studio.narrativeTracks.values()],
     egressAudit:studio.egress.listAudit(),secrets:studio.secrets.exportRedacted(),
     research:studio.research.list(),realism:studio.realism.snapshot()});
   studio.search=(query,limit=30)=>universalSearch(query,[
@@ -103,9 +110,17 @@ export function createStudio(options={}) {
     {type:"stories",items:studio.biblical.listStories()},{type:"characters",items:studio.characters.list()},
     {type:"sources",items:studio.sources.list()},{type:"documents",items:studio.knowledgeBase.list()}
   ],limit);
+  studio.omniRisk=(input={})=>buildRiskReport(input);
+  studio.beginOmniReview=(input={})=>{const h=createRiskHandshake(studio.omniRisk(input));studio.omniHandshakes.set(h.id,h);return h;};
+  studio.confirmOmniReview=(id,approved)=>{const h=studio.omniHandshakes.get(id);if(!h)throw new Error("Risk review not found");h.state=approved===true?"approved":"cancelled";h.decidedAt=new Date().toISOString();return h;};
   studio.command=async(name,args={})=>studio.commandsRouter.dispatch(name,args);
   studio.commandsRouter
     .register("search",({query,limit=30})=>studio.search(query,limit))
+    .register("omni.risk",input=>buildRiskReport(input))
+    .register("omni.prosody",input=>parseProsody(input.text))
+    .register("omni.stereo",input=>monoCompatibleWidth(input))
+    .register("narrative.create",input=>{const x=createNarrativeTrack(input);studio.narrativeTracks.set(x.id,x);void studio.omniStore.append("narrative_tracks",x);return x;})
+    .register("narrative.block",({trackId,...block})=>{const x=studio.narrativeTracks.get(trackId);if(!x)throw new Error("Narrative track not found");mapNarrativeBlock(x,block);void studio.omniStore.append("narrative_tracks",x);return x;})
     .register("create.scene",input=>studio.createScene(input))
     .register("create.story",input=>studio.biblical.createStory(input))
     .register("add.story.event",({storyId,...input})=>studio.biblical.addEvent(storyId,input))
