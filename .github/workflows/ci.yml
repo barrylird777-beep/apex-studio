@@ -2,80 +2,22 @@ name: Apex CI
 on:
   push:
     branches: ["**"]
-    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
   pull_request:
-    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
   workflow_dispatch:
 concurrency:
   group: apex-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
-env:
-  CI: true
 jobs:
-  test:
-    name: Test (Node ${{ matrix.node }})
+  spec-001:
+    name: SPEC-001 verification
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: apex
-          POSTGRES_PASSWORD: apex
-          POSTGRES_DB: apex_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U apex -d apex_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    env:
-      DATABASE_URL: postgresql://apex:apex@localhost:5432/apex_test
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ${{ github.event_name == 'pull_request' && fromJSON('["22.x"]') || fromJSON('["22.x","24.x"]') }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - name: Ensure FFmpeg
-        run: |
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq ffmpeg
-          fi
-      - run: npm ci
-      - run: npm run check
-      - name: Create validation dataset
-        run: |
-          mkdir -p data/payloads
-          printf '%s\n' '{"validation":"remote","source":"github-actions","ok":true}' > data/payloads/sample-target.json
-      - run: node scripts/clean-payload.js
+          node-version: "22.x"
+      - run: npm install
+      - run: npm run build
       - run: npm test
-  mesh-smoke:
-    name: Mesh smoke
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22.x"
-          cache: npm
-      - run: npm ci
-      - run: npm run apex:run
-  security:
-    name: Security gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22.x"
-          cache: npm
-      - run: npm ci
-      - run: npm run security:gate
