@@ -144,14 +144,24 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 </main></div>
 <script>
 class SceneController {
-  constructor() { this.scenes = []; this.activeSceneId = null; }
+  constructor() {
+    this.scenes = [];
+    this.activeSceneId = null;
+    this.playingSceneId = null;
+  }
 
   async hydrate() {
     try {
       const state = await api('/api/project');
-      this.scenes = Array.isArray(state.scenes) ? state.scenes : [];
+      this.scenes = (Array.isArray(state.scenes) ? state.scenes : []).map(scene => ({
+        ...scene,
+        videoUrl: scene.videoUrl || scene.video || null,
+        audioUrl: scene.audioUrl || scene.audio || null
+      }));
       this.renderAll();
-    } catch (error) { console.warn('[studio-pipeline] hydration failed:', error); }
+    } catch (error) {
+      console.warn('[studio-pipeline] hydration failed:', error);
+    }
   }
 
   async executeFullPipeline(basePrompt) {
@@ -164,11 +174,12 @@ class SceneController {
     const sceneId = `scene_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     this.activeSceneId = sceneId;
     btn.disabled = true;
-    btn.textContent = 'Running Full Scene Pipeline...';
+    btn.textContent = 'Rendering Sequence...';
 
     try {
       const forgeRes = await fetch('/api/forge', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
       const forge = await forgeRes.json();
@@ -179,29 +190,31 @@ class SceneController {
 
       const [videoRes, audioRes] = await Promise.all([
         fetch('/api/media/video', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: cinematicPrompt, sceneId })
         }),
         fetch('/api/audio', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: voiceoverScript, sceneId })
         })
       ]);
 
-      if (!videoRes.ok) {
-        let detail = {}; try { detail = await videoRes.json(); } catch {}
-        throw new Error(detail.error || 'Video generation failed');
-      }
-      if (!audioRes.ok) {
-        let detail = {}; try { detail = await audioRes.json(); } catch {}
-        throw new Error(detail.error || 'Audio generation failed');
-      }
+      const videoData = await videoRes.json();
+      const audioData = await audioRes.json();
+      if (!videoRes.ok || !videoData.success) throw new Error(videoData.error || 'Video generation failed');
+      if (!audioRes.ok || !audioData.success) throw new Error(audioData.error || 'Audio generation failed');
 
-      const [videoBlob, audioBlob] = await Promise.all([videoRes.blob(), audioRes.blob()]);
       this.scenes.push({
-        id: sceneId, prompt, cinematicPrompt, voiceoverScript,
-        videoUrl: URL.createObjectURL(videoBlob),
-        audioUrl: URL.createObjectURL(audioBlob)
+        id: sceneId,
+        prompt,
+        cinematicPrompt,
+        voiceoverScript,
+        videoUrl: videoData.url || videoData.videoUrl,
+        audioUrl: audioData.url || audioData.audioUrl,
+        timestamp: Date.now(),
+        updatedAt: Date.now()
       });
       this.renderAll();
     } catch (error) {
@@ -210,6 +223,36 @@ class SceneController {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Run Full Scene Pipeline';
+    }
+  }
+
+  async togglePlayback(sceneId) {
+    const root = document.querySelector(`[data-scene-id="${CSS.escape(sceneId)}"]`);
+    if (!root) return;
+    const video = root.querySelector('video');
+    const audio = root.querySelector('audio');
+    if (!video || !audio) return;
+
+    const alreadyPlaying = !video.paused || !audio.paused;
+    document.querySelectorAll('#timeline-container video').forEach(v => { if (v !== video) v.pause(); });
+    document.querySelectorAll('#timeline-container audio').forEach(a => { if (a !== audio) a.pause(); });
+
+    if (alreadyPlaying) {
+      video.pause();
+      audio.pause();
+      this.playingSceneId = null;
+      return;
+    }
+
+    video.currentTime = 0;
+    audio.currentTime = 0;
+    video.muted = true;
+    this.playingSceneId = sceneId;
+    try {
+      await Promise.all([video.play(), audio.play()]);
+    } catch (error) {
+      this.playingSceneId = null;
+      console.warn('[studio-pipeline] synchronized playback failed:', error);
     }
   }
 
@@ -222,12 +265,14 @@ class SceneController {
   }
 
   renderSceneMarkup(scene) {
-    return `<article class="row" style="display:block">
+    const id = esc(scene.id);
+    return `<article class="row" data-scene-id="${id}" style="display:block">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px">
-        <strong>${esc(scene.id)}</strong><span class="pill">Scene</span>
+        <strong>${id}</strong><span class="pill">Scene</span>
       </div>
-      ${scene.videoUrl ? `<video src="${esc(scene.videoUrl)}" style="width:100%;border-radius:14px;background:#000" controls playsinline preload="metadata"></video>` : ''}
-      ${scene.audioUrl ? `<audio src="${esc(scene.audioUrl)}" style="width:100%;margin-top:10px" controls></audio>` : ''}
+      ${scene.videoUrl ? `<video src="${esc(scene.videoUrl)}" style="width:100%;border-radius:14px;background:#000" playsinline preload="metadata"></video>` : ''}
+      ${scene.audioUrl ? `<audio src="${esc(scene.audioUrl)}" style="width:100%;margin-top:10px" preload="metadata"></audio>` : ''}
+      ${scene.videoUrl && scene.audioUrl ? `<button class="primary" type="button" onclick="studio.togglePlayback('${id}')">Play Scene</button>` : ''}
       <p class="muted" style="margin:12px 0 0">${esc(scene.voiceoverScript || '')}</p>
     </article>`;
   }
