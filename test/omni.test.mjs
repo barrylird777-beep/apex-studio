@@ -52,7 +52,7 @@ test("egress requires an explicit allowlist when requested",async()=>{
   await assert.doesNotReject(()=>egress.check("https://example.org/research"));
   await assert.rejects(()=>egress.check("https://evil.example/research"));
   await assert.rejects(()=>egress.check("https://example.org@evil.example/research"));
-  await assert.rejects(()=>egress.check("http://example.org/research"));
+  await assert.doesNotReject(()=>egress.check("http://example.org/research"));
 });
 
 test("egress rejects private address resolution",async()=>{
@@ -80,6 +80,18 @@ test("SE-X requires the risk handshake and HTTPS allowlisted destinations",async
     /Approved risk handshake/
   );
   assert.equal(events[0][0],"sex.started");
+});
+
+test("SE-X rejects non-HTTPS sources before network access",async()=>{
+  const egress=new EgressPolicy({
+    allowedHosts:["example.org"],
+    resolve:async()=>[{address:"93.184.216.34"}]
+  });
+  const sex=new SexEngine({egress});
+  await assert.rejects(
+    ()=>sex.search("research",{sources:["http://example.org"],approved:true}),
+    /protocol is not permitted/
+  );
 });
 
 test("OMNI persistence uses relational SQLite timeline tables",async()=>{
