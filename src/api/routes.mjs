@@ -138,14 +138,9 @@ export function createApi(studio){
   });
   r.get("/omni/events",(req,res)=>{
     res.status(200);res.set({"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive"});res.flushHeaders?.();
-    const send=(type,payload)=>res.write("event: "+type+"
-data: "+JSON.stringify(payload)+"
-
-");
+    const send=(type,payload)=>res.write("event: "+type+"\ndata: "+JSON.stringify(payload)+"\n\n");
     const offs=["sex.started","sex.complete"].map(type=>studio.events.on(type,p=>send(type,p)));
-    const heartbeat=setInterval(()=>res.write(": ping\
-\
-"),15000);
+    const heartbeat=setInterval(()=>res.write(": ping\n\n"),15000);
     req.on("close",()=>{clearInterval(heartbeat);offs.forEach(off=>off());});
   });
   r.post("/omni/prosody",(req,res)=>res.json(studio.command("omni.prosody",{text:req.body?.text??""})));
