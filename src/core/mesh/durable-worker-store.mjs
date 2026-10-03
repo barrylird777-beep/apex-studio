@@ -1,5 +1,4 @@
 import pg from "pg";
-import crypto from "node:crypto";
 
 const { Pool } = pg;
 let pool;
@@ -64,12 +63,12 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=$4, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=md5(random()::text || clock_timestamp()::text || t.id::text), lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     FROM candidate
     WHERE t.id=candidate.id
     RETURNING t.*`,
-    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs, crypto.randomUUID()]);
+    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
   return r.rows;
 }
 
@@ -84,7 +83,7 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
   await ensureWorkerTaskSchema();
   const r = await db.query(`UPDATE apex_worker_tasks
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=md5(random()::text || clock_timestamp()::text || $1::text), lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
       AND attempts < max_attempts
