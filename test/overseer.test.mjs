@@ -9,9 +9,9 @@ test("overseer manages all permanent workers",()=>{
   const overseer=createOverseer({intervalMs:5000});
   const next=overseerCycle(overseer,fleet);
   assert.equal(next.status,"running");
-  assert.equal(fleet.workers.length,144);
-  assert.equal(next.assignments,144);
-  assert.equal(overseerStatus(next,fleet).activeAssignments,144);
+  assert.equal(fleet.workers.length,1000);
+  assert.equal(next.assignments,1000);
+  assert.equal(overseerStatus(next,fleet).activeAssignments,1000);
   assert.ok(fleet.workers.every(w=>w.currentTask===overseerTaskFor(w)));
 });
 
