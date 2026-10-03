@@ -15,7 +15,8 @@ export const AGENT_ROLES=Object.freeze([
   ["video","Video Producer","media processing, encoding, rendering, delivery"],
   ["publishing","Publishing Operator","metadata, packaging, release scheduling"],
   ["automation","Automation Operator","queues, jobs, monitoring, recovery"],
-  ["qa","Production QA","validation, security, reliability, release readiness"]
+  ["qa","Production QA","validation, security, reliability, release readiness"],
+  ["infrastructure","Infrastructure Operator","distributed workers, providers, queues, runtime health"]
 ]);
 
 const arr=v=>Array.isArray(v)?v:[];
