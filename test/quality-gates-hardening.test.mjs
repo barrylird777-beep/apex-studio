@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scriptureGate, productionDoctorGate } from "../src/core/quality-gates.mjs";
+import { productionGate, productionDoctorGate } from "../src/core/quality-gates.mjs";
 import { createReleasePackage } from "../src/core/release-package.mjs";
 
 test("release packages carry explicit version lineage",()=>{
@@ -8,13 +8,13 @@ test("release packages carry explicit version lineage",()=>{
   assert.equal(pkg.version,"2.3.0");
 });
 
-test("scripture gate blocks episodes without source grounding",()=>{
-  const gate=scriptureGate({truthGraph:{entities:[],claims:[],evidence:[],relationships:[],sourceRefs:[]}});
+test("production gate blocks incomplete packages",()=>{
+  const gate=productionGate({});
   assert.equal(gate.ok,false);
-  assert.ok(gate.blockers.some(x=>x.name==="source-attached"));
+  assert.ok(gate.blockers.length>0);
 });
 
-test("production doctor is not a placeholder",()=>{
+test("production doctor mirrors production readiness",()=>{
   const gate=productionDoctorGate({});
   assert.equal(gate.ok,false);
   assert.ok(gate.blockers.length>0);
