@@ -5,7 +5,7 @@ import { getProjectState } from "./src/services/projectManager.mjs";
 import { voiceoverWorkerStatus } from "./src/workers/voiceover-worker.mjs";
 import {
   durableWorkerEnabled,
-  claimNextWorkerTask,
+  claimNextWorkerTasks,
   heartbeatWorkerTask,
   completeWorkerTask,
   failWorkerTask,
@@ -51,24 +51,17 @@ if (!workerOnly) {
 
   console.log("[apex-worker] durable worker online");
 
-  while (true) {
-    await requeueExpiredWorkerTasks().catch(error => {
-      console.error("[apex-worker] reclaim failed:", error?.message || error);
-    });
+  const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
+  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+  let emptyPolls = 0;
 
-    const task = await claimNextWorkerTask(leaseMs);
-    if (!task) {
-      await sleep(pollMs);
-      continue;
-    }
-
+  const executeTask = async (task) => {
     const heartbeat = setInterval(() => {
       void heartbeatWorkerTask(task.id, leaseMs).catch(error => {
         console.error("[apex-worker] heartbeat failed:", error?.message || error);
       });
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
-
     try {
       const result = await executePermanentHealthTask(task.payload || {});
       await completeWorkerTask(task.id, result);
@@ -80,6 +73,32 @@ if (!workerOnly) {
       console.error("[apex-worker] task failed:", task.id, error?.message || error);
     } finally {
       clearInterval(heartbeat);
+    }
+  };
+
+  while (true) {
+    await requeueExpiredWorkerTasks().catch(error => {
+      console.error("[apex-worker] reclaim failed:", error?.message || error);
+    });
+
+    try {
+      const tasks = await claimNextWorkerTasks(batchSize, leaseMs);
+      if (!tasks.length) {
+        emptyPolls = Math.min(emptyPolls + 1, 6);
+        const base = Math.min(5000, pollMs * 2 ** emptyPolls);
+        const jitter = Math.floor(Math.random() * Math.max(100, base * 0.25));
+        await sleep(base + jitter);
+        continue;
+      }
+
+      emptyPolls = 0;
+      await Promise.all(tasks.slice(0, concurrency).map(executeTask));
+    } catch (error) {
+      console.error("[apex-worker] queue poll failed:", error?.message || error);
+      const base = Math.min(5000, pollMs * 2 ** Math.min(emptyPolls, 6));
+      const jitter = Math.floor(Math.random() * Math.max(100, base * 0.25));
+      await sleep(base + jitter);
+      emptyPolls = Math.min(emptyPolls + 1, 6);
     }
   }
 }
