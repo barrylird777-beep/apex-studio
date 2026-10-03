@@ -10,6 +10,7 @@ import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
 import { listStudioTools, runStudioTool } from "../core/studio-tools.mjs";
 import { listVoiceOptions, synthesizeSpeech, audioEdit, generateSfx, buildAudioStation } from "../core/audio-station.mjs";
+import { channelIntelligence, buildScriptBrief, generateScriptWithGemini } from "../core/youtube-intelligence.mjs";
 import { analyzeChannelLifetime, createScriptPrompt, findWinningPatterns } from "../core/channel-intelligence.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
@@ -18,6 +19,15 @@ export function createApi(studio){
   const r=express.Router();
   const renderWorker=new RenderWorker();
   r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
+  r.get("/youtube/intelligence",async(req,res)=>{try{res.json((await channelIntelligence.load()).lifetime?channelIntelligence.summary():await channelIntelligence.load());}catch(e){res.status(500).json({error:e.message});}});
+  r.get("/youtube/intelligence/videos",async(req,res)=>{try{await channelIntelligence.load();res.json(channelIntelligence.state.videoAnalysis||[]);}catch(e){res.status(500).json({error:e.message});}});
+  r.post("/youtube/intelligence/ingest",async(req,res)=>{try{res.status(201).json(await channelIntelligence.ingest(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/youtube/intelligence/recompute",async(req,res)=>{try{await channelIntelligence.load();await channelIntelligence.recompute();await channelIntelligence.save();res.json(channelIntelligence.summary());}catch(e){res.status(500).json({error:e.message});}});
+  r.get("/youtube/intelligence/export",async(req,res)=>{try{await channelIntelligence.load();res.json(channelIntelligence.state);}catch(e){res.status(500).json({error:e.message});}});
+  r.post("/youtube/script/brief",(req,res)=>{try{res.status(201).json(buildScriptBrief(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/youtube/script/generate",async(req,res)=>{try{await channelIntelligence.load();const input={...(req.body??{}),channelIntelligence:channelIntelligence.summary()};res.status(201).json(await generateScriptWithGemini(input));}catch(e){res.status(400).json({error:e.message});}});
+  r.get("/youtube/opportunities",async(req,res)=>{try{await channelIntelligence.load();res.json(channelIntelligence.state.opportunities||[]);}catch(e){res.status(500).json({error:e.message});}});
+
   r.get("/tools",(req,res)=>res.json(listStudioTools()));
   r.post("/tools/:tool",(req,res)=>{try{res.json({success:true,tool:req.params.tool,result:runStudioTool(req.params.tool,req.body??{})});}catch(e){res.status(400).json({success:false,error:e.message});}});
   r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
