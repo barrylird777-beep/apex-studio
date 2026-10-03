@@ -10,6 +10,7 @@ import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
 import { listStudioTools, runStudioTool } from "../core/studio-tools.mjs";
 import { listVoiceOptions, synthesizeSpeech, audioEdit, generateSfx, buildAudioStation } from "../core/audio-station.mjs";
+import { analyzeChannelLifetime, createScriptPrompt, findWinningPatterns } from "../core/channel-intelligence.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
@@ -24,6 +25,10 @@ export function createApi(studio){
   r.get("/privacy",(req,res)=>res.json(studio.privacy));
   r.get("/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
   r.get("/metrics",(req,res)=>res.json(studio.metrics.snapshot()));
+  r.post("/scripts/generate",(req,res)=>{try{res.status(201).json({success:true,...createScriptPrompt(req.body??{})});}catch(e){res.status(400).json({success:false,error:e.message});}});
+  r.post("/channel/analyze",(req,res)=>{try{const analysis=analyzeChannelLifetime(req.body??{});res.json({success:true,...analysis});}catch(e){res.status(400).json({success:false,error:e.message});}});
+  r.post("/channel/patterns",(req,res)=>{try{res.json({success:true,patterns:findWinningPatterns(req.body?.videos??[])});}catch(e){res.status(400).json({success:false,error:e.message});}});
+
   r.get("/biblical/catalog",(req,res)=>res.json(bibleCatalog()));
   r.get("/sacred/catalog",async(req,res)=>{try{res.json(await studio.command("sacred.catalog",{}));}catch(e){res.status(400).json({error:e.message});}});
   r.post("/quirks/suggest",(req,res)=>Promise.resolve(studio.command("quirk.suggest",req.body??{})).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message})));
