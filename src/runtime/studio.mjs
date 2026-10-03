@@ -41,7 +41,7 @@ import { OmniStore } from "../core/omni-store.mjs";
 import { buildRiskReport, createRiskHandshake } from "../core/omni-risk.mjs";
 import { parseProsody } from "../core/prosody.mjs";
 import { monoCompatibleWidth } from "../core/stereo.mjs";
-import { createEditorProject, addTrack, addClip, addKeyframe, addEffect, addCaption, addMarker, setTransition, createExportPlan, validateEditorProject } from "../core/editor-engine.mjs";
+import { createEditorProject, addTrack, addClip, addKeyframe, addEffect, addCaption, addMarker, setTransition, createExportPlan, validateEditorProject, trimClip, splitClip, moveClip, removeClip, snapshotEditor, restoreEditor } from "../core/editor-engine.mjs";
 
 export function createStudio(options={}) {
   const events=new EventBus();
@@ -131,6 +131,12 @@ export function createStudio(options={}) {
     .register("editor.caption.add",input=>addCaption(input.project,input))
     .register("editor.marker.add",input=>addMarker(input.project,input))
     .register("editor.transition.set",input=>setTransition(input.project,input.trackId,input.clipId,input.edge,input.type,input.duration))
+    .register("editor.clip.trim",input=>trimClip(input.project,input.trackId,input.clipId,input))
+    .register("editor.clip.split",input=>splitClip(input.project,input.trackId,input.clipId,input.time))
+    .register("editor.clip.move",input=>moveClip(input.project,input.trackId,input.clipId,input.start,input))
+    .register("editor.clip.remove",input=>removeClip(input.project,input.trackId,input.clipId,input))
+    .register("editor.snapshot",project=>snapshotEditor(project))
+    .register("editor.restore",input=>restoreEditor(input.project,input.snapshot))
     .register("editor.export.plan",input=>createExportPlan(input.project,input))
     .register("editor.validate",project=>validateEditorProject(project))
     .register("command.center",()=>({version:studio.version,projects:studio.projects.list().length,jobs:studio.jobs.list().length,renders:studio.render.list().length,research:studio.research.list().length,assets:studio.assets.assets.size,growthExperiments:studio.growthExperiments.size,humanAuthority:{finalDecisionRequired:true}}));
