@@ -39,11 +39,11 @@ function assertDeploymentReachable() {
   );
 }
 
-function assertLegacyRejected(version, label) {
+function assertLegacyRejected(version, protocol) {
   const result = runTls(version);
   assert.doesNotMatch(
     result.output,
-    new RegExp(`Protocol version:\\s*TLSv1\\.${label}\\b`, "i"),
+    new RegExp(`Protocol version:\\s*${protocol.replace(".", "\\\\.")}\\b`, "i"),
     `Security failure: ${target} negotiated legacy TLS ${label}.\n${result.output}`
   );
   assert.ok(
@@ -54,10 +54,10 @@ function assertLegacyRejected(version, label) {
 
 test("deployed perimeter rejects TLS 1.0", () => {
   assertDeploymentReachable();
-  assertLegacyRejected("-tls1", "1.0");
+  assertLegacyRejected("-tls1", "TLSv1.0");
 });
 
 test("deployed perimeter rejects TLS 1.1", () => {
   assertDeploymentReachable();
-  assertLegacyRejected("-tls1_1", "1.1");
+  assertLegacyRejected("-tls1_1", "TLSv1.1");
 });
