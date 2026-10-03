@@ -1,47 +1,6 @@
 {
-  "name": "apex-studio",
-  "version": "5.4.1",
-  "private": true,
-  "type": "module",
-  "main": "server.mjs",
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check src/api/middleware.mjs && node --check src/runtime/studio.mjs && node --check src/runtime/bootstrap.mjs && node --check src/biblical/bible-catalog.mjs && node --check src/core/timeline.mjs && node --check src/core/render.mjs && node --check src/core/production.mjs && node --check src/api/remote-policy.mjs && node --check src/core/media.mjs && node --check src/core/audio.mjs && node --check src/core/ffmpeg.mjs && node --check src/core/render-worker.mjs && node --check src/core/visual-generation.mjs && node --check src/core/entertainment.mjs && node --check upload.mjs && node --check src/core/omni-risk.mjs && node --check src/core/omni-store.mjs && node --check src/core/se-x.mjs && node --check src/core/omni-sanitize.mjs && node --check src/core/prosody.mjs && node --check src/core/stereo.mjs && node --check src/core/extensions.mjs && node --check src/core/capacity.mjs && node --check src/core/youtube-intelligence.mjs && node --check src/core/studio-tools.mjs && node --check src/core/audio-station.mjs && node --check src/workers/av1-production-daemon.mjs && node --check index.mjs && node --check src/core/mesh/multi-ai-coordinator.mjs && node --check src/api/bible-production.mjs",
-    "test": "node --test",
-    "test:core": "node --test test",
-    "bible:import": "node scripts/import-bible-corpus.mjs",
-    "bible:import:all": "node scripts/import-bible-corpus.mjs --all",
-    "security:audit": "node scripts/security/audit-se-x.mjs",
-    "security:certs": "bash scripts/security/verify-cert-permissions.sh",
-    "security:storage": "bash scripts/security/verify-se-x-storage.sh",
-    "security:tls": "bash scripts/security/verify-tls.sh",
-    "security:monitor": "node scripts/security/monitor-se-x.mjs",
-    "security:network": "bash scripts/security/verify-network-boundaries.sh",
-    "security:crypto": "bash scripts/security/verify-crypto.sh",
-    "security:willy-nilly": "node --test test/security/willy_nilly_protocol.test.js && npm run security:crypto -- --silent && npm run security:storage -- --silent && npm run security:network -- --silent",
-    "security:negative-tls": "APEX_RUN_DEPLOYED_TLS_TESTS=true node --test test/security/negative_tls_protocol.test.js",
-    "security:gate": "node scripts/security/security-gate.mjs",
-    "production:worker": "node index.mjs",
-    "production:daemon": "node src/workers/av1-production-daemon.mjs",
-    "production:pm2:start": "pm2 start ecosystem.config.cjs && pm2 save",
-    "production:pm2:stop": "pm2 stop apex-av1-production",
-    "production:pm2:logs": "pm2 logs apex-av1-production",
-    "production:execute": "node src/core/operations/active-execution-daemon.mjs",
-    "apex:run": "node apex-run.mjs",
-    "mesh:ignite": "node master-ignite.mjs",
-    "ai:smoke": "node scripts/ai-smoke.mjs",
-    "production:voiceover": "node src/workers/voiceover-worker.mjs"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "sqlite3": "^5.1.7",
-    "fluent-ffmpeg": "^2.1.3",
-    "@aws-sdk/client-s3": "^3.864.0",
-    "@aws-sdk/lib-storage": "^3.864.0",
-    "pg": "^8.16.3",
-    "cors": "^2.8.5"
-  }
+  "name":"apex","private":true,"version":"0.1.0","type":"module",
+  "scripts":{"dev":"tsx src/api/server.ts --dev","build":"tsc -b && vite build","preview":"vite preview","start":"tsx src/api/server.ts","db:generate":"drizzle-kit generate","db:migrate":"drizzle-kit migrate","db:studio":"drizzle-kit studio","db:seed":"tsx src/db/seed.ts","test":"node --test test/*.test.mjs"},
+  "dependencies":{"@radix-ui/react-slot":"^1.1.0","@react-pdf/renderer":"^4.1.6","@tanstack/react-query":"^5.62.8","class-variance-authority":"^0.7.1","clsx":"^2.1.1","drizzle-orm":"^0.38.3","lucide-react":"^0.469.0","react":"^18.3.1","react-dom":"^18.3.1","react-router-dom":"^7.1.1","tailwind-merge":"^2.6.0","zod":"^3.24.1"},
+  "devDependencies":{"@types/better-sqlite3":"^7.6.12","@types/node":"^22.10.5","@types/react":"^18.3.18","@types/react-dom":"^18.3.5","@vitejs/plugin-react":"^4.3.4","autoprefixer":"^10.4.20","better-sqlite3":"^11.7.0","drizzle-kit":"^0.30.1","postcss":"^8.4.49","tailwindcss":"^3.4.17","tsx":"^4.19.2","typescript":"^5.7.2","vite":"^6.0.7"}
 }
