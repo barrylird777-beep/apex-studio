@@ -1,0 +1,27 @@
+name: APEX Research CI
+on:
+  push:
+    paths: ["research_backend/**","research_ui/**","docker-compose.research.yml"]
+  pull_request:
+    paths: ["research_backend/**","research_ui/**","docker-compose.research.yml"]
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: research_backend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - run: python -m compileall app
+      - run: pip install pytest
+      - run: pytest -q
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: research_ui}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: npm install
+      - run: npm run build
