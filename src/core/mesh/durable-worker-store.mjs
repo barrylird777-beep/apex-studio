@@ -88,7 +88,7 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
         lease_owner=$2, lease_token=md5(random()::text || clock_timestamp()::text || $1::text), lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
-      AND attempts < max_attempts
+      AND attempts < max_attempts AND (next_run_at IS NULL OR next_run_at <= NOW())
     RETURNING *`, [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
   return r.rows[0] || null;
 }
@@ -146,28 +146,30 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
   return r.rowCount;
 }
 
-export async function acquireAiRateLimit({ capacity = 2, refillPerSecond = 1 } = {}) {
+export async function acquireAiRateLimit({ capacity = 10, refillPerSecond = 10 / 60, key = "gemini" } = {}) {
   if (!durableWorkerEnabled()) return true;
   const db = getPool();
-  await db.query(`CREATE TABLE IF NOT EXISTS apex_ai_rate_limiter (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
+  const cap = Math.max(1, Number(capacity) || 10);
+  const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
+  await db.query(`CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT PRIMARY KEY,
     tokens DOUBLE PRECISION NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
-  const refill = Math.max(0.01, Number(refillPerSecond) || 1);
-  const cap = Math.max(1, Number(capacity) || 2);
-  const r = await db.query(`INSERT INTO apex_ai_rate_limiter(id, tokens)
-    VALUES (1, $1)
-    ON CONFLICT (id) DO UPDATE SET
-      tokens=LEAST($1, apex_ai_rate_limiter.tokens + EXTRACT(EPOCH FROM (NOW()-apex_ai_rate_limiter.updated_at))*$2),
-      updated_at=NOW()
-    RETURNING tokens`, [cap, refill]);
-  if (Number(r.rows[0].tokens) < 1) return false;
-  const take = await db.query(`UPDATE apex_ai_rate_limiter
-    SET tokens=tokens-1, updated_at=NOW()
-    WHERE id=1 AND tokens >= 1
-    RETURNING tokens`);
-  return take.rowCount === 1;
+  await db.query(`INSERT INTO rate_limits (key, tokens) VALUES ($1, $2)
+    ON CONFLICT (key) DO NOTHING`, [key, cap]);
+
+  for (;;) {
+    const { rowCount } = await db.query(`
+      UPDATE rate_limits SET
+        tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
+        updated_at = NOW()
+      WHERE key = $1
+        AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1
+    `, [key, cap, refill]);
+    if (rowCount) return true;
+    await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
+  }
 }
 
 export async function queueStats() {
