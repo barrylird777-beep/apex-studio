@@ -15,6 +15,11 @@ def upgrade():
  op.create_table("investigation_documents",sa.Column("investigation_id",sa.Integer,sa.ForeignKey("investigations.id",ondelete="CASCADE"),primary_key=True),sa.Column("document_id",sa.Integer,sa.ForeignKey("documents.id",ondelete="CASCADE"),primary_key=True))
  op.create_table("audit_logs",sa.Column("id",sa.Integer,primary_key=True),sa.Column("actor_user_id",sa.Integer,sa.ForeignKey("users.id",ondelete="SET NULL")),sa.Column("action",sa.String(120),nullable=False),sa.Column("object_type",sa.String(80),nullable=False),sa.Column("object_id",sa.String(120),nullable=False),sa.Column("metadata_json",postgresql.JSONB),sa.Column("created_at",sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()))
  op.create_index("idx_audit_logs_created_at","audit_logs",["created_at"])
+ op.create_table("document_annotations",sa.Column("id",sa.Integer,primary_key=True),sa.Column("document_id",sa.Integer,sa.ForeignKey("documents.id",ondelete="CASCADE"),nullable=False),sa.Column("user_id",sa.Integer,sa.ForeignKey("users.id",ondelete="CASCADE"),nullable=False),sa.Column("start_offset",sa.Integer,nullable=False),sa.Column("end_offset",sa.Integer,nullable=False),sa.Column("note",sa.Text,nullable=False),sa.Column("created_at",sa.DateTime(timezone=True),server_default=sa.func.now()))
+ op.create_table("document_comments",sa.Column("id",sa.Integer,primary_key=True),sa.Column("document_id",sa.Integer,sa.ForeignKey("documents.id",ondelete="CASCADE"),nullable=False),sa.Column("user_id",sa.Integer,sa.ForeignKey("users.id",ondelete="CASCADE"),nullable=False),sa.Column("body",sa.Text,nullable=False),sa.Column("created_at",sa.DateTime(timezone=True),server_default=sa.func.now()))
+ op.create_table("investigation_members",sa.Column("investigation_id",sa.Integer,sa.ForeignKey("investigations.id",ondelete="CASCADE"),primary_key=True),sa.Column("user_id",sa.Integer,sa.ForeignKey("users.id",ondelete="CASCADE"),primary_key=True),sa.Column("workspace_role",sa.String(30),nullable=False))
+ op.create_table("report_versions",sa.Column("id",sa.Integer,primary_key=True),sa.Column("investigation_id",sa.Integer,sa.ForeignKey("investigations.id",ondelete="CASCADE"),nullable=False),sa.Column("author_user_id",sa.Integer,sa.ForeignKey("users.id",ondelete="SET NULL")),sa.Column("version_number",sa.Integer,nullable=False),sa.Column("body",sa.Text,nullable=False),sa.Column("created_at",sa.DateTime(timezone=True),server_default=sa.func.now()))
+
  op.execute("""
  CREATE OR REPLACE FUNCTION prevent_audit_mutation() RETURNS trigger AS $
  BEGIN RAISE EXCEPTION 'audit_logs is append-only'; END;
@@ -22,4 +27,4 @@ def upgrade():
  """)
  op.execute("CREATE TRIGGER audit_logs_immutable BEFORE UPDATE OR DELETE ON audit_logs FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();")
 def downgrade():
- for t in ["audit_logs","investigation_documents","investigation_sources","investigation_requests","investigations","sources","documents","foia_requests","users","agencies"]: op.drop_table(t)
+ for t in ["report_versions","investigation_members","document_comments","document_annotations","audit_logs","investigation_documents","investigation_sources","investigation_requests","investigations","sources","documents","foia_requests","users","agencies"]: op.drop_table(t)
