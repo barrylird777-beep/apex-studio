@@ -83,14 +83,32 @@ const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMAN
 const permanentWorkerHeartbeat = setInterval(() => {
   const nowMs = Date.now();
   for (const worker of permanentWorkerFleet.workers) {
+    const taskStartedMs = Date.parse(worker.taskStartedAt || '');
+    const taskTimedOut = permanentWorkerInFlight.has(worker.id)
+      && Number.isFinite(taskStartedMs)
+      && nowMs - taskStartedMs > apexOverseer.staleAfterMs;
+
+    if (taskTimedOut) {
+      const staleToken = worker.taskToken;
+      permanentWorkerInFlight.delete(worker.id);
+      Object.assign(worker, failPermanentWorkerTask(worker, new Error('Worker task lease expired')));
+      worker.lastError = 'Worker task lease expired';
+      worker.taskStartedAt = null;
+      worker.taskToken = null;
+      if (staleToken) worker.lastStaleTaskToken = staleToken;
+    }
+
     if (permanentWorkerInFlight.has(worker.id)) {
       Object.assign(worker, heartbeatPermanentWorker(worker, worker.currentTask));
       continue;
     }
+
     const nextRun = Date.parse(worker.nextRunAt || '');
     if (Number.isFinite(nextRun) && nextRun > nowMs) continue;
 
     const task = overseerTaskFor(worker);
+    const taskToken = crypto.randomUUID();
+    worker.taskToken = taskToken;
     worker.taskStartedAt = new Date(nowMs).toISOString();
     worker.nextRunAt = new Date(nowMs + permanentWorkerRunEveryMs).toISOString();
     Object.assign(worker, heartbeatPermanentWorker(worker, task));
@@ -102,12 +120,16 @@ const permanentWorkerHeartbeat = setInterval(() => {
       role: worker.role,
       task
     }).then(() => {
+      if (worker.taskToken !== taskToken) return;
       Object.assign(worker, completePermanentWorkerTask(worker));
       worker.lastCompletedAt = new Date().toISOString();
       worker.taskStartedAt = null;
+      worker.taskToken = null;
     }).catch(error => {
+      if (worker.taskToken !== taskToken) return;
       Object.assign(worker, failPermanentWorkerTask(worker, error));
       worker.taskStartedAt = null;
+      worker.taskToken = null;
     }).finally(() => {
       permanentWorkerInFlight.delete(worker.id);
     });
