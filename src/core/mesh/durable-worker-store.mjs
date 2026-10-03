@@ -15,7 +15,24 @@ function getPool() {
 
 export async function ensureWorkerTaskSchema() {
   if (!durableWorkerEnabled()) return false;
-  await getPool().query("SELECT 1");
+  await getPool().query(`CREATE TABLE IF NOT EXISTS apex_worker_tasks (
+    id UUID PRIMARY KEY,
+    worker_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    task TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    lease_owner TEXT,
+    lease_expires_at TIMESTAMPTZ,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    result JSONB,
+    last_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_queue_idx ON apex_worker_tasks(status, created_at)`);
+  await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_lease_idx ON apex_worker_tasks(status, lease_expires_at)`);
   return true;
 }
 
