@@ -175,6 +175,41 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   }
 }
 
+export async function claimExternalEffect(idempotencyKey) {
+  if (!durableWorkerEnabled()) return true;
+  const key = String(idempotencyKey || "").trim();
+  if (!key) throw new Error("External side effects require an idempotency key");
+  const db = getPool();
+  await db.query(`CREATE TABLE IF NOT EXISTS apex_external_effects (
+    idempotency_key TEXT PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'started',
+    result JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const r = await db.query(
+    `INSERT INTO apex_external_effects (idempotency_key, status)
+     VALUES ($1, 'started')
+     ON CONFLICT (idempotency_key) DO NOTHING
+     RETURNING idempotency_key`,
+    [key]
+  );
+  return r.rowCount === 1;
+}
+
+export async function completeExternalEffect(idempotencyKey, result = null) {
+  if (!durableWorkerEnabled()) return true;
+  const key = String(idempotencyKey || "").trim();
+  if (!key) throw new Error("External side effects require an idempotency key");
+  const r = await getPool().query(
+    `UPDATE apex_external_effects
+     SET status='completed', result=$2::jsonb, updated_at=NOW()
+     WHERE idempotency_key=$1 AND status='started'`,
+    [key, JSON.stringify(result)]
+  );
+  return r.rowCount === 1;
+}
+
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
   await ensureWorkerTaskSchema();
