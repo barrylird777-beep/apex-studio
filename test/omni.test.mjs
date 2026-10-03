@@ -7,6 +7,7 @@ import { detectOmniTrigger, buildRiskReport } from "../src/core/omni-risk.mjs";
 import { createNarrativeTrack, mapNarrativeBlock } from "../src/core/narrative-map.mjs";
 import { EgressPolicy } from "../src/core/egress.mjs";
 import { OmniStore } from "../src/core/omni-store.mjs";
+import { SexEngine } from "../src/core/se-x.mjs";
 
 test("prosody parser preserves plain speech and extracts supported tags",()=>{
   const x=parseProsody("[emotion=urgent][pace=fast]Open the gate.");
@@ -42,14 +43,47 @@ test("narrative blocks map directly to visual frame ranges",()=>{
   assert.equal(track.blocks[0].vocal.emotion,"urgent");
 });
 
-test("egress has no hostname allowlist but rejects non-public targets",async()=>{
-  const egress=new EgressPolicy({resolve:async()=>[{address:"93.184.216.34"}]});
+test("egress requires an explicit allowlist when requested",async()=>{
+  const egress=new EgressPolicy({
+    allowedHosts:["example.org"],
+    requireAllowlist:true,
+    resolve:async()=>[{address:"93.184.216.34"}]
+  });
   await assert.doesNotReject(()=>egress.check("https://example.org/research"));
-  await assert.rejects(()=>new EgressPolicy({resolve:async()=>[{address:"127.0.0.1"}]}).check("http://example.org"));
+  await assert.rejects(()=>egress.check("https://evil.example/research"));
+  await assert.rejects(()=>egress.check("https://example.org@evil.example/research"));
+  await assert.rejects(()=>egress.check("http://example.org/research"));
+});
+
+test("egress rejects private address resolution",async()=>{
+  await assert.rejects(
+    ()=>new EgressPolicy({
+      allowedHosts:["example.org"],
+      requireAllowlist:true,
+      resolve:async()=>[{address:"127.0.0.1"}]
+    }).check("https://example.org")
+  );
+});
+
+test("SE-X requires the risk handshake and HTTPS allowlisted destinations",async()=>{
+  const events=[];
+  const egress=new EgressPolicy({
+    allowedHosts:["example.org"],
+    resolve:async()=>[{address:"93.184.216.34"}]
+  });
+  const sex=new SexEngine({
+    egress,
+    events:{emit:(name,payload)=>events.push([name,payload])}
+  });
+  await assert.rejects(
+    ()=>sex.search("research",{sources:["https://example.org"],approved:false}),
+    /Approved risk handshake/
+  );
+  assert.equal(events[0][0],"sex.started");
 });
 
 test("OMNI persistence uses relational SQLite timeline tables",async()=>{
-  const db="./apex-omni-test-"+Date.now()+".sqlite";
+  const db="./apex-omni-test-"+Date.now()+"-"+Math.random().toString(16).slice(2)+".sqlite";
   const store=new OmniStore(db);
   const node=await store.createProductionTimeline({
     nodeId:"node-1", sceneLabel:"Opening", timecode:"00:00:12:00",
