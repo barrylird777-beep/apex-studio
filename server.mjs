@@ -16,8 +16,8 @@ import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
 import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
-import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
-import { createOverseer, overseerCycle, overseerStatus } from './src/core/mesh/overseer.mjs';
+import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
+import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -26,16 +26,14 @@ const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
 const permanentWorkerFleet = createPermanentWorkerFleet();
 const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
-for (const worker of permanentWorkerFleet.workers) Object.assign(worker, startPermanentWorker(worker));
+for (const worker of permanentWorkerFleet.workers) {
+  Object.assign(worker, startPermanentWorker(worker), {
+    nextRunAt: new Date(Date.now() + (Number(worker.id.replace(/\D/g, '').slice(-3) || 0) % 30) * 1000).toISOString(),
+    taskStartedAt: null,
+    lastCompletedAt: null
+  });
+}
 permanentWorkerFleet.status = 'running';
-const permanentWorkerHeartbeat = setInterval(() => {
-  for (const worker of permanentWorkerFleet.workers) {
-    const next = heartbeatPermanentWorker(worker, worker.currentTask || `continuous:${worker.role}`);
-    Object.assign(worker, next);
-  }
-  Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
-}, apexOverseer.intervalMs);
-permanentWorkerHeartbeat.unref?.();
 
 const meshWorkerSupervisor = new WorkerSupervisor({
   workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4)),
@@ -54,9 +52,69 @@ const meshWorkerSupervisor = new WorkerSupervisor({
         Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4))
       );
     }
+    if (type === 'permanent-health') {
+      const role = String(payload?.role || 'general');
+      const startedAt = Date.now();
+      if (['project-storage', 'media-ingest', 'publishing'].includes(role)) {
+        await getProjectState();
+      } else if (['video-engine', 'export', 'render-cache', 'visual-direction'].includes(role)) {
+        await new RenderWorker().available();
+      } else if (['voiceover', 'audio-reference'].includes(role)) {
+        await voiceoverWorkerStatus();
+      } else {
+        capacitySnapshot();
+      }
+      return {
+        ok: true,
+        workerId: String(payload?.workerId || ''),
+        role,
+        task: String(payload?.task || ''),
+        durationMs: Date.now() - startedAt,
+        completedAt: new Date().toISOString()
+      };
+    }
     throw new Error('Unknown mesh worker task: ' + type);
   }
 });
+
+const permanentWorkerInFlight = new Set();
+const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
+
+const permanentWorkerHeartbeat = setInterval(() => {
+  const nowMs = Date.now();
+  for (const worker of permanentWorkerFleet.workers) {
+    if (permanentWorkerInFlight.has(worker.id)) {
+      Object.assign(worker, heartbeatPermanentWorker(worker, worker.currentTask));
+      continue;
+    }
+    const nextRun = Date.parse(worker.nextRunAt || '');
+    if (Number.isFinite(nextRun) && nextRun > nowMs) continue;
+
+    const task = overseerTaskFor(worker);
+    worker.taskStartedAt = new Date(nowMs).toISOString();
+    worker.nextRunAt = new Date(nowMs + permanentWorkerRunEveryMs).toISOString();
+    Object.assign(worker, heartbeatPermanentWorker(worker, task));
+    permanentWorkerInFlight.add(worker.id);
+
+    void meshWorkerSupervisor.dispatch({
+      type: 'permanent-health',
+      workerId: worker.id,
+      role: worker.role,
+      task
+    }).then(() => {
+      Object.assign(worker, completePermanentWorkerTask(worker));
+      worker.lastCompletedAt = new Date().toISOString();
+      worker.taskStartedAt = null;
+    }).catch(error => {
+      Object.assign(worker, failPermanentWorkerTask(worker, error));
+      worker.taskStartedAt = null;
+    }).finally(() => {
+      permanentWorkerInFlight.delete(worker.id);
+    });
+  }
+  Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
+}, apexOverseer.intervalMs);
+permanentWorkerHeartbeat.unref?.();
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
