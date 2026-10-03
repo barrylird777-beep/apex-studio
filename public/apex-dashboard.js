@@ -20,9 +20,28 @@
   quirkButton.textContent = "Quirk Lab";
   quirkButton.onclick = () => quirkLabView();
   nav.appendChild(quirkButton);
+  const toolsButton = document.createElement("button");
+  toolsButton.dataset.view = "studio-tools";
+  toolsButton.textContent = "Studio Tools";
+  toolsButton.onclick = () => studioToolsView();
+  nav.appendChild(toolsButton);
 
 
   const main = document.querySelector("main");
+  const tools = document.createElement("section");
+  tools.id = "studio-tools";
+  tools.className = "view hidden";
+  tools.innerHTML = `
+    <div class="top"><div><div class="eyebrow">Free production utilities</div><h1>Studio Tools</h1><p>Fast local helpers for timing, captions, scripts, prompts, delivery and production readiness.</p></div></div>
+    <div class="workspace">
+      <section class="panel"><h2>Script Analyzer</h2><textarea id="toolScript" placeholder="Paste script text"></textarea><button class="primary" id="toolAnalyze">Analyze</button><div id="toolStats" class="notice">—</div></section>
+      <section class="panel"><h2>Prompt Pack</h2><input id="toolSubject" placeholder="Subject"><input id="toolLocation" placeholder="Location"><input id="toolCamera" placeholder="Camera / framing"><button class="primary" id="toolPrompt">Build prompts</button><pre id="toolPromptOut" class="notice">—</pre></section>
+    </div>
+    <div class="workspace" style="margin-top:14px">
+      <section class="panel"><h2>Timecode</h2><input id="toolSeconds" type="number" step="0.001" placeholder="Seconds"><button id="toolTime">Convert</button><div id="toolTimeOut" class="notice">—</div></section>
+      <section class="panel"><h2>Delivery</h2><select id="toolPreset"><option value="master">Master 16:9</option><option value="youtube-1080p">YouTube 1080p</option><option value="vertical">Vertical 9:16</option><option value="square">Square 1:1</option><option value="cinema-2k">Cinema 2K</option></select><button id="toolDelivery">Inspect</button><div id="toolDeliveryOut" class="notice">—</div></section>
+    </div>`;
+  main.appendChild(tools);
   const quirk = document.createElement("section");
   quirk.id = "quirk-lab";
   quirk.className = "view hidden";
@@ -92,6 +111,22 @@
     };
   };
 
+  window.studioToolsView = async function() {
+    activate("studio-tools");
+    $("toolAnalyze").onclick = async () => {
+      try { const r=await api("/api/studio/tools/script-stats",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text:$("toolScript").value})}); $("toolStats").textContent=`${r.result.words} words · ~${r.result.estimatedMinutes} min · ${r.result.dialogueLines} dialogue lines`; } catch(e) { $("toolStats").textContent=e.message; }
+    };
+    $("toolPrompt").onclick = async () => {
+      try { const r=await api("/api/studio/tools/prompt-pack",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subject:$("toolSubject").value,location:$("toolLocation").value,camera:$("toolCamera").value})}); $("toolPromptOut").textContent=JSON.stringify(r.result,null,2); } catch(e) { $("toolPromptOut").textContent=e.message; }
+    };
+    $("toolTime").onclick = async () => {
+      try { const r=await api("/api/studio/tools/timecode",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({seconds:Number($("toolSeconds").value),fps:24})}); $("toolTimeOut").textContent=r.result.timecode; } catch(e) { $("toolTimeOut").textContent=e.message; }
+    };
+    $("toolDelivery").onclick = async () => {
+      try { const r=await api("/api/studio/tools/aspect-ratios",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({preset:$("toolPreset").value})}); $("toolDeliveryOut").textContent=`${r.result.width}×${r.result.height} @ ${r.result.fps}fps`; } catch(e) { $("toolDeliveryOut").textContent=e.message; }
+    };
+  };
+
   window.apexCommandView = async function() {
     activate("apex-command-center");
     try {
@@ -139,6 +174,7 @@
 
   window.view = ((original) => function(name) {
     if (name === "apex-command") return apexCommandView();
+    if (name === "studio-tools") return studioToolsView();
     if (name === "sacred-library") return sacredLibraryView();
     return original(name);
   })(window.view);
