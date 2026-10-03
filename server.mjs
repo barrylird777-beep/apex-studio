@@ -15,6 +15,7 @@ import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
+import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus } from './src/workers/voiceover-worker.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1084,6 +1085,19 @@ app.get('/api/mesh/status', (_req, res) => {
   });
 });
 
+app.get('/api/voiceover/status', async (_req,res) => {
+  try { res.json({success:true,...await voiceoverWorkerStatus()}); }
+  catch(error){ res.status(500).json({success:false,error:error.message}); }
+});
+app.post('/api/voiceover/jobs', async (req,res) => {
+  try {
+    const text=String(req.body?.text||'').trim();
+    if(!text) return res.status(400).json({success:false,error:'text is required'});
+    const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
+    res.status(202).json({success:true,id,status:'queued'});
+  } catch(error){ res.status(500).json({success:false,error:error.message}); }
+});
+
 app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
@@ -1097,6 +1111,9 @@ await initStorage();
 meshWorkerSupervisor.start();
 if (String(process.env.APEX_START_AV1_WORKERS || 'true').toLowerCase() === 'true') {
   void startProductionDaemon().catch(error => console.error('[av1-workers-fatal]', error));
+}
+if (String(process.env.APEX_START_VOICEOVER_WORKERS || 'true').toLowerCase() === 'true') {
+  void startVoiceoverWorker().catch(error => console.error('[voiceover-workers-fatal]', error));
 }
 
 app.listen(PORT, HOST, () => {
