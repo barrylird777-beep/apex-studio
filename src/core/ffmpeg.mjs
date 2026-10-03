@@ -23,3 +23,49 @@ export function buildFfmpegPlan({media=[],audio=[],format="master",output="outpu
  out.push("-r",String(preset.fps),"-c:v",preset.videoCodec,"-movflags","+faststart",output);
  return {command:"ffmpeg",args:[...args,...out],preset,inputCount:video.length+audioInputs.length,ready:true};
 }
+
+
+export function buildTimelineFfmpegPlan({ clips = [], format = "master", output = "output.mp4" } = {}) {
+  const preset = OUTPUT_PRESETS[format] ?? OUTPUT_PRESETS.master;
+  const valid = clips.filter(clip => clip?.videoUri);
+  if (!valid.length) {
+    return {
+      command: "ffmpeg",
+      args: ["-y", "-f", "lavfi", "-i", `color=c=black:s=${preset.width}x${preset.height}:r=${preset.fps}`, "-t", "1", "-c:v", preset.videoCodec, output],
+      preset, inputCount: 1, ready: false, reason: "No persistent scene video assets are available."
+    };
+  }
+
+  const args = ["-y"];
+  valid.forEach(clip => args.push("-i", path.resolve(clip.videoUri)));
+  const audioClips = valid.filter(clip => clip.audioUri);
+  audioClips.forEach(clip => args.push("-i", path.resolve(clip.audioUri)));
+
+  const videoFilters = valid.map((_, i) =>
+    `[${i}:v]scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v${i}]`
+  );
+  const videoConcat = valid.map((_, i) => `[v${i}]`).join("") +
+    `concat=n=${valid.length}:v=1:a=0[v]`;
+  const filters = [...videoFilters, videoConcat];
+
+  const outputArgs = ["-filter_complex", filters.join(";"), "-map", "[v]"];
+  if (audioClips.length) {
+    const audioOffset = valid.length;
+    const audioFilters = audioClips.map((_, i) => `[${audioOffset + i}:a]aresample=48000[a${i}]`);
+    const audioConcat = audioClips.map((_, i) => `[a${i}]`).join("") +
+      `concat=n=${audioClips.length}:v=0:a=1[a]`;
+    filters.push(...audioFilters, audioConcat);
+    outputArgs.push("-map", "[a]", "-c:a", preset.audioCodec, "-shortest");
+  } else {
+    outputArgs.push("-an");
+  }
+
+  outputArgs.push("-r", String(preset.fps), "-c:v", preset.videoCodec, "-movflags", "+faststart", output);
+  return {
+    command: "ffmpeg",
+    args: [...args, ...outputArgs],
+    preset,
+    inputCount: valid.length + audioClips.length,
+    ready: true
+  };
+}
