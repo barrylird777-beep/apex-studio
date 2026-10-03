@@ -106,7 +106,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <button data-view="overview" class="active" onclick="view('overview')">Overview</button>
 <button data-view="stories" onclick="view('stories')">Stories</button>
 <button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
-<button data-view="production" onclick="view('production')">Production</button><button data-view="storyboard" onclick="view('storyboard')">Storyboard</button><button data-view="visuals" onclick="view('visuals')">Visual Bible</button><button data-view="bible" onclick="view('bible')">Bible Library</button><button data-view="retention" onclick="view('retention')">Retention Hook</button>
+<button data-view="timeline" onclick="view('timeline')">Timeline</button><button data-view="production" onclick="view('production')">Production</button><button data-view="storyboard" onclick="view('storyboard')">Storyboard</button><button data-view="visuals" onclick="view('visuals')">Visual Bible</button><button data-view="bible" onclick="view('bible')">Bible Library</button><button data-view="retention" onclick="view('retention')">Retention Hook</button>
 </nav></aside>
 <main>
 <section class="top"><div><div class="eyebrow">Creative command center</div><h1 id="title">Bible Story Video Studio</h1><p id="subtitle">Scripture → story → scenes → shots → audio → timeline → render.</p></div><div class="actions"><button class="ghost" onclick="sync()">Sync</button><button class="primary" onclick="view('stories');focusForm()">New story</button></div></section>
@@ -140,9 +140,100 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <section class="panel"><h2>Security / Risk Handshake</h2><div class="notice">A trigger phrase selects elevated review. It never disables authentication, egress policy, sanitization, credential isolation, or platform safety.</div><div id="omniRisk" class="notice">No review active.</div></section>
 </div>
 <div id="omniRiskModal" class="risk-modal"><div class="risk-card"><h2>Outbound operation review</h2><pre id="omniRiskPre"></pre><div class="actions"><button onclick="omniRiskChoice(false)">NO</button><button class="primary" onclick="omniRiskChoice(true)">YES — APPROVE RETRIEVAL</button></div></div></div>
-</section><section id="vision" class="view hidden"><div class="workspace"><section class="panel"><div class="top"><div><div class="eyebrow">Timeline-aware scene workspace</div><h2>Vision Editor</h2><p class="muted">Edit scene intent, inspect provenance, search the project, and use server-backed undo/redo.</p></div><div class="actions"><button onclick="visionUndo()">Undo</button><button onclick="visionRedo()">Redo</button></div></div><div class="form"><label>Search project</label><input id="visionSearch" placeholder="Search scenes, characters, sources, documents..." oninput="visionSearch()"></div><h3>Scenes</h3><div id="visionSceneList" class="list"></div></section><section class="panel"><h2>Inspector</h2><div id="visionInspector" class="empty">Select a scene.</div></section></div></section><section id="audio" class="view hidden"><div class="workspace"><section class="panel"><h2>Bard Audio Engine</h2><div class="notice">Server-side Hugging Face TTS. The browser receives an audio asset, so the voice can be replayed and downloaded.</div><div class="form"><textarea id="audio-script" placeholder="Enter lore script..."></textarea><button id="generate-audio-btn" class="primary">Generate Studio Voiceover</button><div id="audio-msg" class="error"></div></div></section><section class="panel"><h2>Voiceover Asset</h2><div id="audio-player-container" style="display:none"><audio id="studio-audio" controls style="width:100%"></audio><a id="download-audio-btn" href="#" download="lore-voiceover.wav" style="display:block;text-align:center;margin-top:10px">Download Asset</a></div><div id="audio-status" class="muted">Waiting for audio.</div></section></div></section><section id="media" class="view hidden"><div class="workspace"><section class="panel"><h2>Free AI Media Studio</h2><div class="notice">Generate images and short videos through the free-path media gateway. APEX never bypasses provider quotas or billing.</div><div class="form"><label>Prompt</label><textarea id="mediaPrompt" placeholder="Moses stands at the Red Sea as the waters rise, cinematic dark fantasy anime..."></textarea><div class="inline"><div><label>Image model</label><input id="mediaImageModel" value="flux"></div><div><label>Video model</label><input id="mediaVideoModel" value="alibaba/wan-2.2-fast"></div></div><div class="inline"><div><label>Video duration (seconds)</label><input id="mediaDuration" type="number" min="1" max="10" value="4"></div><div><label>Aspect ratio</label><select id="mediaAspect"><option>16:9</option><option>9:16</option><option>1:1</option></select></div></div><div class="actions"><button class="primary" onclick="generateFreeImage()">Generate Image</button><button onclick="generateFreeVideo()">Generate Video</button></div><div id="mediaMsg" class="error"></div></div></section><section class="panel"><h2>Generated media</h2><img id="mediaImage" alt="AI generated image" style="display:none;width:100%;border-radius:18px;border:1px solid var(--line);background:#05080d;object-fit:cover"><video id="mediaVideo" controls playsinline preload="metadata" style="display:none;width:100%;border-radius:18px;border:1px solid var(--line);background:#05080d"></video><div id="mediaProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="forge" class="view hidden"><div class="workspace"><section class="panel"><h2>Forge Image Generator</h2><div class="form"><label>Scene prompt</label><textarea id="forgePrompt" placeholder="Describe the scene to render..."></textarea><div class="notice">Forge automatically enforces the locked 1990s dark-fantasy anime look, cinematic lighting, cel shading, deep shadows, and high-detail render markers.</div><button id="ignite-btn" class="primary" onclick="renderScene($('forgePrompt').value)">Ignite Forge</button><div id="forgeMsg" class="error"></div></div></section><section class="panel"><h2>Scene render</h2><img id="scene-display" alt="Generated scene" style="display:block;width:100%;border-radius:10px;border:1px solid var(--line);background:#05080d;min-height:220px;object-fit:cover"><div id="forgeProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="production" class="view hidden"><div class="workspace"><section class="panel"><h2>Render queue</h2><div id="ffmpegStatus" class="notice">Local FFmpeg is used when available on the server.</div><div id="renderList" class="list"></div><h3>Queue render</h3><div class="form"><label>Scene ID</label><input id="renderScene" placeholder="scene_..."><label>Format</label><select id="renderFormat"><option>master</option><option>youtube-1080p</option><option>vertical-1080x1920</option><option>square-1080</option></select><button class="primary" onclick="queueRender()">Queue render</button><div id="renderMsg" class="error"></div></div></section><section class="panel"><h2>Local-first status</h2><div id="policy" class="notice">Loading policy…</div><h3>Next production stages</h3><div class="stage"><div>Research</div><div>Outline</div><div>Script</div><div>Storyboard</div><div>Visuals</div><div>Audio</div><div>Edit</div><div>Review</div><div>Release</div></div></section></div></section>
+</section><section id="vision" class="view hidden"><div class="workspace"><section class="panel"><div class="top"><div><div class="eyebrow">Timeline-aware scene workspace</div><h2>Vision Editor</h2><p class="muted">Edit scene intent, inspect provenance, search the project, and use server-backed undo/redo.</p></div><div class="actions"><button onclick="visionUndo()">Undo</button><button onclick="visionRedo()">Redo</button></div></div><div class="form"><label>Search project</label><input id="visionSearch" placeholder="Search scenes, characters, sources, documents..." oninput="visionSearch()"></div><h3>Scenes</h3><div id="visionSceneList" class="list"></div></section><section class="panel"><h2>Inspector</h2><div id="visionInspector" class="empty">Select a scene.</div></section></div></section><section id="audio" class="view hidden"><div class="workspace"><section class="panel"><h2>Bard Audio Engine</h2><div class="notice">Server-side Hugging Face TTS. The browser receives an audio asset, so the voice can be replayed and downloaded.</div><div class="form"><textarea id="audio-script" placeholder="Enter lore script..."></textarea><button id="generate-audio-btn" class="primary">Generate Studio Voiceover</button><div id="audio-msg" class="error"></div></div></section><section class="panel"><h2>Voiceover Asset</h2><div id="audio-player-container" style="display:none"><audio id="studio-audio" controls style="width:100%"></audio><a id="download-audio-btn" href="#" download="lore-voiceover.wav" style="display:block;text-align:center;margin-top:10px">Download Asset</a></div><div id="audio-status" class="muted">Waiting for audio.</div></section></div></section><section id="media" class="view hidden"><div class="workspace"><section class="panel"><h2>Free AI Media Studio</h2><div class="notice">Generate images and short videos through the free-path media gateway. APEX never bypasses provider quotas or billing.</div><div class="form"><label>Prompt</label><textarea id="mediaPrompt" placeholder="Moses stands at the Red Sea as the waters rise, cinematic dark fantasy anime..."></textarea><div class="inline"><div><label>Image model</label><input id="mediaImageModel" value="flux"></div><div><label>Video model</label><input id="mediaVideoModel" value="alibaba/wan-2.2-fast"></div></div><div class="inline"><div><label>Video duration (seconds)</label><input id="mediaDuration" type="number" min="1" max="10" value="4"></div><div><label>Aspect ratio</label><select id="mediaAspect"><option>16:9</option><option>9:16</option><option>1:1</option></select></div></div><div class="actions"><button class="primary" onclick="generateFreeImage()">Generate Image</button><button onclick="generateFreeVideo()">Generate Video</button></div><div id="mediaMsg" class="error"></div></div></section><section class="panel"><h2>Generated media</h2><img id="mediaImage" alt="AI generated image" style="display:none;width:100%;border-radius:18px;border:1px solid var(--line);background:#05080d;object-fit:cover"><video id="mediaVideo" controls playsinline preload="metadata" style="display:none;width:100%;border-radius:18px;border:1px solid var(--line);background:#05080d"></video><div id="mediaProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="forge" class="view hidden"><div class="workspace"><section class="panel"><h2>Forge Image Generator</h2><div class="form"><label>Scene prompt</label><textarea id="forgePrompt" placeholder="Describe the scene to render..."></textarea><div class="notice">Forge automatically enforces the locked 1990s dark-fantasy anime look, cinematic lighting, cel shading, deep shadows, and high-detail render markers.</div><button id="ignite-btn" class="primary" onclick="renderScene($('forgePrompt').value)">Ignite Forge</button><div id="forgeMsg" class="error"></div></div></section><section class="panel"><h2>Scene render</h2><img id="scene-display" alt="Generated scene" style="display:block;width:100%;border-radius:10px;border:1px solid var(--line);background:#05080d;min-height:220px;object-fit:cover"><div id="forgeProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="timeline" class="view hidden"><div class="workspace"><section class="panel"><div class="top"><div><div class="eyebrow">Pipeline</div><h2>Scene Timeline</h2></div><span class="pill">FORGE · VIDEO · AUDIO</span></div><div class="form"><label>Base scene prompt</label><textarea id="pipelinePrompt" placeholder="Describe the complete scene to generate..."></textarea><button class="primary" id="run-pipeline-btn" onclick="studio.executeFullPipeline($('pipelinePrompt').value)">Run Full Scene Pipeline</button><div id="pipelineMsg" class="error"></div></div></section><section class="panel"><h2>Generated scenes</h2><div id="timeline-container" class="list"></div></section></div></section><section id="production" class="view hidden"><div class="workspace"><section class="panel"><h2>Render queue</h2><div id="ffmpegStatus" class="notice">Local FFmpeg is used when available on the server.</div><div id="renderList" class="list"></div><h3>Queue render</h3><div class="form"><label>Scene ID</label><input id="renderScene" placeholder="scene_..."><label>Format</label><select id="renderFormat"><option>master</option><option>youtube-1080p</option><option>vertical-1080x1920</option><option>square-1080</option></select><button class="primary" onclick="queueRender()">Queue render</button><div id="renderMsg" class="error"></div></div></section><section class="panel"><h2>Local-first status</h2><div id="policy" class="notice">Loading policy…</div><h3>Next production stages</h3><div class="stage"><div>Research</div><div>Outline</div><div>Script</div><div>Storyboard</div><div>Visuals</div><div>Audio</div><div>Edit</div><div>Review</div><div>Release</div></div></section></div></section>
 </main></div>
 <script>
+class SceneController {
+  constructor() { this.scenes = []; this.activeSceneId = null; }
+
+  async hydrate() {
+    try {
+      const state = await api('/api/project');
+      this.scenes = Array.isArray(state.scenes) ? state.scenes : [];
+      this.renderAll();
+    } catch (error) { console.warn('[studio-pipeline] hydration failed:', error); }
+  }
+
+  async executeFullPipeline(basePrompt) {
+    const prompt = String(basePrompt || '').trim();
+    const msg = $('pipelineMsg');
+    const btn = $('run-pipeline-btn');
+    msg.textContent = '';
+    if (!prompt) { msg.textContent = 'Scene prompt is required'; return; }
+
+    const sceneId = `scene_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this.activeSceneId = sceneId;
+    btn.disabled = true;
+    btn.textContent = 'Running Full Scene Pipeline...';
+
+    try {
+      const forgeRes = await fetch('/api/forge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      const forge = await forgeRes.json();
+      if (!forgeRes.ok || !forge.success) throw new Error(forge.error || 'Forge failed');
+
+      const cinematicPrompt = String(forge.cinematicPrompt || prompt);
+      const voiceoverScript = String(forge.voiceoverScript || prompt);
+
+      const [videoRes, audioRes] = await Promise.all([
+        fetch('/api/media/video', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: cinematicPrompt, sceneId })
+        }),
+        fetch('/api/audio', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: voiceoverScript, sceneId })
+        })
+      ]);
+
+      if (!videoRes.ok) {
+        let detail = {}; try { detail = await videoRes.json(); } catch {}
+        throw new Error(detail.error || 'Video generation failed');
+      }
+      if (!audioRes.ok) {
+        let detail = {}; try { detail = await audioRes.json(); } catch {}
+        throw new Error(detail.error || 'Audio generation failed');
+      }
+
+      const [videoBlob, audioBlob] = await Promise.all([videoRes.blob(), audioRes.blob()]);
+      this.scenes.push({
+        id: sceneId, prompt, cinematicPrompt, voiceoverScript,
+        videoUrl: URL.createObjectURL(videoBlob),
+        audioUrl: URL.createObjectURL(audioBlob)
+      });
+      this.renderAll();
+    } catch (error) {
+      msg.textContent = error.message || 'Full scene pipeline failed';
+      throw error;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run Full Scene Pipeline';
+    }
+  }
+
+  renderAll() {
+    const container = $('timeline-container');
+    if (!container) return;
+    container.innerHTML = this.scenes.length
+      ? this.scenes.map(scene => this.renderSceneMarkup(scene)).join('')
+      : '<div class="empty">No generated scenes yet.</div>';
+  }
+
+  renderSceneMarkup(scene) {
+    return `<article class="row" style="display:block">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px">
+        <strong>${esc(scene.id)}</strong><span class="pill">Scene</span>
+      </div>
+      ${scene.videoUrl ? `<video src="${esc(scene.videoUrl)}" style="width:100%;border-radius:14px;background:#000" controls playsinline preload="metadata"></video>` : ''}
+      ${scene.audioUrl ? `<audio src="${esc(scene.audioUrl)}" style="width:100%;margin-top:10px" controls></audio>` : ''}
+      <p class="muted" style="margin:12px 0 0">${esc(scene.voiceoverScript || '')}</p>
+    </article>`;
+  }
+}
+const studio = new SceneController();
+</script><script>
 const $=id=>document.getElementById(id);
 async function api(path,opts){const r=await fetch(path,opts);let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||"Request failed");return d}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -288,6 +379,7 @@ async function buildBoard(){const msg=$("boardMsg");msg.textContent="";try{const
 async function runRender(id){try{await api('/api/studio/renders/'+encodeURIComponent(id)+'/run',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});await loadProduction()}catch(e){alert(e.message);await loadProduction()}}\nasync function cancelRender(id){await api('/api/studio/renders/'+encodeURIComponent(id)+'/cancel',{method:'POST'});await loadProduction()}\nasync function loadProduction(){const a=await api("/api/studio/renders");$("renderList").innerHTML=a.map(x=>"<div class='row'><div><b>"+esc(x.format)+"</b><span class='muted'>"+esc(x.sceneId||"no scene")+" · "+esc(x.status)+"</span></div><span class='pill'>"+esc(x.id)+"</span></div>").join("")||empty("Render queue is empty.");sync()}
 async function queueRender(){const msg=$("renderMsg");msg.textContent="";try{await api("/api/studio/renders",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sceneId:$("renderScene").value||null,format:$("renderFormat").value})});msg.className="success";msg.textContent="Render queued.";await loadProduction()}catch(e){msg.textContent=e.message}}
 sync();
+studio.hydrate();
 </script>
 <script src="/vision-editor.js"></script><script src="/omni-studio.js"></script><script src="/apex-dashboard.js"></script>
 </body></html>
