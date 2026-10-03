@@ -1,0 +1,42 @@
+services:
+  apex-se-x:
+    image: ${APEX_SEX_IMAGE:?set APEX_SEX_IMAGE to an immutable approved image digest}
+    container_name: apex-se-x
+    restart: unless-stopped
+    read_only: true
+    privileged: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      - /run:rw,noexec,nosuid,nodev,size=32m
+    networks:
+      - apex-search
+    environment:
+      NODE_ENV: production
+      APEX_SEX_ALLOWED_HOSTS: ${APEX_SEX_ALLOWED_HOSTS:?set an explicit public-host allowlist}
+      APEX_SEX_CONCURRENCY: ${APEX_SEX_CONCURRENCY:-4}
+      APEX_SEX_TIMEOUT_MS: ${APEX_SEX_TIMEOUT_MS:-12000}
+    pids_limit: 256
+    cpus: ${APEX_SEX_CPUS:-2}
+    mem_limit: ${APEX_SEX_MEMORY:-1g}
+    mem_reservation: ${APEX_SEX_MEMORY_RESERVATION:-256m}
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"process.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  apex-search:
+    name: apex-search
+    internal: false
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${APEX_SEARCH_SUBNET:-172.30.50.0/24}
