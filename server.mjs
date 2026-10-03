@@ -570,43 +570,46 @@ function pollinationsMediaKey() {
   return process.env.POLLINATIONS_API_KEY || '';
 }
 
-function buildPollinationsUrl(kind, prompt, params = {}) {
+function buildPollinationsMediaRequest(kind, prompt, params = {}) {
+  const key = pollinationsMediaKey();
+  if (!key) throw new Error('POLLINATIONS_API_KEY is not configured');
   const encoded = encodeURIComponent(String(prompt || '').trim());
   const base = kind === 'video'
     ? 'https://gen.pollinations.ai/video/'
     : 'https://gen.pollinations.ai/image/';
   const query = new URLSearchParams(params);
-  const key = pollinationsMediaKey();
-  if (key) query.set('key', key);
-  return base + encoded + (query.toString() ? '?' + query.toString() : '');
+  return {
+    url: base + encoded + (query.toString() ? '?' + query.toString() : ''),
+    headers: { Authorization: ['Bearer', key].join(' ') }
+  };
+}
+
+async function proxyPollinationsMedia(kind, prompt, params, res) {
+  const request = buildPollinationsMediaRequest(kind, prompt, params);
+  const response = await fetchWithTimeout(request.url, { headers: request.headers }, kind === 'video' ? 120000 : 60000);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
+    throw new Error(`Pollinations ${kind} ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const contentType = response.headers.get('content-type') || (kind === 'video' ? 'video/mp4' : 'image/png');
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.length) throw new Error(`Pollinations returned an empty ${kind} response`);
+  res.set({ 'Content-Type': contentType, 'Content-Length': buffer.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  return res.send(buffer);
 }
 
 app.post('/api/media/image', async (req, res) => {
   try {
     const prompt = String(req.body?.prompt || '').trim();
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
-
     const width = Math.min(Math.max(Number(req.body?.width || 1280), 256), 2048);
     const height = Math.min(Math.max(Number(req.body?.height || 720), 256), 2048);
     const model = String(req.body?.model || process.env.POLLINATIONS_IMAGE_MODEL || 'flux').slice(0, 120);
     const seed = Number.isFinite(Number(req.body?.seed)) ? Number(req.body.seed) : Math.floor(Math.random() * 9999999);
-
-    const imageUrl = buildPollinationsUrl('image', prompt, {
-      model, width, height, seed, nologo: 'true'
-    });
-
-    res.json({
-      success: true,
-      type: 'image',
-      provider: 'pollinations',
-      freePath: !pollinationsMediaKey(),
-      imageUrl,
-      prompt,
-      model,
-      seed
-    });
+    return await proxyPollinationsMedia('image', prompt, { model, width, height, seed, nologo: 'true' }, res);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('[media-image-fatal]', error);
+    return res.status(502).json({ success: false, error: error.message });
   }
 });
 
@@ -614,38 +617,22 @@ app.post('/api/media/video', async (req, res) => {
   try {
     const prompt = String(req.body?.prompt || '').trim();
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
-
     const duration = Math.min(Math.max(Number(req.body?.duration || 4), 1), 10);
     const aspectRatio = String(req.body?.aspectRatio || '16:9').slice(0, 20);
-    const model = String(req.body?.model || process.env.POLLINATIONS_VIDEO_MODEL || 'wan').slice(0, 120);
-
-    const videoUrl = buildPollinationsUrl('video', prompt, {
-      model, duration, aspectRatio
-    });
-
-    res.json({
-      success: true,
-      type: 'video',
-      provider: 'pollinations',
-      freePath: !pollinationsMediaKey(),
-      videoUrl,
-      prompt,
-      model,
-      duration,
-      aspectRatio
-    });
+    const model = String(req.body?.model || process.env.POLLINATIONS_VIDEO_MODEL || 'alibaba/wan-2.2-fast').slice(0, 120);
+    return await proxyPollinationsMedia('video', prompt, { model, duration, aspectRatio }, res);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('[media-video-fatal]', error);
+    return res.status(502).json({ success: false, error: error.message });
   }
 });
-
 app.get('/api/media/status', (_req, res) => {
   res.json({
     success: true,
     image: {
       provider: 'pollinations',
       configured: true,
-      apiKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
+      serverSideKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
       model: process.env.POLLINATIONS_IMAGE_MODEL || 'flux'
     },
     video: {
