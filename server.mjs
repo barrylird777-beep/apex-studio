@@ -155,7 +155,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 app.disable('x-powered-by');
 app.use(cors());
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
-app.get('/api/workers/permanent', (_req,res)=>res.json({success:true,...fleetStatus(permanentWorkerFleet)}));
+app.get('/api/workers/permanent', (_req,res)=>res.json({
+  success:true,
+  ...fleetStatus(permanentWorkerFleet),
+  supervisor: permanentWorkerSupervisor.status()
+}));
 app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
