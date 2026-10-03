@@ -138,6 +138,166 @@ const permanentWorkerHeartbeat = setInterval(() => {
       workerId: worker.id,
       role: worker.role,
       task,
+      payload: {
+        type: 'permanent-health',
+        workerId: worker.id,
+        role: worker.role,
+        task
+      }
+    }).then(() => {
+      // Durable execution is owned by the independent apex-workers service.
+      // The API process only schedules work; it must never execute the same job.
+      worker.taskStartedAt = null;
+      worker.taskToken = null;
+      permanentWorkerInFlight.delete(worker.id);
+    }).catch(error => {
+      permanentWorkerInFlight.delete(worker.id);
+      if (worker.taskToken !== taskToken) return;
+      Object.assign(worker, failPermanentWorkerTask(worker, error));
+      worker.lastError = String(error?.message || error);
+      worker.taskStartedAt = null;
+      worker.taskToken = null;
+    });
+import crypto from 'node:crypto';
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { Readable } from 'node:stream';
+import { access, readFile, unlink } from 'node:fs/promises';
+import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
+import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
+import { RenderWorker } from './src/core/render-worker.mjs';
+import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './src/services/projectManager.mjs';
+import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
+import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
+import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
+import { durableWorkerEnabled, ensureWorkerTaskSchema, enqueueWorkerTask, claimWorkerTask, completeWorkerTask, failWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
+import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
+import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
+import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
+import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
+import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+
+if (durableWorkerEnabled()) {
+  void ensureWorkerTaskSchema().catch(error => console.error("[worker-store] schema initialization failed", error));
+  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
+  reclaimTimer.unref?.();
+}
+const geminiMeshProvider = new GeminiMeshProvider();
+const claudeMeshProvider = new ClaudeMeshProvider();
+const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
+const permanentWorkerFleet = createPermanentWorkerFleet();
+const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
+for (const worker of permanentWorkerFleet.workers) {
+  Object.assign(worker, startPermanentWorker(worker), {
+    nextRunAt: new Date(Date.now() + (Number(worker.id.replace(/\D/g, '').slice(-3) || 0) % 30) * 1000).toISOString(),
+    taskStartedAt: null,
+    lastCompletedAt: null
+  });
+}
+permanentWorkerFleet.status = 'running';
+
+const permanentHealthHandler = async (payload) => {
+  const role = String(payload?.role || 'general');
+  const startedAt = Date.now();
+  if (['project-storage', 'media-ingest', 'publishing'].includes(role)) {
+    await getProjectState();
+  } else if (['video-engine', 'export', 'render-cache', 'visual-direction'].includes(role)) {
+    await new RenderWorker().available();
+  } else if (['voiceover', 'audio-reference'].includes(role)) {
+    await voiceoverWorkerStatus();
+  } else {
+    capacitySnapshot();
+  }
+  return {
+    ok: true,
+    workerId: String(payload?.workerId || ''),
+    role,
+    task: String(payload?.task || ''),
+    durationMs: Date.now() - startedAt,
+    completedAt: new Date().toISOString()
+  };
+};
+
+const meshWorkerSupervisor = new WorkerSupervisor({
+  workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 64)),
+  handler: async (payload) => {
+    const type = String(payload?.type || 'inference');
+    if (type === 'inference') {
+      const prompt = String(payload?.prompt || '').trim();
+      if (!prompt) throw new Error('Worker inference requires prompt');
+      return executeInference(prompt, String(payload?.system || DEFAULT_SYSTEM));
+    }
+    if (type === 'tile-plan') {
+      return DistributedTileRenderer.plan(
+        Number(payload?.width || 3840),
+        Number(payload?.height || 2160),
+        Number(payload?.tileSize || 1080),
+        Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4))
+      );
+    }
+    throw new Error('Unknown mesh worker task: ' + type);
+  }
+});
+
+const permanentWorkerSupervisor = new WorkerSupervisor({
+  workers: Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 64)),
+  handler: permanentHealthHandler
+});
+
+meshWorkerSupervisor.start();
+permanentWorkerSupervisor.start();
+
+const permanentWorkerInFlight = new Set();
+const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
+const permanentWorkerMaxConcurrent = Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 64));
+
+const permanentWorkerHeartbeat = setInterval(() => {
+  const nowMs = Date.now();
+  for (const worker of permanentWorkerFleet.workers) {
+    const taskStartedMs = Date.parse(worker.taskStartedAt || '');
+    const taskTimedOut = permanentWorkerInFlight.has(worker.id)
+      && Number.isFinite(taskStartedMs)
+      && nowMs - taskStartedMs > apexOverseer.staleAfterMs;
+
+    if (taskTimedOut) {
+      const staleToken = worker.taskToken;
+      permanentWorkerInFlight.delete(worker.id);
+      Object.assign(worker, failPermanentWorkerTask(worker, new Error('Worker task lease expired')));
+      worker.lastError = 'Worker task lease expired';
+      worker.taskStartedAt = null;
+      worker.taskToken = null;
+      if (staleToken) worker.lastStaleTaskToken = staleToken;
+    }
+
+    if (permanentWorkerInFlight.has(worker.id) || permanentWorkerInFlight.size >= permanentWorkerMaxConcurrent) {
+      Object.assign(worker, heartbeatPermanentWorker(worker, worker.currentTask));
+      continue;
+    }
+
+    const nextRun = Date.parse(worker.nextRunAt || '');
+    if (Number.isFinite(nextRun) && nextRun > nowMs) continue;
+
+    const task = overseerTaskFor(worker);
+    const taskToken = crypto.randomUUID();
+    worker.taskToken = taskToken;
+    worker.taskStartedAt = new Date(nowMs).toISOString();
+    worker.nextRunAt = new Date(nowMs + permanentWorkerRunEveryMs).toISOString();
+    Object.assign(worker, heartbeatPermanentWorker(worker, task));
+    permanentWorkerInFlight.add(worker.id);
+    const durableTaskId = crypto.randomUUID();
+
+    void enqueueWorkerTask({
+      id: durableTaskId,
+      workerId: worker.id,
+      role: worker.role,
+      task,
       payload: { type: 'permanent-health', workerId: worker.id }
     }).then(() => claimWorkerTask(durableTaskId)).then(() => permanentWorkerSupervisor.dispatch({
       type: 'permanent-health',
