@@ -194,7 +194,7 @@ app.post('/api/forge', async (req, res) => {
     // 2. Safe LLM prompt enhancement with guaranteed catch
     try {
       const systemInstruction =
-        'Rewrite this into an elite 16:9 cinematic dark anime illustration prompt. Describe lighting, camera angle, and textures. Return ONLY the final prompt.';
+        'Rewrite this into an elite 16:9 cinematic dark fantasy anime illustration prompt. Preserve the subject, action, setting, and composition. STRICTLY ENFORCE: 1990s dark fantasy anime aesthetic, hand-painted cel shading, deep cinematic shadows, dramatic rim lighting, dense atmospheric perspective, detailed ink linework, textured backgrounds, expressive faces, dynamic film composition, Studio Madhouse-inspired theatrical anime production design. Describe lighting, camera angle, lens/framing, textures, environment, and character detail. Return ONLY the final prompt.';
       const inference = await executeInference(rawPrompt, systemInstruction);
       if (inference?.text) {
         finalPrompt = inference.text;
@@ -207,9 +207,37 @@ app.post('/api/forge', async (req, res) => {
     }
 
     // 3. Clean string & clamp length to prevent HTTP 414 (URI Too Long)
-    const sanitizedPrompt = finalPrompt
+    const FORGE_STYLE_LOCK = [
+      '1990s dark fantasy anime aesthetic',
+      'hand-painted cel shading',
+      'deep cinematic shadows',
+      'dramatic rim lighting',
+      'dense atmospheric perspective',
+      'detailed ink linework',
+      'textured hand-painted backgrounds',
+      'expressive character faces',
+      'dynamic theatrical film composition',
+      'Studio Madhouse-inspired anime production design',
+      'dark mythic atmosphere',
+      'high-detail cinematic anime frame'
+    ].join(', ');
+
+    const FORGE_QUALITY_LOCK = [
+      '8k detail',
+      'cinematic lighting',
+      'masterpiece',
+      'ultra-detailed',
+      'high dynamic range',
+      'sharp focal subject',
+      'rich texture',
+      'professional anime keyframe quality'
+    ].join(', ');
+
+    // The LLM may enhance the prompt, but it can never remove the Forge style/quality contract.
+    const sanitizedPrompt = [finalPrompt, FORGE_STYLE_LOCK, FORGE_QUALITY_LOCK]
+      .join(', ')
       .replace(/[\r\n]+/g, ' ')
-      .slice(0, 1200)
+      .slice(0, 1800)
       .trim();
 
     const seed = Math.floor(Math.random() * 9999999);
