@@ -1,18 +1,38 @@
-import { auditTruthGraph, buildTruthGraphFromEpisode } from "./truth-graph.mjs";
-import { auditEntertainment } from "./entertainment.mjs";
-import { auditStoryboard } from "./storyboard.mjs";
-import { auditScenes } from "./scene-purpose.mjs";
 import { canRelease } from "./agent-crew.mjs";
-import { auditApexCoreContract } from "./apex-core.mjs";
-import { auditStoryArchitecture } from "./story-architect.mjs";
+
 function result(name,ok,detail,blocker=false){return {name,ok,detail,blocker};}
-export function apexCoreGate(episode={}){const audit=auditApexCoreContract(episode);return {name:"apex-core",ok:audit.ready,blockers:audit.blockers.map(x=>result(x.code,false,x.message,true)),audit,checks:[result("god-centered",true,"God is the foundational center of Apex."),result("truth-over-growth",true,"Growth objectives remain subordinate to source truth."),result("human-final-authority",true,"Apex does not replace the human final decision.")]};}
-export function scriptureGate(episode={}){const graph=episode.truthGraph??buildTruthGraphFromEpisode(episode);const audit=auditTruthGraph(graph);const sourceAttached=Boolean(episode.passage||episode.sourceRefs?.length);const blockers=[...audit.blockers];if(!sourceAttached)blockers.push(result("source-attached",false,"Episode has no passage or source references.",true));return {name:"scripture",ok:blockers.length===0,blockers,audit,checks:[result("source-attached",sourceAttached,"Episode has a passage or source references.",true),result("provenance-graph",audit.ready,"Truth claims have valid provenance and source boundaries.",true)]};}
-export function entertainmentGate(episode={}){const audit=episode.entertainmentAudit??auditEntertainment(episode);const coreNames=["hook","open_loop","pacing_variation","source_provenance","dramatization_boundary","filler_control"];const core=audit.checks.filter(x=>coreNames.includes(x.name));const blockers=core.filter(x=>!x.ok);return {name:"entertainment",ok:blockers.length===0,blockers,audit};}
-export function storyArchitectureGate(episode={}){const audit=episode.storyArchitectureAudit??auditStoryArchitecture(episode.storyArchitecture??{});return {name:"story-architecture",ok:audit.ready,blockers:audit.blockers.map(x=>result(x.code,false,JSON.stringify(x),true)),audit};}
-export function productionDoctorGate(episode={}){const checks=[result("story-grounded",Boolean(episode.truthGraph||episode.storyIntelligence||episode.passage),"Story has source-grounded intelligence.",true),result("story-structured",Boolean(episode.storyArchitecture||episode.storyPlan||episode.storySummary),"Story has an explicit architecture/summary.",true),result("continuity-reviewed",Boolean(episode.continuityAudit||episode.storyboard?.length),"Production has continuity evidence.",true),result("production-artifacts",Boolean(episode.script&&episode.scenes?.length&&episode.storyboard?.length&&episode.timeline),"Core production artifacts are present.",true)];const blockers=checks.filter(x=>!x.ok);return {name:"production-doctor",ok:blockers.length===0,blockers,checks};}
-export function sceneGate(episode={}){const audit=auditScenes(episode.scenes);return {name:"scenes",ok:audit.ready,blockers:audit.blockers,audit};}
-export function continuityGate(episode={}){const shots=Array.isArray(episode.storyboard)?episode.storyboard:[];const audit=auditStoryboard(shots);return {name:"continuity",ok:audit.ready,blockers:audit.blockers,audit};}
-export function productionGate(episode={}){const checks=[result("script",Boolean(episode.script),"Script exists.",true),result("scenes",Array.isArray(episode.scenes)&&episode.scenes.length>0,"Scenes exist.",true),result("storyboard",Array.isArray(episode.storyboard)&&episode.storyboard.length>0,"Storyboard exists.",true),result("visual-bible",Boolean(episode.visualBible?.characters?.length&&episode.visualBible?.locations?.length),"Character and location bibles exist.",true),result("audio",Array.isArray(episode.audio)&&episode.audio.length>0,"Audio plan exists.",true),result("timeline",Boolean(episode.timeline),"Timeline exists.",true)];const blockers=checks.filter(x=>!x.ok);return {name:"production",ok:blockers.length===0,blockers,checks};}
-export function releaseGate(episode={}){const packageReady=Boolean(episode.releasePackage);const pkg=episode.releasePackage??{};const approvalInput={action:"release",artifactIds:[pkg.id].filter(Boolean),episodeId:episode.id??episode.agentCrew?.episodeId??null,version:pkg.version??episode.version??null};const authorityReady=canRelease(episode.agentCrew??{approval:{required:true,status:"pending"}},approvalInput);const blockers=[];if(!packageReady)blockers.push(result("release-package",false,"Release package is missing.",true));if(!authorityReady)blockers.push(result("human-approval",false,"Final human approval is required before release.",true));return {name:"release",ok:blockers.length===0,blockers};}
-export function episodeQualityGate(episode={}){const gates=[apexCoreGate(episode),scriptureGate(episode),entertainmentGate(episode),storyArchitectureGate(episode),sceneGate(episode),continuityGate(episode),productionGate(episode),productionDoctorGate(episode)];const blockers=gates.flatMap(g=>g.blockers??[]);return {ready:blockers.length===0,gates,blockers,release:releaseGate(episode),summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};}
+
+export function productionGate(input={}){
+  const checks=[
+    result("source",Boolean(input.source||input.sourceRefs?.length),"Source/provenance is attached.",true),
+    result("script",Boolean(String(input.script??"").trim()),"Production script exists.",true),
+    result("media",Boolean(input.media||input.mediaAssets?.length),"Media assets exist.",true),
+    result("audio",Boolean(input.audio||input.audioTracks?.length),"Audio exists.",true),
+    result("timeline",Boolean(input.timeline),"Timeline exists.",true)
+  ];
+  const blockers=checks.filter(x=>!x.ok);
+  return {name:"production",ok:blockers.length===0,blockers,checks};
+}
+
+export function productionDoctorGate(input={}){
+  const gate=productionGate(input);
+  return {name:"production-doctor",ok:gate.ok,blockers:gate.blockers,checks:gate.checks};
+}
+
+export function releaseGate(input={}){
+  const pkg=input.releasePackage??input.release??null;
+  const packageReady=Boolean(pkg);
+  const approvalInput={action:"release",artifactIds:[pkg?.id].filter(Boolean),version:pkg?.version??input.version??null};
+  const authorityReady=canRelease(input.agentCrew??{approval:{required:true,status:"pending"}},approvalInput);
+  const blockers=[];
+  if(!packageReady)blockers.push(result("release-package",false,"Release package is missing.",true));
+  if(!authorityReady)blockers.push(result("human-approval",false,"Final human approval is required before release.",true));
+  return {name:"release",ok:blockers.length===0,blockers};
+}
+
+export function episodeQualityGate(input={}){
+  const production=productionGate(input);
+  const gates=[production];
+  const blockers=gates.flatMap(g=>g.blockers??[]);
+  return {ready:blockers.length===0,gates,blockers,release:releaseGate(input),summary:{gateCount:gates.length,passed:gates.filter(g=>g.ok).length,blocked:gates.filter(g=>!g.ok).length}};
+}
