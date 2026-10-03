@@ -1,5 +1,5 @@
 import { uid, now } from "./id.mjs";
-import { auditEntertainment } from "./entertainment.mjs";
+import { auditEntertainment, buildEntertainmentPrompt } from "./entertainment.mjs";
 
 export const EPISODE_STAGES=Object.freeze([
   "source","hook","story","script","scenes","storyboard","visuals","audio","timeline","review","release"
@@ -49,6 +49,10 @@ export function buildEpisodePlan(input={}){
   ]};
   episode.stage="hook";
   return episode;
+}
+
+export function buildEpisodeEntertainmentPrompt(input={}) {
+  return buildEntertainmentPrompt(input);
 }
 
 export function episodeReadiness(episode={}){

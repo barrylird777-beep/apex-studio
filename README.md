@@ -38,11 +38,10 @@ The main creative API is under /api/studio. Production routes are /api/oracle, /
 
 The repository no longer includes adult/intimacy, LAYERS, Stark Mode, companion, or unrelated universe features.
 
-
 ## APEX OMNI-STUDIO
 
-The OMNI workspace adds the SE-X retrieval pipeline, encrypted local result storage, live search events, narrative branch mapping, prosody parsing, and production/render monitoring.
+The OMNI workspace adds the SE-X retrieval pipeline, local result storage, live search events, narrative branch mapping, prosody parsing, and production/render monitoring.
 
 SE-X outbound retrieval is deny-by-default. Configure explicit destinations with `APEX_SEX_ALLOWED_HOSTS`. The application never forwards stored credentials to retrieved sources, and telemetry remains disabled.
 
-OMNI persistence is encrypted with AES-256-GCM. Set `APEX_OMNI_STORE_KEY` for deterministic key management, or the application generates a local 0600 key under the OMNI data directory.
+OMNI storage is local application storage. The repository does not claim persistent AES-256-GCM encryption for OMNI data unless a separately verified persistent encryption implementation is deployed.

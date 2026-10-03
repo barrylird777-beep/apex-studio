@@ -5,4 +5,5 @@ export class WorldState {
  get(key){return this.facts.get(key)?.value;}
  apply(event){this.events.push({...event,id:event.id??uid("evt"),appliedAt:now()});for(const change of event.changes??[])this.set(change.key,change.value,event.id);return this.events.at(-1);}
  snapshot(){return {facts:Object.fromEntries([...this.facts].map(([k,v])=>[k,v.value])),events:structuredClone(this.events)};}
+ restore(snapshot={}){this.facts.clear();for(const [key,value] of Object.entries(snapshot.facts??{}))this.set(key,value,"restore");this.events=structuredClone(snapshot.events??[]);return this;}
 }
