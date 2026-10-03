@@ -1,4 +1,6 @@
-import { uid, now } from "./id.mjs";
+import crypto from "node:crypto";
+const uid=(prefix="id")=>prefix+"-"+crypto.randomUUID();
+const now=()=>new Date().toISOString();
 
 const TASKS = Object.freeze([
   ["research","Build source-backed historical profiles for biblical figures; record primary/secondary sources and uncertainty."],
