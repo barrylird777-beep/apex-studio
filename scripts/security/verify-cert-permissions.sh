@@ -4,6 +4,14 @@ set -euo pipefail
 TLS_DIR="${APEX_TLS_DIR:-/srv/apex/secrets/tls}"
 CA_DIR="${APEX_CA_DIR:-/srv/apex/secrets/ca}"
 
+# GitHub Actions has no Railway-mounted production certificate/CA secrets.
+# Keep the real filesystem checks mandatory outside CI; CI validates the rest
+# of the security gate without pretending those deployment secrets exist.
+if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "[INFO] CI environment detected. Production TLS/CA mounts are not present; skipping deployed-secret filesystem inspection."
+  exit 0
+fi
+
 echo "== TLS directory =="
 ls -ld "$TLS_DIR"
 find "$TLS_DIR" -maxdepth 2 -printf '%M %u:%g %p\\n'
