@@ -17,8 +17,8 @@ test('SPEC-002 character UI supports search, detail, edit, create, and delete', 
   const s = await read('src/pages/CharacterDatabase.tsx');
   for (const label of ['Search by name, alias, or story','New character','Create character','Save changes','Delete','CHARACTER DETAIL']) assert.ok(s.includes(label), label);
   assert.ok(s.includes('/api/characters?q='));
-  assert.ok(s.includes('method:"POST"'));
-  assert.ok(s.includes('method:"PUT"'));
+  assert.ok(s.includes('method:creating?"POST":"PUT"'));
+  assert.ok(s.includes('method:creating?"POST":"PUT"'));
   assert.ok(s.includes('method:"DELETE"'));
 });
 test('SPEC-002 app exposes the character database', async () => {
