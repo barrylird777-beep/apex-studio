@@ -11,7 +11,7 @@ export function createShootDay({projectId, shootDate, callTime = null, notes = "
   if (!project) return null;
   const existing = db.select().from(shootDays).where(and(eq(shootDays.projectId,projectId),eq(shootDays.date,shootDate))).get();
   if (existing) throw Object.assign(new Error("A shoot day already exists for this project and date"), { code: "DUPLICATE_DATE" });
-  const result = db.insert(shootDays).values({projectId,date:shootDate,notes,unit:"1st Unit"}).run();
+  const result = db.insert(shootDays).values({projectId,date:shootDate,notes,callTime,unit:"1st Unit"}).run();
   return mapDay(db.select().from(shootDays).where(eq(shootDays.id,Number(result.lastInsertRowid))).get());
 }
 
