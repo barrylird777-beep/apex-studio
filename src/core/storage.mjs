@@ -25,7 +25,7 @@ async function readManifest() {
     return JSON.parse(await fs.readFile(PROJECT_FILE, "utf8"));
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
-    return { scenes: [] };
+    return { assets: [], exports: [] };
   }
 }
 
@@ -41,7 +41,7 @@ export async function initStorage() {
     await fs.access(PROJECT_FILE);
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
-    await fs.writeFile(PROJECT_FILE, JSON.stringify({ scenes: [] }, null, 2), {
+    await fs.writeFile(PROJECT_FILE, JSON.stringify({ assets: [], exports: [] }, null, 2), {
       encoding: "utf8",
       mode: 0o600,
       flag: "wx"
@@ -49,35 +49,6 @@ export async function initStorage() {
       if (writeError?.code !== "EEXIST") throw writeError;
     });
   }
-}
-
-export async function saveSceneAsset(sceneId, type, buffer, extension) {
-  await initStorage();
-  const id = safePart(sceneId, "sceneId");
-  const assetType = safePart(type, "type");
-  const ext = safePart(extension, "extension").replace(/^\./, "");
-  const filename = `${id}_${assetType}.${ext}`;
-  const filepath = path.join(STORAGE_DIR, filename);
-  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-  await fs.writeFile(filepath, bytes, { mode: 0o600 });
-
-  return queueManifestWrite(async () => {
-    const manifest = await readManifest();
-    if (!Array.isArray(manifest.scenes)) manifest.scenes = [];
-    let scene = manifest.scenes.find((entry) => entry?.id === id);
-    if (!scene) {
-      scene = { id, timestamp: Date.now() };
-      manifest.scenes.push(scene);
-    }
-    scene[assetType] = `/files/${encodeURIComponent(filename)}`;
-    scene.updatedAt = Date.now();
-    const temp = `${PROJECT_FILE}.tmp-${process.pid}-${Date.now()}`;
-    await fs.writeFile(temp, JSON.stringify(manifest, null, 2), {
-      encoding: "utf8", mode: 0o600
-    });
-    await fs.rename(temp, PROJECT_FILE);
-    return scene;
-  });
 }
 
 export async function saveProjectAsset(type, buffer, extension) {
@@ -91,7 +62,7 @@ export async function saveProjectAsset(type, buffer, extension) {
 
   return queueManifestWrite(async () => {
     const manifest = await readManifest();
-    if (!Array.isArray(manifest.scenes)) manifest.scenes = [];
+    if (!Array.isArray(manifest.assets)) manifest.assets = [];
     if (!Array.isArray(manifest.exports)) manifest.exports = [];
     const record = {
       type: assetType,
