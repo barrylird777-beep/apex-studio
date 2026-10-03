@@ -6,6 +6,7 @@ import {
   ensureWorkerTaskSchema,
   enqueueWorkerTask,
   claimNextWorkerTasks,
+  claimWorkerTask,
   completeWorkerTask,
   requeueExpiredWorkerTasks,
   closeWorkerStore
@@ -19,10 +20,10 @@ test("two workers race for one task and only one claim wins", { skip: !hasDataba
   await enqueueWorkerTask({ id, workerId: "race-test", role: "general", task: "race" });
 
   const [a, b] = await Promise.all([
-    claimNextWorkerTasks(1, 15000),
-    claimNextWorkerTasks(1, 15000)
+    claimWorkerTask(id, 15000),
+    claimWorkerTask(id, 15000)
   ]);
-  const claimed = [...a, ...b].filter(task => task.id === id);
+  const claimed = [a, b].filter(Boolean);
   assert.equal(claimed.length, 1);
 
   assert.equal(await completeWorkerTask(id, { ok: true }, claimed[0].lease_token), true);
@@ -36,7 +37,7 @@ test("expired lease can be reclaimed but stale result is rejected", { skip: !has
     await ensureWorkerTaskSchema();
     await enqueueWorkerTask({ id, workerId: "crash-test", role: "general", task: "crash", maxAttempts: 3 });
 
-    const [first] = await claimNextWorkerTasks(1, 15000);
+    const first = await claimWorkerTask(id, 15000);
     assert.equal(first.id, id);
 
     await db.query(
@@ -45,7 +46,7 @@ test("expired lease can be reclaimed but stale result is rejected", { skip: !has
     );
     assert.equal(await requeueExpiredWorkerTasks(), 1);
 
-    const [second] = await claimNextWorkerTasks(1, 15000);
+    const second = await claimWorkerTask(id, 15000);
     assert.equal(second.id, id);
     assert.notEqual(second.lease_token, first.lease_token);
 
