@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
-import path from "node:path";
 import { DeepPrivacyEngine, PROFILES, SALTS } from "../scripts/deep-privacy-engine.js";
 
 async function tempMatrixPath() {
@@ -86,9 +85,7 @@ test("rotation write failures are captured without leaving a live timer", async 
     startTimer: false
   });
 
-  assert.throws(() => {
-    engine.rotateRoutingArchitecture();
-  });
+  assert.equal(engine.rotateRoutingArchitecture(), null);
   assert.match(engine.metrics().lastWriteError, /EISDIR|directory/i);
   engine.stop();
   await fs.rm(directory, { recursive: true, force: true });
