@@ -1,8 +1,11 @@
 import httpx
+from fastapi import HTTPException
+from .config import settings
 from .config import settings
 
 class CongressConnector:
  async def search(self,query:str):
+  if settings.air_gapped_mode: raise HTTPException(503,"External connectors disabled in air-gapped mode")
   headers={"X-Api-Key":settings.congress_api_key} if settings.congress_api_key else {}
   async with httpx.AsyncClient(timeout=20) as client:
    r=await client.get("https://api.congress.gov/v3/bill",params={"format":"json","query":query},headers=headers); r.raise_for_status(); return r.json()
