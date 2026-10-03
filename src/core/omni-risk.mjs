@@ -16,8 +16,7 @@ export function detectOmniTrigger(value) {
 export function buildRiskReport({ query = "", sources = [], writes = [] } = {}) {
   return {
     at: now(),
-    mode: detectOmniTrigger(query) ? "ELEVATED_REVIEW" : "STANDARD",
-    triggerDetected: detectOmniTrigger(query),
+    mode: "STANDARD",
     network: {
       outboundRequests: sources.length,
       policy: "explicit allowlist",

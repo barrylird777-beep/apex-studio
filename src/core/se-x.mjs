@@ -1,5 +1,4 @@
 import { now, uid } from "./id.mjs";
-import { detectOmniTrigger } from "./omni-risk.mjs";
 import { cleanUntrustedText } from "./omni-sanitize.mjs";
 
 const DEFAULT_CONCURRENCY = Math.max(1, Math.min(12, Number(process.env.APEX_SEX_CONCURRENCY ?? 4)));
@@ -118,7 +117,7 @@ export class SexEngine {
     const run = {
       id: uid("search"),
       query: String(query ?? ""),
-      mode: detectOmniTrigger(query) ? "ELEVATED_REVIEW" : "STANDARD",
+      mode: "STANDARD",
       startedAt,
       status: "running",
       fragments: fragments(query),

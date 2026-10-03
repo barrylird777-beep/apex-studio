@@ -8,7 +8,6 @@ import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
-import { detectOmniTrigger } from "../core/omni-risk.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
@@ -105,7 +104,7 @@ export function createApi(studio){
   });
   r.post("/editor/undo",async(req,res)=>{try{const result=studio.commands.undo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
   r.post("/editor/redo",async(req,res)=>{try{const result=studio.commands.redo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
-  r.get("/omni/status",async(req,res)=>res.json({mode:detectOmni(req.query.q),privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
+  r.get("/omni/status",async(req,res)=>res.json({mode:"STANDARD",privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
   r.post("/omni/risk",(req,res)=>{try{res.json(studio.beginOmniReview(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
   r.post("/omni/risk/:id/confirm",(req,res)=>{try{res.json(studio.confirmOmniReview(req.params.id,req.body?.approved===true));}catch(e){res.status(400).json({error:e.message});}});
   r.post("/omni/search",async(req,res)=>{
