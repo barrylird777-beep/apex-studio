@@ -3,7 +3,6 @@ import ProjectDashboard from "./pages/ProjectDashboard";
 import CharacterDatabase from "./pages/CharacterDatabase";
 import ScriptureBreakdown from "./pages/ScriptureBreakdown";
 import SceneList from "./pages/SceneList";
-
 export default function App(){
   const path=location.pathname;
   const [p,setP]=useState(path.startsWith("/characters")?"characters":path.startsWith("/breakdown")?"breakdown":path.startsWith("/scenes")?"scenes":"projects");
