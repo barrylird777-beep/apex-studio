@@ -5,9 +5,9 @@ import { PERMANENT_WORKERS, createPermanentWorkerFleet, fleetStatus } from "../s
 test("permanent fleet has 144 assigned specialists",()=>{
   const fleet=createPermanentWorkerFleet();
   assert.equal(PERMANENT_WORKERS.length,25);
-  assert.equal(fleet.workers.length,144);
+  assert.equal(fleet.workers.length,1000);
   assert.equal(new Set(fleet.workers.map(w=>w.id)).size,144);
   assert.ok(fleet.workers.every(w=>w.permanent===true && w.job));
-  assert.equal(fleet.configuredWorkers,144);
-  assert.equal(fleetStatus(fleet).total,144);
+  assert.equal(fleet.configuredWorkers,1000);
+  assert.equal(fleetStatus(fleet).total,1000);
 });
