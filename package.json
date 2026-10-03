@@ -26,7 +26,9 @@
     "production:pm2:start": "pm2 start ecosystem.config.cjs && pm2 save",
     "production:pm2:stop": "pm2 stop apex-av1-production",
     "production:pm2:logs": "pm2 logs apex-av1-production",
-    "production:execute": "node src/core/operations/active-execution-daemon.mjs"
+    "production:execute": "node src/core/operations/active-execution-daemon.mjs",
+    "apex:run": "node apex-run.mjs",
+    "mesh:ignite": "node master-ignite.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
