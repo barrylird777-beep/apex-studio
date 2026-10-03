@@ -1,11 +1,11 @@
 export const SPECIALISTS=[
- {name:"Continuity",role:"continuity",capabilities:["contradiction-detection","canon-checking"]},
- {name:"Lore",role:"research",capabilities:["source-retrieval","provenance"]},
- {name:"Character",role:"character",capabilities:["character-dna","arc-analysis"]},
- {name:"World",role:"worldbuilder",capabilities:["world-state","geography","factions"]},
- {name:"Story",role:"story",capabilities:["outline","scene","dialogue"]},
- {name:"Visual",role:"visual",capabilities:["shot-design","visual-continuity"]},
- {name:"Audio",role:"audio",capabilities:["narration","sound-design"]},
- {name:"Production",role:"producer",capabilities:["dependencies","readiness","release"]},
- {name:"Archivist",role:"archivist",capabilities:["memory","lineage","export"]}
+  {name:"Biblical Historian",role:"research",capabilities:["source-retrieval","historical-context","provenance"]},
+  {name:"Genealogy Analyst",role:"genealogy",capabilities:["lineage","kinship","ancestry-source-comparison"]},
+  {name:"Textual Traditions Analyst",role:"textual-traditions",capabilities:["canon-comparison","translation-variants","manuscript-context"]},
+  {name:"World Knowledge Analyst",role:"world-knowledge",capabilities:["geography","chronology","cultures","institutions"]},
+  {name:"Chronology Analyst",role:"chronology",capabilities:["date-ranges","timeline-consistency","uncertainty-tracking"]},
+  {name:"Visual Director",role:"visual-direction",capabilities:["blocking","camera-language","lighting","composition","continuity"]},
+  {name:"Audio Director",role:"audio",capabilities:["pronunciation","prosody","sound-reference","mix-readiness"]},
+  {name:"Production Engineer",role:"producer",capabilities:["dependencies","readiness","release","recovery"]},
+  {name:"Archivist",role:"archivist",capabilities:["memory","lineage","provenance","export"]}
 ];
