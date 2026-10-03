@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { parseProsody } from "../src/core/prosody.mjs";
 import { monoCompatibleWidth } from "../src/core/stereo.mjs";
 import { inspectUntrusted } from "../src/core/omni-sanitize.mjs";
-import { detectOmniTrigger, buildRiskReport } from "../src/core/omni-risk.mjs";
+import { detectOmniTrigger, isProtocolOffSwitch, buildRiskReport } from "../src/core/omni-risk.mjs";
 import { createNarrativeTrack, mapNarrativeBlock } from "../src/core/narrative-map.mjs";
 import { EgressPolicy } from "../src/core/egress.mjs";
 import { OmniStore } from "../src/core/omni-store.mjs";
@@ -26,6 +26,13 @@ test("untrusted content is inspected without executing it",()=>{
   const x=inspectUntrusted('<script>fetch("https://evil")</script> hello');
   assert.equal(x.suspicious,true);
   assert.equal(x.safeText.includes("fetch"),false);
+});
+
+test("protocol off-switch is registered as NILLY-WILLY and disables the OMNI trigger for that exact command",()=>{
+  assert.equal(isProtocolOffSwitch("NILLY-WILLY"),true);
+  assert.equal(isProtocolOffSwitch("NILLY-WILLY "),true);
+  assert.equal(isProtocolOffSwitch("NILLY-WILLYX"),false);
+  assert.equal(detectOmniTrigger("NILLY-WILLY"),false);
 });
 
 test("trigger selects review mode but does not change safety policy",()=>{
