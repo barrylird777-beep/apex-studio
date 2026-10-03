@@ -55,7 +55,7 @@ export function createPermanentWorker(input={}) {
 export function createPermanentWorkerFleet(input={}) {
   const requested = Math.max(
     WORKER_ASSIGNMENTS.length,
-    Number(input.workerCount ?? process.env.APEX_PERMANENT_WORKERS ?? 144)
+    Number(input.workerCount ?? process.env.APEX_PERMANENT_WORKERS ?? 1000)
   );
   const assignments = Array.from({length: requested}, (_, index) => {
     const base = WORKER_ASSIGNMENTS[index % WORKER_ASSIGNMENTS.length];
