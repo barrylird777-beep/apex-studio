@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 30
     source_encryption_key: str
+    foia_api_key: str | None = None
     congress_api_key: str | None = None
     courtlistener_api_key: str | None = None
     internet_archive_url: str = "https://archive.org"
