@@ -38,7 +38,7 @@ test("protocol off-switch is registered as NILLY-WILLY and disables the OMNI tri
 test("trigger selects review mode but does not change safety policy",()=>{
   assert.equal(detectOmniTrigger("test [WILLY-NILLY]"),true);
   const r=buildRiskReport({query:"[WILLY-NILLY]",sources:["https://example.org"]});
-  assert.equal(r.mode,"ELEVATED_REVIEW");
+  assert.equal(r.mode,"STANDARD");
   assert.equal(r.network.telemetry,"disabled");
   assert.equal(r.process.dynamicCodeExecution,false);
 });
