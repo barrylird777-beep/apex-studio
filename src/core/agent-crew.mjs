@@ -8,14 +8,16 @@ export const HUMAN_AUTHORITY=Object.freeze({
 });
 
 export const AGENT_ROLES=Object.freeze([
-  ["research","Research Analyst","source discovery, evidence, provenance"],
-  ["analytics","Analytics Analyst","channel metrics, trends, anomalies, experiments"],
-  ["script","Production Script Utility","research-backed scripts, formatting, retention structure"],
-  ["audio","Audio Producer","voice, music, sound design, mastering"],
-  ["video","Video Producer","media processing, encoding, rendering, delivery"],
-  ["publishing","Publishing Operator","metadata, packaging, release scheduling"],
+  ["research","Biblical Research Analyst","historical sources, evidence, provenance"],
+  ["genealogy","Genealogy Analyst","ancestry, kinship, lineage evidence"],
+  ["textual-traditions","Textual Traditions Analyst","canon, translations, manuscript context"],
+  ["world-knowledge","World Knowledge Analyst","geography, chronology, cultures, institutions"],
+  ["chronology","Chronology Analyst","date ranges, timeline consistency, uncertainty"],
+  ["visual-direction","Visual Director","camera, blocking, lighting, composition, continuity"],
+  ["audio","Audio Director","pronunciation, prosody, sound reference, mastering"],
+  ["publishing","Knowledge Publishing Operator","metadata, indexing, packaging, release"],
   ["automation","Automation Operator","queues, jobs, monitoring, recovery"],
-  ["qa","Production QA","validation, security, reliability, release readiness"],
+  ["qa","Knowledge QA","fact validation, provenance, reliability, release readiness"],
   ["infrastructure","Infrastructure Operator","distributed workers, providers, queues, runtime health"]
 ]);
 
