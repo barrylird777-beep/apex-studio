@@ -4,6 +4,7 @@ import path from 'path';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
+import { Readable } from 'node:stream';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -592,10 +593,15 @@ async function proxyPollinationsMedia(kind, prompt, params, res) {
     throw new Error(`Pollinations ${kind} ${response.status}${detail ? `: ${detail}` : ''}`);
   }
   const contentType = response.headers.get('content-type') || (kind === 'video' ? 'video/mp4' : 'image/png');
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (!buffer.length) throw new Error(`Pollinations returned an empty ${kind} response`);
-  res.set({ 'Content-Type': contentType, 'Content-Length': buffer.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-  return res.send(buffer);
+  const contentLength = response.headers.get('content-length');
+  res.set({
+    'Content-Type': contentType,
+    ...(contentLength ? { 'Content-Length': contentLength } : {}),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff'
+  });
+  if (!response.body) throw new Error(`Pollinations returned an empty ${kind} response`);
+  return Readable.fromWeb(response.body).pipe(res);
 }
 
 app.post('/api/media/image', async (req, res) => {
@@ -639,7 +645,7 @@ app.get('/api/media/status', (_req, res) => {
       provider: 'pollinations',
       configured: true,
       apiKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
-      model: process.env.POLLINATIONS_VIDEO_MODEL || 'wan'
+      model: process.env.POLLINATIONS_VIDEO_MODEL || 'alibaba/wan-2.2-fast'
     },
     note: 'Availability and free usage are controlled by the upstream service. Apex does not bypass provider authentication, quotas, or billing.'
   });
