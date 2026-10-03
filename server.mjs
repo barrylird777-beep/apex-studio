@@ -14,12 +14,35 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
+import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
+import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
+import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
+const meshWorkerSupervisor = new WorkerSupervisor({
+  workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4)),
+  handler: async (payload) => {
+    const type = String(payload?.type || 'inference');
+    if (type === 'inference') {
+      const prompt = String(payload?.prompt || '').trim();
+      if (!prompt) throw new Error('Worker inference requires prompt');
+      return executeInference(prompt, String(payload?.system || DEFAULT_SYSTEM));
+    }
+    if (type === 'tile-plan') {
+      return DistributedTileRenderer.plan(
+        Number(payload?.width || 3840),
+        Number(payload?.height || 2160),
+        Number(payload?.tileSize || 1080),
+        Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4))
+      );
+    }
+    throw new Error('Unknown mesh worker task: ' + type);
+  }
+});
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -1109,8 +1132,9 @@ app.post('/api/ai/generate', async (req, res) => {
       return res.json({ success: true, provider: 'gemini', model: geminiMeshProvider.model, text });
     }
     if (requested === 'claude') {
-      const text = await claudeMeshProvider.generate(prompt, { system, model: req.body?.model });
-      return res.json({ success: true, provider: 'claude', model: claudeMeshProvider.model, text });
+      const model = String(req.body?.model || claudeMeshProvider.model);
+      const text = await claudeMeshProvider.generate(prompt, { system, model });
+      return res.json({ success: true, provider: 'claude', model, text });
     }
     const result = await executeInference(prompt, system);
     return res.json({ success: true, ...result });
@@ -1145,7 +1169,7 @@ app.get('/api/ai/status', (_req, res) => res.json({
   success: true,
   gemini: {
     configured: Boolean(process.env.GEMINI_API_KEY),
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
   },
   claude: {
     configured: Boolean(process.env.ANTHROPIC_API_KEY),
@@ -1155,6 +1179,20 @@ app.get('/api/ai/status', (_req, res) => res.json({
     configuredProviders: inferenceProviders.filter(p => p.enabled()).map(p => p.id)
   }
 }));
+
+app.post('/api/mesh/jobs', async (req, res) => {
+  try {
+    if (!meshWorkerSupervisor.started) meshWorkerSupervisor.start();
+    const result = await meshWorkerSupervisor.dispatch(req.body || {});
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return res.status(502).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/mesh/workers', (_req, res) => {
+  res.json({ success: true, ...meshWorkerSupervisor.status() });
+});
 
 app.get('/api/mesh/status', (_req, res) => {
   res.json({
@@ -1192,6 +1230,10 @@ app.get('*', (req, res, next) => {
 });
 
 await initStorage();
+meshWorkerSupervisor.start();
+if (String(process.env.APEX_START_AV1_WORKERS || 'true').toLowerCase() === 'true') {
+  void startProductionDaemon().catch(error => console.error('[av1-workers-fatal]', error));
+}
 
 app.listen(PORT, HOST, () => {
   console.log(`Apex Studio active on http://${HOST}:${PORT}`);
