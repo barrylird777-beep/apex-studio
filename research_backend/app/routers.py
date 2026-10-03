@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from .db import get_db
-from .models import Agency,FoiaRequest,Document,Source,Investigation,User
+from .models import Agency,FoiaRequest,Document,Source,Investigation,User,DocumentAnnotation,DocumentComment,InvestigationMember,ReportVersion
 from .schemas import *
 from .security import *
 from .compliance import sensitive_access_guard
@@ -123,5 +123,25 @@ async def investigation_appeal_template(investigation_id:int,db:AsyncSession=Dep
  row=await db.get(Investigation,investigation_id)
  if not row: raise HTTPException(404,"Investigation not found")
  return {"text":appeal_template({"tracking_number":investigation_id,"request_text":row.description or ""})}
+@api.post("/documents/{document_id}/annotations",dependencies=[Depends(require_role("contributor","lead_investigator","editor","admin"))])
+async def add_annotation(document_id:int,payload:dict,db:AsyncSession=Depends(get_db),claims=Depends(current_claims)):
+ row=DocumentAnnotation(document_id=document_id,user_id=int(claims["sub"]),start_offset=int(payload["start_offset"]),end_offset=int(payload["end_offset"]),note=str(payload["note"]))
+ db.add(row); await db.commit(); await db.refresh(row); return row
+
+@api.post("/documents/{document_id}/comments",dependencies=[Depends(require_role("contributor","lead_investigator","editor","admin"))])
+async def add_comment(document_id:int,payload:dict,db:AsyncSession=Depends(get_db),claims=Depends(current_claims)):
+ row=DocumentComment(document_id=document_id,user_id=int(claims["sub"]),body=str(payload["body"]))
+ db.add(row); await db.commit(); await db.refresh(row); return row
+
+@api.post("/investigations/{investigation_id}/members",dependencies=[Depends(require_role("lead_investigator","editor","admin"))])
+async def add_member(investigation_id:int,payload:dict,db:AsyncSession=Depends(get_db)):
+ row=InvestigationMember(investigation_id=investigation_id,user_id=int(payload["user_id"]),workspace_role=str(payload.get("workspace_role","viewer")))
+ db.merge(row); await db.commit(); return {"ok":True}
+
+@api.post("/investigations/{investigation_id}/reports",dependencies=[Depends(require_role("contributor","lead_investigator","editor","admin"))])
+async def save_report_version(investigation_id:int,payload:dict,db:AsyncSession=Depends(get_db),claims=Depends(current_claims)):
+ latest=await db.scalar(select(func.max(ReportVersion.version_number)).where(ReportVersion.investigation_id==investigation_id))
+ row=ReportVersion(investigation_id=investigation_id,author_user_id=int(claims["sub"]),version_number=(latest or 0)+1,body=str(payload["body"]))
+ db.add(row); await db.commit(); await db.refresh(row); return row
 @api.get("/health")
 async def health(): return {"ok":True,"service":"apex-research"}
