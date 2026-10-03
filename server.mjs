@@ -494,7 +494,76 @@ app.post('/api/forge', async (req, res) => {
 });
 
 // ============================================================
-// 4. FREE MEDIA GENERATION
+// 4. BARD AUDIO ENGINE (SERVER-SIDE TTS)
+// ============================================================
+
+app.post('/api/audio', async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      return res.status(400).json({ success: false, error: 'Text script required' });
+    }
+    if (!process.env.HF_TOKEN) {
+      return res.status(503).json({ success: false, error: 'HF_TOKEN is not configured' });
+    }
+
+    const model = process.env.HF_TTS_MODEL || 'espnet/kan-bayashi_ljspeech_vits';
+    const response = await fetchWithTimeout(
+      `https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.HF_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ inputs: text })
+      },
+      60000
+    );
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.toLowerCase().includes('audio')) {
+      let detail = '';
+      try {
+        const body = await response.text();
+        try {
+          const parsed = JSON.parse(body);
+          detail = parsed?.error || parsed?.message || body.slice(0, 300);
+          if (parsed?.estimated_time) detail += ` (estimated wait: ${parsed.estimated_time}s)`;
+        } catch {
+          detail = body.slice(0, 300);
+        }
+      } catch {}
+      throw new Error(`Hugging Face TTS ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) throw new Error('TTS provider returned an empty audio file');
+
+    res.set({
+      'Content-Type': contentType || 'audio/wav',
+      'Content-Length': buffer.length,
+      'Cache-Control': 'no-store'
+    });
+    return res.send(buffer);
+  } catch (error) {
+    console.error('[audio-fatal]', error);
+    return res.status(502).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/audio/status', (_req, res) => {
+  res.json({
+    success: true,
+    provider: 'huggingface',
+    configured: Boolean(process.env.HF_TOKEN),
+    model: process.env.HF_TTS_MODEL || 'espnet/kan-bayashi_ljspeech_vits',
+    note: 'Availability, model loading, quotas, and authentication are controlled by Hugging Face.'
+  });
+});
+
+// ============================================================
+// 5. FREE MEDIA GENERATION
 // ============================================================
 
 function pollinationsMediaKey() {
@@ -590,7 +659,7 @@ app.get('/api/media/status', (_req, res) => {
 });
 
 // ============================================================
-// 5. AUTONOMOUS CRAWLER
+// 6. AUTONOMOUS CRAWLER
 // ============================================================
 
 const CRAWLER_DEFAULTS = Object.freeze({
@@ -724,7 +793,7 @@ app.post(['/api/crawler', '/api/crawl'], async (req, res) => {
 });
 
 // ============================================================
-// 6. STATUS & HEALTH
+// 7. STATUS & HEALTH
 // ============================================================
 
 app.get('/api/mesh/status', (_req, res) => {
