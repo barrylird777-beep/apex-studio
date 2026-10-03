@@ -16,3 +16,8 @@ export const SPECIALISTS=[
   {name:"Editor UX Engineer",role:"editor-ux",capabilities:["keyboard-workflows","selection","snapping","inspector","preview","recovery"]},
   {name:"Editor QA Engineer",role:"editor-qa",capabilities:["media-edge-cases","export-validation","performance","data-integrity"]}
 ];
+
+export const PRIORITY_ORDER=Object.freeze([
+  "editor-core","video-engine","audio-engine","captions","export","editor-ux","editor-qa","infrastructure","automation",
+  "research","genealogy","textual-traditions","world-knowledge","chronology","visual-direction","publishing","archivist"
+]);
