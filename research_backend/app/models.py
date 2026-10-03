@@ -84,3 +84,37 @@ class AuditLog(Base):
  object_id:Mapped[str]=mapped_column(String(120))
  metadata_json:Mapped[dict|None]=mapped_column(JSONB)
  created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=datetime.utcnow,index=True)
+
+
+class DocumentAnnotation(Base):
+ __tablename__="document_annotations"
+ id:Mapped[int]=mapped_column(primary_key=True)
+ document_id:Mapped[int]=mapped_column(ForeignKey("documents.id",ondelete="CASCADE"),index=True)
+ user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"),index=True)
+ start_offset:Mapped[int]=mapped_column(Integer)
+ end_offset:Mapped[int]=mapped_column(Integer)
+ note:Mapped[str]=mapped_column(Text)
+ created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=datetime.utcnow)
+
+class DocumentComment(Base):
+ __tablename__="document_comments"
+ id:Mapped[int]=mapped_column(primary_key=True)
+ document_id:Mapped[int]=mapped_column(ForeignKey("documents.id",ondelete="CASCADE"),index=True)
+ user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"),index=True)
+ body:Mapped[str]=mapped_column(Text)
+ created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=datetime.utcnow)
+
+class InvestigationMember(Base):
+ __tablename__="investigation_members"
+ investigation_id:Mapped[int]=mapped_column(ForeignKey("investigations.id",ondelete="CASCADE"),primary_key=True)
+ user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"),primary_key=True)
+ workspace_role:Mapped[str]=mapped_column(String(30),default="viewer")
+
+class ReportVersion(Base):
+ __tablename__="report_versions"
+ id:Mapped[int]=mapped_column(primary_key=True)
+ investigation_id:Mapped[int]=mapped_column(ForeignKey("investigations.id",ondelete="CASCADE"),index=True)
+ author_user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="SET NULL"))
+ version_number:Mapped[int]=mapped_column(Integer)
+ body:Mapped[str]=mapped_column(Text)
+ created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=datetime.utcnow)
