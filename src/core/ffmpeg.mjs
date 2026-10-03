@@ -128,3 +128,44 @@ export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output 
 
   return { command: 'ffmpeg', args: args.concat(outputArgs), preset, inputCount: valid.length * 2, ready: true };
 }
+
+
+// Backward-compatible planner retained for the legacy render manifest/tests.
+export function buildFfmpegPlan({ media = [], audio = [], format = 'master', output = 'output.mp4' } = {}) {
+  const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS.master;
+  const video = media.filter(item => item?.uri && item.type !== 'audio');
+  const audioInputs = audio.filter(item => item?.uri);
+  if (!video.length) {
+    return {
+      command: 'ffmpeg',
+      args: ['-y', '-f', 'lavfi', '-i', `color=c=black:s=${preset.width}x${preset.height}:r=${preset.fps}`, '-t', '1', '-c:v', preset.videoCodec, output],
+      preset, inputCount: 1, ready: false, reason: 'No visual media is attached yet.'
+    };
+  }
+
+  const args = ['-y'];
+  for (const item of video) args.push('-i', path.resolve(item.uri));
+  for (const item of audioInputs) args.push('-i', path.resolve(item.uri));
+
+  const videoFilters = video.map((_, index) =>
+    `[${index}:v]scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v${index}]`
+  );
+  const chain = video.map((_, index) => `[v${index}]`).join('') + `concat=n=${video.length}:v=1:a=0[v]`;
+  const filters = [...videoFilters, chain];
+  const out = ['-filter_complex', filters.join(';'), '-map', '[v]'];
+
+  if (audioInputs.length) {
+    const offset = video.length;
+    const audioFilters = audioInputs.map((_, index) => `[${offset + index}:a]aresample=48000[a${index}]`);
+    const audioChain = audioInputs.map((_, index) => `[a${index}]`).join('') + `concat=n=${audioInputs.length}:v=0:a=1[a]`;
+    filters.push(...audioFilters, audioChain);
+    out.push('-filter_complex', filters.join(';'), '-map', '[v]', '-map', '[a]', '-c:a', preset.audioCodec, '-shortest');
+    out.splice(0, 2);
+    out.unshift('-filter_complex', filters.join(';'), '-map', '[v]', '-map', '[a]', '-c:a', preset.audioCodec, '-shortest');
+  } else {
+    out.push('-an');
+  }
+
+  out.push('-r', String(preset.fps), '-c:v', preset.videoCodec, '-movflags', '+faststart', output);
+  return { command: 'ffmpeg', args: [...args, ...out], preset, inputCount: video.length + audioInputs.length, ready: true };
+}
