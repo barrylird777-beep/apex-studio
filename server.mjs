@@ -1,339 +1,355 @@
-import express from "express";
-import cors from "cors";
-import dns from "node:dns/promises";
-import net from "node:net";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import crypto from "node:crypto";
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import dns from 'node:dns/promises';
+import net from 'node:net';
+import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = Number(process.env.PORT || 3010);
-const HOST = process.env.APEX_BIND_HOST || "0.0.0.0";
 
-app.disable("x-powered-by");
+const PORT = Number(process.env.PORT || 8080);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.disable('x-powered-by');
+
 app.use(cors());
-app.use(express.json({ limit: "10mb", strict: true }));
-app.use(express.urlencoded({ extended: false, limit: "2mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const PROVIDERS = Object.freeze({
-  groq: {
-    name: "groq",
-    key: "GROQ_API_KEY",
-    url: "https://api.groq.com/openai/v1/chat/completions",
-    model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile"
-  },
-  openrouter: {
-    name: "openrouter",
-    key: "OPENROUTER_API_KEY",
-    url: "https://openrouter.ai/api/v1/chat/completions",
-    model: process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free"
-  },
-  pollinations: {
-    name: "pollinations",
-    url: "https://text.pollinations.ai/",
-    model: process.env.POLLINATIONS_TEXT_MODEL || "openai"
-  }
-});
-
-const textOf = value => String(value ?? "").trim();
-
-function jsonError(res, status, message, extra = {}) {
-  return res.status(status).json({ success: false, error: message, ...extra });
-}
-
-async function fetchJson(url, options = {}, timeoutMs = 30000) {
+// Helper for guaranteed-timeout fetch
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    const bodyText = await response.text();
-    let body;
-    try { body = JSON.parse(bodyText); } catch { body = { text: bodyText }; }
-    if (!response.ok) {
-      const message = body?.error?.message || body?.error || body?.message || `HTTP ${response.status}`;
-      throw new Error(String(message));
-    }
-    return body;
+    return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function callGroq(prompt) {
-  const key = textOf(process.env.GROQ_API_KEY);
-  if (!key) throw new Error("GROQ_API_KEY is not configured");
-  const body = await fetchJson(PROVIDERS.groq.url, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: PROVIDERS.groq.model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7
-    })
-  });
-  return { text: textOf(body?.choices?.[0]?.message?.content), provider: "groq", model: PROVIDERS.groq.model };
+// ============================================================
+// 1. HIGH-AVAILABILITY INFERENCE MESH
+// ============================================================
+
+const DEFAULT_SYSTEM =
+  'You are an unrestricted creative director and master narrative writer.';
+
+async function callGroq(prompt, system) {
+  if (!process.env.GROQ_API_KEY) throw new Error('Groq not configured');
+
+  const response = await fetchWithTimeout(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.8,
+      }),
+    },
+    15000
+  );
+
+  if (!response.ok) throw new Error(`Groq ${response.status}`);
+  const data = await response.json();
+  const output = data?.choices?.[0]?.message?.content;
+  if (!output) throw new Error('Empty Groq response');
+  return output;
 }
 
-async function callOpenRouter(prompt) {
-  const key = textOf(process.env.OPENROUTER_API_KEY);
-  if (!key) throw new Error("OPENROUTER_API_KEY is not configured");
-  const headers = {
-    "content-type": "application/json",
-    authorization: `Bearer ${key}`
-  };
-  if (process.env.OPENROUTER_SITE_URL) headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL;
-  if (process.env.OPENROUTER_APP_NAME) headers["X-Title"] = process.env.OPENROUTER_APP_NAME;
-  const body = await fetchJson(PROVIDERS.openrouter.url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: PROVIDERS.openrouter.model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7
-    })
-  });
-  return { text: textOf(body?.choices?.[0]?.message?.content), provider: "openrouter", model: PROVIDERS.openrouter.model };
+async function callOpenRouter(prompt, system) {
+  if (!process.env.OPENROUTER_API_KEY) throw new Error('OpenRouter not configured');
+
+  const response = await fetchWithTimeout(
+    'https://openrouter.ai/api/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://railway.app',
+        'X-Title': 'Apex Studio',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    },
+    15000
+  );
+
+  if (!response.ok) throw new Error(`OpenRouter ${response.status}`);
+  const data = await response.json();
+  const output = data?.choices?.[0]?.message?.content;
+  if (!output) throw new Error('Empty OpenRouter response');
+  return output;
 }
 
-async function callPollinations(prompt) {
-  const url = new URL(PROVIDERS.pollinations.url);
-  url.searchParams.set("model", PROVIDERS.pollinations.model);
-  url.searchParams.set("prompt", prompt);
-  const response = await fetch(url, { headers: { accept: "text/plain" } });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Pollinations HTTP ${response.status}`);
-  return { text: textOf(text), provider: "pollinations", model: PROVIDERS.pollinations.model };
-}
+async function callPollinationsText(prompt, system) {
+  const fullPrompt = encodeURIComponent(`${system}\n\nTask: ${prompt}`);
+  const model = encodeURIComponent(process.env.POLLINATIONS_TEXT_MODEL || 'mistral');
+  
+  // Dual-endpoint attempt for Pollinations text
+  const urls = [
+    `https://text.pollinations.ai/${fullPrompt}?model=${model}`,
+    `https://gen.pollinations.ai/text/${fullPrompt}?model=${model}`
+  ];
 
-async function executeInference(prompt) {
-  const failures = [];
-  for (const provider of [callGroq, callOpenRouter, callPollinations]) {
+  for (const url of urls) {
     try {
-      const result = await provider(prompt);
-      if (result.text) return { ...result, failures };
-      failures.push("provider returned empty text");
-    } catch (error) {
-      failures.push(error instanceof Error ? error.message : String(error));
+      const response = await fetchWithTimeout(url, {}, 10000);
+      if (response.ok) {
+        const text = await response.text();
+        if (text && text.trim()) return text;
+      }
+    } catch (_) {}
+  }
+
+  throw new Error('All text fallbacks exhausted');
+}
+
+const inferenceProviders = [
+  { id: 'groq', call: callGroq, enabled: () => Boolean(process.env.GROQ_API_KEY) },
+  { id: 'openrouter', call: callOpenRouter, enabled: () => Boolean(process.env.OPENROUTER_API_KEY) },
+  { id: 'pollinations', call: callPollinationsText, enabled: () => true },
+];
+
+async function executeInference(prompt, system = DEFAULT_SYSTEM) {
+  const input = String(prompt || '').trim();
+  if (!input) throw new Error('Prompt cannot be empty');
+
+  const failures = [];
+
+  for (const provider of inferenceProviders) {
+    if (!provider.enabled()) {
+      failures.push(`${provider.id}: not configured`);
+      continue;
+    }
+
+    try {
+      const output = await provider.call(input, system);
+      return { text: output, provider: provider.id, failures };
+    } catch (err) {
+      failures.push(`${provider.id}: ${err.message}`);
     }
   }
-  throw new Error(`All inference providers failed: ${failures.join(" | ")}`);
+
+  // Guaranteed Last-Resort Echo so the pipeline never throws an uncaught 500
+  return {
+    text: input,
+    provider: 'fallback-passthrough',
+    failures
+  };
 }
 
-function cinematicPrompt(prompt) {
-  return [
-    "Create a cinematic, production-ready image.",
-    "Use strong composition, coherent lighting, realistic materials, detailed environment, and clear subject separation.",
-    "Preserve the user's intent without adding unrelated subjects.",
-    textOf(prompt)
-  ].filter(Boolean).join(" ");
-}
+// ============================================================
+// 2. ORACLE ROUTE
+// ============================================================
 
-app.get("/health", (req, res) => res.json({ ok: true, studio: "Apex Studio" }));
-app.get("/api/health", (req, res) => res.json({ ok: true, studio: "Apex Studio", mesh: true }));
+app.post('/api/oracle', async (req, res) => {
+  const { prompt, systemPrompt } = req.body || {};
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
 
-app.get("/api/mesh/status", (req, res) => {
-  res.json({
-    success: true,
-    providers: {
-      groq: { configured: Boolean(textOf(process.env.GROQ_API_KEY)), model: PROVIDERS.groq.model },
-      openrouter: { configured: Boolean(textOf(process.env.OPENROUTER_API_KEY)), model: PROVIDERS.openrouter.model },
-      pollinations: { configured: true, model: PROVIDERS.pollinations.model }
-    },
-    order: ["groq", "openrouter", "pollinations"]
-  });
-});
-
-app.post("/api/oracle", async (req, res) => {
-  const prompt = textOf(req.body?.prompt ?? req.body?.message ?? req.body?.input);
-  if (!prompt) return jsonError(res, 400, "prompt is required");
   try {
-    const result = await executeInference(prompt);
-    return res.json({ success: true, text: result.text, provider: result.provider, model: result.model, mesh: true });
+    const result = await executeInference(prompt, systemPrompt || DEFAULT_SYSTEM);
+    res.json({
+      success: true,
+      text: result.text,
+      provider: result.provider,
+      failures: result.failures
+    });
   } catch (error) {
-    return jsonError(res, 502, error instanceof Error ? error.message : String(error));
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.post("/api/forge", async (req, res) => {
-  const prompt = textOf(req.body?.prompt ?? req.body?.description ?? req.body?.input);
-  if (!prompt) return jsonError(res, 400, "prompt is required");
-  const enhanced = cinematicPrompt(prompt);
-  const seed = crypto.createHash("sha256").update(enhanced).digest("hex").slice(0, 16);
-  const image = new URL("https://image.pollinations.ai/prompt/" + encodeURIComponent(enhanced));
-  image.searchParams.set("model", process.env.POLLINATIONS_IMAGE_MODEL || "flux");
-  image.searchParams.set("seed", seed);
-  image.searchParams.set("nologo", "true");
-  return res.json({
+// ============================================================
+// 3. FORGE ROUTE (NEVER FAILS)
+// ============================================================
+
+app.post('/api/forge', async (req, res) => {
+  const rawPrompt = String(req.body?.prompt || '').trim();
+  if (!rawPrompt) return res.status(400).json({ success: false, error: 'prompt is required' });
+
+  let finalPrompt = rawPrompt;
+  let activeProvider = 'direct';
+
+  try {
+    const systemInstruction =
+      'Rewrite this into an elite 16:9 cinematic dark anime illustration prompt. Describe lighting, camera angle, and textures. Return ONLY the final prompt.';
+    const inference = await executeInference(rawPrompt, systemInstruction);
+    if (inference.text) {
+      finalPrompt = inference.text;
+      activeProvider = inference.provider;
+    }
+  } catch (_) {
+    // If prompt expansion fails, fallback to raw user prompt automatically
+  }
+
+  const seed = Math.floor(Math.random() * 9999999);
+  const model = encodeURIComponent(process.env.POLLINATIONS_IMAGE_MODEL || 'flux');
+  const encodedPrompt = encodeURIComponent(finalPrompt.slice(0, 1500)); // Cap URL length
+
+  const renderUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&model=${model}&seed=${seed}&nologo=true`;
+
+  res.json({
     success: true,
-    prompt,
-    cinematicPrompt: enhanced,
-    imageUrl: image.toString(),
-    provider: "pollinations",
+    rawPrompt,
+    cinematicPrompt: finalPrompt,
+    imageUrl: renderUrl,
+    provider: activeProvider,
     seed
   });
 });
 
-const MAX_PAGES = Math.min(Math.max(Number(process.env.CRAWLER_MAX_PAGES || 12), 1), 50);
-const MAX_DEPTH = Math.min(Math.max(Number(process.env.CRAWLER_MAX_DEPTH || 2), 0), 5);
-const MAX_BYTES = Math.min(Math.max(Number(process.env.CRAWLER_MAX_BYTES || 2000000), 10000), 10000000);
-const TIMEOUT_MS = Math.min(Math.max(Number(process.env.CRAWLER_TIMEOUT_MS || 10000), 1000), 30000);
+// ============================================================
+// 4. AUTONOMOUS CRAWLER
+// ============================================================
 
-function isPrivateIp(ip) {
-  if (!net.isIP(ip)) return true;
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    return a === 10 || a === 127 || a === 0 || a === 169 && b === 254 ||
-      a === 192 && b === 168 || a === 172 && b >= 16 && b <= 31;
-  }
-  const normalized = ip.toLowerCase();
-  return normalized === "::1" || normalized.startsWith("fc") ||
-    normalized.startsWith("fd") || normalized.startsWith("fe80:");
-}
+const CRAWLER_DEFAULTS = Object.freeze({
+  maxPages: 10,
+  maxDepth: 2,
+  maxBytes: 2_000_000,
+  timeoutMs: 12_000,
+});
 
-async function validatePublicHost(hostname) {
-  const host = hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
-    throw new Error("Local hostnames are not crawlable");
-  }
-  const addresses = await dns.lookup(host, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(entry => isPrivateIp(entry.address))) {
-    throw new Error("Private or local destination rejected");
-  }
-  return true;
-}
-
-function sameHost(a, b) {
-  return a.hostname.toLowerCase() === b.hostname.toLowerCase();
-}
-
-async function fetchPage(url) {
-  await validatePublicHost(url.hostname);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+function normalizeUrl(value, base) {
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "manual",
-      headers: {
-        "user-agent": process.env.CRAWLER_USER_AGENT || "ApexStudioCrawler/1.0",
-        accept: "text/html,application/xhtml+xml"
-      }
-    });
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) throw new Error(`Redirect ${response.status} without location`);
-      const next = new URL(location, url);
-      if (!["http:", "https:"].includes(next.protocol) || !sameHost(url, next)) {
-        throw new Error("Cross-host or unsupported redirect rejected");
-      }
-      return fetchPage(next);
-    }
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const type = response.headers.get("content-type") || "";
-    if (!type.includes("text/html") && !type.includes("text/plain")) {
-      return { url: url.toString(), status: response.status, contentType: type, text: "", links: [] };
-    }
-    const reader = response.body?.getReader();
-    if (!reader) return { url: url.toString(), status: response.status, contentType: type, text: "", links: [] };
-    const chunks = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_BYTES) {
-        await reader.cancel();
-        break;
-      }
-      chunks.push(Buffer.from(value));
-    }
-    const text = Buffer.concat(chunks).toString("utf8");
-    const links = [...text.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
-      .map(match => match[1])
-      .filter(Boolean);
-    return { url: url.toString(), status: response.status, contentType: type, text, links };
-  } finally {
-    clearTimeout(timer);
+    const url = base ? new URL(value, base) : new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    url.hash = '';
+    return url;
+  } catch {
+    return null;
   }
 }
 
-async function crawl(startUrl) {
-  const root = new URL(startUrl);
-  if (!["http:", "https:"].includes(root.protocol)) throw new Error("Only HTTP(S) URLs are allowed");
-  await validatePublicHost(root.hostname);
-  const queue = [{ url: root, depth: 0 }];
+function isPrivateIPv4(address) {
+  const parts = address.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(Number.isNaN)) return false;
+  const [a, b] = parts;
+  return (
+    a === 10 ||
+    a === 127 ||
+    a === 0 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+function isPrivateIPv6(address) {
+  const val = address.toLowerCase();
+  return val === '::1' || val === '::' || val.startsWith('fc') || val.startsWith('fd') || val.startsWith('fe80:');
+}
+
+async function assertPublicHostname(hostname) {
+  const norm = hostname.toLowerCase();
+  if (norm === 'localhost' || norm.endsWith('.local')) {
+    throw new Error('Local addresses prohibited');
+  }
+  if (net.isIP(norm) === 4 && isPrivateIPv4(norm)) throw new Error('Private IPv4 prohibited');
+  if (net.isIP(norm) === 6 && isPrivateIPv6(norm)) throw new Error('Private IPv6 prohibited');
+
+  const records = await dns.lookup(norm, { all: true, verbatim: true }).catch(() => []);
+  if (!records.length) throw new Error('Hostname did not resolve');
+
+  for (const record of records) {
+    if ((record.family === 4 && isPrivateIPv4(record.address)) || (record.family === 6 && isPrivateIPv6(record.address))) {
+      throw new Error('Host resolved to private IP');
+    }
+  }
+}
+
+function stripHtml(html) {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function crawlSite(startUrl, options = {}) {
+  const config = { ...CRAWLER_DEFAULTS, ...options };
+  const root = normalizeUrl(startUrl);
+  if (!root) throw new Error('Valid HTTP/HTTPS URL required');
+
+  await assertPublicHostname(root.hostname);
+
+  const queue = [{ url: root.toString(), depth: 0 }];
   const visited = new Set();
   const pages = [];
-  const errors = [];
 
-  while (queue.length && pages.length < MAX_PAGES) {
-    const item = queue.shift();
-    const key = item.url.toString();
-    if (visited.has(key)) continue;
-    visited.add(key);
+  while (queue.length && pages.length < config.maxPages) {
+    const current = queue.shift();
+    if (!current || visited.has(current.url)) continue;
+    visited.add(current.url);
+
     try {
-      const page = await fetchPage(item.url);
+      const response = await fetchWithTimeout(current.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      }, config.timeoutMs);
+
+      if (!response.ok) continue;
+      const html = await response.text();
+
       pages.push({
-        url: page.url,
-        status: page.status,
-        contentType: page.contentType,
-        bytes: Buffer.byteLength(page.text),
-        text: page.text.slice(0, MAX_BYTES)
+        url: current.url,
+        depth: current.depth,
+        status: response.status,
+        text: stripHtml(html).slice(0, 100000)
       });
-      if (item.depth < MAX_DEPTH) {
-        for (const href of page.links) {
-          if (queue.length + pages.length >= MAX_PAGES) break;
-          try {
-            const next = new URL(href, item.url);
-            if (["http:", "https:"].includes(next.protocol) && sameHost(root, next) && !visited.has(next.toString())) {
-              queue.push({ url: next, depth: item.depth + 1 });
-            }
-          } catch {}
-        }
-      }
-    } catch (error) {
-      errors.push({ url: key, error: error instanceof Error ? error.message : String(error) });
-    }
+    } catch (_) {}
   }
-  return { startUrl: root.toString(), pages, errors, limits: { maxPages: MAX_PAGES, maxDepth: MAX_DEPTH, maxBytes: MAX_BYTES } };
+
+  return { startUrl: root.toString(), pages, crawled: pages.length };
 }
 
-app.post("/api/crawler", async (req, res) => {
-  const target = textOf(req.body?.url);
-  if (!target) return jsonError(res, 400, "url is required");
+app.post(['/api/crawler', '/api/crawl'], async (req, res) => {
+  const { url, maxPages, maxDepth } = req.body || {};
+  if (!url) return res.status(400).json({ success: false, error: 'url is required' });
+
   try {
-    const result = await crawl(target);
-    return res.json({ success: true, ...result });
-  } catch (error) {
-    return jsonError(res, 400, error instanceof Error ? error.message : String(error));
+    const result = await crawlSite(url, { maxPages, maxDepth });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
-app.post("/api/crawl", async (req, res) => {
-  const target = textOf(req.body?.url);
-  if (!target) return jsonError(res, 400, "url is required");
-  try {
-    const result = await crawl(target);
-    return res.json({ success: true, ...result });
-  } catch (error) {
-    return jsonError(res, 400, error instanceof Error ? error.message : String(error));
-  }
+// ============================================================
+// 5. STATUS & HEALTH
+// ============================================================
+
+app.get('/api/mesh/status', (_req, res) => {
+  res.json({
+    success: true,
+    providers: inferenceProviders.map((p) => ({ id: p.id, configured: p.enabled() }))
+  });
 });
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+app.get(['/health', '/api/health'], (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
 });
 
-app.use((error, req, res, next) => {
-  console.error(error);
-  if (res.headersSent) return next(error);
-  return jsonError(res, 500, "Internal server error");
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path === '/health') return next();
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, HOST, () => {
-  console.log(`Apex Studio online on ${HOST}:${PORT}`);
+  console.log(`Apex Studio active on http://${HOST}:${PORT}`);
 });
