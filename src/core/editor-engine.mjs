@@ -62,3 +62,45 @@ export function moveClip(project,trackId,clipId,start,{ripple=false}={}){const {
 export function removeClip(project,trackId,clipId,{ripple=false}={}){const {t,clip}=findClip(project,trackId,clipId);const end=clip.start+clip.duration;t.clips=t.clips.filter(x=>x.id!==clipId);if(ripple)for(const other of t.clips)if(other.start>=end)other.start=Math.max(0,other.start-clip.duration);project.duration=Math.max(0,...project.tracks.flatMap(x=>x.clips.map(y=>y.start+y.duration)),0);touch(project);return clip;}
 export function snapshotEditor(project){return structuredClone(project);}
 export function restoreEditor(project,snapshot){if(!snapshot||typeof snapshot!=="object")throw new TypeError("Invalid editor snapshot");return Object.assign(project,structuredClone(snapshot));}
+
+
+export function setTrackState(project, trackId, patch={}) {
+  const track=project.tracks.find(x=>x.id===trackId);
+  if(!track) throw new Error("Track not found");
+  for(const key of ["name","muted","solo","locked","visible","height"]) if(key in patch) track[key]=patch[key];
+  touch(project);
+  return track;
+}
+export function addTrackGroup(project, name="Group", trackIds=[]) {
+  const ids=new Set(trackIds);
+  const tracks=project.tracks.filter(t=>ids.has(t.id));
+  if(!tracks.length) throw new Error("No tracks selected");
+  const group={id:uid(),name:String(name),trackIds:tracks.map(t=>t.id),collapsed:false};
+  project.groups??=[];
+  project.groups.push(group);
+  touch(project);
+  return group;
+}
+export function toggleTrackGroup(project, groupId, collapsed) {
+  const group=(project.groups??[]).find(x=>x.id===groupId);
+  if(!group) throw new Error("Track group not found");
+  group.collapsed=Boolean(collapsed);
+  touch(project);
+  return group;
+}
+export function snapTime(project, time, {trackId=null, threshold=0.12, excludeClipId=null}={}) {
+  const target=Math.max(0,n(time,0));
+  const points=[0,...(project.markers??[]).map(m=>n(m.time,0))];
+  for(const track of project.tracks??[]) for(const clip of track.clips??[]) {
+    if(trackId&&track.id!==trackId) continue;
+    if(excludeClipId&&clip.id===excludeClipId) continue;
+    points.push(n(clip.start,0),n(clip.start+clip.duration,0));
+  }
+  let best=target, distance=Math.abs(target-best);
+  for(const point of points){const d=Math.abs(point-target);if(d<=Math.max(0,n(threshold,.12))&&d<distance){best=point;distance=d;}}
+  return {time:best,snapped:best!==target,distance};
+}
+export function moveClipSnapped(project,trackId,clipId,start,options={}) {
+  const {time,snapped}=snapTime(project,start,{...options,trackId,excludeClipId:clipId});
+  return {...moveClip(project,trackId,clipId,time,options),snapped};
+}
