@@ -165,7 +165,7 @@ const permanentWorkerHeartbeat = setInterval(() => {
       worker.lastError = String(error?.message || error);
       worker.taskStartedAt = null;
       worker.taskToken = null;
-    });
+    }));
   }
   Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
 }, apexOverseer.intervalMs);
