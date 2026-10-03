@@ -3,6 +3,15 @@ const uid=(prefix="id")=>prefix+"-"+crypto.randomUUID();
 const now=()=>new Date().toISOString();
 
 const TASKS = Object.freeze([
+  ["editor-core","Upgrade the all-in-one editor: multitrack timeline, trimming, snapping, ripple edits, keyframes, transitions, undo/redo."],
+  ["video-engine","Upgrade video processing: proxies, hardware encoding, color transforms, effects, compositing, frame accuracy, render performance."],
+  ["audio-engine","Upgrade audio: multitrack mixing, loudness, ducking, fades, time-stretching, cleanup, meters, synchronization."],
+  ["captions","Upgrade captions/subtitles: styling, animation, timing, import/export, burn-in, accessibility."],
+  ["export","Upgrade delivery: H.264/H.265/AV1, 4K/60, presets, bitrate control, batch exports, validation, recovery."],
+  ["editor-ux","Upgrade editor interaction speed: keyboard workflows, selection, snapping, inspector controls, responsive previews, project recovery."],
+  ["editor-qa","Continuously test editor operations, media edge cases, export correctness, performance regressions, and data integrity."],
+  ["infrastructure","Monitor worker health, provider availability, queue latency, storage, and deployment reliability."],
+  ["automation","Keep the overnight queue flowing: retries, deduplication, checkpoints, recovery, and worker balancing."],
   ["research","Build source-backed historical profiles for biblical figures; record primary/secondary sources and uncertainty."],
   ["genealogy","Build ancestry and kinship records from explicit textual evidence; flag disputed genealogies instead of guessing."],
   ["textual-traditions","Compare canon, translation, manuscript, and textual-tradition differences relevant to reference data."],
@@ -42,7 +51,7 @@ export function createOvernightKnowledgePlan({hours=10}={}) {
       id:uid("knowledge-task"),
       role,
       objective,
-      priority:index<6?100:90,
+      priority:index<11?100:90,
       status:"queued",
       createdAt
     }))
