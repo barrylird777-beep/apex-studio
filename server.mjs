@@ -418,9 +418,26 @@ const requestedOrder = String(process.env.APEX_INFERENCE_ORDER || '')
   .map((id) => id.trim())
   .filter(Boolean);
 
-const inferenceProviders = requestedOrder.length
-  ? requestedOrder.map((id) => allInferenceProviders.find((provider) => provider.id === id)).filter(Boolean)
-  : allInferenceProviders;
+const defaultInferenceOrder = [
+  'gemini-free',
+  'claude',
+  'nvidia-free',
+  'cohere-free',
+  'ollama-local',
+  'groq-free',
+  'mistral-free',
+  'cerebras-free',
+  'openrouter-free',
+  'cloudflare-free',
+  'pollinations',
+  'huggingface-metered',
+  'aimlapi-metered',
+  'sambanova-metered'
+];
+
+const inferenceProviders = (requestedOrder.length ? requestedOrder : defaultInferenceOrder)
+  .map((id) => allInferenceProviders.find((provider) => provider.id === id))
+  .filter(Boolean);
 
 function isProviderCoolingDown(id) {
   const until = providerCooldowns.get(id) || 0;
