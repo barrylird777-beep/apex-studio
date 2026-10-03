@@ -22,7 +22,10 @@
     "security:negative-tls": "APEX_RUN_DEPLOYED_TLS_TESTS=true node --test test/security/negative_tls_protocol.test.js",
     "security:gate": "node scripts/security/security-gate.mjs",
     "production:worker": "node index.mjs",
-    "production:daemon": "node src/workers/av1-production-daemon.mjs"
+    "production:daemon": "node src/workers/av1-production-daemon.mjs",
+    "production:pm2:start": "pm2 start ecosystem.config.cjs && pm2 save",
+    "production:pm2:stop": "pm2 stop apex-av1-production",
+    "production:pm2:logs": "pm2 logs apex-av1-production"
   },
   "dependencies": {
     "express": "^4.19.2",
