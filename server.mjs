@@ -1223,3 +1223,5 @@ app.post('/api/voiceover/jobs', async (req,res) => {
 app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
+
+app.listen(PORT, HOST, () => console.log(`[apex] server listening on ${HOST}:${PORT}`));
