@@ -1,17 +1,10 @@
 import crypto from "node:crypto";
 import { now } from "./id.mjs";
 
-export const OMNI_TRIGGER = "[WILLY-NILLY]";
-
-export function detectOmniTrigger(value) {
-  return String(value ?? "").includes(OMNI_TRIGGER);
-}
-
 export function buildRiskReport({ query = "", sources = [], writes = [] } = {}) {
   return {
     at: now(),
-    mode: detectOmniTrigger(query) ? "ELEVATED_REVIEW" : "STANDARD",
-    triggerDetected: detectOmniTrigger(query),
+    mode: "STANDARD",
     network: {
       outboundRequests: sources.length,
       policy: "explicit allowlist",
