@@ -218,7 +218,7 @@ async function migrate() {
       }
     }
   }
-  if (production.has("audio_tags"))) {
+  if (production.has("audio_tags")) {
     const rows = await all("SELECT node_id,audio_tags FROM production_timelines WHERE audio_tags IS NOT NULL");
     for (const row of rows) {
       const tags=parse(row.audio_tags,[]);
@@ -311,8 +311,137 @@ async function init() {
   parentPort.postMessage({id:0,ok:true,value:{ready:true,file,busyTimeout}});
 }
 
+
+async function fragmentText(text) {
+  const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
+  const out = [];
+  for (let offset = 0, index = 0; offset < normalized.length; offset += 4000, index++) {
+    out.push({ index, offset, text: normalized.slice(offset, offset + 4000) });
+  }
+  return out;
+}
+async function appendRecord(table, record) {
+  if (table === "search_runs") {
+    await run("INSERT INTO search_runs(id,query,mode,started_at,finished_at,status,sources,results) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET query=excluded.query,mode=excluded.mode,started_at=excluded.started_at,finished_at=excluded.finished_at,status=excluded.status,sources=excluded.sources,results=excluded.results",
+      [record.id,record.query,record.mode,record.startedAt,record.finishedAt,record.status,json(record.sources,[]),json(record.results,[])]);
+    if (Array.isArray(record.fragments)) {
+      await run("DELETE FROM search_run_fragments WHERE run_id=?",[record.id]);
+      for (const [position,value] of record.fragments.entries())
+        await run("INSERT INTO search_run_fragments(run_id,fragment_index,text) VALUES(?,?,?)",[record.id,position,String(value)]);
+    }
+    return record;
+  }
+  if (table === "search_results") {
+    await run("INSERT OR REPLACE INTO search_results(id,run_id,url,status,content_type,created_at) VALUES(?,?,?,?,?,?)",
+      [record.id,record.runId,record.url,record.status,record.contentType,record.createdAt]);
+    if (record.text) {
+      await run("DELETE FROM parsed_passage_fragments WHERE result_id=?",[record.id]);
+      for (const part of await fragmentText(record.text))
+        await run("INSERT INTO parsed_passage_fragments(run_id,result_id,fragment_index,char_offset,text) VALUES(?,?,?,?,?)",[record.runId,record.id,part.index,part.offset,part.text]);
+    }
+    return record;
+  }
+  if (table === "narrative_tracks") {
+    await run("INSERT OR REPLACE INTO narrative_tracks(id,project_id,branch_id,timeline_id,created_at) VALUES(?,?,?,?,?)",
+      [record.id,record.projectId,record.branchId,record.timelineId,record.createdAt]);
+    await run("DELETE FROM narrative_blocks WHERE track_id=?",[record.id]);
+    for (const [position,b] of (record.blocks??[]).entries()) {
+      const block=b??{};
+      await run("INSERT INTO narrative_blocks(track_id,position,block_type,text_ref,visual_ref,vocal_ref) VALUES(?,?,?,?,?,?)",
+        [record.id,position,block.type??null,json(block.text,null),json(block.visualFrames??block.visual??null,null),json(block.vocal??null,null)]);
+    }
+    return record;
+  }
+  if (table === "voice_assets") {
+    await run("INSERT OR REPLACE INTO voice_assets(id,track_id,playback_uri,media_uri,asset_id,content_type,content_length,content_hash,metadata,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      [record.id,record.trackId,record.playbackUri??record.mediaUri??null,record.mediaUri??null,record.assetId??null,record.contentType??null,record.contentLength??null,record.contentHash??null,json(record.metadata,{}),record.createdAt]);
+    return record;
+  }
+  throw new Error("Unsupported OMNI table: "+table);
+}
+async function listRecord(table, limit) {
+  const n=Math.max(1,Math.min(5000,Number(limit)||500));
+  if(table==="search_runs"){
+    const rows=await all("SELECT * FROM search_runs ORDER BY rowid DESC LIMIT ?",[n]);
+    return Promise.all(rows.map(async row=>{
+      const fragments=await all("SELECT text FROM search_run_fragments WHERE run_id=? ORDER BY fragment_index",[row.id]);
+      return {...row,fragments:fragments.map(x=>x.text),sources:parse(row.sources,[]),results:parse(row.results,[])};
+    }));
+  }
+  if(table==="search_results") return all("SELECT * FROM search_results ORDER BY rowid DESC LIMIT ?",[n]);
+  if(table==="narrative_tracks"){
+    const rows=await all("SELECT * FROM narrative_tracks ORDER BY rowid DESC LIMIT ?",[n]);
+    return Promise.all(rows.map(async row=>{
+      const blocks=await all("SELECT block_type,text_ref,visual_ref,vocal_ref FROM narrative_blocks WHERE track_id=? ORDER BY position",[row.id]);
+      return {...row,blocks:blocks.map(b=>({type:b.block_type,text:parse(b.text_ref,null),visualFrames:parse(b.visual_ref,null),vocal:parse(b.vocal_ref,null)}))};
+    }));
+  }
+  if(table==="voice_assets"){
+    const rows=await all("SELECT * FROM voice_assets ORDER BY rowid DESC LIMIT ?",[n]);
+    return rows.map(row=>({...row,metadata:parse(row.metadata,{})}));
+  }
+  throw new Error("Unsupported OMNI table: "+table);
+}
+async function createProductionTimeline(input={}) {
+  const nodeId=String(input.nodeId??input.node_id??""); const sceneLabel=String(input.sceneLabel??input.scene_label??""); const timecode=String(input.timecode??"");
+  if(!nodeId||!sceneLabel||!timecode) throw new Error("nodeId, sceneLabel, and timecode are required");
+  await run("INSERT INTO production_timelines(node_id,scene_label,timecode,aesthetic_profile,prompt) VALUES(?,?,?,?,?)",[nodeId,sceneLabel,timecode,input.aestheticProfile??input.aesthetic_profile??null,input.prompt??null]);
+  await run("DELETE FROM production_timeline_audio_tags WHERE timeline_id=?",[nodeId]);
+  for(const [position,tag] of (Array.isArray(input.audioTags)?input.audioTags:[]).entries()) await run("INSERT INTO production_timeline_audio_tags(timeline_id,tag,position) VALUES(?,?,?)",[nodeId,String(tag),position]);
+  return getProductionTimeline(nodeId);
+}
+async function getProductionTimeline(nodeId) {
+  const row=await get("SELECT * FROM production_timelines WHERE node_id=?",[String(nodeId)]); if(!row)return null;
+  const tags=await all("SELECT tag FROM production_timeline_audio_tags WHERE timeline_id=? ORDER BY position",[row.node_id]);
+  return {...row,nodeId:row.node_id,sceneLabel:row.scene_label,timecode:row.timecode,aestheticProfile:row.aesthetic_profile,audioTags:tags.map(x=>x.tag)};
+}
+async function createTimelineMutation(input={}) {
+  const parentNodeId=String(input.parentNodeId??input.parent_node_id??""); const branchId=String(input.branchId??input.branch_id??"");
+  if(!parentNodeId||!branchId) throw new Error("parentNodeId and branchId are required");
+  const result=await run("INSERT INTO timeline_mutations(parent_node_id,branch_id) VALUES(?,?)",[parentNodeId,branchId]);
+  const id=result.lastID;
+  for(const [position,value] of (Array.isArray(input.alteredVisual)?input.alteredVisual:input.visual??[]).entries()) await run("INSERT INTO timeline_mutation_visual(mutation_id,position,value) VALUES(?,?,?)",[id,position,json(value,null)]);
+  for(const [position,value] of (Array.isArray(input.alteredVocal)?input.alteredVocal:input.vocal??[]).entries()) await run("INSERT INTO timeline_mutation_vocal(mutation_id,position,value) VALUES(?,?,?)",[id,position,json(value,null)]);
+  return getTimelineMutation(id);
+}
+async function getTimelineMutation(id) {
+  const row=await get("SELECT * FROM timeline_mutations WHERE id=?",[Number(id)]); if(!row)return null;
+  const visual=await all("SELECT value FROM timeline_mutation_visual WHERE mutation_id=? ORDER BY position",[row.id]);
+  const vocal=await all("SELECT value FROM timeline_mutation_vocal WHERE mutation_id=? ORDER BY position",[row.id]);
+  return {...row,alteredVisual:visual.map(x=>parse(x.value,null)),alteredVocal:vocal.map(x=>parse(x.value,null))};
+}
+async function listTimelineMutations(parentNodeId=null,limit=500) {
+  const n=Math.max(1,Math.min(5000,Number(limit)||500));
+  const rows=parentNodeId?await all("SELECT * FROM timeline_mutations WHERE parent_node_id=? ORDER BY id ASC LIMIT ?",[String(parentNodeId),n]):await all("SELECT * FROM timeline_mutations ORDER BY id ASC LIMIT ?",[n]);
+  return Promise.all(rows.map(x=>getTimelineMutation(x.id)));
+}
+
 async function op(message) {
   const { op, payload={} } = message;
+  if (op==="append") return appendRecord(payload.table,payload.record);
+  if (op==="list") return listRecord(payload.table,payload.limit);
+  if (op==="createProductionTimeline") return createProductionTimeline(payload.input);
+  if (op==="getProductionTimeline") return getProductionTimeline(payload.nodeId);
+  if (op==="listProductionTimelines") {
+    const rows=await all("SELECT node_id FROM production_timelines ORDER BY id ASC LIMIT ?",[Math.max(1,Math.min(5000,Number(payload.limit)||500))]);
+    return Promise.all(rows.map(x=>getProductionTimeline(x.node_id)));
+  }
+  if (op==="createTimelineMutation") return createTimelineMutation(payload.input);
+  if (op==="getTimelineMutation") return getTimelineMutation(payload.id);
+  if (op==="listTimelineMutations") return listTimelineMutations(payload.parentNodeId??null,payload.limit??500);
+  if (op==="searchPassages") {
+    const q=String(payload.query??"").trim(); if(!q)return [];
+    const n=Math.max(1,Math.min(500,Number(payload.limit)||50));
+    return all(`SELECT p.id,p.run_id,p.result_id,p.fragment_index,p.char_offset,p.text,r.url,r.content_type,bm25(parsed_passage_fragments_fts) AS rank
+      FROM parsed_passage_fragments_fts f JOIN parsed_passage_fragments p ON p.id=f.rowid
+      LEFT JOIN search_results r ON r.id=p.result_id
+      WHERE parsed_passage_fragments_fts MATCH ? ORDER BY rank LIMIT ?`,[q,n]);
+  }
+  if (op==="migrateLegacyText") {
+    const n=Math.max(1,Math.min(10000,Number(payload.limit)||1000));
+    const rows=await all("SELECT id,run_id FROM search_results ORDER BY rowid ASC LIMIT ?",[n]);
+    return {migrated:rows.length};
+  }
   if (op==="run") return run(payload.sql,payload.params??[]);
   if (op==="get") return get(payload.sql,payload.params??[]);
   if (op==="all") return all(payload.sql,payload.params??[]);
