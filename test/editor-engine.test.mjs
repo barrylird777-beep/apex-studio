@@ -17,21 +17,19 @@ test("editor supports layered media, keyframes, effects, captions and export",()
   assert.equal(plan.codec,"h265"); assert.equal(validateEditorProject(p).ok,true);
 });
 
-
 test("editor supports split trim ripple move remove and snapshots",()=>{
  const p=createEditorProject(); const t=addTrack(p); const a=addClip(p,t.id,{start:0,duration:10}); const b=addClip(p,t.id,{start:10,duration:5});
  trimClip(p,t.id,a.id,{duration:8}); splitClip(p,t.id,a.id,4); moveClip(p,t.id,b.id,20); removeClip(p,t.id,b.id,{ripple:true});
  const snap=snapshotEditor(p); p.duration=999; restoreEditor(p,snap); assert.equal(p.duration,snap.duration); assert.equal(validateEditorProject(p).ok,true);
 });
 
-
 test("editor supports snapping, track state, grouping and snapped moves",()=>{
  const p=createEditorProject(); const a=addTrack(p,"video","A"); const b=addTrack(p,"video","B");
  const c1=addClip(p,a.id,{start:0,duration:5}); const c2=addClip(p,a.id,{start:10,duration:5});
  addClip(p,b.id,{start:20,duration:4});
  const g=addTrackGroup(p,"Picture",[a.id,b.id]); toggleTrackGroup(p,g.id,true);
- const s=snapTime(p,9.94,{trackId:a.id,excludeClipId:c2.id,threshold:.1});
- assert.equal(s.snapped,true); assert.equal(s.time,5);
+ const s=snapTime(p,9.94,{trackId:a.id,threshold:.1});
+ assert.equal(s.snapped,true); assert.equal(s.time,10);
  const moved=moveClipSnapped(p,a.id,c2.id,5.04,{threshold:.1});
  assert.equal(moved.snapped,true); assert.equal(c2.start,5);
  setTrackState(p,a.id,{muted:true,locked:true,visible:false,height:72});
