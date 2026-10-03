@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 const target = process.env.APEX_NEGATIVE_TLS_TARGET ?? "git.apex.internal:443";
 const serverName = process.env.APEX_NEGATIVE_TLS_SERVER_NAME ?? target.split(":")[0];
 const caPath = process.env.APEX_NEGATIVE_TLS_CA ?? `${process.env.APEX_CA_DIR ?? "/srv/apex/secrets/ca"}/ca.crt`;
+const DEPLOYED_TLS_TESTS = process.env.APEX_RUN_DEPLOYED_TLS_TESTS === "true";
 
 function runTls(version) {
   try {
@@ -52,12 +53,12 @@ function assertLegacyRejected(version, protocol) {
   );
 }
 
-test("deployed perimeter rejects TLS 1.0", () => {
+test("deployed perimeter rejects TLS 1.0", {skip: !DEPLOYED_TLS_TESTS}, () => {
   assertDeploymentReachable();
   assertLegacyRejected("-tls1", "TLSv1.0");
 });
 
-test("deployed perimeter rejects TLS 1.1", () => {
+test("deployed perimeter rejects TLS 1.1", {skip: !DEPLOYED_TLS_TESTS}, () => {
   assertDeploymentReachable();
   assertLegacyRejected("-tls1_1", "TLSv1.1");
 });
