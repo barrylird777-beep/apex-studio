@@ -9,18 +9,23 @@ export function createOverseer(input={}) {
   return {id:input.id??crypto.randomUUID(),name:input.name??"Apex Overseer",status:"running",startedAt:now(),lastCycleAt:null,cycleCount:0,assignments:0,staleWorkers:0,failuresObserved:0,intervalMs:Math.max(1000,Number(input.intervalMs)||15000),staleAfterMs:Math.max(5000,Number(input.staleAfterMs)||45000)};
 }
 export function overseerTaskFor(worker){ return ROLE_TASKS[worker?.role] ?? "continuous:general worker health validation"; }
+export function isWorkerStale(worker, staleAfterMs=45000, ts=Date.now()){
+  const taskStarted=Date.parse(worker?.taskStartedAt||0);
+  if(worker?.currentTask && Number.isFinite(taskStarted) && ts-taskStarted>staleAfterMs) return true;
+  const last=Date.parse(worker?.lastHeartbeatAt||worker?.startedAt||0);
+  return !Number.isFinite(last)||ts-last>staleAfterMs;
+}
 export function overseerCycle(overseer,fleet){
   const ts=Date.now(); let assignments=0,staleWorkers=0,failuresObserved=0;
   for(const worker of Array.isArray(fleet?.workers)?fleet.workers:[]) {
     if(worker.status==="failed") failuresObserved++;
-    const last=Date.parse(worker.lastHeartbeatAt||worker.startedAt||0);
-    if(!Number.isFinite(last)||ts-last>overseer.staleAfterMs) staleWorkers++;
+    if(isWorkerStale(worker,overseer.staleAfterMs,ts)) staleWorkers++;
     if(worker.status==="running"){worker.currentTask=worker.currentTask||overseerTaskFor(worker);worker.lastHeartbeatAt=now();assignments++;}
   }
   return {...overseer,status:"running",lastCycleAt:now(),cycleCount:Number(overseer.cycleCount||0)+1,assignments:Number(overseer.assignments||0)+assignments,staleWorkers,failuresObserved:Number(overseer.failuresObserved||0)+failuresObserved};
 }
 export function overseerStatus(overseer,fleet){
   const workers=Array.isArray(fleet?.workers)?fleet.workers:[];
-  return {...overseer,workerCount:workers.length,runningWorkers:workers.filter(w=>w.status==="running").length,activeAssignments:workers.filter(w=>Boolean(w.currentTask)).length,staleWorkers:workers.filter(w=>{const last=Date.parse(w.lastHeartbeatAt||w.startedAt||0);return !Number.isFinite(last)||Date.now()-last>overseer.staleAfterMs;}).length};
+  return {...overseer,workerCount:workers.length,runningWorkers:workers.filter(w=>w.status==="running").length,activeAssignments:workers.filter(w=>Boolean(w.currentTask)).length,staleWorkers:workers.filter(w=>isWorkerStale(w,overseer.staleAfterMs)).length};
 }
 export default createOverseer;
