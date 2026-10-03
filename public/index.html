@@ -5,50 +5,99 @@
 <meta name="theme-color" content="#080b12"><meta name="description" content="Apex Bible Story Studio">
 <link rel="manifest" href="/manifest.webmanifest"><title>Apex Bible Story Studio</title>
 <style>
-:root{--bg:#070a10;--panel:#0d121b;--panel2:#111925;--line:#202b3a;--text:#edf2f8;--muted:#8290a3;--accent:#b9d7ff;--good:#80d6a1;--warn:#ffd27a;--bad:#ff9292}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% -10%,#172743 0,#070a10 42%);color:var(--text);font:14px Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea,select{font:inherit}
-button{cursor:pointer;border:1px solid var(--line);background:#121a26;color:var(--text);border-radius:9px;padding:9px 12px;font-weight:700}button:hover{border-color:#40516a}button.primary{background:var(--accent);color:#07101b;border-color:var(--accent)}button.ghost{background:transparent}
-header{height:64px;border-bottom:1px solid var(--line);background:#080c13e8;backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:5}.brand{font-weight:900;letter-spacing:.12em}.brand span{color:#8fbaff}.online{color:var(--good);font-weight:700;font-size:12px}
-.layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - 64px)}aside{border-right:1px solid var(--line);padding:18px 12px;background:#090e16}.nav{display:grid;gap:5px}.nav button{text-align:left;border:0;background:transparent;color:var(--muted)}.nav button.active{background:#151f2e;color:var(--text)}main{padding:24px;max-width:1450px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:20px}.eyebrow{color:#8fbaff;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.top h1{font-size:30px;margin:5px 0}.top p{margin:0;color:var(--muted)}.actions{display:flex;gap:8px}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.card,.panel{background:linear-gradient(145deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px}.card{padding:15px}.card .num{font-size:25px;font-weight:900}.card .label{color:var(--muted);font-size:12px;margin-top:3px}
-.workspace{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}.panel{padding:18px}.panel h2{margin:0 0 14px;font-size:16px}.panel h3{font-size:13px;margin:18px 0 8px}.hidden{display:none}.list{display:grid;gap:8px}.row{border:1px solid var(--line);border-radius:10px;padding:11px;background:#0a1018;display:flex;justify-content:space-between;gap:12px}.row b{display:block}.muted{color:var(--muted)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:3px 8px;color:var(--muted);font-size:11px}.form{display:grid;gap:9px}.form label{font-size:11px;color:var(--muted)}input,textarea,select{width:100%;background:#080d14;border:1px solid #263447;color:var(--text);border-radius:8px;padding:10px}textarea{min-height:95px;resize:vertical}.form .inline{display:grid;grid-template-columns:1fr 1fr;gap:9px}.error{color:var(--bad);min-height:18px}.success{color:var(--good);min-height:18px}.empty{padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}.stage{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.stage div{padding:10px;border:1px solid var(--line);border-radius:9px;font-size:11px;text-align:center;color:var(--muted)}.stage .on{background:#15263a;color:var(--text);border-color:#385b83}.source{display:flex;align-items:center;gap:8px;margin:6px 0}.source input{width:auto}.notice{padding:11px;border-radius:9px;background:#111a25;color:var(--muted);border:1px solid var(--line);margin-bottom:12px}
-@media(max-width:950px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line);padding:8px;position:sticky;top:64px;z-index:4}.nav{grid-template-columns:repeat(4,1fr)}.nav button{font-size:11px;text-align:center}.workspace{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:560px){main{padding:14px}.top{display:block}.actions{margin-top:12px}.cards{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr 1fr}.form .inline{grid-template-columns:1fr}}
-.omni-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.omni-terminal{height:360px;overflow:auto;background:#05080d;border:1px solid var(--line);border-radius:10px;padding:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}.omni-terminal .ok{color:var(--good)}.omni-terminal .warn{color:var(--warn)}.omni-toolbar{display:flex;gap:8px;flex-wrap:wrap}.omni-toolbar>*{flex:1;min-width:120px}.risk-modal{position:fixed;inset:0;background:#0009;display:none;place-items:center;z-index:30}.risk-modal.open{display:grid}.risk-card{max-width:620px;width:calc(100% - 28px);background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:20px}.risk-card pre{white-space:pre-wrap;max-height:300px;overflow:auto}.render-console{height:130px;overflow:auto;background:#05080d;border-radius:9px;padding:10px;font:11px ui-monospace,monospace}@media(max-width:900px){.omni-grid{grid-template-columns:1fr}}
-<style>
-/* iPhone-native interaction layer */
-html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
-body{overscroll-behavior-y:none}
-button,input,textarea,select{-webkit-appearance:none;appearance:none}
-button{min-height:44px;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:transform .16s ease,box-shadow .2s ease,background-color .2s ease,border-color .2s ease;box-shadow:0 4px 14px rgba(0,0,0,.16)}
-button:active{transform:scale(.975);box-shadow:0 2px 8px rgba(0,0,0,.22)}
-input,textarea,select{min-height:44px;-webkit-tap-highlight-color:transparent;transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease}
-input:focus,textarea:focus,select:focus{outline:none;border-color:#5d7fa9;box-shadow:0 0 0 3px rgba(143,186,255,.12)}
-.panel,.card{backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 10px 30px rgba(0,0,0,.18)}
-header{backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%)}
-.nav button{transition:transform .16s ease,background-color .2s ease}
-.nav button:active{transform:scale(.98)}
+:root{
+  --bg:#05070b;--panel:rgba(18,22,30,.62);--panel2:rgba(13,17,24,.72);
+  --line:rgba(255,255,255,.10);--line-strong:rgba(255,255,255,.18);
+  --text:#f5f7fb;--muted:#8d96a5;--accent:#f3f5f8;--good:#82e2aa;--warn:#ffd27a;--bad:#ff8585;
+  --glass:blur(28px) saturate(145%);--radius:24px
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;background:var(--bg)}
+body{
+  margin:0;min-height:100vh;color:var(--text);
+  font:14px Inter,system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;
+  background:
+    radial-gradient(900px 520px at 50% -10%,rgba(117,143,183,.16),transparent 62%),
+    radial-gradient(700px 500px at -10% 45%,rgba(79,103,141,.10),transparent 65%),
+    linear-gradient(180deg,#080a0f 0%,#040508 100%);
+  overscroll-behavior-y:none
+}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background:linear-gradient(115deg,transparent 0 38%,rgba(255,255,255,.035) 50%,transparent 62%);mix-blend-mode:screen}
+button,input,textarea,select{font:inherit}
+button{
+  cursor:pointer;border:1px solid var(--line);background:rgba(255,255,255,.055);color:var(--text);
+  border-radius:14px;padding:12px 16px;font-weight:750;min-height:46px;
+  touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  transition:transform .16s cubic-bezier(.2,.8,.2,1),background .2s,border-color .2s,box-shadow .2s;
+  box-shadow:0 8px 24px rgba(0,0,0,.16)
+}
+button:hover{border-color:var(--line-strong);background:rgba(255,255,255,.085)}
+button:active{transform:scale(.965);box-shadow:0 3px 12px rgba(0,0,0,.25)}
+button.primary{
+  color:#090b0f;background:linear-gradient(180deg,#fff,#dfe4ea);border-color:rgba(255,255,255,.7);
+  box-shadow:0 0 28px rgba(255,255,255,.10),0 12px 28px rgba(0,0,0,.24)
+}
+button.ghost{background:transparent}
+header{
+  height:64px;border-bottom:1px solid var(--line);background:rgba(5,7,11,.72);
+  backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);
+  display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+  position:sticky;top:0;z-index:20
+}
+.brand{font-weight:950;letter-spacing:.12em}.brand span{color:#9aa5b6}.online{color:var(--good);font-weight:750;font-size:12px}
+.layout{display:grid;grid-template-columns:226px 1fr;min-height:calc(100vh - 64px)}
+aside{
+  border-right:1px solid var(--line);padding:16px 11px;background:rgba(7,9,14,.58);
+  backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass)
+}
+.nav{display:grid;gap:5px}.nav button{text-align:left;border-color:transparent;background:transparent;color:var(--muted);box-shadow:none}
+.nav button.active{background:rgba(255,255,255,.075);color:var(--text);border-color:var(--line)}
+main{padding:26px;max-width:1450px;width:100%;margin:auto}
+.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:20px}
+.eyebrow{color:#aab4c3;font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+.top h1{font-size:32px;letter-spacing:-.04em;margin:5px 0}.top p{margin:0;color:var(--muted)}.actions{display:flex;gap:8px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.card,.panel{
+  background:linear-gradient(145deg,rgba(25,29,38,.72),rgba(9,12,17,.72));
+  border:1px solid var(--line);border-radius:var(--radius);
+  backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);
+  box-shadow:0 18px 45px rgba(0,0,0,.20),inset 0 1px rgba(255,255,255,.035)
+}
+.card{padding:17px}.card .num{font-size:27px;font-weight:900}.card .label{color:var(--muted);font-size:12px;margin-top:3px}
+.workspace{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}.panel{padding:20px}.panel h2{margin:0 0 14px;font-size:17px;letter-spacing:-.015em}.panel h3{font-size:12px;margin:18px 0 8px;color:#c7ced8}
+.hidden{display:none}.list{display:grid;gap:8px}
+.row{border:1px solid var(--line);border-radius:16px;padding:13px;background:rgba(255,255,255,.025);display:flex;justify-content:space-between;gap:12px}
+.row b{display:block}.muted{color:var(--muted)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 9px;color:var(--muted);font-size:10px;background:rgba(255,255,255,.025)}
+.form{display:grid;gap:10px}.form label{font-size:10px;color:var(--muted);font-weight:750;letter-spacing:.04em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:rgba(0,0,0,.24);border:1px solid var(--line);color:var(--text);
+  border-radius:14px;padding:12px 13px;min-height:46px;outline:none;
+  transition:border-color .2s,box-shadow .2s,background .2s
+}
+input:focus,textarea:focus,select:focus{border-color:rgba(255,255,255,.30);background:rgba(255,255,255,.045);box-shadow:0 0 0 4px rgba(255,255,255,.055)}
+textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.error{color:var(--bad);min-height:18px}.success{color:var(--good);min-height:18px}
+.empty{padding:28px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px}
+.stage{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.stage div{padding:10px;border:1px solid var(--line);border-radius:12px;font-size:10px;text-align:center;color:var(--muted);background:rgba(255,255,255,.018)}.stage .on{background:rgba(255,255,255,.075);color:var(--text);border-color:var(--line-strong)}
+.source{display:flex;align-items:center;gap:8px;margin:6px 0}.source input{width:auto}
+.notice{padding:12px;border-radius:14px;background:rgba(255,255,255,.035);color:var(--muted);border:1px solid var(--line);margin-bottom:12px}
+#forge .panel:first-child{position:relative;overflow:hidden}
+#forge .panel:first-child:before{content:"";position:absolute;inset:-40% 30% auto -20%;height:180px;background:radial-gradient(circle,rgba(255,255,255,.09),transparent 65%);pointer-events:none}
+#forgePrompt{min-height:150px}
+#ignite-btn{width:100%;border-radius:999px;margin-top:2px;font-size:14px;letter-spacing:.01em}
+#scene-display{box-shadow:0 20px 60px rgba(0,0,0,.38);border-radius:18px!important}
+.omni-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.omni-terminal{height:360px;overflow:auto;background:#05080d;border:1px solid var(--line);border-radius:14px;padding:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}.omni-terminal .ok{color:var(--good)}.omni-terminal .warn{color:var(--warn)}.omni-toolbar{display:flex;gap:8px;flex-wrap:wrap}.omni-toolbar>*{flex:1;min-width:120px}.risk-modal{position:fixed;inset:0;background:#0009;display:none;place-items:center;z-index:30}.risk-modal.open{display:grid}.risk-card{max-width:620px;width:calc(100% - 28px);background:var(--panel2);border:1px solid var(--line);border-radius:22px;padding:20px;backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass)}.risk-card pre{white-space:pre-wrap;max-height:300px;overflow:auto}.render-console{height:130px;overflow:auto;background:#05080d;border-radius:12px;padding:10px;font:11px ui-monospace,monospace}
+@media(max-width:950px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line);padding:8px;position:sticky;top:64px;z-index:15}.nav{grid-template-columns:repeat(4,1fr)}.nav button{font-size:11px;text-align:center}.workspace{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){
-  body{font-size:15px}
-  header{height:58px;padding:0 14px}
-  .layout{min-height:calc(100vh - 58px)}
-  aside{top:58px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  aside::-webkit-scrollbar{display:none}
-  .nav{display:flex;gap:6px;min-width:max-content}
-  .nav button{min-height:40px;padding:8px 12px;white-space:nowrap;border-radius:999px}
-  main{padding:12px;padding-bottom:32px}
-  .panel,.card{border-radius:18px}
-  .panel{padding:16px}
-  .top h1{font-size:25px;line-height:1.12}
-  textarea{min-height:120px}
-  .actions{gap:7px}
-  .actions button{flex:1}
-  .workspace{gap:12px}
-  .form{gap:11px}
+  body{font-size:15px}header{height:58px;padding:0 14px}.layout{min-height:calc(100vh - 58px)}
+  aside{top:58px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}aside::-webkit-scrollbar{display:none}
+  .nav{display:flex;gap:6px;min-width:max-content}.nav button{min-height:40px;padding:8px 13px;white-space:nowrap;border-radius:999px}
+  main{padding:12px;padding-bottom:32px}.panel,.card{border-radius:20px}.panel{padding:16px}
+  .top{display:block}.top h1{font-size:26px;line-height:1.12}.actions{margin-top:12px;gap:7px}.actions button{flex:1}
+  .cards{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr 1fr}.form .inline{grid-template-columns:1fr}.workspace{gap:12px}
+  textarea{min-height:125px}
 }
-@media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
-}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style></head>
 <body>
 <header><div class="brand">APEX <span>/ BIBLE STORY STUDIO</span></div><div id="connection" class="online">● LOCAL</div></header>
@@ -91,7 +140,7 @@ header{backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22
 <section class="panel"><h2>Security / Risk Handshake</h2><div class="notice">A trigger phrase selects elevated review. It never disables authentication, egress policy, sanitization, credential isolation, or platform safety.</div><div id="omniRisk" class="notice">No review active.</div></section>
 </div>
 <div id="omniRiskModal" class="risk-modal"><div class="risk-card"><h2>Outbound operation review</h2><pre id="omniRiskPre"></pre><div class="actions"><button onclick="omniRiskChoice(false)">NO</button><button class="primary" onclick="omniRiskChoice(true)">YES — APPROVE RETRIEVAL</button></div></div></div>
-</section><section id="vision" class="view hidden"><div class="workspace"><section class="panel"><div class="top"><div><div class="eyebrow">Timeline-aware scene workspace</div><h2>Vision Editor</h2><p class="muted">Edit scene intent, inspect provenance, search the project, and use server-backed undo/redo.</p></div><div class="actions"><button onclick="visionUndo()">Undo</button><button onclick="visionRedo()">Redo</button></div></div><div class="form"><label>Search project</label><input id="visionSearch" placeholder="Search scenes, characters, sources, documents..." oninput="visionSearch()"></div><h3>Scenes</h3><div id="visionSceneList" class="list"></div></section><section class="panel"><h2>Inspector</h2><div id="visionInspector" class="empty">Select a scene.</div></section></div></section><section id="forge" class="view hidden"><div class="workspace"><section class="panel"><h2>Forge Image Generator</h2><div class="form"><label>Scene prompt</label><textarea id="forgePrompt" placeholder="Describe the scene to render..."></textarea><div class="notice">Forge automatically enforces the locked 1990s dark-fantasy anime look, cinematic lighting, cel shading, deep shadows, and high-detail render markers.</div><button class="primary" onclick="renderScene($('forgePrompt').value)">Render scene</button><div id="forgeMsg" class="error"></div></div></section><section class="panel"><h2>Scene render</h2><img id="scene-display" alt="Generated scene" style="display:block;width:100%;border-radius:10px;border:1px solid var(--line);background:#05080d;min-height:220px;object-fit:cover"><div id="forgeProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="production" class="view hidden"><div class="workspace"><section class="panel"><h2>Render queue</h2><div id="ffmpegStatus" class="notice">Local FFmpeg is used when available on the server.</div><div id="renderList" class="list"></div><h3>Queue render</h3><div class="form"><label>Scene ID</label><input id="renderScene" placeholder="scene_..."><label>Format</label><select id="renderFormat"><option>master</option><option>youtube-1080p</option><option>vertical-1080x1920</option><option>square-1080</option></select><button class="primary" onclick="queueRender()">Queue render</button><div id="renderMsg" class="error"></div></div></section><section class="panel"><h2>Local-first status</h2><div id="policy" class="notice">Loading policy…</div><h3>Next production stages</h3><div class="stage"><div>Research</div><div>Outline</div><div>Script</div><div>Storyboard</div><div>Visuals</div><div>Audio</div><div>Edit</div><div>Review</div><div>Release</div></div></section></div></section>
+</section><section id="vision" class="view hidden"><div class="workspace"><section class="panel"><div class="top"><div><div class="eyebrow">Timeline-aware scene workspace</div><h2>Vision Editor</h2><p class="muted">Edit scene intent, inspect provenance, search the project, and use server-backed undo/redo.</p></div><div class="actions"><button onclick="visionUndo()">Undo</button><button onclick="visionRedo()">Redo</button></div></div><div class="form"><label>Search project</label><input id="visionSearch" placeholder="Search scenes, characters, sources, documents..." oninput="visionSearch()"></div><h3>Scenes</h3><div id="visionSceneList" class="list"></div></section><section class="panel"><h2>Inspector</h2><div id="visionInspector" class="empty">Select a scene.</div></section></div></section><section id="forge" class="view hidden"><div class="workspace"><section class="panel"><h2>Forge Image Generator</h2><div class="form"><label>Scene prompt</label><textarea id="forgePrompt" placeholder="Describe the scene to render..."></textarea><div class="notice">Forge automatically enforces the locked 1990s dark-fantasy anime look, cinematic lighting, cel shading, deep shadows, and high-detail render markers.</div><button id="ignite-btn" class="primary" onclick="renderScene($('forgePrompt').value)">Ignite Forge</button><div id="forgeMsg" class="error"></div></div></section><section class="panel"><h2>Scene render</h2><img id="scene-display" alt="Generated scene" style="display:block;width:100%;border-radius:10px;border:1px solid var(--line);background:#05080d;min-height:220px;object-fit:cover"><div id="forgeProvider" class="muted" style="margin-top:8px"></div></section></div></section><section id="production" class="view hidden"><div class="workspace"><section class="panel"><h2>Render queue</h2><div id="ffmpegStatus" class="notice">Local FFmpeg is used when available on the server.</div><div id="renderList" class="list"></div><h3>Queue render</h3><div class="form"><label>Scene ID</label><input id="renderScene" placeholder="scene_..."><label>Format</label><select id="renderFormat"><option>master</option><option>youtube-1080p</option><option>vertical-1080x1920</option><option>square-1080</option></select><button class="primary" onclick="queueRender()">Queue render</button><div id="renderMsg" class="error"></div></div></section><section class="panel"><h2>Local-first status</h2><div id="policy" class="notice">Loading policy…</div><h3>Next production stages</h3><div class="stage"><div>Research</div><div>Outline</div><div>Script</div><div>Storyboard</div><div>Visuals</div><div>Audio</div><div>Edit</div><div>Review</div><div>Release</div></div></section></div></section>
 </main></div>
 <script>
 const $=id=>document.getElementById(id);
