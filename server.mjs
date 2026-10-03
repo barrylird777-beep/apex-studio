@@ -176,42 +176,70 @@ app.post('/api/oracle', async (req, res) => {
 });
 
 // ============================================================
-// 3. FORGE ROUTE (NEVER FAILS)
+// 3. HARDENED FORGE ROUTE
 // ============================================================
 
 app.post('/api/forge', async (req, res) => {
-  const rawPrompt = String(req.body?.prompt || '').trim();
-  if (!rawPrompt) return res.status(400).json({ success: false, error: 'prompt is required' });
-
-  let finalPrompt = rawPrompt;
-  let activeProvider = 'direct';
-
   try {
-    const systemInstruction =
-      'Rewrite this into an elite 16:9 cinematic dark anime illustration prompt. Describe lighting, camera angle, and textures. Return ONLY the final prompt.';
-    const inference = await executeInference(rawPrompt, systemInstruction);
-    if (inference.text) {
-      finalPrompt = inference.text;
-      activeProvider = inference.provider;
+    // 1. Defend against malformed payloads/types
+    const rawPrompt = String(req.body?.prompt || req.body?.text || '').trim();
+    if (!rawPrompt) {
+      return res.status(400).json({ success: false, error: 'prompt is required' });
     }
-  } catch (_) {
-    // If prompt expansion fails, fallback to raw user prompt automatically
+
+    let finalPrompt = rawPrompt;
+    let activeProvider = 'direct';
+    let meshFailures = [];
+
+    // 2. Safe LLM prompt enhancement with guaranteed catch
+    try {
+      const systemInstruction =
+        'Rewrite this into an elite 16:9 cinematic dark anime illustration prompt. Describe lighting, camera angle, and textures. Return ONLY the final prompt.';
+      const inference = await executeInference(rawPrompt, systemInstruction);
+      if (inference?.text) {
+        finalPrompt = inference.text;
+        activeProvider = inference.provider;
+        meshFailures = inference.failures || [];
+      }
+    } catch (err) {
+      meshFailures.push(`mesh-exhausted: ${err.message}`);
+      // Silently fall through to rawPrompt
+    }
+
+    // 3. Clean string & clamp length to prevent HTTP 414 (URI Too Long)
+    const sanitizedPrompt = finalPrompt
+      .replace(/[\r\n]+/g, ' ')
+      .slice(0, 1200)
+      .trim();
+
+    const seed = Math.floor(Math.random() * 9999999);
+    const model = encodeURIComponent(process.env.POLLINATIONS_IMAGE_MODEL || 'flux');
+    const encoded = encodeURIComponent(sanitizedPrompt);
+
+    // Primary + Secondary Image Gateways
+    const primaryUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1280&height=720&model=${model}&seed=${seed}&nologo=true`;
+    const mirrorUrl = `https://gen.pollinations.ai/image/${encoded}?width=1280&height=720&model=${model}&seed=${seed}&nologo=true`;
+
+    return res.json({
+      success: true,
+      rawPrompt,
+      cinematicPrompt: sanitizedPrompt,
+      imageUrl: primaryUrl,
+      fallbackImageUrl: mirrorUrl,
+      provider: activeProvider,
+      seed,
+      meshFailures
+    });
+
+  } catch (criticalError) {
+    // Last line of defense against process-level crashes
+    console.error('[forge-fatal]', criticalError);
+    return res.status(500).json({
+      success: false,
+      error: 'Image pipeline failed',
+      details: criticalError instanceof Error ? criticalError.message : String(criticalError)
+    });
   }
-
-  const seed = Math.floor(Math.random() * 9999999);
-  const model = encodeURIComponent(process.env.POLLINATIONS_IMAGE_MODEL || 'flux');
-  const encodedPrompt = encodeURIComponent(finalPrompt.slice(0, 1500)); // Cap URL length
-
-  const renderUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&model=${model}&seed=${seed}&nologo=true`;
-
-  res.json({
-    success: true,
-    rawPrompt,
-    cinematicPrompt: finalPrompt,
-    imageUrl: renderUrl,
-    provider: activeProvider,
-    seed
-  });
 });
 
 // ============================================================
