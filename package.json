@@ -10,7 +10,11 @@
     "test": "node --test",
     "test:core": "node --test test",
     "bible:import": "node scripts/import-bible-corpus.mjs",
-    "bible:import:all": "node scripts/import-bible-corpus.mjs --all"
+    "bible:import:all": "node scripts/import-bible-corpus.mjs --all",
+    "security:audit": "node scripts/security/audit-se-x.mjs",
+    "security:certs": "bash scripts/security/verify-cert-permissions.sh",
+    "security:storage": "bash scripts/security/verify-se-x-storage.sh",
+    "security:tls": "bash scripts/security/verify-tls.sh"
   },
   "dependencies": {
     "express": "^4.19.2",
