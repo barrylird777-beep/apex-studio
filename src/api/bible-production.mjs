@@ -63,6 +63,22 @@ router.put("/scenes/:id", async (req,res)=>{try{const d=await db(),old=await d.g
 router.delete("/scenes/:id", async(req,res)=>{try{const d=await db();await d.run("DELETE FROM scenes WHERE id=?",req.params.id);res.json({success:true})}catch(e){res.status(500).json({error:e.message})}});
 
 router.get("/call-sheets", async(req,res)=>{try{const d=await db();res.json((await d.all("SELECT * FROM call_sheets ORDER BY shoot_date DESC")).map(callSheet))}catch(e){res.status(500).json({error:e.message})}});
+router.post("/call-sheets/from-scenes", async(req,res)=>{
+  try{
+    const d=await db(),ids=arr(req.body?.sceneIds);
+    if(!ids.length)return res.status(400).json({error:"sceneIds is required"});
+    const placeholders=ids.map(()=>"?").join(",");
+    const rows=await d.all("SELECT * FROM scenes WHERE id IN ("+placeholders+")",...ids);
+    if(!rows.length)return res.status(404).json({error:"No linked scenes found"});
+    const ss=rows.map(scene);
+    const locations=[...new Set(ss.map(x=>x.location).filter(Boolean))];
+    const characters=[...new Set(ss.flatMap(x=>x.characters))];
+    const now=new Date().toISOString(),id=crypto.randomUUID();
+    const x={id,shootDate:ref(req.body?.shootDate)||new Date().toISOString().slice(0,10),locations,characters,crew:["Director","1st AD","Director of Photography","Sound","Art / Props","Wardrobe","Script Supervisor"],callTimes:req.body?.callTimes||{"crew":"05:00","cast":"06:00"},weatherNotes:String(req.body?.weatherNotes||""),specialRequirements:String(req.body?.specialRequirements||""),sceneIds:ids};
+    await d.run("INSERT INTO call_sheets (id,project_id,shoot_date,locations,characters,crew,call_times,weather_notes,special_requirements,scene_ids,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",id,ref(req.body?.projectId)||null,x.shootDate,JSON.stringify(x.locations),JSON.stringify(x.characters),JSON.stringify(x.crew),JSON.stringify(x.callTimes),x.weatherNotes,x.specialRequirements,JSON.stringify(x.sceneIds),now,now);
+    res.status(201).json(callSheet(await d.get("SELECT * FROM call_sheets WHERE id=?",id)));
+  }catch(e){res.status(400).json({error:e.message})}
+});
 router.post("/call-sheets", async(req,res)=>{try{const x=req.body||{};if(!ref(x.shootDate))return res.status(400).json({error:"shootDate is required"});const d=await db(),id=crypto.randomUUID(),now=new Date().toISOString();await d.run("INSERT INTO call_sheets (id,project_id,shoot_date,locations,characters,crew,call_times,weather_notes,special_requirements,scene_ids,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",id,ref(x.projectId)||null,ref(x.shootDate),JSON.stringify(arr(x.locations)),JSON.stringify(arr(x.characters)),JSON.stringify(arr(x.crew)),JSON.stringify(x.callTimes||{}),String(x.weatherNotes||""),String(x.specialRequirements||""),JSON.stringify(arr(x.sceneIds)),now,now);res.status(201).json(callSheet(await d.get("SELECT * FROM call_sheets WHERE id=?",id)))}catch(e){res.status(400).json({error:e.message})}});
 router.put("/call-sheets/:id", async(req,res)=>{try{const d=await db(),x=req.body||{};const now=new Date().toISOString();await d.run("UPDATE call_sheets SET shoot_date=?,locations=?,characters=?,crew=?,call_times=?,weather_notes=?,special_requirements=?,scene_ids=?,updated_at=? WHERE id=?",ref(x.shootDate),JSON.stringify(arr(x.locations)),JSON.stringify(arr(x.characters)),JSON.stringify(arr(x.crew)),JSON.stringify(x.callTimes||{}),String(x.weatherNotes||""),String(x.specialRequirements||""),JSON.stringify(arr(x.sceneIds)),now,req.params.id);res.json(callSheet(await d.get("SELECT * FROM call_sheets WHERE id=?",req.params.id)))}catch(e){res.status(400).json({error:e.message})}});
 function makePdf(lines){
