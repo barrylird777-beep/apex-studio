@@ -37,7 +37,7 @@ for (const worker of permanentWorkerFleet.workers) {
 permanentWorkerFleet.status = 'running';
 
 const meshWorkerSupervisor = new WorkerSupervisor({
-  workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4)),
+  workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 64)),
   handler: async (payload) => {
     const type = String(payload?.type || 'inference');
     if (type === 'inference') {
@@ -80,7 +80,7 @@ const meshWorkerSupervisor = new WorkerSupervisor({
 
 const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
-const permanentWorkerMaxConcurrent = Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 32));
+const permanentWorkerMaxConcurrent = Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 64));
 
 const permanentWorkerHeartbeat = setInterval(() => {
   const nowMs = Date.now();
