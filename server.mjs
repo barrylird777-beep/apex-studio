@@ -1236,3 +1236,4 @@ app.post('/api/voiceover/jobs', async (req,res) => {
 
 app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
+});
