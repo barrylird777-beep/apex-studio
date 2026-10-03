@@ -1,10 +1,22 @@
 services:
+  research-ui:
+    build: ./research_ui
+    ports: ["5173:5173"]
+    environment:
+      VITE_RESEARCH_API: http://localhost:8000/api
+    depends_on: [research-api]
   research-api:
     build: ./research_backend
     env_file: ./research_backend/.env
     ports: ["8000:8000"]
     depends_on: [postgres,redis,elasticsearch]
     volumes: ["research_documents:/data/documents"]
+  research-beat:
+    build: ./research_backend
+    env_file: ./research_backend/.env
+    command: celery -A app.tasks.celery beat --loglevel=INFO
+    depends_on: [redis,postgres]
+
   research-worker:
     build: ./research_backend
     env_file: ./research_backend/.env
