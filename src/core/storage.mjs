@@ -80,6 +80,35 @@ export async function saveSceneAsset(sceneId, type, buffer, extension) {
   });
 }
 
+export async function saveProjectAsset(type, buffer, extension) {
+  await initStorage();
+  const assetType = safePart(type, "type");
+  const ext = safePart(extension, "extension").replace(/^\./, "");
+  const filename = `project_${assetType}.${ext}`;
+  const filepath = path.join(STORAGE_DIR, filename);
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  await fs.writeFile(filepath, bytes, { mode: 0o600 });
+
+  return queueManifestWrite(async () => {
+    const manifest = await readManifest();
+    if (!Array.isArray(manifest.scenes)) manifest.scenes = [];
+    if (!Array.isArray(manifest.exports)) manifest.exports = [];
+    const record = {
+      type: assetType,
+      url: `/files/${encodeURIComponent(filename)}`,
+      bytes: bytes.length,
+      updatedAt: Date.now()
+    };
+    manifest.exports = [record, ...manifest.exports.filter(entry => entry?.type !== assetType)];
+    const temp = `${PROJECT_FILE}.tmp-${process.pid}-${Date.now()}`;
+    await fs.writeFile(temp, JSON.stringify(manifest, null, 2), {
+      encoding: "utf8", mode: 0o600
+    });
+    await fs.rename(temp, PROJECT_FILE);
+    return record;
+  });
+}
+
 export async function getProjectState() {
   await initStorage();
   return readManifest();
