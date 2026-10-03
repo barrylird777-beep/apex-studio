@@ -40,9 +40,13 @@ export function createApi(studio){
 
   r.get("/projects",(req,res)=>res.json(studio.projects.list()));
   r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
-        const h=studio.omniHandshakes.get(body.handshakeId);
+  r.post("/omni/search",async(req,res)=>{
+    try{
+      const body=req.body??{},sources=Array.isArray(body.sources)?body.sources:[];
+      if(sources.length){
+        const h=body.handshakeId?studio.omniHandshakes.get(body.handshakeId):null;
         if(!h||h.state!=="approved") return res.status(409).json({error:"Approved risk handshake required."});
-      } else if(sources.length) return res.status(409).json({error:"Risk handshake required before outbound retrieval."});
+      }
       const run=await studio.sex.search(body.query??"",{sources,approved:sources.length===0||Boolean(body.handshakeId)});
       if(body.inject===true){
         const research=studio.research.create({question:body.query??"",queries:run.fragments,sources:run.results.filter(x=>!x.error).map(x=>({url:x.url,status:x.status,contentType:x.contentType}))});
@@ -79,6 +83,7 @@ export function createApi(studio){
   r.get("/renders/:id",(req,res)=>{const j=studio.render.get(req.params.id);if(!j)return res.status(404).json({error:"Render job not found"});res.json(j);});
   r.get("/renders/:id/availability",async(req,res)=>res.json({available:await renderWorker.available(),ffmpegPath:renderWorker.ffmpegPath}));
 ,(req,res)=>res.json(studio.releases.list()));
+  r.get("/releases",(req,res)=>res.json(studio.releases.list()));
   r.post("/releases",(req,res)=>res.status(201).json(studio.releases.create(req.body??{})));
   r.post("/releases/:id/publish",verifyApexCommander,(req,res)=>res.json(studio.releases.publish(req.params.id)));
 
