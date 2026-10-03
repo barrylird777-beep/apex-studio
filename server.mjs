@@ -10,7 +10,7 @@ import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveSceneAsset, saveProjectAsset } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './src/services/projectManager.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
