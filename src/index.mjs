@@ -2,7 +2,6 @@ export * from "./biblical/bible-catalog.mjs";
 export * from "./biblical/torah.mjs";
 export * from "./core/schema.mjs";
 export * from "./core/knowledge-graph.mjs";
-export * from "./core/continuity.mjs";
 export * from "./core/timeline.mjs";
 export * from "./core/production.mjs";
 export * from "./core/id.mjs";
