@@ -225,44 +225,10 @@ async function migrate() {
       if (Array.isArray(tags)) for (let i=0;i<tags.length;i++)
         await run("INSERT OR IGNORE INTO production_timeline_audio_tags(timeline_id,tag,position) VALUES(?,?,?)",[row.node_id,String(tags[i]),i]);
   }
-  if (mutations.has("altered_visual") || mutations.has("altered_vocal")) {
-    const rows = await all("SELECT id,altered_visual,altered_vocal FROM timeline_mutations");
-    for (const row of rows) {
-      const visual=parse(row.altered_visual,[]); const vocal=parse(row.altered_vocal,[]);
-      if (Array.isArray(visual)) for (let i=0;i<visual.length;i++)
-        await run("INSERT OR IGNORE INTO timeline_mutation_visual(mutation_id,position,value) VALUES(?,?,?)",[row.id,i,json(visual[i],null)]);
-      if (Array.isArray(vocal)) for (let i=0;i<vocal.length;i++)
-        await run("INSERT OR IGNORE INTO timeline_mutation_vocal(mutation_id,position,value) VALUES(?,?,?)",[row.id,i,json(vocal[i],null)]);
-    }
-  }
-  if (narrative.has("blocks")) {
-    const rows = await all("SELECT id,blocks FROM narrative_tracks WHERE blocks IS NOT NULL");
-    for (const row of rows) {
-      const blocks=parse(row.blocks,[]);
-      if (Array.isArray(blocks)) for (let i=0;i<blocks.length;i++) {
-        const b=blocks[i]??{};
-        await run("INSERT OR IGNORE INTO narrative_blocks(track_id,position,block_type,text_ref,visual_ref,vocal_ref) VALUES(?,?,?,?,?,?)",
-          [row.id,i,b.type??null,json(b.text,null),json(b.visualFrames??b.visual??null,null),json(b.vocal??null,null)]);
-      }
-    }
-  }
-  const legacyVoice = voice.has("filepath") ? await all("SELECT id,track_id,filepath,content_type,content_length,content_hash,metadata,created_at FROM voice_assets") : [];
-
-  const rebuild = async (table, columnsSql, selectSql) => {
-    await exec("PRAGMA foreign_keys=OFF");
-    await run("BEGIN");
-    try {
-      await run("DROP TABLE IF EXISTS "+table+"_legacy");
-      await run("ALTER TABLE "+table+" RENAME TO "+table+"_legacy");
-      await run("CREATE TABLE "+table+" ("+columnsSql+")");
-      await run("INSERT INTO "+table+" "+selectSql+" FROM "+table+"_legacy");
-      await run("DROP TABLE "+table+"_legacy");
-      await run("COMMIT");
-    } catch (e) { await run("ROLLBACK").catch(()=>{}); throw e; }
-    finally { await exec("PRAGMA foreign_keys=ON"); }
-  };
-
   if (mutations.has("altered_visual") || mutations.has("altered_vocal")) await rebuild("timeline_mutations",
+    "id INTEGER PRIMARY KEY AUTOINCREMENT,parent_node_id TEXT NOT NULL,branch_id TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(parent_node_id) REFERENCES production_timelines(node_id) ON UPDATE CASCADE ON DELETE CASCADE",
+    "(id,parent_node_id,branch_id,created_at) SELECT id,parent_node_id,branch_id,created_at");
+  if (production.has("audio_tags")) await rebuild("production_timelines",
     "id INTEGER PRIMARY KEY AUTOINCREMENT,node_id TEXT NOT NULL UNIQUE,scene_label TEXT NOT NULL,timecode TEXT NOT NULL,aesthetic_profile TEXT,prompt TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
     "(id,node_id,scene_label,timecode,aesthetic_profile,prompt,created_at,updated_at) SELECT id,node_id,scene_label,timecode,aesthetic_profile,prompt,created_at,updated_at");
   if (narrative.has("blocks")) await rebuild("narrative_tracks",
@@ -270,13 +236,14 @@ async function migrate() {
     "(id,project_id,branch_id,timeline_id,created_at) SELECT id,project_id,branch_id,timeline_id,created_at");
   if (voice.has("filepath")) await rebuild("voice_assets",
     "id TEXT PRIMARY KEY,track_id TEXT,playback_uri TEXT,media_uri TEXT,asset_id TEXT,content_type TEXT,content_length INTEGER,content_hash TEXT,metadata TEXT,created_at TEXT",
-    "(id,track_id,playback_uri,NULL,NULL,content_type,content_length,content_hash,metadata,created_at) SELECT id,track_id,playback_uri,content_type,content_length,content_hash,metadata,created_at");
+    "(id,track_id,playback_uri,media_uri,asset_id,content_type,content_length,content_hash,metadata,created_at) SELECT id,track_id,filepath,NULL,NULL,content_type,content_length,content_hash,metadata,created_at FROM voice_assets_legacy");
   if (results.has("text")) await rebuild("search_results",
     "id TEXT PRIMARY KEY,run_id TEXT NOT NULL,url TEXT NOT NULL,status INTEGER,content_type TEXT,created_at TEXT,FOREIGN KEY(run_id) REFERENCES search_runs(id) ON DELETE CASCADE",
-    "(id,run_id,url,status,content_type,created_at) SELECT id,run_id,url,status,content_type,created_at");
+    "(id,run_id,url,status,content_type,created_at) SELECT id,run_id,url,status,content_type,created_at FROM search_results_legacy");
   if (runs.has("fragments")) await rebuild("search_runs",
     "id TEXT PRIMARY KEY,query TEXT NOT NULL,mode TEXT,started_at TEXT,finished_at TEXT,status TEXT,sources TEXT,results TEXT",
-    "(id,query,mode,started_at,finished_at,status,sources,results) SELECT id,query,mode,started_at,finished_at,status,sources,results");
+    "(id,query,mode,started_at,finished_at,status,sources,results) SELECT id,query,mode,started_at,finished_at,status,sources,results FROM search_runs_legacy");
+
 
   await exec(`
     CREATE INDEX IF NOT EXISTS idx_production_timelines_scene ON production_timelines(scene_label);
