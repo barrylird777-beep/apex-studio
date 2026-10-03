@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from .db import get_db
@@ -143,5 +143,12 @@ async def save_report_version(investigation_id:int,payload:dict,db:AsyncSession=
  latest=await db.scalar(select(func.max(ReportVersion.version_number)).where(ReportVersion.investigation_id==investigation_id))
  row=ReportVersion(investigation_id=investigation_id,author_user_id=int(claims["sub"]),version_number=(latest or 0)+1,body=str(payload["body"]))
  db.add(row); await db.commit(); await db.refresh(row); return row
+@api.get("/investigations/{investigation_id}/export.pdf")
+async def export_investigation(investigation_id:int,db:AsyncSession=Depends(get_db),claims=Depends(current_claims)):
+ row=await db.get(Investigation,investigation_id)
+ if not row: raise HTTPException(404,"Investigation not found")
+ data=build_pdf(row.title,[row.description or "",f"Status: {row.status}",f"Investigation ID: {row.id}"])
+ await record_access(db,int(claims["sub"]),"investigation.export","investigation",investigation_id)
+ return Response(content=data,media_type="application/pdf",headers={"Content-Disposition":f"attachment; filename=investigation-{investigation_id}.pdf"})
 @api.get("/health")
 async def health(): return {"ok":True,"service":"apex-research"}
