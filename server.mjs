@@ -142,11 +142,11 @@ const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
+app.use(cors());
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({success:true,...fleetStatus(permanentWorkerFleet)}));
 app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
 
-app.use(cors());
 app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -1198,23 +1198,3 @@ app.post('/api/voiceover/jobs', async (req,res) => {
 
 app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
-});
-
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/') || req.path === '/health') return next();
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-await initStorage();
-meshWorkerSupervisor.start();
-if (String(process.env.APEX_START_AV1_WORKERS || 'true').toLowerCase() === 'true') {
-  void startProductionDaemon().catch(error => console.error('[av1-workers-fatal]', error));
-}
-if (String(process.env.APEX_START_VOICEOVER_WORKERS || 'true').toLowerCase() === 'true') {
-  void startVoiceoverWorker().catch(error => console.error('[voiceover-workers-fatal]', error));
-}
-
-app.listen(PORT, HOST, () => {
-  console.log(`Apex Studio active on http://${HOST}:${PORT}`);
-  console.log(`SE-X persistent asset storage: ${STORAGE_DIR}`);
-});
