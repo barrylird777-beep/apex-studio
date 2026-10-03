@@ -6,8 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: apex-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -20,21 +24,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
       - name: Install system dependencies (FFmpeg)
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: npm install
-      - name: Persist regenerated lockfile
-        if: matrix.node == '22.x' && github.event_name == 'push' && github.actor != 'github-actions[bot]'
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock.json already synchronized"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "Synchronize package lockfile"
-            git push
-          fi
+      - name: Install locked dependencies
+        run: npm ci
       - run: npm run check
       - name: Execute mesh runtime
         run: npm run apex:run
