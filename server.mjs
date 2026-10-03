@@ -5,7 +5,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
-import { initStorage, STORAGE_DIR } from './src/core/storage.mjs';
+import { initStorage, STORAGE_DIR, getProjectState } from './src/services/projectManager.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -799,6 +799,16 @@ app.post(['/api/crawler', '/api/crawl'], async (req, res) => {
 // ============================================================
 // 7. STATUS & HEALTH
 // ============================================================
+
+app.get('/api/project', async (_req, res) => {
+  try {
+    const state = await getProjectState();
+    return res.json({ success: true, ...state });
+  } catch (error) {
+    console.error('[project-state-fatal]', error);
+    return res.status(500).json({ success: false, error: 'Project state unavailable' });
+  }
+});
 
 app.get('/api/mesh/status', (_req, res) => {
   res.json({
