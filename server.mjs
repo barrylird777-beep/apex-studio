@@ -79,6 +79,7 @@ const meshWorkerSupervisor = new WorkerSupervisor({
 
 const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
+const permanentWorkerMaxConcurrent = Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 32));
 
 const permanentWorkerHeartbeat = setInterval(() => {
   const nowMs = Date.now();
@@ -98,7 +99,7 @@ const permanentWorkerHeartbeat = setInterval(() => {
       if (staleToken) worker.lastStaleTaskToken = staleToken;
     }
 
-    if (permanentWorkerInFlight.has(worker.id)) {
+    if (permanentWorkerInFlight.has(worker.id) || permanentWorkerInFlight.size >= permanentWorkerMaxConcurrent) {
       Object.assign(worker, heartbeatPermanentWorker(worker, worker.currentTask));
       continue;
     }
