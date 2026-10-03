@@ -273,6 +273,7 @@ export function createStudio(options={}) {
     studio.graph=new KnowledgeGraph(snapshot.graph??{entities:[],relations:[]});
     studio.agentCrews=Array.isArray(snapshot.agentCrews)?snapshot.agentCrews:[];
     studio.growthExperiments=new Map((snapshot.growthExperiments??[]).map(x=>[x.id,x]));
+    studio.narrativeTracks=new Map((snapshot.narrativeTracks??[]).map(x=>[x.id,x]));
     for(const s of snapshot.sources??[]) studio.sources.sources.set(s.id,s);
     for(const scene of snapshot.scenes??[]) studio.scenes.set(scene.id,scene);
     studio.biblical.restore(snapshot.stories??{});
