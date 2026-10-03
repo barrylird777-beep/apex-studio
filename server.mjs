@@ -130,19 +130,28 @@ const permanentWorkerHeartbeat = setInterval(() => {
     worker.nextRunAt = new Date(nowMs + permanentWorkerRunEveryMs).toISOString();
     Object.assign(worker, heartbeatPermanentWorker(worker, task));
     permanentWorkerInFlight.add(worker.id);
+    const durableTaskId = crypto.randomUUID();
 
-    void permanentWorkerSupervisor.dispatch({
+    void enqueueWorkerTask({
+      id: durableTaskId,
+      workerId: worker.id,
+      role: worker.role,
+      task,
+      payload: { type: 'permanent-health', workerId: worker.id }
+    }).then(() => claimWorkerTask(durableTaskId)).then(() => permanentWorkerSupervisor.dispatch({
       type: 'permanent-health',
       workerId: worker.id,
       role: worker.role,
       task
-    }).then(() => {
+    }).then(async result => {
+      await completeWorkerTask(durableTaskId, result).catch(() => {});
       if (worker.taskToken !== taskToken) return;
       Object.assign(worker, completePermanentWorkerTask(worker));
       worker.lastCompletedAt = new Date().toISOString();
       worker.taskStartedAt = null;
       worker.taskToken = null;
-    }).catch(error => {
+    }).catch(async error => {
+      await failWorkerTask(durableTaskId, error).catch(() => {});
       if (worker.taskToken !== taskToken) return;
       Object.assign(worker, failPermanentWorkerTask(worker, error));
       worker.taskStartedAt = null;
