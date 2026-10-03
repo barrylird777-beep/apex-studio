@@ -1,7 +1,8 @@
 import { Worker } from "node:worker_threads";
 
 const DEFAULT_DB = process.env.APEX_OMNI_DB_FILE ?? "./apex-omni.sqlite";
-const BUSY_TIMEOUT = Math.max(5000, Math.min(120000, Number(process.env.APEX_OMNI_BUSY_TIMEOUT_MS ?? 60000)));\nconst READ_CONNECTIONS = Math.max(1, Math.min(8, Number(process.env.APEX_OMNI_READ_CONNECTIONS ?? 2)));
+const BUSY_TIMEOUT = Math.max(5000, Math.min(120000, Number(process.env.APEX_OMNI_BUSY_TIMEOUT_MS ?? 60000)));
+const READ_CONNECTIONS = Math.max(1, Math.min(8, Number(process.env.APEX_OMNI_READ_CONNECTIONS ?? 2)));
 
 export class OmniStore {
   constructor(file = DEFAULT_DB) {
