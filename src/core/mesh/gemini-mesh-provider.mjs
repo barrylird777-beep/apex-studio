@@ -11,8 +11,8 @@ export class GeminiMeshProvider {
     if (!this.apiKey) throw new Error('Gemini not configured');
     const model = options.model || this.model;
     const rateLimit = await acquireAiRateLimit({
-      capacity: Number(process.env.GEMINI_RATE_LIMIT_CAPACITY || 2),
-      refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || 1)
+      capacity: Number(process.env.GEMINI_RATE_LIMIT_CAPACITY || 10),
+      refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (10 / 60))
     });
     if (!rateLimit) throw new Error('Gemini shared rate limit reached; retry later');
     const body = {
