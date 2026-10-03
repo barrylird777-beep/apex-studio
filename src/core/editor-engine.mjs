@@ -97,7 +97,7 @@ export function snapTime(project, time, {trackId=null, threshold=0.12, excludeCl
     if(excludeClipId&&clip.id===excludeClipId) continue;
     points.push(n(clip.start,0),n(clip.start+clip.duration,0));
   }
-  let best=target, distance=Math.abs(target-best);
+  let best=target, distance=Number.POSITIVE_INFINITY;
   for(const point of points){const d=Math.abs(point-target);if(d<=Math.max(0,n(threshold,.12))&&d<distance){best=point;distance=d;}}
   return {time:best,snapped:best!==target,distance};
 }
