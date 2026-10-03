@@ -41,6 +41,7 @@ export const shootDays = sqliteTable("shoot_days", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectId: integer("project_id").references(() => projects.id).notNull(),
   date: text("date").notNull(),
+  callTime: text("call_time"),
   unit: text("unit").default("1st Unit"),
   notes: text("notes"),
 }, (table) => ({
