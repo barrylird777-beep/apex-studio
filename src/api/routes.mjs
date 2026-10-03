@@ -62,10 +62,6 @@ export function createApi(studio){
   });
   r.post("/omni/prosody",(req,res)=>res.json(studio.command("omni.prosody",{text:req.body?.text??""})));
   r.post("/omni/stereo",(req,res)=>res.json(studio.command("omni.stereo",req.body??{})));
-,(req,res)=>res.json(studio.listScenes()));
-  r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
-  r.post("/scenes/:id/storyboard",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});scene.shots=buildStoryboard(scene).map((s,i)=>({...s,index:i}));scene.updatedAt=new Date().toISOString();void studio.autosave();return res.status(201).json(scene.shots);});
-  r.post("/scenes/:id/shots",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shot=createShot({...req.body,sceneId:scene.id,index:scene.shots.length});scene.shots.push(shot);scene.updatedAt=new Date().toISOString();return res.status(201).json(shot);});
 
   r.get("/omni/production-timelines",async(req,res)=>{try{res.json(await studio.omniStore.listProductionTimelines(Number(req.query.limit??500)));}catch(e){res.status(500).json({error:e.message});}});
   r.post("/omni/production-timelines",async(req,res)=>{try{res.status(201).json(await studio.omniStore.createProductionTimeline(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
