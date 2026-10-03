@@ -15,7 +15,8 @@
     "security:certs": "bash scripts/security/verify-cert-permissions.sh",
     "security:storage": "bash scripts/security/verify-se-x-storage.sh",
     "security:tls": "bash scripts/security/verify-tls.sh",
-    "security:monitor": "node scripts/security/monitor-se-x.mjs"
+    "security:monitor": "node scripts/security/monitor-se-x.mjs",
+    "security:network": "bash scripts/security/verify-network-boundaries.sh"
   },
   "dependencies": {
     "express": "^4.19.2",
