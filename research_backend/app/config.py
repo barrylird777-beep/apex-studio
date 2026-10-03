@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     air_gapped_mode: bool = False
     retention_days: int = 2555
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_from: str | None = None
+    smtp_to: str | None = None
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
