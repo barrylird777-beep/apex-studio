@@ -82,6 +82,7 @@ export class DecentralizedInferenceSwarm {
       attempted.add(node.id);
 
       const controller = new AbortController();
+      const startedAt = Date.now();
       const timer = setTimeout(() => controller.abort(), number(options.timeoutMs, this.timeoutMs));
 
       try {
@@ -108,7 +109,7 @@ export class DecentralizedInferenceSwarm {
           response: String(data.response ?? data.output ?? data.text ?? ""),
           nodeId: node.id,
           model,
-          latencyMs: Date.now() - (timer.startedAt ?? Date.now())
+          latencyMs: Date.now() - startedAt
         };
       } catch (error) {
         this.markFailure(node);
