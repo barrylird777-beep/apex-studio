@@ -33,8 +33,7 @@
     "apex:run": "node apex-run.mjs",
     "mesh:ignite": "node master-ignite.mjs",
     "ai:smoke": "node scripts/ai-smoke.mjs",
-    "production:voiceover": "node src/workers/voiceover-worker.mjs",
-    "typecheck": "tsc --checkJs --noEmit --allowJs"
+    "production:voiceover": "node src/workers/voiceover-worker.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -44,8 +43,5 @@
     "@aws-sdk/lib-storage": "^3.864.0",
     "pg": "^8.16.3",
     "cors": "^2.8.5"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.2"
   }
 }
