@@ -108,7 +108,7 @@ export function createApi(studio){
   r.get("/omni/status",async(req,res)=>res.json({mode:detectOmni(req.query.q),privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
   r.post("/omni/risk",(req,res)=>{try{res.json(studio.beginOmniReview(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
   r.post("/omni/risk/:id/confirm",(req,res)=>{try{res.json(studio.confirmOmniReview(req.params.id,req.body?.approved===true));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/omni/search",async(req,res)=>{
+  r.get("/omni/passages",(req,res)=>studio.omniStore.searchPassages(String(req.query.q??""),Number(req.query.limit??50)).then(x=>res.json(x)).catch(e=>res.status(400).json({error:e.message})));\n  r.post("/omni/search",async(req,res)=>{
     try{
       const body=req.body??{}, sources=Array.isArray(body.sources)?body.sources:[];
       if(sources.length && body.handshakeId) {
