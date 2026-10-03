@@ -5,7 +5,10 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
-import { initStorage, STORAGE_DIR, getProjectState, saveSceneAsset } from './src/services/projectManager.mjs';
+import { unlink } from 'node:fs/promises';
+import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
+import { RenderWorker } from './src/core/render-worker.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveSceneAsset, saveProjectAsset } from './src/services/projectManager.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -853,6 +856,77 @@ app.get('/api/project', async (_req, res) => {
   } catch (error) {
     console.error('[project-state-fatal]', error);
     return res.status(500).json({ success: false, error: 'Project state unavailable' });
+  }
+});
+
+function storagePathFromFileUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw.startsWith('/files/')) throw new Error('Asset is not a persistent /files/ resource');
+  const name = decodeURIComponent(raw.slice('/files/'.length));
+  if (!/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') throw new Error('Invalid persisted asset path');
+  return path.join(STORAGE_DIR, name);
+}
+
+app.get('/api/render/status', async (_req, res) => {
+  try {
+    const worker = new RenderWorker();
+    return res.json({ success: true, ffmpegAvailable: await worker.available() });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/render/export', async (req, res) => {
+  try {
+    const format = String(req.body?.format || 'master');
+    const requestedIds = Array.isArray(req.body?.sceneIds) ? req.body.sceneIds.map(String) : [];
+    const state = await getProjectState();
+    const scenes = Array.isArray(state.scenes) ? state.scenes : [];
+    const selected = scenes.filter(scene =>
+      scene?.video &&
+      (!requestedIds.length || requestedIds.includes(String(scene.id)))
+    );
+
+    if (!selected.length) {
+      return res.status(409).json({ success: false, error: 'No persisted video scenes are ready for export' });
+    }
+
+    const clips = selected.map(scene => ({
+      sceneId: scene.id,
+      videoUri: storagePathFromFileUrl(scene.video),
+      audioUri: scene.audio ? storagePathFromFileUrl(scene.audio) : null
+    }));
+
+    const outputName = `render_master_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp4`;
+    const worker = new RenderWorker({ outputDir: STORAGE_DIR });
+    if (!(await worker.available())) {
+      return res.status(503).json({ success: false, error: 'FFmpeg is not available on the server' });
+    }
+
+    const plan = buildTimelineFfmpegPlan({ clips, format, output: outputName });
+    if (!plan.ready) return res.status(409).json({ success: false, error: plan.reason });
+
+    const job = {
+      id: `master_${Date.now()}`,
+      settings: { output: outputName }
+    };
+
+    const result = await worker.render(job, plan);
+    const buffer = await (await import('node:fs/promises')).readFile(result.output);
+    const saved = await saveProjectAsset('master', buffer, 'mp4');
+    await unlink(result.output).catch(() => {});
+
+    return res.json({
+      success: true,
+      url: saved.url,
+      format,
+      sceneCount: selected.length,
+      bytes: saved.bytes,
+      generatedAt: saved.updatedAt
+    });
+  } catch (error) {
+    console.error('[render-export-fatal]', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
