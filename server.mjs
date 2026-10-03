@@ -17,6 +17,7 @@ import { DistributedTileRenderer } from './src/core/vision/distributed-tile-rend
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
 import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
+import { createOverseer, overseerCycle, overseerStatus } from './src/core/mesh/overseer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -24,6 +25,7 @@ const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
 const permanentWorkerFleet = createPermanentWorkerFleet();
+const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
 for (const worker of permanentWorkerFleet.workers) Object.assign(worker, startPermanentWorker(worker));
 permanentWorkerFleet.status = 'running';
 const permanentWorkerHeartbeat = setInterval(() => {
@@ -31,7 +33,8 @@ const permanentWorkerHeartbeat = setInterval(() => {
     const next = heartbeatPermanentWorker(worker, worker.currentTask || `continuous:${worker.role}`);
     Object.assign(worker, next);
   }
-}, Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)));
+  Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
+}, apexOverseer.intervalMs);
 permanentWorkerHeartbeat.unref?.();
 
 const meshWorkerSupervisor = new WorkerSupervisor({
@@ -61,6 +64,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 app.disable('x-powered-by');
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({success:true,...fleetStatus(permanentWorkerFleet)}));
+app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
 
 app.use(cors());
 app.use(express.json({ limit: CAPACITY.jsonBody }));
