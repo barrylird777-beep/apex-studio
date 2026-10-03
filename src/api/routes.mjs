@@ -11,12 +11,11 @@ import { listVoiceOptions, synthesizeSpeech, audioEdit, generateSfx, buildAudioS
 import { channelIntelligence, buildScriptBrief, generateScriptWithGemini } from "../core/youtube-intelligence.mjs";
 import { analyzeChannelLifetime, createScriptPrompt, findWinningPatterns } from "../core/channel-intelligence.mjs";
 
-function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
 export function createApi(studio){
   const r=express.Router();
   const renderWorker=new RenderWorker();
-  r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
+  r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Production OS",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
   r.get("/youtube/intelligence",async(req,res)=>{try{res.json((await channelIntelligence.load()).lifetime?channelIntelligence.summary():await channelIntelligence.load());}catch(e){res.status(500).json({error:e.message});}});
   r.get("/youtube/intelligence/videos",async(req,res)=>{try{await channelIntelligence.load();res.json(channelIntelligence.state.videoAnalysis||[]);}catch(e){res.status(500).json({error:e.message});}});
   r.post("/youtube/intelligence/ingest",async(req,res)=>{try{res.status(201).json(await channelIntelligence.ingest(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
@@ -37,53 +36,10 @@ export function createApi(studio){
   r.post("/channel/analyze",(req,res)=>{try{const analysis=analyzeChannelLifetime(req.body??{});res.json({success:true,...analysis});}catch(e){res.status(400).json({success:false,error:e.message});}});
   r.post("/channel/patterns",(req,res)=>{try{res.json({success:true,patterns:findWinningPatterns(req.body?.videos??[])});}catch(e){res.status(400).json({success:false,error:e.message});}});
 
-  r.get("/biblical/catalog",(req,res)=>res.json(bibleCatalog()));
-  r.get("/sacred/catalog",async(req,res)=>{try{res.json(await studio.command("sacred.catalog",{}));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/quirks/suggest",(req,res)=>Promise.resolve(studio.command("quirk.suggest",req.body??{})).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message})));
   r.post("/quirks/audit",(req,res)=>Promise.resolve(studio.command("quirk.audit",req.body?.quirks??[])).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message})));
 
   r.get("/projects",(req,res)=>res.json(studio.projects.list()));
   r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
-
-,(req,res)=>res.json(studio.canon));
-  r.get("/canon/audit",(req,res)=>res.json(studio.command("canon.audit",{})));
-  r.get("/canon/episodes/:episodeId",(req,res)=>res.json(studio.command("canon.episode",{episodeId:req.params.episodeId})));
-  r.post("/canon/entities",(req,res)=>res.status(201).json(studio.command("canon.entity.add",req.body??{})));
-  r.patch("/canon/entities/:id",(req,res)=>{try{res.json(studio.command("canon.entity.update",{id:req.params.id,...(req.body??{})}));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/canon/relationships",(req,res)=>res.status(201).json(studio.command("canon.relate",req.body??{})));
-  r.post("/canon/events",(req,res)=>res.status(201).json(studio.command("canon.event",req.body??{})));
-,(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shots=scene.shots??[];res.json(shots.map(shot=>buildVisualPrompt({shot,characters:(shot.characterIds??[]).map(id=>studio.visualBible.getCharacter(id)).filter(Boolean),location:studio.visualBible.getLocation(shot.locationId),canonEntities:(shot.canonEntityIds??[]).map(id=>studio.canon.entities.find(x=>x.id===id)).filter(Boolean)})));});
-  r.post("/generation",(req,res)=>{const j=studio.generation.enqueue(req.body??{});void studio.autosave();res.status(202).json(j);});
-  r.get("/generation",(req,res)=>res.json(studio.generation.list()));
-  r.patch("/generation/:id",(req,res)=>{const j=studio.generation.mark(req.params.id,req.body?.status,req.body?.patch??{});void studio.autosave();res.json(j);});
-,(req,res)=>res.json({scenes:studio.listScenes(),search:studio.search("",50)}));
-  r.get("/editor/search",(req,res)=>res.json(studio.search(req.query.q??"",Number(req.query.limit??30))));
-  r.patch("/editor/scenes/:id",async(req,res)=>{
-    const scene=studio.getScene(req.params.id);
-    if(!scene)return res.status(404).json({error:"Scene not found"});
-    const allowed=["title","notes","locationId","characters","beats","dialogue","continuityRefs","sourceRefs","status"];
-    const patch=Object.fromEntries(Object.entries(req.body??{}).filter(([k])=>allowed.includes(k)));
-    const before=structuredClone(scene);
-    try{
-      const result=studio.commands.execute({
-        targetId:scene.id,
-        type:"scene.patch",
-        do(){Object.assign(scene,structuredClone(patch));scene.updatedAt=new Date().toISOString();return scene;},
-        undo(){Object.assign(scene,structuredClone(before));return scene;}
-      });
-      await studio.save();
-      res.json(result);
-    }catch(e){res.status(400).json({error:e.message});}
-  });
-  r.post("/editor/undo",async(req,res)=>{try{const result=studio.commands.undo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/editor/redo",async(req,res)=>{try{const result=studio.commands.redo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
-  r.get("/omni/status",async(req,res)=>res.json({mode:"STANDARD",privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
-  r.post("/omni/risk",(req,res)=>{try{res.json(studio.beginOmniReview(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/omni/risk/:id/confirm",(req,res)=>{try{res.json(studio.confirmOmniReview(req.params.id,req.body?.approved===true));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/omni/search",async(req,res)=>{
-    try{
-      const body=req.body??{}, sources=Array.isArray(body.sources)?body.sources:[];
-      if(sources.length && body.handshakeId) {
         const h=studio.omniHandshakes.get(body.handshakeId);
         if(!h||h.state!=="approved") return res.status(409).json({error:"Approved risk handshake required."});
       } else if(sources.length) return res.status(409).json({error:"Risk handshake required before outbound retrieval."});
