@@ -36,6 +36,28 @@ for (const worker of permanentWorkerFleet.workers) {
 }
 permanentWorkerFleet.status = 'running';
 
+const permanentHealthHandler = async (payload) => {
+  const role = String(payload?.role || 'general');
+  const startedAt = Date.now();
+  if (['project-storage', 'media-ingest', 'publishing'].includes(role)) {
+    await getProjectState();
+  } else if (['video-engine', 'export', 'render-cache', 'visual-direction'].includes(role)) {
+    await new RenderWorker().available();
+  } else if (['voiceover', 'audio-reference'].includes(role)) {
+    await voiceoverWorkerStatus();
+  } else {
+    capacitySnapshot();
+  }
+  return {
+    ok: true,
+    workerId: String(payload?.workerId || ''),
+    role,
+    task: String(payload?.task || ''),
+    durationMs: Date.now() - startedAt,
+    completedAt: new Date().toISOString()
+  };
+};
+
 const meshWorkerSupervisor = new WorkerSupervisor({
   workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 64)),
   handler: async (payload) => {
@@ -53,30 +75,17 @@ const meshWorkerSupervisor = new WorkerSupervisor({
         Math.max(1, Number(process.env.APEX_MESH_WORKERS || 4))
       );
     }
-    if (type === 'permanent-health') {
-      const role = String(payload?.role || 'general');
-      const startedAt = Date.now();
-      if (['project-storage', 'media-ingest', 'publishing'].includes(role)) {
-        await getProjectState();
-      } else if (['video-engine', 'export', 'render-cache', 'visual-direction'].includes(role)) {
-        await new RenderWorker().available();
-      } else if (['voiceover', 'audio-reference'].includes(role)) {
-        await voiceoverWorkerStatus();
-      } else {
-        capacitySnapshot();
-      }
-      return {
-        ok: true,
-        workerId: String(payload?.workerId || ''),
-        role,
-        task: String(payload?.task || ''),
-        durationMs: Date.now() - startedAt,
-        completedAt: new Date().toISOString()
-      };
-    }
     throw new Error('Unknown mesh worker task: ' + type);
   }
 });
+
+const permanentWorkerSupervisor = new WorkerSupervisor({
+  workers: Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 64)),
+  handler: permanentHealthHandler
+});
+
+meshWorkerSupervisor.start();
+permanentWorkerSupervisor.start();
 
 const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
@@ -116,7 +125,7 @@ const permanentWorkerHeartbeat = setInterval(() => {
     Object.assign(worker, heartbeatPermanentWorker(worker, task));
     permanentWorkerInFlight.add(worker.id);
 
-    void meshWorkerSupervisor.dispatch({
+    void permanentWorkerSupervisor.dispatch({
       type: 'permanent-health',
       workerId: worker.id,
       role: worker.role,
