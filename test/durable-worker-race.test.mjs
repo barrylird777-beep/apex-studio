@@ -16,7 +16,7 @@ import {
 
 const hasDatabase = Boolean(String(process.env.DATABASE_URL || "").trim());
 
-test("two workers race for one task and only one claim wins", { skip: !hasDatabase }, async () => {
+test("two workers race for one task and only one claim wins", { skip: !hasDatabase, concurrency: false }, async () => {
   const id = crypto.randomUUID();
   await ensureWorkerTaskSchema();
   await enqueueWorkerTask({ id, workerId: "race-test", role: "general", task: "race" });
@@ -29,7 +29,6 @@ test("two workers race for one task and only one claim wins", { skip: !hasDataba
   assert.equal(claimed.length, 1);
 
   assert.equal(await completeWorkerTask(id, { ok: true }, claimed[0].lease_token), true);
-  await closeWorkerStore();
 });
 
 test("expired lease can be reclaimed but stale result is rejected", { skip: !hasDatabase }, async () => {
@@ -57,7 +56,6 @@ test("expired lease can be reclaimed but stale result is rejected", { skip: !has
   } finally {
     await db.query("DELETE FROM apex_worker_tasks WHERE id=$1", [id]).catch(() => {});
     await db.end();
-    await closeWorkerStore();
   }
 });
 
