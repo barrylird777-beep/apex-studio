@@ -18,7 +18,7 @@
     "security:monitor": "node scripts/security/monitor-se-x.mjs",
     "security:network": "bash scripts/security/verify-network-boundaries.sh",
     "security:crypto": "bash scripts/security/verify-crypto.sh",
-    "security:willy-nilly": "echo '=== SYSTEM EXEGESIS DIRECT PROTOCOL INTERFACE ===' && npm run security:crypto -- --silent && npm run security:storage -- --silent && npm run security:network -- --silent",
+    "security:willy-nilly": "node --test test/security/willy_nilly_protocol.test.js && npm run security:crypto -- --silent && npm run security:storage -- --silent && npm run security:network -- --silent",
     "security:negative-tls": "APEX_RUN_DEPLOYED_TLS_TESTS=true node --test test/security/negative_tls_protocol.test.js"
   },
   "dependencies": {
