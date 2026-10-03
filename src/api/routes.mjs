@@ -9,6 +9,7 @@ import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
 import { listStudioTools, runStudioTool } from "../core/studio-tools.mjs";
+import { listVoiceOptions, synthesizeSpeech, audioEdit, generateSfx, buildAudioStation } from "../core/audio-station.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
@@ -170,6 +171,11 @@ export function createApi(studio){
   r.get("/assets",(req,res)=>res.json([...studio.assets.assets.values()]));
   r.get("/media",(req,res)=>res.json(studio.media.list()));
   r.post("/media",(req,res)=>{const m=studio.media.add(req.body??{});void studio.autosave();res.status(201).json(m);});
+  r.get("/audio/voices",async(req,res)=>{try{res.json({unlimitedLocal:true,voices:await listVoiceOptions()});}catch(e){res.status(500).json({error:e.message});}});
+  r.post("/audio/tts",async(req,res)=>{try{const result=await synthesizeSpeech(req.body??{});res.status(201).json(result);}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/audio/edit",async(req,res)=>{try{res.status(201).json(await audioEdit(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/audio/sfx",async(req,res)=>{try{res.status(201).json(await generateSfx(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/audio/station/render",async(req,res)=>{try{res.status(201).json(await buildAudioStation(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
   r.get("/audio",(req,res)=>res.json([...studio.audio.values()]));
   r.post("/audio",(req,res)=>{const a=createAudioTrack(req.body??{});studio.audio.set(a.id,a);void studio.autosave();res.status(201).json(a);});
   r.post("/assets",(req,res)=>{const a=studio.assets.create(req.body??{});studio.events.emit("asset.created",a);res.status(201).json(a);});
