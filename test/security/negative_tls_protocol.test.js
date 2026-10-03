@@ -43,12 +43,12 @@ function assertLegacyRejected(version, protocol) {
   const result = runTls(version);
   assert.doesNotMatch(
     result.output,
-    new RegExp(`Protocol version:\\s*${protocol.replace(".", "\\\\.")}\\b`, "i"),
-    `Security failure: ${target} negotiated legacy TLS ${label}.\n${result.output}`
+    new RegExp(`Protocol version:\\s*${protocol.replace(".", "\\.")}\\b`, "i"),
+    `Security failure: ${target} negotiated legacy ${protocol}.\n${result.output}`
   );
   assert.ok(
     result.status !== 0 || /handshake failure|protocol version|wrong version number|unsupported protocol|no protocols available|alert/i.test(result.output),
-    `TLS ${label} did not produce a recognizable rejection signal.\n${result.output}`
+    `Legacy ${protocol} did not produce a recognizable rejection signal.\n${result.output}`
   );
 }
 
