@@ -129,7 +129,7 @@ async function callSambaNova(prompt, system) {
     prompt, system, provider: 'SambaNova',
   });
 }
-\nasync function callNvidia(prompt, system) {
+async function callNvidia(prompt, system) {
   return callOpenAICompatible({
     url: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1/chat/completions',
     apiKey: process.env.NVIDIA_API_KEY,
