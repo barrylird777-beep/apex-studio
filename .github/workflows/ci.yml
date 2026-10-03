@@ -1,21 +1,18 @@
 name: Apex CI
-
 on:
   push:
     branches: ["**"]
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
   workflow_dispatch:
-
 concurrency:
   group: apex-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
-
 env:
   CI: true
-
 jobs:
   test:
     name: Test (Node ${{ matrix.node }})
@@ -23,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["22.x", "24.x"]
+        node: ${{ github.event_name == 'pull_request' && fromJSON('["22.x"]') || fromJSON('["22.x","24.x"]') }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
@@ -36,18 +33,15 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg
           fi
-      - name: Install locked dependencies
-        run: npm ci
+      - run: npm ci
       - run: npm run check
+      - run: npm run typecheck
       - name: Create validation dataset
         run: |
           mkdir -p data/payloads
           printf '%s\n' '{"validation":"remote","source":"github-actions","ok":true}' > data/payloads/sample-target.json
-      - name: Clean payload
-        run: node scripts/clean-payload.js
-      - name: Run test suite
-        run: npm test
-
+      - run: node scripts/clean-payload.js
+      - run: npm test
   mesh-smoke:
     name: Mesh smoke
     runs-on: ubuntu-latest
@@ -57,11 +51,8 @@ jobs:
         with:
           node-version: "22.x"
           cache: npm
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Execute mesh runtime
-        run: npm run apex:run
-
+      - run: npm ci
+      - run: npm run apex:run
   security:
     name: Security gate
     runs-on: ubuntu-latest
@@ -71,7 +62,5 @@ jobs:
         with:
           node-version: "22.x"
           cache: npm
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Run security gate
-        run: npm run security:gate
+      - run: npm ci
+      - run: npm run security:gate
