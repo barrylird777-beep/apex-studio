@@ -1,3 +1,0 @@
-import { uid, now } from "../core/id.mjs";
-export function createCharacter(input={}){return {id:input.id??uid("char"),name:input.name??"Unnamed Character",aliases:input.aliases??[],identity:{...input.identity},appearance:{...input.appearance},personality:{...input.personality},motivations:input.motivations??[],relationships:input.relationships??[],arc:input.arc??[],versions:input.versions??[],createdAt:now(),updatedAt:now()};}
-export function snapshotCharacter(character,label="revision"){const snap=structuredClone(character);snap.id=uid("cdna");snap.label=label;snap.snapshotAt=now();return snap;}
