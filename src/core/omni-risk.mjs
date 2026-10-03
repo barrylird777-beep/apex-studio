@@ -2,9 +2,15 @@ import crypto from "node:crypto";
 import { now } from "./id.mjs";
 
 export const OMNI_TRIGGER = "[WILLY-NILLY]";
+export const APEX_PROTOCOL_OFFSWITCH = String(process.env.APEX_PROTOCOL_OFFSWITCH ?? "NILLY-WILLY").trim();
+
+export function isProtocolOffSwitch(value) {
+  const candidate = String(value ?? "").trim();
+  return Boolean(APEX_PROTOCOL_OFFSWITCH) && candidate === APEX_PROTOCOL_OFFSWITCH;
+}
 
 export function detectOmniTrigger(value) {
-  return String(value ?? "").includes(OMNI_TRIGGER);
+  return !isProtocolOffSwitch(value) && String(value ?? "").includes(OMNI_TRIGGER);
 }
 
 export function buildRiskReport({ query = "", sources = [], writes = [] } = {}) {
