@@ -15,5 +15,11 @@ def upgrade():
  op.create_table("investigation_documents",sa.Column("investigation_id",sa.Integer,sa.ForeignKey("investigations.id",ondelete="CASCADE"),primary_key=True),sa.Column("document_id",sa.Integer,sa.ForeignKey("documents.id",ondelete="CASCADE"),primary_key=True))
  op.create_table("audit_logs",sa.Column("id",sa.Integer,primary_key=True),sa.Column("actor_user_id",sa.Integer,sa.ForeignKey("users.id",ondelete="SET NULL")),sa.Column("action",sa.String(120),nullable=False),sa.Column("object_type",sa.String(80),nullable=False),sa.Column("object_id",sa.String(120),nullable=False),sa.Column("metadata_json",postgresql.JSONB),sa.Column("created_at",sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()))
  op.create_index("idx_audit_logs_created_at","audit_logs",["created_at"])
+ op.execute("""
+ CREATE OR REPLACE FUNCTION prevent_audit_mutation() RETURNS trigger AS $
+ BEGIN RAISE EXCEPTION 'audit_logs is append-only'; END;
+ $ LANGUAGE plpgsql;
+ """)
+ op.execute("CREATE TRIGGER audit_logs_immutable BEFORE UPDATE OR DELETE ON audit_logs FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();")
 def downgrade():
  for t in ["audit_logs","investigation_documents","investigation_sources","investigation_requests","investigations","sources","documents","foia_requests","users","agencies"]: op.drop_table(t)
