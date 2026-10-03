@@ -8,6 +8,7 @@ import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
+import { listStudioTools, runStudioTool } from "../core/studio-tools.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
@@ -15,6 +16,8 @@ export function createApi(studio){
   const r=express.Router();
   const renderWorker=new RenderWorker();
   r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
+  r.get("/tools",(req,res)=>res.json(listStudioTools()));
+  r.post("/tools/:tool",(req,res)=>{try{res.json({success:true,tool:req.params.tool,result:runStudioTool(req.params.tool,req.body??{})});}catch(e){res.status(400).json({success:false,error:e.message});}});
   r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
   r.get("/command-center",async(req,res)=>{try{res.json(await studio.command("command.center",{}));}catch(e){res.status(400).json({error:e.message});}});
   r.get("/privacy",(req,res)=>res.json(studio.privacy));
