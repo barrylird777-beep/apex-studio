@@ -51,7 +51,7 @@ jobs:
           fi
       - run: npm ci
       - run: npm run check
-      - run: npx --yes --package=typescript@5.9.2 tsc --checkJs --noEmit --allowJs
+      - run: npm exec --yes --package=typescript@5.9.2 -- tsc --checkJs --noEmit --allowJs
       - name: Create validation dataset
         run: |
           mkdir -p data/payloads
