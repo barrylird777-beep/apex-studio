@@ -108,7 +108,18 @@ export function createApi(studio){
   r.get("/omni/status",async(req,res)=>res.json({mode:"STANDARD",privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
   r.post("/omni/risk",(req,res)=>{try{res.json(studio.beginOmniReview(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
   r.post("/omni/risk/:id/confirm",(req,res)=>{try{res.json(studio.confirmOmniReview(req.params.id,req.body?.approved===true));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/omni/fanout",async(req,res)=>{\n    try{\n      const body=req.body??{}, targets=Array.isArray(body.targets)?body.targets:[];\n      if(targets.length && body.handshakeId){ const h=studio.omniHandshakes.get(body.handshakeId); if(!h||h.state!=="approved") return res.status(409).json({error:"Approved risk handshake required."}); }\n      else if(targets.length) return res.status(409).json({error:"Risk handshake required before outbound retrieval."});\n      const run=await runFanout(body.query??"",{targets,egress:studio.sex.egress,maxQueries:Number(body.maxQueries??16),timeoutMs:Number(body.timeoutMs??12000)});\n      studio.events.emit?.("fanout.complete",run);\n      res.status(201).json(run);\n    }catch(e){res.status(400).json({error:e.message});}\n  });\n\n  r.post("/omni/search",async(req,res)=>{
+  r.post("/omni/fanout",async(req,res)=>{
+    try{
+      const body=req.body??{}, targets=Array.isArray(body.targets)?body.targets:[];
+      if(targets.length && body.handshakeId){ const h=studio.omniHandshakes.get(body.handshakeId); if(!h||h.state!=="approved") return res.status(409).json({error:"Approved risk handshake required."}); }
+      else if(targets.length) return res.status(409).json({error:"Risk handshake required before outbound retrieval."});
+      const run=await runFanout(body.query??"",{targets,egress:studio.sex.egress,maxQueries:Number(body.maxQueries??16),timeoutMs:Number(body.timeoutMs??12000)});
+      studio.events.emit?.("fanout.complete",run);
+      res.status(201).json(run);
+    }catch(e){res.status(400).json({error:e.message});}
+  });
+
+  r.post("/omni/search",async(req,res)=>{
     try{
       const body=req.body??{}, sources=Array.isArray(body.sources)?body.sources:[];
       if(sources.length && body.handshakeId) {
@@ -127,9 +138,14 @@ export function createApi(studio){
   });
   r.get("/omni/events",(req,res)=>{
     res.status(200);res.set({"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive"});res.flushHeaders?.();
-    const send=(type,payload)=>res.write("event: "+type+"\ndata: "+JSON.stringify(payload)+"\n\n");
+    const send=(type,payload)=>res.write("event: "+type+"
+data: "+JSON.stringify(payload)+"
+
+");
     const offs=["sex.started","sex.complete"].map(type=>studio.events.on(type,p=>send(type,p)));
-    const heartbeat=setInterval(()=>res.write(": ping\\n\\n"),15000);
+    const heartbeat=setInterval(()=>res.write(": ping\
+\
+"),15000);
     req.on("close",()=>{clearInterval(heartbeat);offs.forEach(off=>off());});
   });
   r.post("/omni/prosody",(req,res)=>res.json(studio.command("omni.prosody",{text:req.body?.text??""})));
