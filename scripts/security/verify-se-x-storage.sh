@@ -3,6 +3,16 @@ set -euo pipefail
 
 CONTAINER="${APEX_SEX_CONTAINER:-apex-se-x}"
 
+# The SE-X container is a deployment/runtime artifact and is not created by
+# GitHub-hosted CI. Keep this check mandatory wherever that container exists,
+# while allowing the repository security suite to run on ephemeral CI runners.
+if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  if ! command -v docker >/dev/null 2>&1 || ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+    echo "[INFO] CI environment detected. SE-X runtime container is not present; skipping deployment-only storage inspection."
+    exit 0
+  fi
+fi
+
 echo "== Container mounts =="
 docker inspect --format='{{json .Mounts}}' "$CONTAINER"
 
