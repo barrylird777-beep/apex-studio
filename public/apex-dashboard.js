@@ -27,7 +27,30 @@
   nav.appendChild(toolsButton);
 
 
+  const ytButton=document.createElement("button");
+  ytButton.dataset.view="youtube-intelligence";ytButton.textContent="YouTube Intelligence";ytButton.onclick=()=>youtubeIntelligenceView();nav.appendChild(ytButton);
   const main = document.querySelector("main");
+  const yt=document.createElement("section");
+  yt.id="youtube-intelligence";yt.className="view hidden";
+  yt.innerHTML=`
+    <div class="top"><div><div class="eyebrow">Lifetime channel intelligence</div><h1>YouTube Intelligence</h1><p>Persistent history, performance patterns, trends, opportunities and one-click script generation.</p></div><div class="actions"><button class="primary" id="ytRefresh">Analyze lifetime</button></div></div>
+    <div class="cards">
+      <div class="card"><div id="ytVideos" class="num">—</div><div class="label">Videos analyzed</div></div>
+      <div class="card"><div id="ytViews" class="num">—</div><div class="label">Lifetime views</div></div>
+      <div class="card"><div id="ytWatch" class="num">—</div><div class="label">Watch minutes</div></div>
+      <div class="card"><div id="ytCtr" class="num">—</div><div class="label">Median CTR</div></div>
+    </div>
+    <div class="workspace">
+      <section class="panel"><h2>One-click Script Factory</h2><div class="form"><input id="ytTopic" placeholder="Topic"><input id="ytAudience" placeholder="Audience"><div class="inline"><input id="ytDuration" type="number" value="8" min="1"><input id="ytTone" value="cinematic, clear, emotionally engaging"></div><textarea id="ytSources" placeholder="Source references, one per line"></textarea><button class="primary" id="ytGenerate">Generate full script with Gemini</button><div id="ytScriptStatus" class="notice">—</div></div></section>
+      <section class="panel"><h2>Channel opportunity map</h2><div id="ytOpp" class="list"></div></section>
+    </div>
+    <div class="workspace" style="margin-top:14px">
+      <section class="panel"><h2>Lifetime top performers</h2><div id="ytTop" class="list"></div></section>
+      <section class="panel"><h2>Monthly trend history</h2><div id="ytTrend" class="list"></div></section>
+    </div>
+    <section class="panel" style="margin-top:14px"><h2>Generated script</h2><pre id="ytScriptOut" class="notice" style="white-space:pre-wrap;max-height:720px;overflow:auto">Generate a script to populate this workspace.</pre></section>`;
+  main.appendChild(yt);
+
   const tools = document.createElement("section");
   tools.id = "studio-tools";
   tools.className = "view hidden";
@@ -97,6 +120,29 @@
     $(name).classList.remove("hidden");
     document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("active", x.dataset.view === name));
   }
+
+  window.youtubeIntelligenceView=async function(){
+    activate("youtube-intelligence");
+    const load=async()=>{
+      try{
+        const d=await api("/api/studio/youtube/intelligence");
+        const l=d.lifetime||{};
+        $("ytVideos").textContent=l.videos??0;$("ytViews").textContent=Number(l.totalViews||0).toLocaleString();$("ytWatch").textContent=Number(l.totalWatchTimeMinutes||0).toLocaleString();$("ytCtr").textContent=((l.medianCtr||0).toFixed(2))+"%";
+        $("ytTop").innerHTML=(l.topVideos||[]).map(v=>"<div class='row'><div><b>"+esc(v.title)+"</b><span class='muted'>"+Number(v.views||0).toLocaleString()+" views · "+Number(v.retention||0).toFixed(1)+"% retention · "+Number(v.ctr||0).toFixed(2)+"% CTR</span></div></div>").join("")||empty("No channel history imported.");
+        $("ytOpp").innerHTML=(d.opportunities||[]).map(x=>"<div class='row'><div><b>"+esc(x.topic)+"</b><span class='muted'>"+x.evidenceVideos+" videos · "+Number(x.avgViews||0).toFixed(0)+" avg views · "+Number(x.avgRetention||0).toFixed(1)+"% retention · "+Number(x.avgCtr||0).toFixed(2)+"% CTR</span></div></div>").join("")||empty("Import lifetime video analytics.");
+        $("ytTrend").innerHTML=(d.trends||[]).slice(-18).reverse().map(x=>"<div class='row'><div><b>"+esc(x.month)+"</b><span class='muted'>"+Number(x.videos||0)+" videos · "+Number(x.views||0).toLocaleString()+" views · "+Number(x.growth||0).toFixed(1)+"% vs prior month</span></div></div>").join("")||empty("No dated analytics.");
+      }catch(e){$("ytScriptStatus").textContent=e.message}
+    };
+    $("ytRefresh").onclick=load;
+    $("ytGenerate").onclick=async()=>{
+      $("ytScriptStatus").textContent="Generating…";
+      try{
+        const r=await api("/api/studio/youtube/script/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({topic:$("ytTopic").value,audience:$("ytAudience").value,durationMinutes:Number($("ytDuration").value),tone:$("ytTone").value,sourceRefs:$("ytSources").value.split("\\n").map(x=>x.trim()).filter(Boolean)})});
+        $("ytScriptOut").textContent=JSON.stringify(r.result||r,null,2);$("ytScriptStatus").textContent=r.configured?"Gemini generation complete.":"Brief generated; configure GEMINI_API_KEY for direct generation.";
+      }catch(e){$("ytScriptStatus").textContent=e.message}
+    };
+    await load();
+  };
 
   window.quirkLabView = function() {
     activate("quirk-lab");
