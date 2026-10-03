@@ -142,6 +142,11 @@ export function createApi(studio){
   r.post("/scenes/:id/storyboard",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});scene.shots=buildStoryboard(scene).map((s,i)=>({...s,index:i}));scene.updatedAt=new Date().toISOString();void studio.autosave();return res.status(201).json(scene.shots);});
   r.post("/scenes/:id/shots",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});const shot=createShot({...req.body,sceneId:scene.id,index:scene.shots.length});scene.shots.push(shot);scene.updatedAt=new Date().toISOString();return res.status(201).json(shot);});
 
+  r.get("/omni/production-timelines",async(req,res)=>{try{res.json(await studio.omniStore.listProductionTimelines(Number(req.query.limit??500)));}catch(e){res.status(500).json({error:e.message});}});
+  r.post("/omni/production-timelines",async(req,res)=>{try{res.status(201).json(await studio.omniStore.createProductionTimeline(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.get("/omni/production-timelines/:nodeId",async(req,res)=>{try{const row=await studio.omniStore.getProductionTimeline(req.params.nodeId);if(!row)return res.status(404).json({error:"Timeline node not found"});res.json(row);}catch(e){res.status(500).json({error:e.message});}});
+  r.get("/omni/timeline-mutations",async(req,res)=>{try{res.json(await studio.omniStore.listTimelineMutations(req.query.parentNodeId??null,Number(req.query.limit??500)));}catch(e){res.status(500).json({error:e.message});}});
+  r.post("/omni/timeline-mutations",async(req,res)=>{try{res.status(201).json(await studio.omniStore.createTimelineMutation(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
   r.get("/timelines",(req,res)=>res.json(studio.timelines.list()));
   r.post("/timelines",(req,res)=>res.status(201).json(studio.timelines.create(req.body?.name,req.body?.parentId??null)));
   r.post("/timelines/:id/events",(req,res)=>res.status(201).json(studio.timelines.addEvent(req.params.id,req.body??{})));
