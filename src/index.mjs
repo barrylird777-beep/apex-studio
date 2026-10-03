@@ -43,3 +43,4 @@ export * from "./core/local-mode.mjs";
 export * from "./core/secrets.mjs";
 export * from "./core/egress.mjs";
 export * from "./core/realism.mjs";
+export * from "./core/studio-tools.mjs";
