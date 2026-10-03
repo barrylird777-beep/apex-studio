@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { db } from "../src/db/index.ts";
 import { characters, projects, scenes, shootDays } from "../src/db/schema.ts";
-import { createProject, deleteProject, getProjectOverview, updateProject } from "../src/api/projects.ts";
+import { createProject, deleteProject, getProjectOverview, listProjects, updateProject } from "../src/api/projects.ts";
 const created=createProject({title:"SPEC-001 Smoke",primaryScripture:"Genesis 1",status:"development"});
 assert.ok(created?.id);
 const character=db.insert(characters).values({canonicalName:"Smoke Character"}).run();
@@ -14,5 +14,5 @@ assert.ok(overview?.nextShootDay);
 const updated=updateProject(created.id,{title:"SPEC-001 Smoke Updated",primaryScripture:"Genesis 1:1",status:"pre-production"});
 assert.equal(updated?.title,"SPEC-001 Smoke Updated");
 deleteProject(created.id);
-assert.equal(getProjectOverview(created.id),null);
+assert.equal(getProjectOverview(created.id),null);\nassert.equal(listProjects().some((p) => p.id === created.id), false);\nconsole.log("SPEC-001 empty-state persistence check passed");
 console.log("SPEC-001 database smoke test passed");
