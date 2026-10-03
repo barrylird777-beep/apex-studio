@@ -38,10 +38,10 @@ export function apexRouterGate(req, res, next) {
 
 const digest = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
 
-function cacheGet(key) {
+function cacheGet(key, expectedDigest) {
   const hit = authCache.get(key);
   if (!hit) return false;
-  if (hit.expiresAt <= Date.now()) {
+  if (hit.expiresAt <= Date.now() || hit.expectedDigest !== expectedDigest) {
     authCache.delete(key);
     return false;
   }
@@ -50,12 +50,12 @@ function cacheGet(key) {
   return hit.valid === true;
 }
 
-function cacheSet(key) {
+function cacheSet(key, expectedDigest) {
   if (authCache.size >= AUTH_MAX_ENTRIES) {
     const oldest = authCache.keys().next().value;
     if (oldest) authCache.delete(oldest);
   }
-  authCache.set(key, { valid: true, expiresAt: Date.now() + AUTH_TTL_MS });
+  authCache.set(key, { valid: true, expectedDigest, expiresAt: Date.now() + AUTH_TTL_MS });
 }
 
 export function verifyApexCommander(req, res, next) {
@@ -66,18 +66,16 @@ export function verifyApexCommander(req, res, next) {
   if (!expected || !given) return res.status(401).json({ error: "Unauthorized" });
 
   const key = digest(given);
-  if (cacheGet(key)) {
+  const expectedDigest = digest(expected);
+  if (cacheGet(key, expectedDigest)) {
     req.apexAuthCacheHit = true;
     return next();
   }
 
-  const valid = crypto.timingSafeEqual(
-    crypto.createHash("sha256").update(expected).digest(),
-    crypto.createHash("sha256").update(given).digest()
-  );
+  const valid = crypto.timingSafeEqual(Buffer.from(expectedDigest, "hex"), Buffer.from(key, "hex"));
   if (!valid) return res.status(401).json({ error: "Unauthorized" });
 
-  cacheSet(key);
+  cacheSet(key, expectedDigest);
   req.apexAuthCacheHit = false;
   next();
 }
