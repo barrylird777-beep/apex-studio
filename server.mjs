@@ -333,6 +333,33 @@ async function callGemini(prompt, system) {
   return output;
 }
 
+async function callClaude(prompt, system) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('Claude not configured');
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+  const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 4096,
+      system: String(system || DEFAULT_SYSTEM),
+      messages: [{ role: 'user', content: String(prompt) }],
+    }),
+  }, 30000);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300).replace(/\\s+/g, ' ');
+    throw new Error(`Claude ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const data = await response.json();
+  const output = data?.content?.filter(part => part?.type === 'text').map(part => part.text).join('').trim();
+  if (!output) throw new Error('Empty Claude response');
+  return output;
+}
+
 async function callPollinationsText(prompt, system) {
   const fullPrompt = encodeURIComponent(`${system}\n\nTask: ${prompt}`);
   const model = encodeURIComponent(process.env.POLLINATIONS_TEXT_MODEL || 'mistral');
@@ -376,6 +403,7 @@ const allInferenceProviders = [
   { id: 'gemini-free', cost: 'free', call: callGemini, enabled: () => Boolean(process.env.GEMINI_API_KEY) },
   { id: 'cloudflare-free', cost: 'free', call: callCloudflare, enabled: () => Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) },
   { id: 'pollinations', cost: 'free', call: callPollinationsText, enabled: () => true },
+  { id: 'claude', cost: 'metered', call: callClaude, enabled: () => Boolean(process.env.ANTHROPIC_API_KEY) },
   { id: 'huggingface-metered', cost: 'metered', call: callHuggingFace, enabled: () => Boolean(process.env.HF_TOKEN) },
   { id: 'aimlapi-metered', cost: 'metered', call: callAimlapi, enabled: () => Boolean(process.env.AIMLAPI_API_KEY) },
   { id: 'sambanova-metered', cost: 'metered', call: callSambaNova, enabled: () => Boolean(process.env.SAMBANOVA_API_KEY) },
@@ -1046,6 +1074,42 @@ app.post('/api/render/export', async (req, res) => {
     }
   }
 });
+
+app.post('/api/ai/generate', async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
+  const requested = String(req.body?.provider || '').trim();
+  const system = String(req.body?.system || DEFAULT_SYSTEM);
+  try {
+    if (requested === 'gemini') {
+      const text = await callGemini(prompt, system);
+      return res.json({ success: true, provider: 'gemini', text });
+    }
+    if (requested === 'claude') {
+      const text = await callClaude(prompt, system);
+      return res.json({ success: true, provider: 'claude', text });
+    }
+    const result = await executeInference(prompt, system);
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(502).json({ success: false, error: error.message, provider: requested || 'mesh' });
+  }
+});
+
+app.get('/api/ai/status', (_req, res) => res.json({
+  success: true,
+  gemini: {
+    configured: Boolean(process.env.GEMINI_API_KEY),
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
+  },
+  claude: {
+    configured: Boolean(process.env.ANTHROPIC_API_KEY),
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5'
+  },
+  mesh: {
+    configuredProviders: inferenceProviders.filter(p => p.enabled()).map(p => p.id)
+  }
+}));
 
 app.get('/api/mesh/status', (_req, res) => {
   res.json({
