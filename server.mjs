@@ -233,6 +233,11 @@ app.post('/api/forge', async (req, res) => {
       'professional anime keyframe quality'
     ].join(', ');
 
+    // Final style override is appended AFTER the mesh output so no provider can
+    // dilute the visual direction before the prompt reaches the image model.
+    const strictStyle =
+      '1990s dark fantasy anime masterpiece, Studio Madhouse style, deep cinematic shadows, high contrast, cel-shaded, ultra-detailed line art, moody atmosphere, --no 3d, realistic, CGI';
+
     // The LLM may enhance the prompt, but it can never remove the Forge style/quality contract.
     // Keep the model-generated portion bounded, then append the locks last so
     // every Pollinations request always contains every mandatory marker.
@@ -241,7 +246,7 @@ app.post('/api/forge', async (req, res) => {
       .slice(0, 900)
       .trim();
 
-    const sanitizedPrompt = [modelPrompt, FORGE_STYLE_LOCK, FORGE_QUALITY_LOCK]
+    const sanitizedPrompt = [modelPrompt, FORGE_STYLE_LOCK, FORGE_QUALITY_LOCK, strictStyle]
       .filter(Boolean)
       .join(', ')
       .trim();
