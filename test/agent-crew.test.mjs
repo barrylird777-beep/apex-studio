@@ -5,7 +5,7 @@ import { releaseGate } from "../src/core/quality-gates.mjs";
 
 test("crew defaults to recommendation-only agents and requires human approval",()=>{
   const crew=createCrew();
-  assert.equal(crew.agents.length,18);
+  assert.equal(crew.agents.length,26);
   assert.ok(crew.agents.every(a=>a.authority==="recommend-only"));
   assert.equal(canRelease(crew),false);
   assert.equal(auditCrew(crew).ready,true);
