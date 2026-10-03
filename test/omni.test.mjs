@@ -49,7 +49,7 @@ test("egress has no hostname allowlist but rejects non-public targets",async()=>
 });
 
 test("OMNI persistence uses relational SQLite timeline tables",async()=>{
-  const db="./data/test-omni-"+Date.now()+".sqlite";
+  const db="./apex-omni-test-"+Date.now()+".sqlite";
   const store=new OmniStore(db);
   const node=await store.createProductionTimeline({
     nodeId:"node-1", sceneLabel:"Opening", timecode:"00:00:12:00",
