@@ -28,6 +28,16 @@ export function buildFfmpegPlan({media=[],audio=[],format="master",output="outpu
 export function buildTimelineFfmpegPlan({ clips = [], format = "master", output = "output.mp4" } = {}) {
   const preset = OUTPUT_PRESETS[format] ?? OUTPUT_PRESETS.master;
   const valid = clips.filter(clip => clip?.videoUri);
+  if (valid.some(clip => !clip.audioUri)) {
+    return {
+      command: "ffmpeg",
+      args: [],
+      preset,
+      inputCount: valid.length,
+      ready: false,
+      reason: "Every exported scene must have a persistent audio asset."
+    };
+  }
   if (!valid.length) {
     return {
       command: "ffmpeg",
