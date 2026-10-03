@@ -141,6 +141,30 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
   return r.rowCount;
 }
 
+export async function acquireAiRateLimit({ capacity = 2, refillPerSecond = 1 } = {}) {
+  if (!durableWorkerEnabled()) return true;
+  const db = getPool();
+  await db.query(`CREATE TABLE IF NOT EXISTS apex_ai_rate_limiter (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    tokens DOUBLE PRECISION NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const refill = Math.max(0.01, Number(refillPerSecond) || 1);
+  const cap = Math.max(1, Number(capacity) || 2);
+  const r = await db.query(`INSERT INTO apex_ai_rate_limiter(id, tokens)
+    VALUES (1, $1)
+    ON CONFLICT (id) DO UPDATE SET
+      tokens=LEAST($1, apex_ai_rate_limiter.tokens + EXTRACT(EPOCH FROM (NOW()-apex_ai_rate_limiter.updated_at))*$2),
+      updated_at=NOW()
+    RETURNING tokens`, [cap, refill]);
+  if (Number(r.rows[0].tokens) < 1) return false;
+  const take = await db.query(`UPDATE apex_ai_rate_limiter
+    SET tokens=tokens-1, updated_at=NOW()
+    WHERE id=1 AND tokens >= 1
+    RETURNING tokens`);
+  return take.rowCount === 1;
+}
+
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
   await ensureWorkerTaskSchema();
