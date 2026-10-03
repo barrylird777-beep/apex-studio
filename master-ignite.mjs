@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import "dotenv/config";
 import { DecentralizedMeshOrchestrator } from "./src/core/mesh/decentralized-mesh-orchestrator.mjs";
 
 async function startMasterIgnite() {
