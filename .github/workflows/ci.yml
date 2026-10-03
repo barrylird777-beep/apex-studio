@@ -22,4 +22,13 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm install
       - run: npm run check
-      - run: npm test
+      - name: Create validation dataset
+        run: |
+          mkdir -p data/payloads
+          printf '%s\n' '{"validation":"remote","source":"github-actions","ok":true}' > data/payloads/sample-target.json
+      - name: Clean payload
+        run: node scripts/clean-payload.js
+      - name: Run test suite
+        run: npm test
+      - name: Run security gate
+        run: npm run security:gate
