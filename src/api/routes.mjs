@@ -4,7 +4,6 @@ import { evaluateArtifact } from "../core/evaluation.mjs";
 import { exportStudio, importStudio } from "../core/import-export.mjs";
 import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
-import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
 import { listStudioTools, runStudioTool } from "../core/studio-tools.mjs";
 import { listVoiceOptions, synthesizeSpeech, audioEdit, generateSfx, buildAudioStation } from "../core/audio-station.mjs";
@@ -36,7 +35,6 @@ export function createApi(studio){
   r.post("/channel/analyze",(req,res)=>{try{const analysis=analyzeChannelLifetime(req.body??{});res.json({success:true,...analysis});}catch(e){res.status(400).json({success:false,error:e.message});}});
   r.post("/channel/patterns",(req,res)=>{try{res.json({success:true,patterns:findWinningPatterns(req.body?.videos??[])});}catch(e){res.status(400).json({success:false,error:e.message});}});
 
-  r.post("/quirks/audit",(req,res)=>Promise.resolve(studio.command("quirk.audit",req.body?.quirks??[])).then(v=>res.json(v)).catch(e=>res.status(400).json({error:e.message})));
 
   r.get("/projects",(req,res)=>res.json(studio.projects.list()));
   r.post("/projects",(req,res)=>res.status(201).json(studio.projects.create(req.body??{})));
