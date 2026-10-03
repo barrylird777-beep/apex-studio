@@ -48,6 +48,27 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
   return { durable: true, id };
 }
 
+export async function claimNextWorkerTask(leaseMs = 45000) {
+  if (!durableWorkerEnabled()) return null;
+  const db = getPool();
+  await ensureWorkerTaskSchema();
+  const r = await db.query(`WITH candidate AS (
+    SELECT id FROM apex_worker_tasks
+    WHERE status='queued' AND attempts < max_attempts
+    ORDER BY created_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+  ) UPDATE apex_worker_tasks t
+    SET status='running', attempts=attempts+1,
+        lease_owner=$1, lease_expires_at=NOW()+($2::double precision * INTERVAL '1 millisecond'),
+        updated_at=NOW()
+    FROM candidate
+    WHERE t.id=candidate.id
+    RETURNING t.*`,
+    [process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
+  return r.rows[0] || null;
+}
+
 export async function claimWorkerTask(id, leaseMs = 45000) {
   if (!durableWorkerEnabled()) return null;
   const db = getPool();
