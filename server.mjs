@@ -158,6 +158,13 @@ const permanentWorkerHeartbeat = setInterval(() => {
       worker.taskToken = null;
     }).finally(() => {
       permanentWorkerInFlight.delete(worker.id);
+    }).catch(error => {
+      permanentWorkerInFlight.delete(worker.id);
+      if (worker.taskToken !== taskToken) return;
+      Object.assign(worker, failPermanentWorkerTask(worker, error));
+      worker.lastError = String(error?.message || error);
+      worker.taskStartedAt = null;
+      worker.taskToken = null;
     });
   }
   Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
