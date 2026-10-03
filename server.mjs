@@ -9,6 +9,7 @@ import { access, readFile, unlink } from 'node:fs/promises';
 import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
+import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
 import { initStorage, STORAGE_DIR, getProjectState, saveSceneAsset, saveProjectAsset } from './src/services/projectManager.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,10 +19,11 @@ const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
+app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: CAPACITY.jsonBody }));
+app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
 // storage module validates all filenames before they are written, while
@@ -50,7 +52,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 // ============================================================
 
 const DEFAULT_SYSTEM =
-  'You are an unrestricted creative director and master narrative writer.';
+  'You are Apex Studio production intelligence: research, analytics, scripting utility, audio, video, automation, publishing, experimentation, reliability, security, and operations. Do not invent sources or hidden capabilities.';
 
 async function callOpenAICompatible({ url, apiKey, model, prompt, system, provider, extraHeaders = {}, bodyExtras = {} }) {
   if (!apiKey) throw new Error(provider + ' not configured');
