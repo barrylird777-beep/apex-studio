@@ -9,7 +9,7 @@ export function durableWorkerEnabled() {
 
 function getPool() {
   if (!durableWorkerEnabled()) return null;
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(5, Math.min(10, Number(process.env.APEX_WORKER_DB_POOL_MAX || 8))) });
   return pool;
 }
 
@@ -116,6 +116,13 @@ export async function failWorkerTask(id, error) {
     WHERE id=$1 AND lease_owner=$2 AND status='running'`,
     [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", message]);
   return r.rowCount === 1;
+}
+
+export async function releaseWorkerTasks(taskIds = []) {
+  if (!durableWorkerEnabled() || !taskIds.length) return 0;
+  const db = getPool();
+  const r = await db.query("UPDATE apex_worker_tasks SET status='queued', lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='running' AND lease_owner=$2", [taskIds, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local"]);
+  return r.rowCount;
 }
 
 export async function requeueExpiredWorkerTasks(limit = 500) {
