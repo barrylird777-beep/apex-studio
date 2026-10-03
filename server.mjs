@@ -494,7 +494,103 @@ app.post('/api/forge', async (req, res) => {
 });
 
 // ============================================================
-// 4. AUTONOMOUS CRAWLER
+// 4. FREE MEDIA GENERATION
+// ============================================================
+
+function pollinationsMediaKey() {
+  return process.env.POLLINATIONS_API_KEY || '';
+}
+
+function buildPollinationsUrl(kind, prompt, params = {}) {
+  const encoded = encodeURIComponent(String(prompt || '').trim());
+  const base = kind === 'video'
+    ? 'https://gen.pollinations.ai/video/'
+    : 'https://gen.pollinations.ai/image/';
+  const query = new URLSearchParams(params);
+  const key = pollinationsMediaKey();
+  if (key) query.set('key', key);
+  return base + encoded + (query.toString() ? '?' + query.toString() : '');
+}
+
+app.post('/api/media/image', async (req, res) => {
+  try {
+    const prompt = String(req.body?.prompt || '').trim();
+    if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
+
+    const width = Math.min(Math.max(Number(req.body?.width || 1280), 256), 2048);
+    const height = Math.min(Math.max(Number(req.body?.height || 720), 256), 2048);
+    const model = String(req.body?.model || process.env.POLLINATIONS_IMAGE_MODEL || 'flux').slice(0, 120);
+    const seed = Number.isFinite(Number(req.body?.seed)) ? Number(req.body.seed) : Math.floor(Math.random() * 9999999);
+
+    const imageUrl = buildPollinationsUrl('image', prompt, {
+      model, width, height, seed, nologo: 'true'
+    });
+
+    res.json({
+      success: true,
+      type: 'image',
+      provider: 'pollinations',
+      freePath: !pollinationsMediaKey(),
+      imageUrl,
+      prompt,
+      model,
+      seed
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/media/video', async (req, res) => {
+  try {
+    const prompt = String(req.body?.prompt || '').trim();
+    if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
+
+    const duration = Math.min(Math.max(Number(req.body?.duration || 4), 1), 10);
+    const aspectRatio = String(req.body?.aspectRatio || '16:9').slice(0, 20);
+    const model = String(req.body?.model || process.env.POLLINATIONS_VIDEO_MODEL || 'wan').slice(0, 120);
+
+    const videoUrl = buildPollinationsUrl('video', prompt, {
+      model, duration, aspectRatio
+    });
+
+    res.json({
+      success: true,
+      type: 'video',
+      provider: 'pollinations',
+      freePath: !pollinationsMediaKey(),
+      videoUrl,
+      prompt,
+      model,
+      duration,
+      aspectRatio
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/media/status', (_req, res) => {
+  res.json({
+    success: true,
+    image: {
+      provider: 'pollinations',
+      configured: true,
+      apiKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
+      model: process.env.POLLINATIONS_IMAGE_MODEL || 'flux'
+    },
+    video: {
+      provider: 'pollinations',
+      configured: true,
+      apiKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
+      model: process.env.POLLINATIONS_VIDEO_MODEL || 'wan'
+    },
+    note: 'Availability and free usage are controlled by the upstream service. Apex does not bypass provider authentication, quotas, or billing.'
+  });
+});
+
+// ============================================================
+// 5. AUTONOMOUS CRAWLER
 // ============================================================
 
 const CRAWLER_DEFAULTS = Object.freeze({
@@ -628,7 +724,7 @@ app.post(['/api/crawler', '/api/crawl'], async (req, res) => {
 });
 
 // ============================================================
-// 5. STATUS & HEALTH
+// 6. STATUS & HEALTH
 // ============================================================
 
 app.get('/api/mesh/status', (_req, res) => {
