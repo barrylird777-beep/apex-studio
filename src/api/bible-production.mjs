@@ -65,6 +65,23 @@ router.delete("/scenes/:id", async(req,res)=>{try{const d=await db();await d.run
 router.get("/call-sheets", async(req,res)=>{try{const d=await db();res.json((await d.all("SELECT * FROM call_sheets ORDER BY shoot_date DESC")).map(callSheet))}catch(e){res.status(500).json({error:e.message})}});
 router.post("/call-sheets", async(req,res)=>{try{const x=req.body||{};if(!ref(x.shootDate))return res.status(400).json({error:"shootDate is required"});const d=await db(),id=crypto.randomUUID(),now=new Date().toISOString();await d.run("INSERT INTO call_sheets (id,project_id,shoot_date,locations,characters,crew,call_times,weather_notes,special_requirements,scene_ids,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",id,ref(x.projectId)||null,ref(x.shootDate),JSON.stringify(arr(x.locations)),JSON.stringify(arr(x.characters)),JSON.stringify(arr(x.crew)),JSON.stringify(x.callTimes||{}),String(x.weatherNotes||""),String(x.specialRequirements||""),JSON.stringify(arr(x.sceneIds)),now,now);res.status(201).json(callSheet(await d.get("SELECT * FROM call_sheets WHERE id=?",id)))}catch(e){res.status(400).json({error:e.message})}});
 router.put("/call-sheets/:id", async(req,res)=>{try{const d=await db(),x=req.body||{};const now=new Date().toISOString();await d.run("UPDATE call_sheets SET shoot_date=?,locations=?,characters=?,crew=?,call_times=?,weather_notes=?,special_requirements=?,scene_ids=?,updated_at=? WHERE id=?",ref(x.shootDate),JSON.stringify(arr(x.locations)),JSON.stringify(arr(x.characters)),JSON.stringify(arr(x.crew)),JSON.stringify(x.callTimes||{}),String(x.weatherNotes||""),String(x.specialRequirements||""),JSON.stringify(arr(x.sceneIds)),now,req.params.id);res.json(callSheet(await d.get("SELECT * FROM call_sheets WHERE id=?",req.params.id)))}catch(e){res.status(400).json({error:e.message})}});
+function makePdf(lines){
+  const escPdf=s=>String(s).replace(/\\/g,"\\\\").replace(/\\(/g,"\\\\(").replace(/\\)/g,"\\\\)");
+  const content=["BT","/F1 18 Tf","50 760 Td"].concat(lines.flatMap((line,i)=>[(i?"0 -22 Td":""),"("+escPdf(line).slice(0,110)+") Tj"]).filter(Boolean),["ET"]).join("\n");
+  const objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>","<< /Length "+content.length+" >>\nstream\n"+content+"\nendstream"];
+  let pdf="%PDF-1.4\n",offsets=[0];
+  for(let i=0;i<objects.length;i++){offsets[i+1]=Buffer.byteLength(pdf);pdf+=(i+1)+" 0 obj\n"+objects[i]+"\nendobj\n"}
+  const xref=Buffer.byteLength(pdf);pdf+="xref\n0 "+(objects.length+1)+"\n0000000000 65535 f \n";for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";pdf+="trailer\n<< /Size "+(objects.length+1)+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF";return Buffer.from(pdf);
+}
+router.get("/call-sheets/:id/pdf", async(req,res)=>{
+  try{
+    const d=await db(),x=await d.get("SELECT * FROM call_sheets WHERE id=?",req.params.id);
+    if(!x)return res.status(404).json({error:"Call sheet not found"});
+    const c=callSheet(x);
+    const lines=["APEX BIBLE STORY STUDIO — CALL SHEET","Shoot date: "+c.shootDate,"Locations: "+c.locations.join(", "),"Characters / Cast: "+c.characters.join(", "),"Crew: "+c.crew.join(", "),"Call times: "+JSON.stringify(c.callTimes),"Weather: "+c.weatherNotes,"Special requirements: "+c.specialRequirements,"Linked scenes: "+c.sceneIds.join(", ")];
+    const pdf=makePdf(lines);res.set({"Content-Type":"application/pdf","Content-Disposition":"attachment; filename=\"apex-call-sheet-"+c.shootDate+".pdf\"","Content-Length":pdf.length});return res.send(pdf);
+  }catch(e){return res.status(500).json({error:e.message})}
+});
 router.delete("/call-sheets/:id", async(req,res)=>{try{const d=await db();await d.run("DELETE FROM call_sheets WHERE id=?",req.params.id);res.json({success:true})}catch(e){res.status(500).json({error:e.message})}});
 
 router.get("/health", async(_req,res)=>{try{await db();res.json({success:true,database:DB_PATH,seededCharacters:31})}catch(e){res.status(500).json({success:false,error:e.message})}});
