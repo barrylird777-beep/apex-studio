@@ -14,3 +14,5 @@ python-multipart==0.0.20
 pytesseract==0.3.13
 Pillow==11.1.0
 elasticsearch==9.0.0
+psycopg[binary]==3.2.6
+reportlab==4.3.1
