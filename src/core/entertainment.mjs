@@ -12,7 +12,8 @@ const SIGNAL_TERMS=Object.freeze({
   escalation:["then","but","suddenly","however","until","worse","closer","rises","surround","chase"],
   surprise:["reveal","unexpected","instead","turn","secret","shocking","surprise","discovery"],
   payoff:["payoff","answers","fulfilled","returns","callback","reward","victory","resolved","resolution"],
-  sound_design:["music","score","sound","silence","impact","thunder","whisper","roar","footstep","sfx"]
+  sound_design:["music","score","sound","silence","impact","thunder","whisper","roar","footstep","sfx"],
+  pacing:["pace","pacing","rhythm","tempo","shot"]
 });
 
 function textOf(value){
