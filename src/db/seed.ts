@@ -1,7 +1,106 @@
+import { eq } from "drizzle-orm";
 import { db } from "./index";
 import { characters } from "./schema";
 
 const seedCharacters = [
+  { canonicalName: "Methuselah", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Enoch", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Melchizedek", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Lot", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Lot's Wife", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Potiphar", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Potiphar's Wife", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Pharaoh (Joseph's time)", aliases: [], primaryStories: ["Genesis"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jochebed", aliases: [], primaryStories: ["Exodus"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Amram", aliases: [], primaryStories: ["Exodus"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Shiphrah", aliases: [], primaryStories: ["Exodus"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Puah", aliases: [], primaryStories: ["Exodus"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Korah", aliases: [], primaryStories: ["Numbers"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Dathan", aliases: [], primaryStories: ["Numbers"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Abiram", aliases: [], primaryStories: ["Numbers"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Balak", aliases: [], primaryStories: ["Numbers"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Achan", aliases: [], primaryStories: ["Joshua"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Achsah", aliases: [], primaryStories: ["Joshua","Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Othniel", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ehud", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Shamgar", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jael", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Sisera", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Abimelech", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jephthah", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ibzan", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Elon", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Abdon", aliases: [], primaryStories: ["Judges"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Hannah", aliases: [], primaryStories: ["1 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Elkanah", aliases: [], primaryStories: ["1 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Eli", aliases: [], primaryStories: ["1 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Hophni", aliases: [], primaryStories: ["1 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Phinehas (son of Eli)", aliases: [], primaryStories: ["1 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Abigail", aliases: [], primaryStories: ["1 Samuel","2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Nabal", aliases: [], primaryStories: ["1 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Michal", aliases: [], primaryStories: ["1 Samuel","2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Abner", aliases: [], primaryStories: ["1 Samuel","2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Joab", aliases: [], primaryStories: ["2 Samuel","1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ish-bosheth", aliases: [], primaryStories: ["2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Mephibosheth", aliases: [], primaryStories: ["2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ahithophel", aliases: [], primaryStories: ["2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Hushai", aliases: [], primaryStories: ["2 Samuel"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Zadok", aliases: [], primaryStories: ["2 Samuel","1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Abiathar", aliases: [], primaryStories: ["1 Samuel","2 Samuel","1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Adonijah", aliases: [], primaryStories: ["1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Rehoboam", aliases: [], primaryStories: ["1 Kings","2 Chronicles"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jeroboam", aliases: [], primaryStories: ["1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ahab", aliases: [], primaryStories: ["1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jezebel", aliases: [], primaryStories: ["1 Kings","2 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Naboth", aliases: [], primaryStories: ["1 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jehu", aliases: [], primaryStories: ["2 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Athaliah", aliases: [], primaryStories: ["2 Kings"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Joash (Jehoash)", aliases: [], primaryStories: ["2 Kings","2 Chronicles"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Hezekiah", aliases: [], primaryStories: ["2 Kings","2 Chronicles","Isaiah"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Manasseh", aliases: [], primaryStories: ["2 Kings","2 Chronicles"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Josiah", aliases: [], primaryStories: ["2 Kings","2 Chronicles"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Hilkiah", aliases: [], primaryStories: ["2 Kings","2 Chronicles"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Huldah", aliases: [], primaryStories: ["2 Kings","2 Chronicles"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Zerubbabel", aliases: [], primaryStories: ["Ezra","Haggai","Zechariah"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jeshua (Joshua the high priest)", aliases: [], primaryStories: ["Ezra","Zechariah"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Haggai", aliases: [], primaryStories: ["Haggai"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Zechariah (prophet)", aliases: [], primaryStories: ["Zechariah"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Malachi", aliases: [], primaryStories: ["Malachi"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Simeon", aliases: [], primaryStories: ["Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Anna", aliases: [], primaryStories: ["Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Herodias", aliases: [], primaryStories: ["Matthew","Mark"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Salome (daughter of Herodias)", aliases: [], primaryStories: ["Matthew","Mark"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jairus", aliases: [], primaryStories: ["Matthew","Mark","Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Woman with the issue of blood", aliases: [], primaryStories: ["Matthew","Mark","Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Bartimaeus", aliases: [], primaryStories: ["Mark","Matthew","Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Zacchaeus", aliases: [], primaryStories: ["Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Cleopas", aliases: [], primaryStories: ["Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Mary (mother of James)", aliases: [], primaryStories: ["Matthew","Mark","Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Salome (follower of Jesus)", aliases: [], primaryStories: ["Mark"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Joanna", aliases: [], primaryStories: ["Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Susanna", aliases: [], primaryStories: ["Luke"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ananias (of Damascus)", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ananias & Sapphira", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Gamaliel", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Stephen's Accusers", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Ethiopian Eunuch", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Simon the Sorcerer", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Aeneas", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Tabitha (Dorcas)", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Rhoda", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Herod Agrippa I", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Sergius Paulus", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Elymas (Bar-Jesus)", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "John Mark", aliases: [], primaryStories: ["Acts"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "James (brother of Jesus)", aliases: [], primaryStories: ["Acts","Galatians","James"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Jude (brother of Jesus)", aliases: [], primaryStories: ["Jude"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Demas", aliases: [], primaryStories: ["Philemon","Colossians","2 Timothy"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Onesimus", aliases: [], primaryStories: ["Philemon","Colossians"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Philemon", aliases: [], primaryStories: ["Philemon"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Epaphras", aliases: [], primaryStories: ["Colossians","Philemon"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Archippus", aliases: [], primaryStories: ["Colossians","Philemon"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Tychicus", aliases: [], primaryStories: ["Acts","Ephesians","Colossians","2 Timothy","Titus"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
+  { canonicalName: "Aristarchus", aliases: [], primaryStories: ["Acts","Colossians","Philemon"], relationships: [], keyTraits: [], notes: null, scriptureReferences: [] },
   { canonicalName: "Adam", aliases: [], primaryStories: ["Genesis"], relationships: [{ name: "Eve", relation: "Wife" }, { name: "Cain", relation: "Son" }, { name: "Abel", relation: "Son" }, { name: "Seth", relation: "Son" }], keyTraits: ["First man", "Created by God"], notes: "First human created by God.", scriptureReferences: ["Genesis 1–5"] },
   { canonicalName: "Eve", aliases: [], primaryStories: ["Genesis"], relationships: [{ name: "Adam", relation: "Husband" }], keyTraits: ["First woman", "Mother of all living"], notes: "Created from Adam’s rib.", scriptureReferences: ["Genesis 2–4"] },
   { canonicalName: "Cain", aliases: [], primaryStories: ["Genesis"], relationships: [{ name: "Abel", relation: "Brother" }, { name: "Adam", relation: "Father" }, { name: "Eve", relation: "Mother" }], keyTraits: ["First murderer"], notes: "Killed his brother Abel.", scriptureReferences: ["Genesis 4"] },
@@ -108,7 +207,18 @@ const seedCharacters = [
 
 export async function seed() {
   console.log("Seeding characters...");
-  await db.delete(characters);
-  await db.insert(characters).values(seedCharacters);
-  console.log(`Seeded ${seedCharacters.length} characters.`);
+  const existing = db.select({ id: characters.id, canonicalName: characters.canonicalName }).from(characters).all();
+  const byName = new Map(existing.map(row => [row.canonicalName, row.id]));
+  for (const character of seedCharacters) {
+    const id = byName.get(character.canonicalName);
+    if (id) {
+      db.update(characters).set(character).where(eq(characters.id, id)).run();
+    } else {
+      const inserted = db.insert(characters).values(character).returning({ id: characters.id }).get();
+      byName.set(character.canonicalName, inserted.id);
+    }
+  }
+  console.log(`Seeded/updated ${seedCharacters.length} canonical character records; preserved existing non-seed records.`);
 }
+
+seed().catch(error => { console.error(error); process.exitCode = 1; });
