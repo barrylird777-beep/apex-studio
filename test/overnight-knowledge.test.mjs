@@ -5,7 +5,7 @@ import { createOvernightKnowledgePlan, auditOvernightPlan, nextKnowledgeTasks } 
 test("overnight plan contains only knowledge and production-reference work",()=>{
   const plan=createOvernightKnowledgePlan({hours:10});
   const audit=auditOvernightPlan(plan);
-  assert.equal(audit.total,18);
+  assert.equal(audit.total,27);
   assert.equal(audit.storyWork,0);
   assert.equal(plan.rules.noStoryCreation,true);
   assert.equal(plan.rules.requireProvenance,true);
