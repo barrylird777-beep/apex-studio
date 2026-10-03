@@ -8,6 +8,7 @@ import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
 import { verifyApexCommander } from "../../routes-security.mjs";
+import { detectOmniTrigger } from "../core/omni-risk.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
 
@@ -104,6 +105,38 @@ export function createApi(studio){
   });
   r.post("/editor/undo",async(req,res)=>{try{const result=studio.commands.undo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
   r.post("/editor/redo",async(req,res)=>{try{const result=studio.commands.redo();await studio.save();res.json({result});}catch(e){res.status(400).json({error:e.message});}});
+  r.get("/omni/status",async(req,res)=>res.json({mode:detectOmni(req.query.q),privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
+  r.post("/omni/risk",(req,res)=>{try{res.json(studio.beginOmniReview(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/omni/risk/:id/confirm",(req,res)=>{try{res.json(studio.confirmOmniReview(req.params.id,req.body?.approved===true));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/omni/search",async(req,res)=>{
+    try{
+      const body=req.body??{}, sources=Array.isArray(body.sources)?body.sources:[];
+      if(sources.length && body.handshakeId) {
+        const h=studio.omniHandshakes.get(body.handshakeId);
+        if(!h||h.state!=="approved") return res.status(409).json({error:"Approved risk handshake required."});
+      } else if(sources.length) return res.status(409).json({error:"Risk handshake required before outbound retrieval."});
+      const run=await studio.sex.search(body.query??"",{sources,approved:sources.length===0||Boolean(body.handshakeId)});
+      if(body.inject===true){
+        const research=studio.research.create({question:body.query??"",queries:run.fragments,sources:run.results.filter(x=>!x.error).map(x=>({url:x.url,status:x.status,contentType:x.contentType}))});
+        for(const result of run.results.filter(x=>!x.error&&x.text)) studio.research.addClaim(research.id,{text:result.text.slice(0,4000),source:result.url,verified:false});
+        await studio.save();
+        run.injection={researchId:research.id,policy:"stored as unverified research; no executable content imported"};
+      }
+      res.status(201).json(run);
+    }catch(e){res.status(400).json({error:e.message});}
+  });
+  r.get("/omni/events",(req,res)=>{
+    res.status(200);res.set({"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive"});res.flushHeaders?.();
+    const send=(type,payload)=>res.write("event: "+type+"\ndata: "+JSON.stringify(payload)+"\n\n");
+    const offs=["sex.started","sex.complete"].map(type=>studio.events.on(type,p=>send(type,p)));
+    const heartbeat=setInterval(()=>res.write(": ping\\n\\n"),15000);
+    req.on("close",()=>{clearInterval(heartbeat);offs.forEach(off=>off());});
+  });
+  r.post("/omni/prosody",(req,res)=>res.json(studio.command("omni.prosody",{text:req.body?.text??""})));
+  r.post("/omni/stereo",(req,res)=>res.json(studio.command("omni.stereo",req.body??{})));
+  r.post("/omni/narrative",async(req,res)=>{try{res.status(201).json(await studio.command("narrative.create",req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/omni/narrative/:id/block",async(req,res)=>{try{res.json(await studio.command("narrative.block",{trackId:req.params.id,...(req.body??{})}));}catch(e){res.status(400).json({error:e.message});}});
+  r.get("/omni/narrative",(req,res)=>res.json([...studio.narrativeTracks.values()]));
   r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
   r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
   r.post("/scenes/:id/storyboard",(req,res)=>{const scene=studio.getScene(req.params.id);if(!scene)return res.status(404).json({error:"Scene not found"});scene.shots=buildStoryboard(scene).map((s,i)=>({...s,index:i}));scene.updatedAt=new Date().toISOString();void studio.autosave();return res.status(201).json(scene.shots);});

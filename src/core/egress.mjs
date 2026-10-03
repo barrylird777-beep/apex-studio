@@ -3,7 +3,7 @@ import { now } from "./id.mjs";
 export class EgressPolicy {
   constructor(options = {}) {
     this.defaultAllow = options.defaultAllow === true;
-    this.allowedHosts = new Set(options.allowedHosts ?? []);
+    this.allowedHosts = new Set(options.allowedHosts ?? String(process.env.APEX_SEX_ALLOWED_HOSTS ?? "").split(",").map(x=>x.trim()).filter(Boolean));
     this.audit = [];
   }
 
