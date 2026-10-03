@@ -46,3 +46,5 @@ export * from "./core/realism.mjs";
 export * from "./core/studio-tools.mjs";
 export * from "./core/audio-station.mjs";
 export * from "./core/channel-intelligence.mjs";
+
+export * from "./core/youtube-intelligence.mjs";
