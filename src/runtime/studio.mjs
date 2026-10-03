@@ -90,6 +90,7 @@ export function createStudio(options={}) {
   };
   studio.biblical.sourceRegistry=studio.sources;
   studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
+  void studio.omniStore.init();
   studio.createScene=input=>{const scene=createScene(input);studio.scenes.set(scene.id,scene);events.emit("scene.created",scene);return scene;};
   studio.getScene=id=>studio.scenes.get(id)??null;
   studio.listScenes=()=>[...studio.scenes.values()];
@@ -121,6 +122,8 @@ export function createStudio(options={}) {
     .register("omni.stereo",input=>monoCompatibleWidth(input))
     .register("narrative.create",input=>{const x=createNarrativeTrack(input);studio.narrativeTracks.set(x.id,x);void studio.omniStore.append("narrative_tracks",x);return x;})
     .register("narrative.block",({trackId,...block})=>{const x=studio.narrativeTracks.get(trackId);if(!x)throw new Error("Narrative track not found");mapNarrativeBlock(x,block);void studio.omniStore.append("narrative_tracks",x);return x;})
+    .register("timeline.node.create",input=>studio.omniStore.createProductionTimeline(input))
+    .register("timeline.mutation.create",input=>studio.omniStore.createTimelineMutation(input))
     .register("create.scene",input=>studio.createScene(input))
     .register("create.story",input=>studio.biblical.createStory(input))
     .register("add.story.event",({storyId,...input})=>studio.biblical.addEvent(storyId,input))
