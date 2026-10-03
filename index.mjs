@@ -9,7 +9,8 @@ import {
   heartbeatWorkerTask,
   completeWorkerTask,
   failWorkerTask,
-  requeueExpiredWorkerTasks
+  requeueExpiredWorkerTasks,
+  releaseWorkerTasks
 } from "./src/core/mesh/durable-worker-store.mjs";
 
 async function executePermanentHealthTask(payload = {}) {
@@ -53,6 +54,8 @@ if (!workerOnly) {
 
   const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
   const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+  let stopping = false;
+  const shutdownDeadlineMs = Math.max(5000, Number(process.env.APEX_WORKER_SHUTDOWN_MS || 30000));
   let emptyPolls = 0;
 
   const executeTask = async (task) => {
@@ -76,13 +79,32 @@ if (!workerOnly) {
     }
   };
 
-  while (true) {
+  const shutdown = async (signal) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`[apex-worker] ${signal} received; draining`);
+    const deadline = Date.now() + shutdownDeadlineMs;
+    while (inFlight.size && Date.now() < deadline) await sleep(250);
+    const unstarted = [...claimed.values()].filter(task => !inFlight.has(task.id)).map(task => task.id);
+    await releaseWorkerTasks(unstarted).catch(error => console.error('[apex-worker] release failed:', error?.message || error));
+    process.exit(0);
+  };
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+
+  const inFlight = new Map();
+  const claimed = new Map();
+  const runTask = async (task) => { claimed.set(task.id, task); inFlight.set(task.id, task); try { await executeTask(task); } finally { inFlight.delete(task.id); claimed.delete(task.id); } };
+
+  while (!stopping) {
     await requeueExpiredWorkerTasks().catch(error => {
       console.error("[apex-worker] reclaim failed:", error?.message || error);
     });
 
     try {
-      const tasks = await claimNextWorkerTasks(batchSize, leaseMs);
+      const available = Math.max(0, concurrency - inFlight.size);
+      if (!available) { await sleep(100); continue; }
+      const tasks = await claimNextWorkerTasks(Math.min(batchSize, available), leaseMs);
       if (!tasks.length) {
         emptyPolls = Math.min(emptyPolls + 1, 6);
         const base = Math.min(5000, pollMs * 2 ** emptyPolls);
@@ -92,7 +114,7 @@ if (!workerOnly) {
       }
 
       emptyPolls = 0;
-      await Promise.all(tasks.slice(0, concurrency).map(executeTask));
+      await Promise.all(tasks.map(runTask));
     } catch (error) {
       console.error("[apex-worker] queue poll failed:", error?.message || error);
       const base = Math.min(5000, pollMs * 2 ** Math.min(emptyPolls, 6));
