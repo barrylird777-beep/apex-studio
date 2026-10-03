@@ -19,6 +19,75 @@ export async function ensureWorkerTaskSchema() {
   return true;
 }
 
+export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5 }) {
+  if (!durableWorkerEnabled()) return { durable: false, id };
+  const db = getPool();
+  await ensureWorkerTaskSchema();
+  await db.query(`INSERT INTO apex_worker_tasks
+    (id, worker_id, role, task, payload, max_attempts)
+    VALUES ($1,$2,$3,$4,$5::jsonb,$6)
+    ON CONFLICT (id) DO NOTHING`,
+    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5)]);
+  return { durable: true, id };
+}
+
+export async function claimWorkerTask(id, leaseMs = 45000) {
+  if (!durableWorkerEnabled()) return null;
+  const db = getPool();
+  await ensureWorkerTaskSchema();
+  const r = await db.query(`UPDATE apex_worker_tasks
+    SET status='running', attempts=attempts+1,
+        lease_owner=$2, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        updated_at=NOW()
+    WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
+      AND attempts < max_attempts
+    RETURNING *`, [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
+  return r.rows[0] || null;
+}
+
+export async function heartbeatWorkerTask(id, leaseMs = 45000) {
+  if (!durableWorkerEnabled()) return false;
+  const r = await getPool().query(`UPDATE apex_worker_tasks
+    SET lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
+    WHERE id=$1 AND lease_owner=$2 AND status='running'`,
+    [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
+  return r.rowCount === 1;
+}
+
+export async function completeWorkerTask(id, result = null) {
+  if (!durableWorkerEnabled()) return false;
+  const r = await getPool().query(`UPDATE apex_worker_tasks
+    SET status='completed', lease_owner=NULL, lease_expires_at=NULL, result=$3::jsonb, updated_at=NOW()
+    WHERE id=$1 AND lease_owner=$2 AND status='running'`,
+    [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", JSON.stringify(result)]);
+  return r.rowCount === 1;
+}
+
+export async function failWorkerTask(id, error) {
+  if (!durableWorkerEnabled()) return false;
+  const message = String(error?.message || error || "Worker task failed").slice(0,4000);
+  const r = await getPool().query(`UPDATE apex_worker_tasks
+    SET status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
+        lease_owner=NULL, lease_expires_at=NULL, last_error=$3, updated_at=NOW()
+    WHERE id=$1 AND lease_owner=$2 AND status='running'`,
+    [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", message]);
+  return r.rowCount === 1;
+}
+
+export async function requeueExpiredWorkerTasks(limit = 500) {
+  if (!durableWorkerEnabled()) return 0;
+  await ensureWorkerTaskSchema();
+  const r = await getPool().query(`WITH x AS (
+    SELECT id FROM apex_worker_tasks WHERE status='running' AND lease_expires_at<NOW()
+    ORDER BY lease_expires_at LIMIT $1
+  ) UPDATE apex_worker_tasks t SET
+    status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
+    lease_owner=NULL, lease_expires_at=NULL,
+    last_error='Worker lease expired; task reclaimed', updated_at=NOW()
+    FROM x WHERE t.id=x.id RETURNING t.id`, [limit]);
+  return r.rowCount;
+}
+
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
   const db = getPool();
