@@ -15,7 +15,7 @@ import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
-import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus } from './src/workers/voiceover-worker.mjs';
+import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1085,6 +1085,7 @@ app.get('/api/mesh/status', (_req, res) => {
   });
 });
 
+app.get('/api/voiceover/voices', async (_req,res) => { try { res.json({success:true,voices:await listVoiceCatalog()}); } catch(error){ res.status(500).json({success:false,error:error.message}); } });
 app.get('/api/voiceover/status', async (_req,res) => {
   try { res.json({success:true,...await voiceoverWorkerStatus()}); }
   catch(error){ res.status(500).json({success:false,error:error.message}); }
