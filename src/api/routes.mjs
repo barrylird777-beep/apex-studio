@@ -134,8 +134,8 @@ export function createApi(studio){
   });
   r.post("/omni/prosody",(req,res)=>res.json(studio.command("omni.prosody",{text:req.body?.text??""})));
   r.post("/omni/stereo",(req,res)=>res.json(studio.command("omni.stereo",req.body??{})));
-  r.post("/omni/narrative",(req,res)=>{try{res.status(201).json(studio.command("narrative.create",req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
-  r.post("/omni/narrative/:id/block",(req,res)=>{try{res.json(studio.command("narrative.block",{trackId:req.params.id,...(req.body??{})}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/omni/narrative",async(req,res)=>{try{res.status(201).json(await studio.command("narrative.create",req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
+  r.post("/omni/narrative/:id/block",async(req,res)=>{try{res.json(await studio.command("narrative.block",{trackId:req.params.id,...(req.body??{})}));}catch(e){res.status(400).json({error:e.message});}});
   r.get("/omni/narrative",(req,res)=>res.json([...studio.narrativeTracks.values()]));
   r.get("/scenes",(req,res)=>res.json(studio.listScenes()));
   r.post("/scenes",(req,res)=>res.status(201).json(studio.createScene(req.body??{})));
