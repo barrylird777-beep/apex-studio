@@ -129,6 +129,65 @@ async function callSambaNova(prompt, system) {
     prompt, system, provider: 'SambaNova',
   });
 }
+\nasync function callNvidia(prompt, system) {
+  return callOpenAICompatible({
+    url: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1/chat/completions',
+    apiKey: process.env.NVIDIA_API_KEY,
+    model: process.env.NVIDIA_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b',
+    prompt, system, provider: 'NVIDIA',
+    bodyExtras: { max_tokens: 4096 },
+  });
+}
+
+async function callCohere(prompt, system) {
+  if (!process.env.COHERE_API_KEY) throw new Error('Cohere not configured');
+  const response = await fetchWithTimeout('https://api.cohere.com/v2/chat', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: process.env.COHERE_MODEL || 'command-a-03-2025',
+      messages: [
+        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+        { role: 'user', content: String(prompt) },
+      ],
+      temperature: 0.8,
+    }),
+  }, 15000);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+    throw new Error(`Cohere ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const data = await response.json();
+  const output = data?.message?.content?.map?.((part) => part?.text || '').join('').trim();
+  if (!output) throw new Error('Empty Cohere response');
+  return output;
+}
+
+async function callOllama(prompt, system) {
+  const base = String(process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('Ollama not configured');
+  const response = await fetchWithTimeout(`${base}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.OLLAMA_MODEL || 'qwen3:8b',
+      stream: false,
+      messages: [
+        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+        { role: 'user', content: String(prompt) },
+      ],
+    }),
+  }, 30000);
+  if (!response.ok) throw new Error(`Ollama ${response.status}`);
+  const data = await response.json();
+  const output = data?.message?.content;
+  if (!output) throw new Error('Empty Ollama response');
+  return String(output).trim();
+}
+
 
 async function callCloudflare(prompt, system) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -305,6 +364,9 @@ const PROVIDER_COOLDOWN_MS = Number(process.env.APEX_PROVIDER_COOLDOWN_MS || 60_
 const providerCooldowns = new Map();
 
 const allInferenceProviders = [
+  { id: 'nvidia-free', cost: 'free', call: callNvidia, enabled: () => Boolean(process.env.NVIDIA_API_KEY) },
+  { id: 'cohere-free', cost: 'free', call: callCohere, enabled: () => Boolean(process.env.COHERE_API_KEY) },
+  { id: 'ollama-local', cost: 'free', call: callOllama, enabled: () => Boolean(process.env.OLLAMA_BASE_URL) },
   { id: 'groq-free', cost: 'free', call: callGroq, enabled: () => Boolean(process.env.GROQ_API_KEY) },
   { id: 'mistral-free', cost: 'free', call: callMistral, enabled: () => Boolean(process.env.MISTRAL_API_KEY) },
   { id: 'cerebras-free', cost: 'free', call: callCerebras, enabled: () => Boolean(process.env.CEREBRAS_API_KEY) },
