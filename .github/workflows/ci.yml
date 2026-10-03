@@ -17,6 +17,22 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: apex
+          POSTGRES_PASSWORD: apex
+          POSTGRES_DB: apex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apex -d apex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://apex:apex@localhost:5432/apex_test
     strategy:
       fail-fast: false
       matrix:
