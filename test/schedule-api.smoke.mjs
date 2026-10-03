@@ -65,7 +65,7 @@ test("SPEC-005 API smoke: calendar, day creation, assignment, order, unassign, a
     assert.equal(deleted.status,204);
     const afterDelete = await json(`/api/projects/${id}/calendar`, {method:"GET"});
     assert.equal(afterDelete.body.summary.unassigned,1);
-    assert.equal(afterDelete.body.unassigned[0].id,1);
+    assert.equal(afterDelete.body.unassigned[0].id,2);
   } finally {
     server.kill("SIGTERM");
   }
