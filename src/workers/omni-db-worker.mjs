@@ -246,13 +246,7 @@ async function migrate() {
       }
     }
   }
-  if (voice.has("filepath")) {
-    const rows=await all("SELECT id,track_id,filepath,content_type,content_length,content_hash,metadata,created_at FROM voice_assets");
-    for (const row of rows) await run(
-      "INSERT OR IGNORE INTO voice_assets(id,track_id,playback_uri,content_type,content_length,content_hash,metadata,created_at) VALUES(?,?,?,?,?,?,?,?)",
-      [row.id,row.track_id,row.filepath,row.content_type,row.content_length,row.content_hash,row.metadata,row.created_at]
-    );
-  }
+  const legacyVoice = voice.has("filepath") ? await all("SELECT id,track_id,filepath,content_type,content_length,content_hash,metadata,created_at FROM voice_assets") : [];
 
   const rebuild = async (table, columnsSql, selectSql) => {
     await exec("PRAGMA foreign_keys=OFF");
@@ -268,12 +262,9 @@ async function migrate() {
     finally { await exec("PRAGMA foreign_keys=ON"); }
   };
 
-  if (production.has("audio_tags")) await rebuild("production_timelines",
+  if (mutations.has("altered_visual") || mutations.has("altered_vocal")) await rebuild("timeline_mutations",
     "id INTEGER PRIMARY KEY AUTOINCREMENT,node_id TEXT NOT NULL UNIQUE,scene_label TEXT NOT NULL,timecode TEXT NOT NULL,aesthetic_profile TEXT,prompt TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
     "(id,node_id,scene_label,timecode,aesthetic_profile,prompt,created_at,updated_at) SELECT id,node_id,scene_label,timecode,aesthetic_profile,prompt,created_at,updated_at");
-  if (mutations.has("altered_visual") || mutations.has("altered_vocal")) await rebuild("timeline_mutations",
-    "id INTEGER PRIMARY KEY AUTOINCREMENT,parent_node_id TEXT NOT NULL,branch_id TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(parent_node_id) REFERENCES production_timelines(node_id) ON UPDATE CASCADE ON DELETE CASCADE",
-    "(id,parent_node_id,branch_id,created_at) SELECT id,parent_node_id,branch_id,created_at");
   if (narrative.has("blocks")) await rebuild("narrative_tracks",
     "id TEXT PRIMARY KEY,project_id TEXT,branch_id TEXT,timeline_id TEXT,created_at TEXT",
     "(id,project_id,branch_id,timeline_id,created_at) SELECT id,project_id,branch_id,timeline_id,created_at");
@@ -288,6 +279,11 @@ async function migrate() {
     "(id,query,mode,started_at,finished_at,status,sources,results) SELECT id,query,mode,started_at,finished_at,status,sources,results");
 
   await exec(`
+    CREATE INDEX IF NOT EXISTS idx_production_timelines_scene ON production_timelines(scene_label);
+    CREATE INDEX IF NOT EXISTS idx_production_timelines_timecode ON production_timelines(timecode);
+    CREATE INDEX IF NOT EXISTS idx_production_timelines_node ON production_timelines(node_id);
+    CREATE INDEX IF NOT EXISTS idx_timeline_mutations_parent ON timeline_mutations(parent_node_id);
+    CREATE INDEX IF NOT EXISTS idx_timeline_mutations_branch ON timeline_mutations(branch_id);
     CREATE INDEX IF NOT EXISTS idx_search_results_run ON search_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_narrative_blocks_track_position ON narrative_blocks(track_id,position);
     CREATE INDEX IF NOT EXISTS idx_timeline_mutation_visual_mutation_position ON timeline_mutation_visual(mutation_id,position);
