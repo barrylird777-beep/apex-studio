@@ -146,7 +146,7 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
   return r.rowCount;
 }
 
-export async function acquireAiRateLimit({ capacity = 10, refillPerSecond = 10 / 60, key = "gemini" } = {}) {
+export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refillPerSecond = 10 / 60, retryMs = 300 } = {}) {
   if (!durableWorkerEnabled()) return true;
   const db = getPool();
   const cap = Math.max(1, Number(capacity) || 10);
@@ -156,19 +156,22 @@ export async function acquireAiRateLimit({ capacity = 10, refillPerSecond = 10 /
     tokens DOUBLE PRECISION NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
-  await db.query(`INSERT INTO rate_limits (key, tokens) VALUES ($1, $2)
-    ON CONFLICT (key) DO NOTHING`, [key, cap]);
-
+  await db.query(
+    `INSERT INTO rate_limits (key, tokens) VALUES ($1, $2)
+     ON CONFLICT (key) DO NOTHING`,
+    [key, cap]
+  );
   for (;;) {
-    const { rowCount } = await db.query(`
-      UPDATE rate_limits SET
+    const r = await db.query(
+      `UPDATE rate_limits SET
         tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
         updated_at = NOW()
-      WHERE key = $1
-        AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1
-    `, [key, cap, refill]);
-    if (rowCount) return true;
-    await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
+       WHERE key = $1
+         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`,
+      [key, cap, refill]
+    );
+    if (r.rowCount === 1) return true;
+    await new Promise(resolve => setTimeout(resolve, Math.max(50, retryMs) + Math.random() * Math.max(50, retryMs)));
   }
 }
 
