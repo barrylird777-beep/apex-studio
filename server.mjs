@@ -167,6 +167,7 @@ app.get('/api/workers/permanent', (_req,res)=>res.json({
   supervisor: permanentWorkerSupervisor.status()
 }));
 app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
+app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
