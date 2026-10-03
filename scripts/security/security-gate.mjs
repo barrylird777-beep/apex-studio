@@ -15,8 +15,7 @@ for (const check of AUTHORITATIVE_CHECKS) {
   process.stdout.write(`Testing layer [${check.name}]... `);
   try {
     execFileSync("npm", ["run", check.script, "--", "--silent"], {
-      stdio: "pipe",
-      encoding: "utf8"
+      stdio: "inherit"
     });
     console.log("PASS");
   } catch (error) {
