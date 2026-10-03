@@ -64,7 +64,7 @@ import { sacredTextCatalog } from "../biblical/sacred-library.mjs";
 import { createQuirk, suggestQuirks, auditQuirks } from "../core/quirks.mjs";
 import { SexEngine } from "../core/se-x.mjs";
 import { OmniStore } from "../core/omni-store.mjs";
-import { buildRiskReport, createRiskHandshake, detectOmniTrigger } from "../core/omni-risk.mjs";
+import { buildRiskReport, createRiskHandshake } from "../core/omni-risk.mjs";
 import { parseProsody } from "../core/prosody.mjs";
 import { monoCompatibleWidth } from "../core/stereo.mjs";
 import { createNarrativeTrack, mapNarrativeBlock } from "../core/narrative-map.mjs";
