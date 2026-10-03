@@ -114,7 +114,7 @@ export class DeepPrivacyEngine {
       return state;
     } catch (error) {
       this.lastWriteError = error instanceof Error ? error.message : String(error);
-      throw error;
+      return null;
     }
   }
 
