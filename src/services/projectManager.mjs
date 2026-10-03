@@ -1,9 +1,10 @@
 import {
   initStorage,
   saveSceneAsset,
+  saveProjectAsset,
   getProjectState,
   STORAGE_DIR,
   PROJECT_FILE
 } from "../core/storage.mjs";
 
-export { initStorage, saveSceneAsset, getProjectState, STORAGE_DIR, PROJECT_FILE };
+export { initStorage, saveSceneAsset, saveProjectAsset, getProjectState, STORAGE_DIR, PROJECT_FILE };
