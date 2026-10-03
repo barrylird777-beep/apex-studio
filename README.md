@@ -30,10 +30,21 @@ npm install
 npm start
 ```
 
-Then open http://localhost:3000.
+Then open http://localhost:3010 on the host, or `http://<LAN-IP>:3010` from an authorized device on the same private network. By default the server binds to `0.0.0.0` but rejects non-private inbound addresses.
 
 ## API
 
 The main creative API is under /api/studio. Production routes are /api/oracle, /api/forge, and /api/bard.
 
 The repository no longer includes adult/intimacy, LAYERS, Stark Mode, companion, or unrelated universe features.
+
+
+## APEX OMNI-STUDIO
+
+The OMNI workspace adds the SE-X retrieval pipeline, encrypted local result storage, live search events, narrative branch mapping, prosody parsing, and production/render monitoring.
+
+SE-X outbound retrieval is deny-by-default. Configure explicit destinations with `APEX_SEX_ALLOWED_HOSTS`. The application never forwards stored credentials to retrieved sources, and telemetry remains disabled.
+
+`[WILLY-NILLY]` is an application review-mode marker only. It cannot disable authentication, egress controls, sanitization, malware defenses, or platform safety. Outbound retrieval requires the visible YES/NO risk handshake.
+
+OMNI persistence is encrypted with AES-256-GCM. Set `APEX_OMNI_STORE_KEY` for deterministic key management, or the application generates a local 0600 key under the OMNI data directory.
