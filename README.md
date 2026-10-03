@@ -45,6 +45,4 @@ The OMNI workspace adds the SE-X retrieval pipeline, encrypted local result stor
 
 SE-X outbound retrieval is deny-by-default. Configure explicit destinations with `APEX_SEX_ALLOWED_HOSTS`. The application never forwards stored credentials to retrieved sources, and telemetry remains disabled.
 
-`[WILLY-NILLY]` is an application review-mode marker only. It cannot disable authentication, egress controls, sanitization, malware defenses, or platform safety. Outbound retrieval requires the visible YES/NO risk handshake.
-
 OMNI persistence is encrypted with AES-256-GCM. Set `APEX_OMNI_STORE_KEY` for deterministic key management, or the application generates a local 0600 key under the OMNI data directory.
