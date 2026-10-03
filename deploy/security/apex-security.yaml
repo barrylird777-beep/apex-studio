@@ -1,0 +1,139 @@
+version: 1
+project: APEX
+mode: production-security-blueprint
+
+hard_boundaries:
+  postgres_public: false
+  redis_public: false
+  elasticsearch_public: false
+  registry_public: false
+  runners_public: false
+  unauthenticated_webhook: false
+  host_root_in_ci: false
+  docker_socket_in_ci: false
+  secrets_in_repository: false
+  mutable_production_tags: false
+  unverified_artifact_deployment: false
+  uncontrolled_core_egress: false
+
+se_x:
+  enabled: true
+  only_search_engine: true
+  isolated_network: apex-search
+  direct_core_network_access: false
+  direct_database_access: false
+  direct_registry_access: false
+  direct_forgejo_access: false
+  direct_runner_access: false
+  host_root_mount: false
+  docker_socket: false
+  privileged: false
+  ephemeral_workspace: true
+  public_web_inbound_to_core: false
+  public_web_inbound_to_se_x: false
+  core_to_se_x: true
+  se_x_to_public_web: true
+  public_web_to_core: false
+  allowed_protocols: [https]
+  allowed_methods: [GET]
+  cookie_forwarding: false
+  credential_forwarding: false
+  internal_header_forwarding: false
+  active_content_allowed: false
+  upload_allowed: false
+  websocket_allowed: false
+  max_redirects: 3
+  require_host_allowlist: true
+  allowed_hosts_env: APEX_SEX_ALLOWED_HOSTS
+
+runtime_monitoring:
+  enabled: true
+  network_namespace_changes: true
+  route_changes: true
+  new_listeners: true
+  unexpected_egress: true
+  privilege_changes: true
+  mount_changes: true
+  container_lifecycle: true
+  security_audit_events: true
+
+alert_policy:
+  expected_events: LOG
+  approved_changes: LOG_AND_UPDATE_BASELINE
+  suspicious_events: ALERT
+  critical_boundary_violation: ISOLATE_AND_LOCK
+  duplicate_alert_debounce: true
+  maintenance_windows: true
+  approved_update_sources: true
+
+critical_lock_events:
+  unauthorized_public_egress: true
+  host_root_access: true
+  docker_socket_access: true
+  privilege_escalation: true
+  unauthorized_network_namespace: true
+  unauthorized_route: true
+  unauthorized_listener: true
+  unexpected_sensitive_mount: true
+
+lock_response:
+  preserve_evidence: true
+  isolate_se_x: true
+  production_lock: true
+  require_manual_review: true
+
+verification:
+  namespace_isolation: REQUIRED
+  container_privileges: REQUIRED
+  route_policy: REQUIRED
+  firewall_policy: REQUIRED
+  core_egress_block: REQUIRED
+  se_x_egress_allowlist: REQUIRED
+  database_isolation: REQUIRED
+  ephemeral_storage: REQUIRED
+  certificate_permissions: REQUIRED
+
+production_unlock:
+  all_verifications_pass: true
+  critical_events: 0
+  unauthorized_egress: 0
+  boundary_violations: 0
+  unresolved_alerts: 0
+  production_lock: false
+
+tls:
+  minimum: TLS1.2
+  preferred: TLS1.3
+  local_ca: true
+  ca_private_key_local_only: true
+  sha1_allowed: false
+  md5_allowed: false
+
+storage:
+  nvme_path: /srv/apex/nvme
+  heavy_path: /srv/apex/arrays/heavy
+  video_path: /srv/apex/arrays/video
+  backup_path: /srv/apex/backups
+  encryption_required: true
+  quotas_required: true
+  monitoring_required: true
+
+backups:
+  enabled: true
+  encryption: true
+  offline_copy: true
+  restore_test_required: true
+  scope:
+    - forgejo
+    - postgresql
+    - registry-metadata
+    - critical-artifacts
+    - configuration
+
+air_gap:
+  core_application_egress: false
+  host_egress: false
+  external_dns_from_core: false
+  external_connectors_from_core: false
+  internet_dependencies_preloaded: true
+  se_x_is_only_public_egress_path: true
