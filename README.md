@@ -36,8 +36,6 @@ Then open http://localhost:3010 on the host, or `http://<LAN-IP>:3010` from an a
 
 The main creative API is under /api/studio. Production routes are /api/oracle, /api/forge, and /api/bard.
 
-The repository no longer includes adult/intimacy, LAYERS, Stark Mode, companion, or unrelated universe features.
-
 ## APEX OMNI-STUDIO
 
 The OMNI workspace adds the SE-X retrieval pipeline, local result storage, live search events, narrative branch mapping, prosody parsing, and production/render monitoring.
