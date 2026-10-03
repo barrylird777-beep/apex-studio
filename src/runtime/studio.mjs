@@ -37,7 +37,7 @@ import { createAudioTrack } from "../core/audio.mjs";
 import { buildStoryboard } from "../core/storyboard.mjs";
 import { VisualBible } from "../core/visual-bible.mjs";
 import { GenerationQueue, buildVisualPrompt } from "../core/visual-generation.mjs";
-import bibleCatalog from "../data/bible/catalog.json" with { type:"json" };
+import bibleCatalog from "../../data/bible/catalog.json" with { type:"json" };
 import { searchBibleEdition } from "../bible/library.mjs";
 import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from "../core/release-package.mjs";
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
