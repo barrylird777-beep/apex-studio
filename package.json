@@ -20,11 +20,15 @@
     "security:crypto": "bash scripts/security/verify-crypto.sh",
     "security:willy-nilly": "node --test test/security/willy_nilly_protocol.test.js && npm run security:crypto -- --silent && npm run security:storage -- --silent && npm run security:network -- --silent",
     "security:negative-tls": "APEX_RUN_DEPLOYED_TLS_TESTS=true node --test test/security/negative_tls_protocol.test.js",
-    "security:gate": "node scripts/security/security-gate.mjs"
+    "security:gate": "node scripts/security/security-gate.mjs",
+    "production:worker": "node index.mjs",
+    "production:daemon": "node src/workers/av1-production-daemon.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
     "sqlite3": "^5.1.7",
-    "fluent-ffmpeg": "^2.1.3"
+    "fluent-ffmpeg": "^2.1.3",
+    "@aws-sdk/client-s3": "^3.864.0",
+    "@aws-sdk/lib-storage": "^3.864.0"
   }
 }
