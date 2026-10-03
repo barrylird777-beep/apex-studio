@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { parseProsody } from "../src/core/prosody.mjs";
 import { monoCompatibleWidth } from "../src/core/stereo.mjs";
 import { inspectUntrusted } from "../src/core/omni-sanitize.mjs";
-import { detectOmniTrigger, buildRiskReport } from "../src/core/omni-risk.mjs";
+import { buildRiskReport } from "../src/core/omni-risk.mjs";
 import { createNarrativeTrack, mapNarrativeBlock } from "../src/core/narrative-map.mjs";
 import { EgressPolicy } from "../src/core/egress.mjs";
 import { OmniStore } from "../src/core/omni-store.mjs";
@@ -27,10 +27,9 @@ test("untrusted content is inspected without executing it",()=>{
   assert.equal(x.safeText.includes("fetch"),false);
 });
 
-test("trigger selects review mode but does not change safety policy",()=>{
-  assert.equal(detectOmniTrigger("test [WILLY-NILLY]"),true);
-  const r=buildRiskReport({query:"[WILLY-NILLY]",sources:["https://example.org"]});
-  assert.equal(r.mode,"ELEVATED_REVIEW");
+test("risk report preserves safety policy without special trigger modes",()=>{
+  const r=buildRiskReport({query:"ordinary research",sources:["https://example.org"]});
+  assert.equal(r.mode,"STANDARD");
   assert.equal(r.network.telemetry,"disabled");
   assert.equal(r.process.dynamicCodeExecution,false);
 });
