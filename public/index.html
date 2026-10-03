@@ -105,13 +105,23 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <aside><nav class="nav">
 <button data-view="overview" class="active" onclick="view('overview')">Overview</button>
 <button data-view="stories" onclick="view('stories')">Stories</button>
-<button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
+<button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="audio-station" onclick="view('audio-station')">Audio Station</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
 <button data-view="timeline" onclick="view('timeline')">Timeline</button><button data-view="production" onclick="view('production')">Production</button><button data-view="storyboard" onclick="view('storyboard')">Storyboard</button><button data-view="visuals" onclick="view('visuals')">Visual Bible</button><button data-view="bible" onclick="view('bible')">Bible Library</button><button data-view="retention" onclick="view('retention')">Retention Hook</button>
 </nav></aside>
 <main>
 <section class="top"><div><div class="eyebrow">Creative command center</div><h1 id="title">Bible Story Video Studio</h1><p id="subtitle">Scripture → story → scenes → shots → audio → timeline → render.</p></div><div class="actions"><button class="ghost" onclick="sync()">Sync</button><button class="primary" onclick="view('stories');focusForm()">New story</button></div></section>
 
-<section id="overview" class="view">
+<section id="audio-station" class="view hidden">
+<div class="top"><div><div class="eyebrow">Free / local audio production</div><h1>Audio Station</h1><p>Local TTS, voice catalog, SFX generation, trimming, mixing, normalization, fades, speed and multitrack rendering.</p></div></div>
+<div class="workspace">
+<section class="panel"><h2>Text → Speech</h2><textarea id="ttsText" placeholder="Enter narration..."></textarea><select id="ttsVoice"><option value="">Auto local voice</option></select><div class="grid2"><input id="ttsSpeed" type="number" value="1" min=".25" max="4" step=".05"><input id="ttsPitch" type="number" value="0" min="-50" max="50"></div><button class="primary" onclick="ttsGenerate()">Generate voice</button><div id="ttsOut" class="notice">—</div></section>
+<section class="panel"><h2>SFX Generator</h2><select id="sfxType"><option value="tone">Tone</option><option value="noise">Noise</option><option value="silence">Silence</option></select><div class="grid2"><input id="sfxFreq" type="number" value="440"><input id="sfxDur" type="number" value="1" min=".05" step=".1"></div><button class="primary" onclick="sfxGenerate()">Generate SFX</button><div id="sfxOut" class="notice">—</div></section>
+</div>
+<div class="workspace">
+<section class="panel"><h2>Audio Editing</h2><p class="muted">Use stored audio paths or /files URLs.</p><input id="editInput" placeholder="/files/audio/example.wav"><select id="editOp"><option value="normalize">Normalize</option><option value="trim">Trim</option><option value="speed">Speed</option><option value="fade">Fade in</option><option value="info">Inspect</option></select><div class="grid2"><input id="editStart" type="number" value="0"><input id="editDuration" type="number" placeholder="duration"></div><button class="primary" onclick="audioEditRun()">Process</button><div id="editOut" class="notice">—</div></section>
+<section class="panel"><h2>Multitrack Mix</h2><textarea id="mixInputs" placeholder="One audio path per line"></textarea><button class="primary" onclick="audioMixRun()">Mix tracks</button><div id="mixOut" class="notice">—</div></section>
+</div>
+</section>\n<section id="overview" class="view">
 <div class="cards"><div class="card"><div id="projectsN" class="num">0</div><div class="label">Projects</div></div><div class="card"><div id="storiesN" class="num">0</div><div class="label">Stories</div></div><div class="card"><div id="scenesN" class="num">0</div><div class="label">Scenes</div></div><div class="card"><div id="assetsN" class="num">0</div><div class="label">Assets</div></div></div>
 <div class="workspace"><section class="panel"><h2>Production path</h2><div class="stage"><div class="on">Scripture</div><div class="on">Story</div><div class="on">Scenes</div><div>Visuals</div><div>Audio</div><div>Timeline</div><div>Render</div><div>Review</div><div>Release</div><div>Archive</div></div><h3>Source discipline</h3><div class="notice">Every biblical event can carry explicit source references and a dramatization mode. Keep Scripture, tradition, history, interpretation, and invention distinguishable.</div></section>
 <section class="panel"><h2>Recent stories</h2><div id="recentStories" class="list"></div></section></div>
@@ -452,5 +462,13 @@ async function queueRender(){const msg=$("renderMsg");msg.textContent="";try{awa
 sync();
 studio.hydrate();
 </script>
-<script src="/vision-editor.js"></script><script src="/omni-studio.js"></script><script src="/apex-dashboard.js"></script>
+<script>
+async function audioApi(path,body){return api("/api/studio"+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body||{})})}
+async function loadAudioStation(){try{const r=await api("/api/studio/audio/voices");$("ttsVoice").innerHTML='<option value="">Auto local voice</option>'+r.voices.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.label)+" · "+esc(v.language)+" · "+esc(v.engine)+"</option>").join("")}catch(e){$("ttsOut").textContent=e.message}}
+async function ttsGenerate(){try{$("ttsOut").textContent="Generating...";const r=await audioApi("/audio/tts",{text:$("ttsText").value,voice:$("ttsVoice").value,speed:Number($("ttsSpeed").value),pitch:Number($("ttsPitch").value)});$("ttsOut").innerHTML='<audio controls src="'+esc(r.url)+'"></audio><div>'+esc(r.path)+'</div>'}catch(e){$("ttsOut").textContent=e.message}}
+async function sfxGenerate(){try{const r=await audioApi("/audio/sfx",{type:$("sfxType").value,frequency:Number($("sfxFreq").value),duration:Number($("sfxDur").value)});$("sfxOut").innerHTML='<audio controls src="'+esc(r.url)+'"></audio><div>'+esc(r.path)+'</div>'}catch(e){$("sfxOut").textContent=e.message}}
+async function audioEditRun(){try{const r=await audioApi("/audio/edit",{operation:$("editOp").value,inputs:[$("editInput").value],start:Number($("editStart").value),duration:Number($("editDuration").value)||null});$("editOut").innerHTML='<audio controls src="'+esc(r.url)+'"></audio><div>'+esc(r.path)+'</div>'}catch(e){$("editOut").textContent=e.message}}
+async function audioMixRun(){try{const inputs=$("mixInputs").value.split("\n").map(x=>x.trim()).filter(Boolean);const r=await audioApi("/audio/edit",{operation:"mix",inputs});$("mixOut").innerHTML='<audio controls src="'+esc(r.url)+'"></audio><div>'+esc(r.path)+'</div>'}catch(e){$("mixOut").textContent=e.message}}
+const _view=view;view=function(name){_view(name);if(name==="audio-station")loadAudioStation()}
+</script><script src="/vision-editor.js"></script><script src="/omni-studio.js"></script><script src="/apex-dashboard.js"></script>
 </body></html>
