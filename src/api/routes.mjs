@@ -7,7 +7,7 @@ import { buildStoryboard } from "../core/storyboard.mjs";
 import { createAudioTrack } from "../core/audio.mjs";
 import { RenderWorker } from "../core/render-worker.mjs";
 import { buildVisualPrompt } from "../core/visual-generation.mjs";
-import { verifyApexCommander } from "../../routes-security.mjs";
+import { verifyApexCommander, authCacheStats } from "../../routes-security.mjs";
 import { detectOmniTrigger } from "../core/omni-risk.mjs";
 
 function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id); if(!episode) throw new Error("Episode not found"); return studio.command("episode.readiness",{id}); }
@@ -15,6 +15,8 @@ function episodeReadinessRoute(studio,id){ const episode=studio.episodes.get(id)
 export function createApi(studio){
   const r=express.Router();
   const renderWorker=new RenderWorker();
+  r.use((req,res,next)=>{res.setHeader("Cache-Control","private, no-cache");next();});
+  r.get("/auth/verify",verifyApexCommander,(req,res)=>res.json({ok:true,cacheHit:req.apexAuthCacheHit===true,cache:authCacheStats()}));
   r.get("/health",(req,res)=>res.json({ok:true,name:"Apex Bible Story Studio",version:studio.version,time:new Date().toISOString(),mode:studio.localMode.isOffline()?"offline":"network-enabled"}));
   r.get("/snapshot",(req,res)=>res.json(studio.snapshot()));
   r.get("/command-center",async(req,res)=>{try{res.json(await studio.command("command.center",{}));}catch(e){res.status(400).json({error:e.message});}});
@@ -108,6 +110,7 @@ export function createApi(studio){
   r.get("/omni/status",async(req,res)=>res.json({mode:detectOmni(req.query.q),privacy:studio.privacy,concurrency:Number(process.env.APEX_SEX_CONCURRENCY??4)}));
   r.post("/omni/risk",(req,res)=>{try{res.json(studio.beginOmniReview(req.body??{}));}catch(e){res.status(400).json({error:e.message});}});
   r.post("/omni/risk/:id/confirm",(req,res)=>{try{res.json(studio.confirmOmniReview(req.params.id,req.body?.approved===true));}catch(e){res.status(400).json({error:e.message});}});
+  r.get("/omni/passages",verifyApexCommander,async(req,res)=>{try{const rows=await studio.omniStore.searchPassages(req.query.q??"",Number(req.query.limit??50));res.json(rows);}catch(e){res.status(400).json({error:e.message});}});
   r.post("/omni/search",async(req,res)=>{
     try{
       const body=req.body??{}, sources=Array.isArray(body.sources)?body.sources:[];
@@ -166,7 +169,9 @@ export function createApi(studio){
   r.post("/releases/:id/publish",verifyApexCommander,(req,res)=>res.json(studio.releases.publish(req.params.id)));
 
   r.get("/assets",(req,res)=>res.json([...studio.assets.assets.values()]));
+  r.get("/assets/:id",(req,res)=>{const asset=studio.assets.get(req.params.id);if(!asset)return res.status(404).json({error:"Asset not found"});res.setHeader("Cache-Control","public, max-age=31536000, immutable");res.json(asset);});
   r.get("/media",(req,res)=>res.json(studio.media.list()));
+  r.get("/media/:id",(req,res)=>{const media=studio.media.get(req.params.id);if(!media)return res.status(404).json({error:"Media not found"});if(media.sha256||media.version){res.setHeader("Cache-Control","public, max-age=31536000, immutable");}res.json(media);});
   r.post("/media",(req,res)=>{const m=studio.media.add(req.body??{});void studio.autosave();res.status(201).json(m);});
   r.get("/audio",(req,res)=>res.json([...studio.audio.values()]));
   r.post("/audio",(req,res)=>{const a=createAudioTrack(req.body??{});studio.audio.set(a.id,a);void studio.autosave();res.status(201).json(a);});
