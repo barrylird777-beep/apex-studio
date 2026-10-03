@@ -33,3 +33,5 @@ jobs:
           git add .
           git commit -m "chore(security): merge upstream main and resolve conflicts via ours strategy"
           git push origin HEAD:security-hardening
+
+# remote trigger
