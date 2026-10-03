@@ -28,7 +28,7 @@ async function mapLimit(items, limit, fn) {
 async function fetchOne(url, { egress, signal }) {
   let current = String(url);
   for (let hop = 0; hop <= 3; hop++) {
-    egress.check(current, { action: "se-x.fetch" });
+    await egress.check(current, { action: "se-x.fetch" });
     const response = await fetch(current, {
       signal,
       redirect: "manual",
@@ -41,7 +41,7 @@ async function fetchOne(url, { egress, signal }) {
       continue;
     }
     const contentType = response.headers.get("content-type") ?? "";
-    const body = /^(text\\/html|text\\/plain|application\\/json)/i.test(contentType)
+    const body = /^(text\/html|text\/plain|application\/json)/i.test(contentType)
       ? cleanUntrustedText(await response.text())
       : "";
     return {
@@ -54,4 +54,49 @@ async function fetchOne(url, { egress, signal }) {
     };
   }
   throw new Error("Redirect limit exceeded");
+}
+
+export class SexEngine {
+  constructor({ egress, store, events, concurrency = DEFAULT_CONCURRENCY, timeoutMs = DEFAULT_TIMEOUT } = {}) {
+    this.egress = egress;
+    this.store = store;
+    this.events = events;
+    this.concurrency = concurrency;
+    this.timeoutMs = timeoutMs;
+  }
+
+  async search(query, { sources = [], approved = false } = {}) {
+    const startedAt = now();
+    const run = {
+      id: uid("search"),
+      query: String(query ?? ""),
+      mode: detectOmniTrigger(query) ? "ELEVATED_REVIEW" : "STANDARD",
+      startedAt,
+      status: "running",
+      fragments: fragments(query),
+      sources: [...new Set(sources.map(String))]
+    };
+    this.events?.emit?.("sex.started", run);
+    if (run.sources.length && !approved) throw new Error("Approved risk handshake required before outbound retrieval.");
+
+    const results = await mapLimit(run.sources, this.concurrency, async source => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
+        return await fetchOne(source, { egress: this.egress, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+
+    run.results = results;
+    run.finishedAt = now();
+    run.status = "complete";
+    await this.store?.append?.("search_runs", run);
+    for (const result of results) {
+      if (!result?.error) await this.store?.append?.("search_results", { ...result, runId: run.id });
+    }
+    this.events?.emit?.("sex.complete", run);
+    return run;
+  }
 }
