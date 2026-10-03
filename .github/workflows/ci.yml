@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
+      - name: Install system dependencies (FFmpeg)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm install
       - run: npm run check
       - name: Create validation dataset
