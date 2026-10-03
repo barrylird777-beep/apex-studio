@@ -13,11 +13,13 @@ import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
 import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './src/services/projectManager.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
+import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
+const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -295,7 +297,7 @@ async function callOpenRouter(prompt, system) {
 async function callGemini(prompt, system) {
   if (!process.env.GEMINI_API_KEY) throw new Error('Gemini not configured');
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -1117,6 +1119,28 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 });
 
+app.post('/api/ai/collaborate', async (req, res) => {
+  const task = String(req.body?.task || req.body?.prompt || '').trim();
+  if (!task) return res.status(400).json({ success: false, error: 'task is required' });
+
+  const requestedProviders = Array.isArray(req.body?.providers) && req.body.providers.length
+    ? req.body.providers
+    : ['gemini', 'claude'];
+
+  try {
+    const result = await multiAiCoordinator.run({
+      task,
+      providers: requestedProviders,
+      system: String(req.body?.system || DEFAULT_SYSTEM),
+      context: req.body?.context && typeof req.body.context === 'object' ? req.body.context : {}
+    });
+
+    return res.status(result.ok ? 200 : 503).json({ success: result.ok, ...result });
+  } catch (error) {
+    return res.status(502).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/ai/status', (_req, res) => res.json({
   success: true,
   gemini: {
@@ -1148,7 +1172,7 @@ app.get('/api/mesh/status', (_req, res) => {
       mistral: 'Free mode provides included monthly usage with limits; pay-as-you-go is controlled by the Mistral account.',
       cerebras: 'Developer API access is available with a free API key; limits are account/service dependent.',
       openrouter: 'Uses openrouter/free by default; free-model availability and limits are provider controlled.',
-      gemini: 'Uses gemini-2.5-flash-lite by default; Google documents a free tier with model/account limits.',
+      gemini: 'Uses gemini-2.5-flash by default; Google documents a free tier with model/account limits.',
       cloudflare: 'Uses Workers AI free allocation when available; requests fail after the free allocation rather than silently switching to paid inference.',
       huggingface: 'Credit/PAYG provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
       aimlapi: 'Pay-as-you-go provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
