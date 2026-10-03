@@ -26,6 +26,7 @@ export async function ensureWorkerTaskSchema() {
     lease_owner TEXT,
     lease_token TEXT,
     lease_expires_at TIMESTAMPTZ,
+    next_run_at TIMESTAMPTZ,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     result JSONB,
     last_error TEXT,
@@ -33,6 +34,7 @@ export async function ensureWorkerTaskSchema() {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS lease_token TEXT`);
+  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ`);
   await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_queue_idx ON apex_worker_tasks(status, created_at)`);
   await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_lease_idx ON apex_worker_tasks(status, lease_expires_at)`);
   return true;
@@ -57,7 +59,7 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
-    WHERE status='queued' AND attempts < max_attempts
+    WHERE status='queued' AND attempts < max_attempts AND (next_run_at IS NULL OR next_run_at <= NOW())
     ORDER BY created_at
     FOR UPDATE SKIP LOCKED
     LIMIT $1
@@ -103,7 +105,7 @@ export async function heartbeatWorkerTask(id, leaseMs = 45000, leaseToken) {
 export async function completeWorkerTask(id, result = null, leaseToken) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
-    SET status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, result=$3::jsonb, updated_at=NOW()
+    SET status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, next_run_at=NULL, result=$3::jsonb, updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
     [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", JSON.stringify(result), leaseToken]);
   return r.rowCount === 1;
@@ -114,7 +116,9 @@ export async function failWorkerTask(id, error, leaseToken) {
   const message = String(error?.message || error || "Worker task failed").slice(0,4000);
   const r = await getPool().query(`UPDATE apex_worker_tasks
     SET status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
-        lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, last_error=$3, updated_at=NOW()
+        lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
+        next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + ((LEAST(300, POWER(2, attempts)) + (random() * 5)) * INTERVAL '1 second') END,
+        last_error=$3, updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
     [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", message, leaseToken]);
   return r.rowCount === 1;
@@ -136,6 +140,7 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
   ) UPDATE apex_worker_tasks t SET
     status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
     lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
+    next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + ((LEAST(300, POWER(2, attempts)) + (random() * 5)) * INTERVAL '1 second') END,
     last_error='Worker lease expired; task reclaimed', updated_at=NOW()
     FROM x WHERE t.id=x.id RETURNING t.id`, [limit]);
   return r.rowCount;
