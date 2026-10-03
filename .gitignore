@@ -6,3 +6,7 @@ node_modules/
 apex-production.sqlite
 apex-production.sqlite-*
 uploads/
+
+# Gemini CLI settings and runtime artifacts
+.gemini/
+gha-creds-*.json
