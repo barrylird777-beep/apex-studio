@@ -45,3 +45,4 @@ export * from "./core/egress.mjs";
 export * from "./core/realism.mjs";
 export * from "./core/studio-tools.mjs";
 export * from "./core/audio-station.mjs";
+export * from "./core/channel-intelligence.mjs";
