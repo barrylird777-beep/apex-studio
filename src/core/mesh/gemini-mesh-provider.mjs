@@ -8,17 +8,23 @@ export class GeminiMeshProvider {
   async generate(prompt, options = {}) {
     if (!this.apiKey) throw new Error('Gemini not configured');
     const model = options.model || this.model;
+    const body = {
+      contents: [{ role: 'user', parts: [{ text: String(prompt) }] }]
+    };
+    if (options.system) body.systemInstruction = { parts: [{ text: String(options.system) }] };
     const response = await fetch(`${this.endpoint}/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: String(prompt) }] }] })
+      body: JSON.stringify(body)
     });
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
       throw new Error(`Gemini API Error: ${response.status}${detail ? `: ${detail}` : ''}`);
     }
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.map(p => p?.text || '').join('') || '';
+    const text = data.candidates?.[0]?.content?.parts?.map(p => p?.text || '').join('').trim() || '';
+    if (!text) throw new Error('Gemini returned an empty response');
+    return text;
   }
 
   async getStatus() {
