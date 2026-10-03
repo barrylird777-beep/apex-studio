@@ -138,17 +138,26 @@ const permanentWorkerHeartbeat = setInterval(() => {
       workerId: worker.id,
       role: worker.role,
       task,
-      payload: {
-        type: 'permanent-health',
-        workerId: worker.id,
-        role: worker.role,
-        task
-      }
-    }).then(() => {
-      // Durable execution is owned by the independent apex-workers service.
-      // The API process only schedules work; it must never execute the same job.
+      payload: { type: 'permanent-health', workerId: worker.id }
+    }).then(() => claimWorkerTask(durableTaskId)).then(() => permanentWorkerSupervisor.dispatch({
+      type: 'permanent-health',
+      workerId: worker.id,
+      role: worker.role,
+      task
+    }).then(async result => {
+      await completeWorkerTask(durableTaskId, result).catch(() => {});
+      if (worker.taskToken !== taskToken) return;
+      Object.assign(worker, completePermanentWorkerTask(worker));
+      worker.lastCompletedAt = new Date().toISOString();
       worker.taskStartedAt = null;
       worker.taskToken = null;
+    }).catch(async error => {
+      await failWorkerTask(durableTaskId, error).catch(() => {});
+      if (worker.taskToken !== taskToken) return;
+      Object.assign(worker, failPermanentWorkerTask(worker, error));
+      worker.taskStartedAt = null;
+      worker.taskToken = null;
+    }).finally(() => {
       permanentWorkerInFlight.delete(worker.id);
     }).catch(error => {
       permanentWorkerInFlight.delete(worker.id);
@@ -157,7 +166,12 @@ const permanentWorkerHeartbeat = setInterval(() => {
       worker.lastError = String(error?.message || error);
       worker.taskStartedAt = null;
       worker.taskToken = null;
-    });
+    }));
+  }
+  Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
+}, apexOverseer.intervalMs);
+permanentWorkerHeartbeat.unref?.();
+
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -1224,5 +1238,3 @@ app.post('/api/voiceover/jobs', async (req,res) => {
 app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
-
-app.listen(PORT, HOST, () => console.log(`[apex] server listening on ${HOST}:${PORT}`));
