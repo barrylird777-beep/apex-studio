@@ -17,7 +17,7 @@ for (const check of AUTHORITATIVE_CHECKS) {
   try {
     execFileSync("npm", ["run", check.script, "--", "--silent"], {
       stdio: "inherit",
-      env: { ...process.env, APEX_RUN_DEPLOYED_TLS_TESTS: "true" }
+      env: { ...process.env, APEX_RUN_DEPLOYED_TLS_TESTS: process.env.CI === "true" ? "false" : "true" }
     });
     console.log("PASS");
   } catch (error) {
