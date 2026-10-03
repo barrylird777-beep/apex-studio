@@ -93,13 +93,23 @@ function objectLocation(input) {
   return null;
 }
 
+function bodyToNodeStream(body) {
+  if (!body) throw new Error("Input has no body");
+  if (typeof body.pipe === "function") return body;
+  if (typeof body.transformToWebStream === "function") return Readable.fromWeb(body.transformToWebStream());
+  throw new Error("Unsupported object-store body stream");
+}
+
 async function openInput(input) {
   const s3 = objectLocation(input);
-  if (!s3) return { kind: "url", value: input };
+  if (!s3) {
+    const response = await fetch(input);
+    if (!response.ok) throw new Error(`Input fetch failed: HTTP ${response.status}`);
+    return { kind: "stream", value: bodyToNodeStream(response.body) };
+  }
   const client = objectClient();
   const result = await client.send(new GetObjectCommand({ Bucket: s3.bucket, Key: s3.key }));
-  if (!result.Body) throw new Error("S3 input has no body");
-  return { kind: "stream", value: Readable.fromWeb(result.Body.transformToWebStream()) };
+  return { kind: "stream", value: bodyToNodeStream(result.Body) };
 }
 
 function ffmpegArgs(job) {
@@ -143,13 +153,12 @@ async function encode(job) {
   ffmpeg.stderr.on("data", chunk => { stderr += chunk.toString(); if (stderr.length > 12000) stderr = stderr.slice(-12000); });
   ffmpeg.stdout.on("data", chunk => { bytes += chunk.length; });
 
-  const inputDone = input.kind === "stream"
-    ? new Promise((resolve, reject) => { input.value.once("error", reject); input.value.pipe(ffmpeg.stdin).once("finish", resolve); })
-    : (await fetch(spec.input)).body?.pipeTo ? (async () => {
-        const web = (await fetch(spec.input)).body;
-        if (!web) throw new Error("Input URL returned no body");
-        await Readable.fromWeb(web).pipe(ffmpeg.stdin);
-      })() : Promise.reject(new Error("Input URL returned no body"));
+  const inputDone = new Promise((resolve, reject) => {
+    input.value.once("error", reject);
+    ffmpeg.stdin.once("error", reject);
+    ffmpeg.stdin.once("finish", resolve);
+    input.value.pipe(ffmpeg.stdin);
+  });
 
   const key = `${OUTPUT_PREFIX ? OUTPUT_PREFIX + "/" : ""}${job.id}.${spec.format}`;
   const outputPromise = streamToObjectStore(ffmpeg.stdout, key, spec.format === "webm" ? "video/webm" : "video/mp4");
