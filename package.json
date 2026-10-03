@@ -19,7 +19,8 @@
     "security:network": "bash scripts/security/verify-network-boundaries.sh",
     "security:crypto": "bash scripts/security/verify-crypto.sh",
     "security:willy-nilly": "node --test test/security/willy_nilly_protocol.test.js && npm run security:crypto -- --silent && npm run security:storage -- --silent && npm run security:network -- --silent",
-    "security:negative-tls": "APEX_RUN_DEPLOYED_TLS_TESTS=true node --test test/security/negative_tls_protocol.test.js"
+    "security:negative-tls": "APEX_RUN_DEPLOYED_TLS_TESTS=true node --test test/security/negative_tls_protocol.test.js",
+    "security:gate": "node scripts/security/security-gate.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
