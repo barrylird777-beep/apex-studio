@@ -1,0 +1,12 @@
+import { and, asc, eq, gte, inArray } from "drizzle-orm";
+import { db } from "../db/index";
+import { budgetItems, callSheets, characters, projects, scenes, shootDays } from "../db/schema";
+
+export const PROJECT_STATUSES=["development","pre-production","production","post"] as const;
+type Input={title:string;primaryScripture?:string;description?:string;status?:string};
+const clean=(x:Input)=>{const title=x.title?.trim();if(!title)throw new Error("Project title is required");const status=PROJECT_STATUSES.includes(x.status as any)?x.status:"development";return{title,primaryScripture:x.primaryScripture?.trim()||null,description:x.description?.trim()||null,status};};
+export const listProjects=()=>db.select().from(projects).orderBy(asc(projects.title)).all();
+export const createProject=(x:Input)=>{const r=db.insert(projects).values(clean(x)).run();return db.select().from(projects).where(eq(projects.id,Number(r.lastInsertRowid))).get();};
+export const updateProject=(id:number,x:Input)=>{const value=clean(x);db.update(projects).set({...value,updatedAt:new Date()}).where(eq(projects.id,id)).run();return db.select().from(projects).where(eq(projects.id,id)).get();};
+export const deleteProject=(id:number)=>db.transaction(tx=>{const days=tx.select({id:shootDays.id}).from(shootDays).where(eq(shootDays.projectId,id)).all();if(days.length)tx.delete(callSheets).where(inArray(callSheets.shootDayId,days.map(d=>d.id))).run();tx.delete(scenes).where(eq(scenes.projectId,id)).run();tx.delete(budgetItems).where(eq(budgetItems.projectId,id)).run();tx.delete(shootDays).where(eq(shootDays.projectId,id)).run();tx.delete(projects).where(eq(projects.id,id)).run();});
+export const getProjectOverview=(id:number)=>{const project=db.select().from(projects).where(eq(projects.id,id)).get();if(!project)return null;const rows=db.select({id:scenes.id,charactersPresent:scenes.charactersPresent}).from(scenes).where(eq(scenes.projectId,id)).all();const ids=[...new Set(rows.flatMap(s=>Array.isArray(s.charactersPresent)?s.charactersPresent:[]))];const characterCount=ids.length?db.select({id:characters.id}).from(characters).where(inArray(characters.id,ids)).all().length:0;const today=new Date().toISOString().slice(0,10);const nextShootDay=db.select().from(shootDays).where(and(eq(shootDays.projectId,id),gte(shootDays.date,today))).orderBy(asc(shootDays.date)).limit(1).get()??null;return{project,sceneCount:rows.length,characterCount,nextShootDay};};
