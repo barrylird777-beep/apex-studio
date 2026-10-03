@@ -11,9 +11,13 @@ import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
 import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './src/services/projectManager.mjs';
+import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
+import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+const geminiMeshProvider = new GeminiMeshProvider();
+const claudeMeshProvider = new ClaudeMeshProvider();
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -1082,11 +1086,11 @@ app.post('/api/ai/generate', async (req, res) => {
   const system = String(req.body?.system || DEFAULT_SYSTEM);
   try {
     if (requested === 'gemini') {
-      const text = await callGemini(prompt, system);
+      const text = await geminiMeshProvider.generate(prompt, { system });
       return res.json({ success: true, provider: 'gemini', text });
     }
     if (requested === 'claude') {
-      const text = await callClaude(prompt, system);
+      const text = await claudeMeshProvider.generate(prompt, { system });
       return res.json({ success: true, provider: 'claude', text });
     }
     const result = await executeInference(prompt, system);
