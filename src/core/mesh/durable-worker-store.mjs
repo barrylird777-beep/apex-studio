@@ -31,25 +31,31 @@ export async function ensureWorkerTaskSchema() {
     result JSONB,
     last_error TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    dedupe_key TEXT,
+    recovered_count INTEGER NOT NULL DEFAULT 0
   )`);
   await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS lease_token TEXT`);
   await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ`);
+  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS dedupe_key TEXT`);
+  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS recovered_count INTEGER NOT NULL DEFAULT 0`);
+  await getPool().query(`CREATE UNIQUE INDEX IF NOT EXISTS apex_worker_tasks_dedupe_idx ON apex_worker_tasks(dedupe_key) WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')`);
   await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_queue_idx ON apex_worker_tasks(status, created_at)`);
   await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_lease_idx ON apex_worker_tasks(status, lease_expires_at)`);
   return true;
 }
 
-export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5 }) {
+export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null }) {
   if (!durableWorkerEnabled()) return { durable: false, id };
   const db = getPool();
   await ensureWorkerTaskSchema();
   await db.query(`INSERT INTO apex_worker_tasks
-    (id, worker_id, role, task, payload, max_attempts)
-    VALUES ($1,$2,$3,$4,$5::jsonb,$6)
-    ON CONFLICT (id) DO NOTHING`,
-    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5)]);
-  return { durable: true, id };
+    (id, worker_id, role, task, payload, max_attempts, dedupe_key)
+    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
+    ON CONFLICT DO NOTHING`,
+    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey]);
+  const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
+  return { durable: true, id: existing?.rows?.[0]?.id || id };
 }
 
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
@@ -127,7 +133,7 @@ export async function failWorkerTask(id, error, leaseToken) {
 export async function releaseWorkerTasks(taskIds = []) {
   if (!durableWorkerEnabled() || !taskIds.length) return 0;
   const db = getPool();
-  const r = await db.query("UPDATE apex_worker_tasks SET status='queued', lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='running' AND lease_owner=$2", [taskIds, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local"]);
+  const r = await db.query("UPDATE apex_worker_tasks SET status='queued', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='running' AND lease_owner=$2", [taskIds, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local"]);
   return r.rowCount;
 }
 
@@ -140,6 +146,7 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
   ) UPDATE apex_worker_tasks t SET
     status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
     lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
+    recovered_count=recovered_count+1,
     next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + ((LEAST(300, POWER(2, attempts)) + (random() * 5)) * INTERVAL '1 second') END,
     last_error='Worker lease expired; task reclaimed', updated_at=NOW()
     FROM x WHERE t.id=x.id RETURNING t.id`, [limit]);

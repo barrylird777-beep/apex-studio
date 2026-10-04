@@ -64,7 +64,7 @@ export function createPgStore(db) {
        UPDATE jobs j SET status = 'running', lease_token = $2, lease_expires_at = $1 + $3::bigint,
          worker_id = $4, attempts = j.attempts + 1, updated_at = $1
        FROM next WHERE j.id = next.id RETURNING j.*`,
-      [now, token, leaseMs, workerId],
+      [now, typeof token === 'function' ? token() : token, leaseMs, workerId],
     ),
 
     heartbeat: ({ id, token, now, leaseMs }) => changed(

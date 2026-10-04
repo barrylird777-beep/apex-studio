@@ -27,6 +27,7 @@ jobs:
           path: drizzle
       - run: npm run db:migrate
       - run: npm run build
+      - run: npm run smoke:production
       - run: npm test
       - run: npm run verify:migrations
       - run: npm run db:seed
@@ -38,7 +39,7 @@ jobs:
           cat /tmp/apex-server.log
           exit 1
       - name: Run SPEC-005 HTTP smoke
-        run: npm run smoke:005
+        run: BASE_URL=http://localhost:3001 npm run smoke:005
       - name: Stop SPEC-005 server
         if: always()
         run: kill $(cat /tmp/apex-server.pid) 2>/dev/null || true
