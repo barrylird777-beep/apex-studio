@@ -1,4 +1,4 @@
-const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
+const BASE = process.env.BASE_URL ?? 'http://localhost:3001';
 const PATHS = {
   projects: '/api/projects',
   scenes: (p) => `/api/projects/${p}/scenes`,
@@ -46,7 +46,6 @@ async function setup() {
   return { projectId, sceneIds };
 }
 
-// Turn the calendar response into the assertions used below.
 const view = (cal) => ({
   days: cal.days.map((d) => ({ id: d.id, sceneIds: d.scenes.map((s) => s.id) })),
   unassigned: cal.unassigned.map((s) => s.id),
