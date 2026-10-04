@@ -1,5 +1,6 @@
 import http from "node:http";import {createReadStream,existsSync} from "node:fs";import {extname,join} from "node:path";import {fileURLToPath} from "node:url";import {spawn} from "node:child_process";import {createProject,deleteProject,getProjectOverview,listProjects,updateProject} from "./projects";import {createCharacter,deleteCharacter,getCharacter,listCharacters,updateCharacter} from "./characters";import {listScenes,createScene,updateScene,deleteScene} from "./scenes";// @ts-ignore JavaScript pipeline modules are runtime-tested by Node.
 import {generateBreakdown,BreakdownError} from "../scripture/breakdown.js";
+import {getCalendar,createShootDay,deleteShootDay,assignScenes,reorderDay,unassignScene,runAutoSchedule} from "./schedule";
 // @ts-ignore JavaScript provider adapter is runtime-loaded.
 import {generateWithGemini} from "../ai/gemini.js";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
@@ -8,6 +9,30 @@ const readBody=(req:http.IncomingMessage)=>new Promise<any>((resolve,reject)=>{l
 const server=http.createServer(async(req,res)=>{try{const u=new URL(req.url||"/","http://localhost"),p=u.pathname.split("/").filter(Boolean);
 if(p[0]==="api"&&p[1]==="characters"){if(p.length===2&&req.method==="GET")return send(res,200,listCharacters(u.searchParams.get("q")||""));if(p.length===2&&req.method==="POST")return send(res,201,createCharacter(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid character id"});if(p.length===3&&req.method==="GET"){const c=getCharacter(id);return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="PUT"){const c=updateCharacter(id,await readBody(req));return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="DELETE"){return deleteCharacter(id)?send(res,204,null):send(res,404,{error:"Character not found"})}}
 if(p[0]==="api"&&p[1]==="projects"){if(p.length===2&&req.method==="GET")return send(res,200,listProjects());if(p.length===2&&req.method==="POST")return send(res,201,createProject(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid project id"});if(p[3]==="overview"&&req.method==="GET"){const o=getProjectOverview(id);return o?send(res,200,o):send(res,404,{error:"Project not found"})}if(p.length===3&&req.method==="PUT"){const o=updateProject(id,await readBody(req));return o?send(res,200,o):send(res,404,{error:"Project not found"})}if(p.length===3&&req.method==="DELETE"){deleteProject(id);return send(res,204,null)}if(p[3]==="scenes"&&req.method==="GET")return send(res,200,listScenes(id));if(p[3]==="scenes"&&req.method==="POST"){const s=createScene({...await readBody(req),projectId:id});return s?send(res,201,s):send(res,404,{error:"Project not found"})}}
+if(p[0]==="api"&&p[1]==="projects"&&p[3]==="calendar"&&req.method==="GET"){
+  const id=Number(p[2]); if(!Number.isInteger(id)) return send(res,400,{error:"Invalid project id"});
+  return send(res,200,getCalendar(id));
+}
+if(p[0]==="api"&&p[1]==="projects"&&p[3]==="shoot-days"&&req.method==="POST"){
+  const id=Number(p[2]); if(!Number.isInteger(id)) return send(res,400,{error:"Invalid project id"});
+  const body=await readBody(req); const validShootDate=(value:unknown)=>{if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const [y,m,d]=value.split("-").map(Number); const dt=new Date(Date.UTC(y,m-1,d)); return dt.getUTCFullYear()===y&&dt.getUTCMonth()===m-1&&dt.getUTCDate()===d;}; if(!validShootDate(body.shootDate)) return send(res,400,{error:"shootDate must be a valid YYYY-MM-DD date"});
+  try { const day=createShootDay({projectId:id,shootDate:body.shootDate,callTime:body.callTime||null,notes:String(body.notes||"")}); return day?send(res,201,day):send(res,404,{error:"Project not found"}); }
+  catch(e){ if((e as any)?.code==="DUPLICATE_DATE") return send(res,409,{error:(e as any).message}); throw e; }
+}
+if(p[0]==="api"&&p[1]==="projects"&&p[3]==="auto-schedule"&&req.method==="POST"){
+  const id=Number(p[2]); if(!Number.isInteger(id)) return send(res,400,{error:"Invalid project id"});
+  const body=await readBody(req); return send(res,200,runAutoSchedule(id,{maxScenes:Number.isInteger(body.maxScenes)?body.maxScenes:undefined}));
+}
+if(p[0]==="api"&&p[1]==="shoot-days"&&p[2]){
+  const id=Number(p[2]); if(!Number.isInteger(id)) return send(res,400,{error:"Invalid shoot day id"});
+  if(p.length===3&&req.method==="DELETE") return deleteShootDay(id)?send(res,204,null):send(res,404,{error:"Shoot day not found"});
+  if(p.length===4&&p[3]==="scenes"&&req.method==="POST"){ const body=await readBody(req); if(!Array.isArray(body.sceneIds)) return send(res,400,{error:"sceneIds must be an array"}); try{return send(res,200,assignScenes(id,body.sceneIds))}catch(e){const code=(e as any)?.code;return send(res,code==="NOT_FOUND"?404:code==="PROJECT_SCOPE"?400:400,{error:(e as any)?.message||"Unable to assign scenes"})} }
+  if(p.length===4&&p[3]==="order"&&req.method==="PUT"){ const body=await readBody(req); if(!Array.isArray(body.sceneIds)) return send(res,400,{error:"sceneIds must be an array"}); try{return send(res,200,reorderDay(id,body.sceneIds))}catch(e){const code=(e as any)?.code;return send(res,code==="NOT_FOUND"?404:400,{error:(e as any)?.message||"Unable to reorder scenes"})} }
+}
+if(p[0]==="api"&&p[1]==="scenes"&&p[2]&&p[3]==="assignment"&&req.method==="DELETE"){
+  const id=Number(p[2]); if(!Number.isInteger(id)) return send(res,400,{error:"Invalid scene id"});
+  return unassignScene(id)?send(res,204,null):send(res,404,{error:"Scene is not assigned"});
+}
 if(p[0]==="api"&&p[1]==="scenes"&&p[2]){const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid scene id"});if(p.length===3&&req.method==="PUT"){const s=updateScene(id,await readBody(req));return s?send(res,200,s):send(res,404,{error:"Scene not found"})}if(p.length===3&&req.method==="DELETE")return deleteScene(id)?send(res,204,null):send(res,404,{error:"Scene not found"})}
 if(p[0]==="api"&&p[1]==="scripture"&&p[2]==="breakdown"&&req.method==="POST"){const body=await readBody(req),reference=typeof body.reference==="string"?body.reference.trim():"",text=body.text;if(!reference)return send(res,400,{error:"reference is required"});if(text!==undefined&&(typeof text!=="string"||text.length>20000))return send(res,400,{error:"text must be a string up to 20000 characters"});try{const result=await generateBreakdown({reference,text,generate:generateWithGemini,refine:body.refine?{provider:"claude",model:"claude-sonnet-5-5"}:null});return send(res,200,result)}catch(e){const err=e as any;if(err?.name==="BreakdownError")return send(res,502,{error:err.message,stage:err.stage,details:err.errors});console.error("scripture breakdown failed",e);return send(res,500,{error:e instanceof Error?e.message:"breakdown failed"})}}
 if(!dev){const path=u.pathname==="/"?"index.html":u.pathname.slice(1),f=join(root,"dist",path),file=existsSync(f)?f:join(root,"dist","index.html");res.writeHead(200,{"content-type":({".html":"text/html",".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"} as any)[extname(file)]||"application/octet-stream"});return createReadStream(file).pipe(res)}res.writeHead(404);res.end()}catch(e){send(res,400,{error:e instanceof Error?e.message:"Request failed"})}});

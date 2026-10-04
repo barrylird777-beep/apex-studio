@@ -1,0 +1,45 @@
+name: SPEC-005 gate
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main", "spec/005-scheduling"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spec005-gate:
+    name: spec005-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm install
+      - name: Schema drift (every schema change must have a committed migration)
+        run: |
+          npx drizzle-kit generate
+          test -z "$(git status --porcelain drizzle)" || { git status --porcelain drizzle; exit 1; }
+      - name: Migrations rebuild expected schema from empty
+        run: npm run verify:migrations
+      - name: Real migrate on a fresh database
+        run: npm run db:migrate
+      - name: Start server and wait for it
+        run: |
+          (PORT=3000 npm start > /tmp/apex-server.log 2>&1 & echo $! > /tmp/apex-server.pid)
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null localhost:3000/api/projects && exit 0
+            sleep 1
+          done
+          cat /tmp/apex-server.log
+          echo "server did not start"
+          exit 1
+      - name: SPEC-005 endpoint smoke
+        run: npm run smoke:005
+      - name: Stop server
+        if: always()
+        run: kill "$(cat /tmp/apex-server.pid)" 2>/dev/null || true
