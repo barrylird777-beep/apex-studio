@@ -1,4 +1,3 @@
-import { startProductionDaemon } from "./src/workers/av1-production-daemon.mjs";
 import { RenderWorker } from "./src/core/render-worker.mjs";
 import { capacitySnapshot } from "./src/core/capacity.mjs";
 import { getProjectState } from "./src/services/projectManager.mjs";
@@ -38,6 +37,9 @@ async function executePermanentHealthTask(payload = {}) {
 const workerOnly = String(process.env.APEX_WORKER_ONLY || "").toLowerCase() === "true";
 
 if (!workerOnly) {
+  // Keep the legacy AV1 daemon out of the durable-worker process startup path.
+  // It still loads only when this service is explicitly running in daemon mode.
+  const { startProductionDaemon } = await import("./src/workers/av1-production-daemon.mjs");
   process.title = "apex-av1-production";
   await startProductionDaemon();
 } else {
@@ -86,15 +88,24 @@ if (!workerOnly) {
     const deadline = Date.now() + shutdownDeadlineMs;
     while (inFlight.size && Date.now() < deadline) await sleep(250);
     const unstarted = [...claimed.values()].filter(task => !inFlight.has(task.id)).map(task => task.id);
-    await releaseWorkerTasks(unstarted).catch(error => console.error('[apex-worker] release failed:', error?.message || error));
+    await releaseWorkerTasks(unstarted).catch(error => console.error("[apex-worker] release failed:", error?.message || error));
     process.exit(0);
   };
-  process.once('SIGTERM', () => void shutdown('SIGTERM'));
-  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 
   const inFlight = new Map();
   const claimed = new Map();
-  const runTask = async (task) => { claimed.set(task.id, task); inFlight.set(task.id, task); try { await executeTask(task); } finally { inFlight.delete(task.id); claimed.delete(task.id); } };
+  const runTask = async (task) => {
+    claimed.set(task.id, task);
+    inFlight.set(task.id, task);
+    try {
+      await executeTask(task);
+    } finally {
+      inFlight.delete(task.id);
+      claimed.delete(task.id);
+    }
+  };
 
   while (!stopping) {
     await requeueExpiredWorkerTasks().catch(error => {
@@ -103,7 +114,10 @@ if (!workerOnly) {
 
     try {
       const available = Math.max(0, concurrency - inFlight.size);
-      if (!available) { await sleep(100); continue; }
+      if (!available) {
+        await sleep(100);
+        continue;
+      }
       const tasks = await claimNextWorkerTasks(Math.min(batchSize, available), leaseMs);
       if (!tasks.length) {
         emptyPolls = Math.min(emptyPolls + 1, 6);
