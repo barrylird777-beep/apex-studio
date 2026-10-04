@@ -229,4 +229,34 @@
   const cornNuts=(score=0)=>{const n=Math.max(0,Math.min(5,Math.round(Number(score)||0)));return '<span class="cornnut" aria-label="'+n+' CornNuts">'+Array.from({length:5},(_,i)=>'<i>'+(i<n?'🌽':'·')+'</i>').join('')+'</span>';};
   window.apexCornNuts=cornNuts;
   window.APEX_CREW_NAMES=Object.freeze({kernels:["Cornilius","Kernelina","Cornelius Jr.","Corny B.","Kernel Bob","Cornrad","Kernel Belle","Cornathan"],cobs:["Cobby","Cobert","Cobbie Wan","Cob Marley","Cob Dylan","Cob Ross","Cob Web","Cobzilla"]});
+
+  const makeCrewRoom = () => {
+    if(document.getElementById("holy-moly-room")) return;
+    const main=document.querySelector("main"), nav=document.querySelector(".nav");
+    const addNav=(id,label,fn)=>{const b=document.createElement("button");b.dataset.view=id;b.textContent=label;b.onclick=fn;nav.appendChild(b)};
+    const holy=document.createElement("section");holy.id="holy-moly-room";holy.className="view hidden";
+    holy.innerHTML=`
+      <div class="top"><div><div class="eyebrow">📖 Bible Room</div><h1>HOLY MOLY</h1><p>The cozy Scripture study where the Kernels dig, verify, connect and discover.</p></div><div class="crew-badge">🌽 Kernels at work</div></div>
+      <div class="workspace">
+        <section class="panel room-card"><div><div class="room-icon">📚</div><h2>Your Bibles</h2><p class="muted">Master Bible · Movie Bible · My Study Bible · character studies · research shelves</p></div><span class="little-note">The shelves keep getting smarter.</span></section>
+        <section class="panel room-card"><div><div class="room-icon">🍿</div><h2>Popcorn Drawer</h2><p class="muted">Cinematic Scripture discoveries, each carrying its source, evidence and CornNut rating.</p></div><span class="little-note">POP! Something worth filming.</span></section>
+      </div>
+      <section class="panel" style="margin-top:14px"><h2>🌽 Kernel Desk</h2><div id="kernel-roster" class="list"></div></section>`;
+    const studio=document.createElement("section");studio.id="biblically-seen-room";studio.className="view hidden";
+    studio.innerHTML=`
+      <div class="top"><div><div class="eyebrow">🎬 Studio</div><h1>BIBLICALLY SEEN</h1><p>The cozy production house where the Cobs turn verified discoveries into cinema.</p></div><div class="crew-badge">🌽 Cobs building</div></div>
+      <div class="workspace">
+        <section class="panel room-card"><div><div class="room-icon">🎬</div><h2>Director's Room</h2><p class="muted">Story, shots, visual DNA, blocking and performance decisions.</p></div><span class="little-note">Make it beautiful. Make it biblical.</span></section>
+        <section class="panel room-card"><div><div class="room-icon">🎥</div><h2>Protocob Workshop</h2><p class="muted">Private visual pitches from the Cobs. Nothing publishes. You decide what survives.</p></div><span class="little-note">The Cobs have a pitch.</span></section>
+      </div>
+      <section class="panel" style="margin-top:14px"><h2>🌽 Cob Workshop</h2><div id="cob-roster" class="list"></div></section>`;
+    main.appendChild(holy);main.appendChild(studio);
+    addNav("holy-moly-room","HOLY MOLY",()=>room("holy-moly-room"));
+    addNav("biblically-seen-room","BIBLICALLY SEEN",()=>room("biblically-seen-room"));
+    const roster=(id,names,role)=>{const el=document.getElementById(id);el.innerHTML=names.map((n,i)=>"<div class='row'><div><b>"+esc(n)+"</b><span class='muted'>"+esc(role[i%role.length])+"</span></div><span class='pill'>"+(i%3===0?"WORKING":"READY")+"</span></div>").join("")};
+    const room=(id)=>{document.querySelectorAll(".view").forEach(x=>x.classList.add("hidden"));document.getElementById(id).classList.remove("hidden");document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.view===id));if(id==="holy-moly-room")roster("kernel-roster",window.APEX_CREW_NAMES.kernels,["Scripture research","Passage finding","Historical context","Character research","Geography","Timeline","Verification","Popcorn hunting"]);else roster("cob-roster",window.APEX_CREW_NAMES.cobs,["Production coordination","Direction","Cinematography","Music","Dialogue","Environment design","VFX","Epic spectacle"])};
+    window.holyMolyRoom=()=>room("holy-moly-room");window.biblicallySeenRoom=()=>room("biblically-seen-room");
+  };
+  makeCrewRoom();
+
 })();
