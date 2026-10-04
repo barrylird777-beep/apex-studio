@@ -76,9 +76,9 @@ export function createSqliteStore(db) {
       "UPDATE jobs SET status='done',result=@result,lease_token=NULL,lease_expires_at=NULL,updated_at=@now WHERE id=@id AND status='running' AND lease_token=@token",
       {result:JSON.stringify(result??null),now,id,token});},
     async fail({id,token,error,now,retryAt}){return changed(
-      "UPDATE jobs SET status=CASE WHEN @retryAt IS NULL THEN 'dead' ELSE 'queued' END,
+      `UPDATE jobs SET status=CASE WHEN @retryAt IS NULL THEN 'dead' ELSE 'queued' END,
        run_at=COALESCE(@retryAt,run_at),last_error=@error,lease_token=NULL,lease_expires_at=NULL,updated_at=@now
-       WHERE id=@id AND status='running' AND lease_token=@token",
+       WHERE id=@id AND status='running' AND lease_token=@token`,
       {retryAt:retryAt??null,error,now,id,token});},
     async listExpired({now}){return all("SELECT * FROM jobs WHERE status='running' AND lease_expires_at < ?",now);},
     async requeueExpired({id,token,dead,now,runAt,error}){return changed(
