@@ -80,7 +80,7 @@ export async function claimWorkerTask(id, leaseMs = 45000, workerOwner = owner()
   await ensureWorkerTaskSchema();
   const r = await db.query(`UPDATE apex_worker_tasks SET
     status='claimed', attempts=attempts+1, lease_owner=$2,
-    lease_token=gen_random_uuid()::text,
+    lease_token=md5(random()::text || clock_timestamp()::text || $1::text),
     lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
     updated_at=NOW()
     WHERE id=$1 AND status='queued' AND attempts < max_attempts
