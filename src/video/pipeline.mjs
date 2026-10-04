@@ -13,17 +13,15 @@ async function acquireLock(dir, staleMs) {
   if (String(process.env.DATABASE_URL || '').trim()) {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
     const client = await pool.connect();
+    let handedOff = false;
     try {
       const locked = await client.query(
         "SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked",
         [`apex-video:${dir}`],
       );
-      if (!locked.rows[0]?.locked) {
-        client.release();
-        await pool.end();
-        throw new Error(`another production run is in progress (${dir})`);
-      }
+      if (!locked.rows[0]?.locked) throw new Error(`another production run is in progress (${dir})`);
       let released = false;
+      handedOff = true;
       return async () => {
         if (released) return;
         released = true;
@@ -35,7 +33,7 @@ async function acquireLock(dir, staleMs) {
         }
       };
     } catch (error) {
-      if (!client.released) client.release();
+      if (!handedOff) client.release();
       await pool.end().catch(() => {});
       throw error;
     }
