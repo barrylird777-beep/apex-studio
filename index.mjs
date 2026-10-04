@@ -6,6 +6,7 @@ import { voiceoverWorkerStatus } from "./src/workers/voiceover-worker.mjs";
 import {
   durableWorkerEnabled,
   claimNextWorkerTasks,
+  startWorkerTask,
   heartbeatWorkerTask,
   completeWorkerTask,
   failWorkerTask,
@@ -59,6 +60,11 @@ if (!workerOnly) {
   let emptyPolls = 0;
 
   const executeTask = async (task) => {
+    const started = await startWorkerTask(task.id, task.lease_token);
+    if (!started) {
+      console.warn("[apex-worker] claim lost before start; task will not execute", task.id);
+      return;
+    }
     const heartbeat = setInterval(() => {
       void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
         console.error("[apex-worker] heartbeat failed:", error?.message || error);
@@ -67,12 +73,18 @@ if (!workerOnly) {
     heartbeat.unref?.();
     try {
       const result = await executePermanentHealthTask(task.payload || {});
-      await completeWorkerTask(task.id, result, task.lease_token);
+      const completed = await completeWorkerTask(task.id, result, task.lease_token);
+      if (!completed) {
+        console.warn("[apex-worker] completion fence rejected", task.id);
+        return;
+      }
       console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
-      await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
+      const failed = await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
+        return false;
       });
+      if (!failed) console.warn("[apex-worker] failure fence rejected", task.id);
       console.error("[apex-worker] task failed:", task.id, error?.message || error);
     } finally {
       clearInterval(heartbeat);
