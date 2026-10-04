@@ -19,7 +19,7 @@ function audioFromPart(part) {
   if (mimeType.includes('wav')) {
     return { ...parseWav(data), mimeType };
   }
-  const match = /(?:rate|sample-rate)=(\\d+)/i.exec(mimeType);
+  const match = /(?:rate|sample-rate)=(\d+)/i.exec(mimeType);
   const sampleRate = Number(match?.[1] ?? 24000);
   if (!Number.isInteger(sampleRate) || sampleRate <= 0) throw new Error(`Gemini TTS returned invalid sample rate: ${sampleRate}`);
   return { pcm: data, sampleRate, mimeType };
