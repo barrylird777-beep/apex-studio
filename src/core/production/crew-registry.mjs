@@ -29,7 +29,7 @@ export const CREW_TASKS = Object.freeze({
   CHARACTER_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"character-packet" },
   LOCATION_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"location-packet" },
   SCENE_BREAKDOWN: { crew:"bible-finder", input:"verified-scripture", output:"scene-brief" },
-  SCREENPLAY_DRAFT: { crew:"production", input:"scene-brief", output:"screenplay" },
+  STORY_BREAKDOWN: { crew:"production", input:"scripture-evidence", output:"scene-drafts" },\n  CHARACTER_CASTING: { crew:"production", input:"scene-drafts", output:"characters" },\n  SHOT_PLANNING: { crew:"production", input:"scene-drafts", output:"shot-plan" },\n  ASSET_GENERATION: { crew:"production", input:"shot-plan", output:"video-shot" },\n  SOUND_GENERATION: { crew:"production", input:"scene-drafts", output:"audio-scene" },\n  EDITORIAL_MASTER: { crew:"production", input:"video-shot+audio-scene", output:"final-master" },\n  SCREENPLAY_DRAFT: { crew:"production", input:"scene-brief", output:"screenplay" },
   SHOT_PLAN: { crew:"production", input:"screenplay", output:"shot-plan" },
   STORYBOARD: { crew:"production", input:"shot-plan", output:"storyboard-plan" },
   ASSET_PLAN: { crew:"production", input:"storyboard-plan", output:"asset-plan" },
