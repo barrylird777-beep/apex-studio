@@ -207,15 +207,15 @@ const seedCharacters = [
 
 export async function seed() {
   console.log("Seeding characters...");
-  const existing = db.select({ id: characters.id, canonicalName: characters.canonicalName }).from(characters).all();
+  const existing = await db.select({ id: characters.id, canonicalName: characters.canonicalName }).from(characters);
   const byName = new Map(existing.map(row => [row.canonicalName, row.id]));
   for (const character of seedCharacters) {
     const id = byName.get(character.canonicalName);
     if (id) {
-      db.update(characters).set(character).where(eq(characters.id, id)).run();
+      await db.update(characters).set(character).where(eq(characters.id, id));
     } else {
-      const inserted = db.insert(characters).values(character).returning({ id: characters.id }).get();
-      byName.set(character.canonicalName, inserted.id);
+      const inserted = await db.insert(characters).values(character).returning({ id: characters.id });
+      if (inserted[0]) byName.set(character.canonicalName, inserted[0].id);
     }
   }
   console.log(`Seeded/updated ${seedCharacters.length} canonical character records; preserved existing non-seed records.`);

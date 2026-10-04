@@ -1,7 +1,21 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "./schema";
-const sqlite = new Database("apex.db");
-sqlite.pragma("foreign_keys = ON");
-export const db = drizzle(sqlite,{schema});
-export { sqlite };
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required; Apex Studio no longer supports SQLite.");
+}
+
+export const pool = new Pool({
+  connectionString,
+  max: Number(process.env.APEX_DB_POOL_MAX || 20),
+  idleTimeoutMillis: Number(process.env.APEX_DB_IDLE_TIMEOUT_MS || 30000),
+  connectionTimeoutMillis: Number(process.env.APEX_DB_CONNECTION_TIMEOUT_MS || 10000),
+});
+
+export const db = drizzle(pool, { schema });
+
+export async function closeDb() {
+  await pool.end();
+}

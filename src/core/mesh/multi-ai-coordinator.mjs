@@ -9,7 +9,7 @@ export class MultiAiCoordinator {
     return text;
   }
 
-  async run({ task, providers = ['gemini', 'claude'], system, context = {} } = {}) {
+  async run({ task, providers = ['gemini', 'claude'], system, context = {}, signal, synthesize = true } = {}) {
     const prompt = this.#validateText(task, 'Task');
     const requested = [...new Set(providers.map(String).map(v => v.toLowerCase()).filter(Boolean))];
     if (!requested.length) throw new Error('At least one AI provider is required');
@@ -24,7 +24,7 @@ export class MultiAiCoordinator {
             context && Object.keys(context).length
               ? prompt + '\n\nSHARED CONTEXT:\n' + JSON.stringify(context)
               : prompt,
-            { system }
+            { system, signal }
           ),
           provider
         );
@@ -50,15 +50,22 @@ export class MultiAiCoordinator {
       results.filter(r => r.ok).map(r => 'PROVIDER: ' + r.provider + '\n' + r.text).join('\n\n');
 
     let synthesis = null;
-    try {
-      synthesis = this.#validateText(
-        await synthesizer.generate(reviewPrompt, {
-          system: system || 'You are the Apex multi-AI synthesis layer. Return a concise, technically actionable result.'
-        }),
-        'Synthesis'
-      );
-    } catch (error) {
-      synthesis = null;
+    if (successful.length === 1 || synthesize === false) {
+      const only = successful[0];
+      synthesis = { provider: only.provider, model: only.model, text: only.text };
+    } else {
+      try {
+        const synthesizedText = this.#validateText(
+          await synthesizer.generate(reviewPrompt, {
+            system: system || 'You are the Apex multi-AI synthesis layer. Return a concise, technically actionable result.',
+            signal
+          }),
+          'Synthesis'
+        );
+        synthesis = { provider: synthesisProvider, model: synthesizer.model, text: synthesizedText };
+      } catch {
+        synthesis = null;
+      }
     }
 
     return {

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1760000000000,
+      "tag": "0000_postgres_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1760001000000,
+      "tag": "0001_production_creative",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791140977016,
+      "tag": "0002_durable_worker_claimed",
+      "breakpoints": true
+    }
+  ]
+}
