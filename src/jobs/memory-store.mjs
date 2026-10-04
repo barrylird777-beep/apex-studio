@@ -28,7 +28,7 @@ export function createMemoryStore() {
         .sort((a, b) => a.runAt - b.runAt || a._seq - b._seq)[0];
       if (!due) return null;
       Object.assign(due, {
-        status: 'running', leaseToken: token, leaseExpiresAt: now + leaseMs,
+        status: 'running', leaseToken: typeof token === 'function' ? token() : token, leaseExpiresAt: now + leaseMs,
         workerId, attempts: due.attempts + 1, updatedAt: now,
       });
       return view(due);
