@@ -9,7 +9,7 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  max: Number(process.env.APEX_DB_POOL_MAX || 10),
+  max: Number(process.env.APEX_DB_POOL_MAX || 20),
   idleTimeoutMillis: Number(process.env.APEX_DB_IDLE_TIMEOUT_MS || 30000),
   connectionTimeoutMillis: Number(process.env.APEX_DB_CONNECTION_TIMEOUT_MS || 10000),
 });
