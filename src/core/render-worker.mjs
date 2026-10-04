@@ -10,6 +10,32 @@ function parseProgress(line){
   return {key:k,value:v};
 }
 
+
+export function masterScene(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "-i", inputPath,
+      "-c:v", "libx264",
+      "-crf", "17",
+      "-r", "24",
+      "-pix_fmt", "yuv420p",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      outputPath
+    ];
+    const proc = spawn(process.env.FFMPEG_PATH || "ffmpeg", args, {
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    proc.once("error", reject);
+    proc.once("close", (code) => {
+      if (code === 0) return resolve(outputPath);
+      reject(new Error(`FFmpeg exited with ${code}: ${stderr.slice(-2000)}`));
+    });
+  });
+}
+
 export class RenderWorker{
   constructor({ffmpegPath=process.env.FFMPEG_PATH||"ffmpeg",outputDir=process.env.APEX_RENDER_DIR||"./data/runtime/renders"}={}){
     this.ffmpegPath=ffmpegPath;this.outputDir=outputDir;this.running=new Map();
