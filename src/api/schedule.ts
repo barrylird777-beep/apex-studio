@@ -3,8 +3,11 @@ import { db } from "../db/index";
 import { projects, scenes, shootDayScenes, shootDays } from "../db/schema";
 import { autoSchedule, buildCalendar } from "../schedule/rules.js";
 
-const mapDay = r => ({ id: r.id, projectId: r.projectId, shootDate: r.date, callTime: r.callTime ?? null, notes: r.notes ?? "" });
-const mapScene = r => ({ ...r, sequence: r.sceneNumber ?? r.id, location: { name: r.location ?? "", timeOfDay: r.dayOrNight || "UNSPECIFIED" } });
+type ShootDayRow = typeof shootDays.$inferSelect;
+type SceneRow = typeof scenes.$inferSelect;
+
+const mapDay = (r: ShootDayRow) => ({ id: r.id, projectId: r.projectId, shootDate: r.date, callTime: r.callTime ?? null, notes: r.notes ?? "" });
+const mapScene = (r: SceneRow) => ({ ...r, sequence: r.sceneNumber ?? r.id, location: { name: r.location ?? "", timeOfDay: r.dayOrNight || "UNSPECIFIED" } });
 
 export function createShootDay({projectId, shootDate, callTime = null, notes = ""}) {
   const project = db.select({id: projects.id}).from(projects).where(eq(projects.id, projectId)).get();
