@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spec-005-drizzle
-          path: drizzle
+          path: drizzle-pg
       - run: npm run db:migrate
       - run: npm run build
       - run: npm test
