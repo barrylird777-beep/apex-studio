@@ -1,4 +1,4 @@
-const BASE = process.env.BASE_URL ?? 'http://localhost:3001';
+const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
 const PATHS = {
   projects: '/api/projects',
   scenes: (p) => `/api/projects/${p}/scenes`,
