@@ -39,31 +39,26 @@ export function createPostgresLedger({ pool = null, closePool = true } = {}) {
     ? new Pool({ connectionString: process.env.DATABASE_URL, max: 2 })
     : null);
   if (!db) throw new Error('PostgreSQL ledger requires DATABASE_URL or an injected pool');
+
   return {
     async record(entry) {
-      await pool.query(
+      const {
+        run, kind, status, id, shot, path: artifactPath, sha256, model, voice,
+        labels, sources, spec, metadata, ...extra
+      } = entry;
+      await db.query(
         `INSERT INTO asset_provenance
           (run_id, kind, status, artifact_id, shot, path, sha256, model, voice, labels, sources, spec, metadata)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb)`,
         [
-          entry.run,
-          entry.kind,
-          entry.status,
-          entry.id ?? null,
-          entry.shot ?? null,
-          entry.path ?? null,
-          entry.sha256 ?? null,
-          entry.model ?? null,
-          entry.voice ?? null,
-          JSON.stringify(entry.labels ?? []),
-          JSON.stringify(entry.sources ?? []),
-          JSON.stringify(entry.spec ?? null),
-          JSON.stringify(entry.metadata ?? {}),
+          run, kind, status, id ?? null, shot ?? null, artifactPath ?? null, sha256 ?? null,
+          model ?? null, voice ?? null, JSON.stringify(labels ?? []), JSON.stringify(sources ?? []),
+          JSON.stringify(spec ?? null), JSON.stringify({ ...(metadata ?? {}), ...extra }),
         ],
       );
     },
     async read(runId = null) {
-      const result = await pool.query(
+      const result = await db.query(
         `SELECT run_id AS run, kind, status, artifact_id AS id, shot, path, sha256, model, voice,
                 labels, sources, spec, metadata, created_at AS ts
            FROM asset_provenance
@@ -74,7 +69,7 @@ export function createPostgresLedger({ pool = null, closePool = true } = {}) {
       return result.rows;
     },
     async close() {
-      if (closePool && typeof pool.end === 'function') await pool.end();
+      if (closePool && typeof db.end === 'function') await db.end();
     },
   };
 }
