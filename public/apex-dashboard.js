@@ -224,4 +224,9 @@
     if (name === "sacred-library") return sacredLibraryView();
     return original(name);
   })(window.view);
+
+  // BIBLICALLY SEEN crew personality layer.
+  const cornNuts=(score=0)=>{const n=Math.max(0,Math.min(5,Math.round(Number(score)||0)));return '<span class="cornnut" aria-label="'+n+' CornNuts">'+Array.from({length:5},(_,i)=>'<i>'+(i<n?'🌽':'·')+'</i>').join('')+'</span>';};
+  window.apexCornNuts=cornNuts;
+  window.APEX_CREW_NAMES=Object.freeze({kernels:["Cornilius","Kernelina","Cornelius Jr.","Corny B.","Kernel Bob","Cornrad","Kernel Belle","Cornathan"],cobs:["Cobby","Cobert","Cobbie Wan","Cob Marley","Cob Dylan","Cob Ross","Cob Web","Cobzilla"]});
 })();
