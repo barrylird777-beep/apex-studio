@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "start": "tsx src/api/server.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate-postgres.mjs",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
     "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/durable-worker-race.test.mjs test/video-pipeline.test.mjs test/video-produce.test.mjs",
