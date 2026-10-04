@@ -117,18 +117,18 @@ export async function produceFromRef({
         labels: shot.labels, sources: shot.sources,
       });
     }
-    await ledger.record({
+    await provenance.record({
       run, kind: 'narration', status: 'ok', path: plan.narration,
       sha256: await sha256(plan.narration), model: gemini.models.tts, voice,
     });
-    await ledger.record({
+    await provenance.record({
       run, kind: 'video', status: result.spec.ok ? 'ok' : 'spec_failed',
       path: result.videoPath, sha256: await sha256(result.videoPath), spec: result.spec,
     });
-    await ledger.record({ run, kind: 'run', status: 'finished', ref });
+    await provenance.record({ run, kind: 'run', status: 'finished', ref });
     return { ...result, eventsPath: events.file, runId: run };
   } catch (error) {
-    await ledger.record({
+    await provenance.record({
       run, kind: 'run', status: 'failed', ref,
       error: String(error.message ?? error).slice(0, 500),
     }).catch(() => {});
