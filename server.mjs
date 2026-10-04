@@ -601,6 +601,55 @@ function markProviderFailure(id, message) {
   }
 }
 
+async function checkInferenceSwarmHealth() {
+  const configuredProviders = inferenceProviders.filter((provider) => provider.enabled());
+  const availableProviders = configuredProviders.filter((provider) => !isProviderCoolingDown(provider.id));
+
+  if (availableProviders.length === 0) throw new Error('Inference swarm has no available providers');
+  if (!meshWorkerSupervisor.started) throw new Error('Inference mesh supervisor is not running');
+
+  return { ok: true, configuredProviders: configuredProviders.length, availableProviders: availableProviders.length };
+}
+
+function triggerSwarmFallback(error) {
+  console.error('[supervisor] inference swarm unhealthy:', error?.message || String(error));
+  if (!meshWorkerSupervisor.started) meshWorkerSupervisor.start();
+  for (const provider of inferenceProviders) {
+    if (provider.enabled()) providerCooldowns.delete(provider.id);
+  }
+}
+
+global.checkInferenceSwarmHealth = checkInferenceSwarmHealth;
+global.triggerSwarmFallback = triggerSwarmFallback;
+
+const SUPERVISOR_INTERVAL = 1000;
+const SUPERVISOR_TIMEOUT = 2500;
+global.isSupervisorBusy = false;
+
+const supervisorHeartbeat = setInterval(async () => {
+  if (global.isSupervisorBusy) return;
+  global.isSupervisorBusy = true;
+  let timeoutId;
+  try {
+    await Promise.race([
+      Promise.resolve(global.checkInferenceSwarmHealth?.()),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Supervisor health-check timeout')), SUPERVISOR_TIMEOUT);
+      })
+    ]);
+  } catch (error) {
+    try {
+      await Promise.resolve(global.triggerSwarmFallback?.(error));
+    } catch (fallbackError) {
+      console.error('[supervisor] fallback failed:', fallbackError);
+    }
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    global.isSupervisorBusy = false;
+  }
+}, SUPERVISOR_INTERVAL);
+supervisorHeartbeat.unref?.();
+
 async function executeInference(prompt, system = DEFAULT_SYSTEM) {
   const input = String(prompt || '').trim();
   if (!input) throw new Error('Prompt cannot be empty');
