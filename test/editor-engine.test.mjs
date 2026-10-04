@@ -35,3 +35,17 @@ test("editor supports snapping, track state, grouping and snapped moves",()=>{
  setTrackState(p,a.id,{muted:true,locked:true,visible:false,height:72});
  assert.equal(a.muted,true); assert.equal(a.locked,true); assert.equal(g.collapsed,true);
 });
+
+
+test("editor snapTime snaps to the nearest marker and respects exclusion",()=>{
+  const p=createEditorProject();
+  const t=addTrack(p,"video","Snap");
+  const c=addClip(p,t.id,{start:4,duration:2});
+  p.markers=[{time:10}];
+  const marker=snapTime(p,9.94,{threshold:.1});
+  assert.equal(marker.snapped,true);
+  assert.equal(marker.time,10);
+  const edge=snapTime(p,3.96,{trackId:t.id,excludeClipId:c.id,threshold:.1});
+  assert.equal(edge.snapped,false);
+  assert.equal(edge.time,3.96);
+});
