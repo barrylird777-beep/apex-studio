@@ -5,7 +5,7 @@ export const CREWS = Object.freeze({
     sourceOfTruth: "canonical-scripture",
     stages: [
       "BIBLE_FIND","SCRIPTURE_VERIFY","BIBLE_CONTEXT_RESEARCH",
-      "CHARACTER_RESEARCH","LOCATION_RESEARCH","SCENE_BREAKDOWN"
+      "CHARACTER_RESEARCH","LOCATION_RESEARCH","SCENE_BREAKDOWN","POPCORN_SCAN","POPCORN_VERIFY"
     ]
   },
   production: {
@@ -21,6 +21,8 @@ export const CREWS = Object.freeze({
 
 export const CREW_TASKS = Object.freeze({
   BIBLE_FIND: { crew:"bible-finder", input:"scriptureReference", output:"scripture-evidence" },
+  POPCORN_SCAN: { crew:"bible-finder", input:"verified-scripture", output:"movie-worthy-excerpts" },
+  POPCORN_VERIFY: { crew:"bible-finder", input:"movie-worthy-excerpts", output:"verified-popcorns" },
   SCRIPTURE_VERIFY: { crew:"bible-finder", input:"scripture-evidence", output:"verified-scripture" },
   BIBLE_CONTEXT_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"context-packet" },
   CHARACTER_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"character-packet" },
