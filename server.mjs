@@ -19,6 +19,8 @@ import { DistributedTileRenderer } from './src/core/vision/distributed-tile-rend
 import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
 import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
 import bibleProductionRouter from './src/api/bible-production-pg.mjs';
+import biblePopcornRouter from './src/api/bible-popcorns.mjs';
+import { startPopcornWorker } from './src/workers/popcorn-worker.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
@@ -174,6 +176,8 @@ app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.use('/api/bible-production', bibleProductionRouter);
+app.use('/api/bible-popcorns', biblePopcornRouter);
+const popcornWorker = process.env.DATABASE_URL ? startPopcornWorker() : null;
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
