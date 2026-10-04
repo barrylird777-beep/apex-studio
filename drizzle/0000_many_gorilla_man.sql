@@ -65,7 +65,8 @@ CREATE TABLE `shoot_day_scenes` (
 	FOREIGN KEY (`shoot_day_id`) REFERENCES `shoot_days`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `shoot_day_scenes_day_position_idx` ON `shoot_day_scenes` (`shoot_day_id`,`position`);--> statement-breakpoint
+CREATE INDEX `shoot_day_scenes_day_position_idx` ON `shoot_day_scenes` (`shoot_day_id`,`position`);
+--> statement-breakpoint
 CREATE TABLE `shoot_days` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`project_id` integer NOT NULL,
@@ -76,5 +77,6 @@ CREATE TABLE `shoot_days` (
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `shoot_days_project_date_unique` ON `shoot_days` (`project_id`,`date`);--> statement-breakpoint
+CREATE UNIQUE INDEX `shoot_days_project_date_unique` ON `shoot_days` (`project_id`,`date`);
+--> statement-breakpoint
 CREATE INDEX `shoot_days_project_date_idx` ON `shoot_days` (`project_id`,`date`);
