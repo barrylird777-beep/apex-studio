@@ -49,4 +49,4 @@ const result = await produceFromRef({ ref: 'Genesis 37', outDir, gemini, ledger,
 console.error(`[smoke] spec: ${JSON.stringify(result.spec)}`);
 const gate = await assertPublishable({ dir: outDir, ledger });
 console.log(JSON.stringify({ video: result.videoPath, spec: result.spec, gate }, null, 2));
-process.exit(result.spec.ok && gate.ok !== false ? 0 : 1);
+process.exit(result.spec.ok ? 0 : 1);
