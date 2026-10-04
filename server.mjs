@@ -21,6 +21,7 @@ import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listV
 import bibleProductionRouter from './src/api/bible-production-pg.mjs';
 import biblePopcornRouter from './src/api/bible-popcorns.mjs';
 import { startPopcornWorker } from './src/workers/popcorn-worker.mjs';
+import { startBiblePopcornDispatcher } from './src/workers/bible-popcorn-dispatcher.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
@@ -178,6 +179,7 @@ app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.use('/api/bible-production', bibleProductionRouter);
 app.use('/api/bible-popcorns', biblePopcornRouter);
 const popcornWorker = process.env.DATABASE_URL ? startPopcornWorker() : null;
+const biblePopcornDispatcher = process.env.DATABASE_URL ? startBiblePopcornDispatcher() : null;
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
