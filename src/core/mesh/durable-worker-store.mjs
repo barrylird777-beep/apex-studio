@@ -52,7 +52,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
   await db.query(`INSERT INTO apex_worker_tasks
     (id, worker_id, role, task, payload, max_attempts, dedupe_key)
     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
-    ON CONFLICT (id) DO NOTHING`,
+    ON CONFLICT DO NOTHING`,
     [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey]);
   const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
   return { durable: true, id: existing?.rows?.[0]?.id || id };
