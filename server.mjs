@@ -23,6 +23,7 @@ import biblePopcornRouter from './src/api/bible-popcorns.mjs';
 import bibleLibraryRouter from './src/api/bible-library.mjs';
 import { startPopcornWorker } from './src/workers/popcorn-worker.mjs';
 import { startBiblePopcornDispatcher } from './src/workers/bible-popcorn-dispatcher.mjs';
+import { startCrewWorker } from './src/core/production/crew-worker.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
@@ -182,6 +183,7 @@ app.use('/api/bible-popcorns', biblePopcornRouter);
 app.use('/api/bible-library', bibleLibraryRouter);
 const popcornWorker = process.env.DATABASE_URL ? startPopcornWorker() : null;
 const biblePopcornDispatcher = process.env.DATABASE_URL ? startBiblePopcornDispatcher() : null;
+const autonomousCrewWorker = process.env.DATABASE_URL ? startCrewWorker() : null;
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
