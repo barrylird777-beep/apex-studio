@@ -28,7 +28,15 @@ jobs:
       - run: npm run db:migrate
       - run: npm run build
       - run: npm run smoke:production
+      - name: Install FFmpeg for real video tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - run: npm test
+      - name: Run real FFmpeg render test
+        run: node --test test/video-render.real.test.mjs
+      - name: Run video end-to-end smoke
+        run: node scripts/video-smoke.mjs
       - run: npm run verify:migrations
       - run: npm run db:seed
       - name: Start server for SPEC-005 HTTP smoke
