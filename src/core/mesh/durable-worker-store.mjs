@@ -9,7 +9,7 @@ export function durableWorkerEnabled() {
 
 function getPool() {
   if (!durableWorkerEnabled()) return null;
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(5, Math.min(10, Number(process.env.APEX_WORKER_DB_POOL_MAX || 8))) });
+  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(8, Math.min(32, Number(process.env.APEX_WORKER_DB_POOL_MAX || 20))) });
   return pool;
 }
 
