@@ -1275,4 +1275,17 @@ app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
+// Decentralized swarm routing fallback & retry wrapper
+async function routeWithSwarm(payload, retries = 2) {
+  const providers = ['groq', 'openrouter', 'pollinations', 'gemini'];
+  for (const provider of providers) {
+    try {
+      return await executeInference(provider, payload);
+    } catch (e) {
+      if (retries === 0) continue;
+    }
+  }
+  throw new Error('All swarm nodes failed');
+}
+
 app.listen(PORT, HOST, () => console.log(`[apex] server listening on ${HOST}:${PORT}`));
