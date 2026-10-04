@@ -9,7 +9,7 @@ export const HOOK_RULES = {
   maxTotalSec: 33,
   minShotSec: 2,
   maxShotSec: 4,
-  maxFirstLineWords: 16,
+  maxFirstLineWords: 8,
   maxNarrationStartSec: 1,
 };
 
