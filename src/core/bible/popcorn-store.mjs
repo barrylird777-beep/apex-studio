@@ -15,9 +15,7 @@ export async function upsertPopcorns(items=[]){
   for(const item of items){
     const collectionId=await resolveCollection(item.collectionId);
     let passage=(await db.select().from(biblePassages).where(and(eq(biblePassages.collectionId,collectionId),eq(biblePassages.reference,String(item.reference)))).limit(1))[0];
-    if(!passage){
-      passage=(await db.insert(biblePassages).values({collectionId,reference:String(item.reference),book:item.book||null,chapter:item.chapter?Number(item.chapter):null,verseStart:item.verseStart?Number(item.verseStart):null,verseEnd:item.verseEnd?Number(item.verseEnd):null,text:String(item.excerpt||""),canonical:1,metadata:{source:item.canonicalSource||null}}).returning())[0];
-    }
+    if(!passage) throw new Error("CanonicalPassageNotFound:"+String(item.reference));
     const values={collectionId,passageId:passage.id,excerpt:String(item.excerpt||passage.text),reason:String(item.cinematicReason||""),characterPotential:item.characterMoment||null,visualPotential:item.visualMoment||null,dialoguePotential:item.dialoguePotential||null,conflictPotential:item.conflictTension||null,emotionalPotential:item.emotionalBeat||null,productionNotes:item.productionPotential||null,priority:Math.max(0,Math.min(100,Number(item.popcornRank)||0)),confidence:Math.max(0,Math.min(1,Number(item.confidence)||0)),verification:String(item.verificationStatus||"ai-review"),provenance:item.provenance||{} ,updatedAt:new Date()};
     const existing=(await db.select().from(biblePopcorns).where(and(eq(biblePopcorns.passageId,passage.id),eq(biblePopcorns.excerpt,values.excerpt))).limit(1))[0];
     saved.push(existing?(await db.update(biblePopcorns).set(values).where(eq(biblePopcorns.id,existing.id)).returning())[0]:(await db.insert(biblePopcorns).values(values).returning())[0]);
