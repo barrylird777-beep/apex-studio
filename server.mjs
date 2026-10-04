@@ -16,9 +16,6 @@ import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, ensureWorkerTaskSchema, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
-import { startProductionDaemon } from './src/workers/av1-production-daemon.mjs';
-import { enqueueVoiceoverJob, startVoiceoverWorker, voiceoverWorkerStatus, listVoiceCatalog } from './src/workers/voiceover-worker.mjs';
-import bibleProductionRouter from './src/api/bible-production.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
@@ -173,7 +170,19 @@ app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:ove
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
-app.use('/api/bible-production', bibleProductionRouter);
+app.use('/api/bible-production', async (req, res, next) => {
+  try {
+    const { default: router } = await import('./src/api/bible-production.mjs');
+    return router(req, res, next);
+  } catch (error) {
+    console.error('[bible-production] unavailable:', error?.message || error);
+    return res.status(503).json({
+      success: false,
+      error: 'Bible production service unavailable',
+      detail: process.env.NODE_ENV === 'production' ? undefined : String(error?.message || error)
+    });
+  }
+});
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
@@ -1257,15 +1266,27 @@ app.get('/api/mesh/status', (_req, res) => {
   });
 });
 
-app.get('/api/voiceover/voices', async (_req,res) => { try { res.json({success:true,voices:await listVoiceCatalog()}); } catch(error){ res.status(500).json({success:false,error:error.message}); } });
+app.get('/api/voiceover/voices', async (_req,res) => {
+  try {
+    const { listVoiceCatalog } = await import('./src/workers/voiceover-worker.mjs');
+    res.json({success:true,voices:await listVoiceCatalog()});
+  } catch(error) {
+    res.status(503).json({success:false,error:error.message});
+  }
+});
 app.get('/api/voiceover/status', async (_req,res) => {
-  try { res.json({success:true,...await voiceoverWorkerStatus()}); }
-  catch(error){ res.status(500).json({success:false,error:error.message}); }
+  try {
+    const { voiceoverWorkerStatus } = await import('./src/workers/voiceover-worker.mjs');
+    res.json({success:true,...await voiceoverWorkerStatus()});
+  } catch(error) {
+    res.status(503).json({success:false,error:error.message});
+  }
 });
 app.post('/api/voiceover/jobs', async (req,res) => {
   try {
     const text=String(req.body?.text||'').trim();
     if(!text) return res.status(400).json({success:false,error:'text is required'});
+    const { enqueueVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
     res.status(202).json({success:true,id,status:'queued'});
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
