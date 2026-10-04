@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-const dir=process.argv[process.argv.indexOf("--dir")+1]||"drizzle-pg";
-const expectPath=process.argv[process.argv.indexOf("--expect")+1];
+export function verifyPostgresMigrations(dir="drizzle-pg",expectPath="scripts/spec005-expectations.json"){
+
 const journal=join(dir,"meta","_journal.json");
 const errors=[];
 if(!existsSync(journal))errors.push("missing "+journal);
