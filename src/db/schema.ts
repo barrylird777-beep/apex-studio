@@ -1,35 +1,37 @@
-import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
+import { pgTable, serial, text, integer, real, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 
-export const projects = sqliteTable("projects", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
   primaryScripture: text("primary_scripture"),
   status: text("status").default("development"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const characters = sqliteTable("characters", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const characters = pgTable("characters", {
+  id: serial("id").primaryKey(),
   canonicalName: text("canonical_name").notNull(),
-  aliases: text("aliases", { mode: "json" }).$type<string[]>().default([]),
-  primaryStories: text("primary_stories", { mode: "json" }).$type<string[]>().default([]),
-  relationships: text("relationships", { mode: "json" }).$type<{ name: string; relation: string }[]>().default([]),
-  keyTraits: text("key_traits", { mode: "json" }).$type<string[]>().default([]),
+  aliases: jsonb("aliases").$type<string[]>().default([]),
+  primaryStories: jsonb("primary_stories").$type<string[]>().default([]),
+  relationships: jsonb("relationships").$type<{ name: string; relation: string }[]>().default([]),
+  keyTraits: jsonb("key_traits").$type<string[]>().default([]),
   notes: text("notes"),
-  scriptureReferences: text("scripture_references", { mode: "json" }).$type<string[]>().default([]),
-});
+  scriptureReferences: jsonb("scripture_references").$type<string[]>().default([]),
+}, (table) => ({
+  canonicalNameUnique: uniqueIndex("characters_canonical_name_unique").on(table.canonicalName),
+}));
 
-export const scenes = sqliteTable("scenes", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  projectId: integer("project_id").references(() => projects.id).notNull(),
+export const scenes = pgTable("scenes", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
   sceneNumber: integer("scene_number"),
   title: text("title"),
   scriptureRef: text("scripture_ref").notNull(),
   location: text("location"),
-  charactersPresent: text("characters_present", { mode: "json" }).$type<number[]>().default([]),
+  charactersPresent: jsonb("characters_present").$type<number[]>().default([]),
   actionSummary: text("action_summary"),
   emotionalBeat: text("emotional_beat"),
   productionNotes: text("production_notes"),
@@ -37,9 +39,9 @@ export const scenes = sqliteTable("scenes", {
   dayOrNight: text("day_or_night"),
 });
 
-export const shootDays = sqliteTable("shoot_days", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  projectId: integer("project_id").references(() => projects.id).notNull(),
+export const shootDays = pgTable("shoot_days", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
   date: text("date").notNull(),
   callTime: text("call_time"),
   unit: text("unit").default("1st Unit"),
@@ -49,7 +51,7 @@ export const shootDays = sqliteTable("shoot_days", {
   projectDateIndex: index("shoot_days_project_date_idx").on(table.projectId, table.date),
 }));
 
-export const shootDayScenes = sqliteTable("shoot_day_scenes", {
+export const shootDayScenes = pgTable("shoot_day_scenes", {
   sceneId: integer("scene_id").primaryKey().references(() => scenes.id, { onDelete: "cascade" }),
   shootDayId: integer("shoot_day_id").references(() => shootDays.id, { onDelete: "cascade" }).notNull(),
   position: integer("position").notNull(),
@@ -57,19 +59,19 @@ export const shootDayScenes = sqliteTable("shoot_day_scenes", {
   dayPositionIndex: index("shoot_day_scenes_day_position_idx").on(table.shootDayId, table.position),
 }));
 
-export const callSheets = sqliteTable("call_sheets", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  shootDayId: integer("shoot_day_id").references(() => shootDays.id).notNull(),
+export const callSheets = pgTable("call_sheets", {
+  id: serial("id").primaryKey(),
+  shootDayId: integer("shoot_day_id").references(() => shootDays.id, { onDelete: "cascade" }).notNull(),
   generalCallTime: text("general_call_time"),
   weatherNotes: text("weather_notes"),
   specialRequirements: text("special_requirements"),
   pdfPath: text("pdf_path"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
-export const budgetItems = sqliteTable("budget_items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  projectId: integer("project_id").references(() => projects.id).notNull(),
+export const budgetItems = pgTable("budget_items", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
   category: text("category").notNull(),
   description: text("description").notNull(),
   estimated: real("estimated").default(0),
