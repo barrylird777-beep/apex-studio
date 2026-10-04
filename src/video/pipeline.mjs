@@ -88,13 +88,15 @@ export async function produceFromRef({
 
   const dir = path.resolve(outDir);
   await mkdir(dir, { recursive: true });
-  const provenance = ledger ?? (String(process.env.DATABASE_URL || '').trim()
-    ? createPostgresLedger()
-    : createFileLedger(path.join(dir, 'ledger.jsonl')));
-  const release = await acquireLock(dir, lockStaleMs);
+  let release = null;
+  let provenance = null;
   const run = randomUUID();
 
   try {
+    release = await acquireLock(dir, lockStaleMs);
+    provenance = ledger ?? (String(process.env.DATABASE_URL || '').trim()
+      ? createPostgresLedger()
+      : createFileLedger(path.join(dir, 'ledger.jsonl')));
     await provenance.record({ run, kind: 'run', status: 'started', ref });
     const events = await loadOrMakeEvents({ dir, ref, gemini, log });
     await provenance.record({
@@ -134,7 +136,7 @@ export async function produceFromRef({
     }).catch(() => {});
     throw error;
   } finally {
-    await release();
-    await provenance.close?.();
+    await release?.();
+    await provenance?.close?.();
   }
 }
