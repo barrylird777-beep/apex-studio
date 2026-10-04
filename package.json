@@ -17,7 +17,8 @@
     "smoke:005": "node scripts/smoke-005.mjs",
     "bible:ingest": "node scripts/ingest-bible-corpus.mjs",
     "bible:ingest:all": "node scripts/ingest-bible-corpus.mjs --all",
-    "test:video": "node --test test/video-pipeline.test.mjs test/video-produce.test.mjs"
+    "test:video": "node --test test/video-pipeline.test.mjs test/video-produce.test.mjs",
+    "video:from-ref": "node scripts/video-from-ref.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
