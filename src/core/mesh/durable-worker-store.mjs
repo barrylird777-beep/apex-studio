@@ -61,7 +61,7 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, taskType
   )
   UPDATE apex_worker_tasks t SET
     status='claimed', attempts=attempts+1, lease_owner=$2,
-    lease_token=gen_random_uuid()::text,
+    lease_token=md5(random()::text || clock_timestamp()::text || id::text),
     lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
     updated_at=NOW()
   FROM candidate WHERE t.id=candidate.id
