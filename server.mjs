@@ -32,8 +32,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 if (durableWorkerEnabled()) {
-  void ensureWorkerTaskSchema().catch(error => console.error("[worker-store] schema initialization failed", error));
-  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
+  await ensureWorkerTaskSchema();
+  const reclaimTimer = setInterval(() => {
+    void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error));
+  }, 15000);
   reclaimTimer.unref?.();
 }
 const geminiMeshProvider = new GeminiMeshProvider();
