@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "../db/index.js";
 import { biblePassages, biblePopcorns } from "../db/schema.js";
-import { eq, notExists } from "drizzle-orm";
+import { and, eq, notExists } from "drizzle-orm";
 import { enqueuePopcornPassages } from "./popcorn-worker.mjs";
 
 const SCAN_MS=Math.max(1000,Number(process.env.APEX_BIBLE_POPCORN_SCAN_MS||2000));
