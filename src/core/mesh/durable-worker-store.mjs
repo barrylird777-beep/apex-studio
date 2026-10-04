@@ -45,7 +45,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
   return { durable: true, id };
 }
 
-export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, taskType = null) {
+export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, taskType = null, workerOwner = owner()) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
   await ensureWorkerTaskSchema();
@@ -65,16 +65,16 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, taskType
     lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
     updated_at=NOW()
   FROM candidate WHERE t.id=candidate.id
-  RETURNING t.*`, [safeLimit, owner(), lease, taskType]);
+  RETURNING t.*`, [safeLimit, workerOwner, lease, taskType]);
   return r.rows;
 }
 
-export async function claimNextWorkerTask(leaseMs = 45000, taskType = null) {
-  const tasks = await claimNextWorkerTasks(1, leaseMs, taskType);
+export async function claimNextWorkerTask(leaseMs = 45000, taskType = null, workerOwner = owner()) {
+  const tasks = await claimNextWorkerTasks(1, leaseMs, taskType, workerOwner);
   return tasks[0] || null;
 }
 
-export async function claimWorkerTask(id, leaseMs = 45000) {
+export async function claimWorkerTask(id, leaseMs = 45000, workerOwner = owner()) {
   if (!durableWorkerEnabled()) return null;
   const db = getPool();
   await ensureWorkerTaskSchema();
@@ -85,39 +85,39 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
     updated_at=NOW()
     WHERE id=$1 AND status='queued' AND attempts < max_attempts
       AND (next_run_at IS NULL OR next_run_at <= NOW())
-    RETURNING *`, [id, owner(), boundedLeaseMs(leaseMs)]);
+    RETURNING *`, [id, workerOwner, boundedLeaseMs(leaseMs)]);
   return r.rows[0] || null;
 }
 
-export async function startWorkerTask(id, leaseToken) {
+export async function startWorkerTask(id, leaseToken, workerOwner = owner()) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
     SET status='running', updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$3
-      AND status='claimed' AND lease_expires_at > NOW()`, [id, owner(), leaseToken]);
+      AND status='claimed' AND lease_expires_at > NOW()`, [id, workerOwner, leaseToken]);
   return r.rowCount === 1;
 }
 
-export async function heartbeatWorkerTask(id, leaseMs = 45000, leaseToken) {
+export async function heartbeatWorkerTask(id, leaseMs = 45000, leaseToken, workerOwner = owner()) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
     SET lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4
-      AND status IN ('claimed','running')`, [id, owner(), boundedLeaseMs(leaseMs), leaseToken]);
+      AND status IN ('claimed','running')`, [id, workerOwner, boundedLeaseMs(leaseMs), leaseToken]);
   return r.rowCount === 1;
 }
 
-export async function completeWorkerTask(id, result = null, leaseToken) {
+export async function completeWorkerTask(id, result = null, leaseToken, workerOwner = owner()) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks SET
     status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
     next_run_at=NULL, result=$3::jsonb, updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
-    [id, owner(), JSON.stringify(result), leaseToken]);
+    [id, workerOwner, JSON.stringify(result), leaseToken]);
   return r.rowCount === 1;
 }
 
-export async function failWorkerTask(id, error, leaseToken) {
+export async function failWorkerTask(id, error, leaseToken, workerOwner = owner()) {
   if (!durableWorkerEnabled()) return false;
   const message = String(error?.message || error || "Worker task failed").slice(0,4000);
   const r = await getPool().query(`UPDATE apex_worker_tasks SET
@@ -126,18 +126,18 @@ export async function failWorkerTask(id, error, leaseToken) {
     next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + (LEAST(300, POWER(2, attempts)) + random()*5) * INTERVAL '1 second' END,
     last_error=$3, updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status IN ('claimed','running')`,
-    [id, owner(), message, leaseToken]);
+    [id, workerOwner, message, leaseToken]);
   return r.rowCount === 1;
 }
 
-export async function releaseWorkerTasks(taskIds = []) {
+export async function releaseWorkerTasks(taskIds = [], workerOwner = owner()) {
   if (!durableWorkerEnabled() || !taskIds.length) return 0;
   const r = await getPool().query(`UPDATE apex_worker_tasks SET
     status='queued', attempts=GREATEST(0, attempts-1),
     lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
     next_run_at=NOW(), updated_at=NOW()
     WHERE id=ANY($1::uuid[]) AND status='claimed' AND lease_owner=$2
-    RETURNING id`, [taskIds, owner()]);
+    RETURNING id`, [taskIds, workerOwner]);
   return r.rowCount;
 }
 
