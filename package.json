@@ -14,7 +14,9 @@
     "db:seed": "tsx src/db/seed.ts",
     "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs --dir drizzle-pg --expect scripts/spec005-expectations.json",
-    "smoke:005": "node scripts/smoke-005.mjs"
+    "smoke:005": "node scripts/smoke-005.mjs",
+    "bible:ingest": "node scripts/ingest-bible-corpus.mjs",
+    "bible:ingest:all": "node scripts/ingest-bible-corpus.mjs --all"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
