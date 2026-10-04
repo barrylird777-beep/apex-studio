@@ -1,6 +1,6 @@
 export const STYLE_BLOCK =
   'dark fantasy anime, sharp cel shading, cinematic lighting, high contrast, ' +
-  'intense, highly detailed, 16:9 widescreen, cinematic Bible storytelling';
+  'intense, highly detailed, 16:9, cinematic Bible storytelling';
 
 export const LABELS = ['scripture', 'tradition', 'scholarly', 'dramatization', 'original'];
 
