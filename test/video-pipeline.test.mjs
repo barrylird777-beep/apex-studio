@@ -1,5 +1,5 @@
 import test from 'node:test';
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -88,7 +88,7 @@ test('generateEvents rejects an invalid ref before any model call', async () => 
 test('PostgreSQL provenance ledger persists and reads a run when DATABASE_URL is available', async () => {
   if (!process.env.DATABASE_URL) return;
   const ledger = createPostgresLedger();
-  const run = crypto.randomUUID();
+  const run = randomUUID();
   try {
     await ledger.record({ run, kind: 'test', status: 'ok', ref: 'Genesis 37', metadata: { source: 'video-test' } });
     const rows = await ledger.read(run);
