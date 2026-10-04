@@ -222,3 +222,63 @@ export const bibleNotes = pgTable("bible_notes", {
   passageIndex: index("bible_notes_passage_idx").on(table.passageId),
   popcornIndex: index("bible_notes_popcorn_idx").on(table.popcornId),
 }));
+
+
+export const scriptureEvidence = pgTable("scripture_evidence", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  collectionId: integer("collection_id").references(() => bibleCollections.id, { onDelete: "cascade" }).notNull(),
+  premise: text("premise").notNull(),
+  selectedReferences: jsonb("selected_references").$type<string[]>().notNull().default([]),
+  confidence: real("confidence").notNull().default(0),
+  verification: text("verification").notNull().default("unverified"),
+  provenance: jsonb("provenance").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  projectIndex: index("scripture_evidence_project_idx").on(table.projectId),
+  collectionIndex: index("scripture_evidence_collection_idx").on(table.collectionId),
+}));
+
+export const bibleEntities = pgTable("bible_entities", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collection_id").references(() => bibleCollections.id, { onDelete: "cascade" }).notNull(),
+  kind: text("kind").notNull(),
+  name: text("name").notNull(),
+  aliases: jsonb("aliases").$type<string[]>().default([]),
+  description: text("description"),
+  provenance: jsonb("provenance").default({}),
+  verification: text("verification").notNull().default("unverified"),
+  confidence: real("confidence").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  collectionKindNameUnique: uniqueIndex("bible_entities_collection_kind_name_unique").on(table.collectionId, table.kind, table.name),
+}));
+
+export const bibleEntityLinks = pgTable("bible_entity_links", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collection_id").references(() => bibleCollections.id, { onDelete: "cascade" }).notNull(),
+  entityId: integer("entity_id").references(() => bibleEntities.id, { onDelete: "cascade" }).notNull(),
+  passageId: integer("passage_id").references(() => biblePassages.id, { onDelete: "cascade" }).notNull(),
+  relationship: text("relationship").notNull().default("mentioned"),
+  provenance: jsonb("provenance").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  entityPassageUnique: uniqueIndex("bible_entity_passage_relationship_unique").on(table.entityId, table.passageId, table.relationship),
+}));
+
+export const bibleStudyLinks = pgTable("bible_study_links", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collection_id").references(() => bibleCollections.id, { onDelete: "cascade" }).notNull(),
+  passageId: integer("passage_id").references(() => biblePassages.id, { onDelete: "cascade" }).notNull(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  sceneId: integer("scene_id").references(() => scenes.id, { onDelete: "cascade" }),
+  popcornId: integer("popcorn_id").references(() => biblePopcorns.id, { onDelete: "cascade" }),
+  linkType: text("link_type").notNull(),
+  note: text("note"),
+  provenance: jsonb("provenance").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  passageProjectSceneIndex: index("bible_study_links_passage_project_scene_idx").on(table.passageId, table.projectId, table.sceneId),
+}));
