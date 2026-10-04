@@ -67,10 +67,16 @@ if (!workerOnly) {
     heartbeat.unref?.();
     try {
       const result = await executePermanentHealthTask(task.payload || {});
-      await completeWorkerTask(task.id, result, task.lease_token);
+      const completed = await completeWorkerTask(task.id, result, task.lease_token);
+      if (!completed) {
+        console.warn("[apex-worker] completion fenced out", task.id, task.role);
+        return;
+      }
       console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
-      await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
+      await failWorkerTask(task.id, error, task.lease_token).then(ok => {
+        if (!ok) console.warn("[apex-worker] failure update fenced out", task.id);
+      }).catch(failure => {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
       });
       console.error("[apex-worker] task failed:", task.id, error?.message || error);
