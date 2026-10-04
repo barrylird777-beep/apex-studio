@@ -23,7 +23,7 @@
     "@react-pdf/renderer": "^4.1.6",
     "@tanstack/react-query": "^5.62.8",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.0",
+    "clsx": "^2.1.1",
     "drizzle-orm": "^0.38.3",
     "lucide-react": "^0.469.0",
     "pg": "^8.16.3",
