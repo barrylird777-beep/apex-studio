@@ -25,7 +25,7 @@ export function zoompanExpr(motion, frames) {
 
 const f3 = (n) => Number(n).toFixed(3);
 
-export function buildFilterGraph(shots, { xfade = 0.4, hasMusic = false, narrationIndex, musicIndex } = {}) {
+export function buildFilterGraph(shots, { xfade = 0.4, hasMusic = false, narrationIndex, musicIndex, narrationStartSec = 0 } = {}) {
   const n = shots.length;
   const parts = [];
 
@@ -52,13 +52,13 @@ export function buildFilterGraph(shots, { xfade = 0.4, hasMusic = false, narrati
 
   if (hasMusic) {
     parts.push(
-      `[${narrationIndex}:a]apad,asplit=2[nsc][nmix]`,
+      `[${narrationIndex}:a]${Number(narrationStartSec) > 0 ? `adelay=delays=${Math.round(Number(narrationStartSec) * 1000)}:all=1,` : ''}apad,asplit=2[nsc][nmix]`,
       `[${musicIndex}:a]volume=0.5[mus]`,
       '[mus][nsc]sidechaincompress=threshold=0.04:ratio=10:attack=15:release=350[duck]',
       '[nmix][duck]amix=inputs=2:duration=first:dropout_transition=0,volume=2[aout]',
     );
   } else {
-    parts.push(`[${narrationIndex}:a]apad[aout]`);
+    parts.push(`[${narrationIndex}:a]${Number(narrationStartSec) > 0 ? `adelay=delays=${Math.round(Number(narrationStartSec) * 1000)}:all=1,` : ''}apad[aout]`);
   }
   return parts.join(';');
 }
@@ -99,7 +99,7 @@ export function buildFfmpegArgs({ shots, narration, music, srtPath, tmpOut, xfad
 
   args.push(
     '-filter_complex',
-    buildFilterGraph(shots, { xfade, hasMusic: Boolean(music), narrationIndex, musicIndex }),
+    buildFilterGraph(shots, { xfade, hasMusic: Boolean(music), narrationIndex, musicIndex, narrationStartSec }),
     '-map', '[vfinal]',
     '-map', '[aout]',
   );
