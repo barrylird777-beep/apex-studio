@@ -68,6 +68,13 @@ export const callSheets = pgTable("call_sheets", {
   weatherNotes: text("weather_notes"),
   specialRequirements: text("special_requirements"),
   pdfPath: text("pdf_path"),
+  crew: jsonb("crew").$type<string[]>().default([]),
+  cast: jsonb("cast").$type<string[]>().default([]),
+  locations: jsonb("locations").$type<string[]>().default([]),
+  characters: jsonb("characters").$type<number[]>().default([]),
+  callTimes: jsonb("call_times").$type<Record<string, string>>().default({}),
+  sceneIds: jsonb("scene_ids").$type<number[]>().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
