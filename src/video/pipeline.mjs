@@ -5,7 +5,7 @@ import pg from 'pg';
 import { generateEvents, EVENTS_VERSION } from './events.mjs';
 import { produceHook } from './produce.mjs';
 import { contentId, atomicWrite, exists } from './cache.mjs';
-import { createFileLedger } from './ledger.mjs';
+import { createFileLedger, createPostgresLedger } from './ledger.mjs';
 
 const sha256 = async (file) => createHash('sha256').update(await readFile(file)).digest('hex');
 
@@ -79,7 +79,7 @@ async function loadOrMakeEvents({ dir, ref, gemini, log }) {
 
 export async function produceFromRef({
   ref, outDir, gemini, visualBible = {}, music = null, voice = 'Charon',
-  ledger = createFileLedger(path.join(path.resolve(outDir), 'ledger.jsonl')),
+  ledger = null,
   assemble, probe, log = () => {}, lockStaleMs = 30 * 60 * 1000,
 }) {
   if (!ref || typeof ref !== 'string') throw new Error('produceFromRef: ref is required');
@@ -88,13 +88,16 @@ export async function produceFromRef({
 
   const dir = path.resolve(outDir);
   await mkdir(dir, { recursive: true });
+  const provenance = ledger ?? (String(process.env.DATABASE_URL || '').trim()
+    ? createPostgresLedger()
+    : createFileLedger(path.join(dir, 'ledger.jsonl')));
   const release = await acquireLock(dir, lockStaleMs);
   const run = randomUUID();
 
   try {
-    await ledger.record({ run, kind: 'run', status: 'started', ref });
+    await provenance.record({ run, kind: 'run', status: 'started', ref });
     const events = await loadOrMakeEvents({ dir, ref, gemini, log });
-    await ledger.record({
+    await provenance.record({
       run, kind: 'events', status: events.cached ? 'cached' : 'generated',
       id: events.key, path: events.file, count: events.events.length, model: gemini.models.text,
     });
@@ -108,7 +111,7 @@ export async function produceFromRef({
 
     const plan = JSON.parse(await readFile(result.planPath, 'utf8'));
     for (const shot of plan.shots) {
-      await ledger.record({
+      await provenance.record({
         run, kind: 'image', status: 'ok', id: shot.imageId, shot: shot.id, path: shot.image,
         sha256: await sha256(shot.image), model: gemini.models.image,
         labels: shot.labels, sources: shot.sources,
@@ -132,5 +135,6 @@ export async function produceFromRef({
     throw error;
   } finally {
     await release();
+    await provenance.close?.();
   }
 }
