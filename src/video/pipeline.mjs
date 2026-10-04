@@ -6,6 +6,7 @@ import { generateEvents, EVENTS_VERSION } from './events.mjs';
 import { produceHook } from './produce.mjs';
 import { contentId, atomicWrite, exists } from './cache.mjs';
 import { createFileLedger, createPostgresLedger } from './ledger.mjs';
+import { productionGate } from '../core/quality-gates.mjs';
 
 const sha256 = async (file) => createHash('sha256').update(await readFile(file)).digest('hex');
 
@@ -112,6 +113,14 @@ export async function produceFromRef({
     });
 
     const plan = JSON.parse(await readFile(result.planPath, 'utf8'));
+    const quality = productionGate({
+      sourceRefs: [...new Set(plan.shots.flatMap((shot) => shot.sources ?? []))],
+      script: plan.shots.map((shot) => shot.narration).join(' '),
+      mediaAssets: plan.shots.map((shot) => shot.image),
+      audioTracks: [plan.narration],
+      timeline: plan.shots,
+    });
+    if (!quality.ok) throw new Error(`video quality gate failed: ${quality.blockers.map((blocker) => blocker.name).join(', ')}`);
     for (const shot of plan.shots) {
       await provenance.record({
         run, kind: 'image', status: 'ok', id: shot.imageId, shot: shot.id, path: shot.image,
@@ -124,11 +133,14 @@ export async function produceFromRef({
       sha256: await sha256(plan.narration), model: gemini.models.tts, voice,
     });
     await provenance.record({
+      run, kind: 'quality-gate', status: 'ok', metadata: quality,
+    });
+    await provenance.record({
       run, kind: 'video', status: result.spec.ok ? 'ok' : 'spec_failed',
       path: result.videoPath, sha256: await sha256(result.videoPath), spec: result.spec,
     });
     await provenance.record({ run, kind: 'run', status: 'finished', ref });
-    return { ...result, eventsPath: events.file, runId: run };
+    return { ...result, quality, eventsPath: events.file, runId: run };
   } catch (error) {
     await provenance.record({
       run, kind: 'run', status: 'failed', ref,
