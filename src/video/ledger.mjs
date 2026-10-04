@@ -34,10 +34,11 @@ export function createMemoryLedger() {
   };
 }
 
-export function createPostgresLedger({ pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 }), closePool = true } = {}) {
-  if (!String(process.env.DATABASE_URL || '').trim() && !pool) {
-    throw new Error('PostgreSQL ledger requires DATABASE_URL or an injected pool');
-  }
+export function createPostgresLedger({ pool = null, closePool = true } = {}) {
+  const db = pool ?? (String(process.env.DATABASE_URL || '').trim()
+    ? new Pool({ connectionString: process.env.DATABASE_URL, max: 2 })
+    : null);
+  if (!db) throw new Error('PostgreSQL ledger requires DATABASE_URL or an injected pool');
   return {
     async record(entry) {
       await pool.query(
