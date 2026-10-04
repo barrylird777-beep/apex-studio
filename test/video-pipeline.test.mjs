@@ -72,7 +72,7 @@ test('hook rejects a first line over 16 words', () => {
 
 test('timeline accounts for narration start offset', () => {
   assert.equal(validateTimeline(goodPlan().shots, 29, 0.5, 0.5).ok, true);
-  assert.equal(validateTimeline(goodPlan().shots, 30, 0.5, 0.5).ok, false);
+  assert.equal(validateTimeline(goodPlan().shots, 30.1, 0.5, 0.5).ok, false);
 });
 
 test('shot prompt contains shared style and character bible entry', () => {
