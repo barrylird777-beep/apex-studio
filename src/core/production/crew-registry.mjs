@@ -4,48 +4,40 @@ export const CREWS = Object.freeze({
     name: "Bible Finder Crew",
     sourceOfTruth: "canonical-scripture",
     stages: [
-      "BIBLE_FIND","SCRIPTURE_VERIFY","BIBLE_CONTEXT_RESEARCH","POPCORN_DISCOVERY",
-      "CHARACTER_RESEARCH","LOCATION_RESEARCH","SCENE_BREAKDOWN","POPCORN_SCAN","POPCORN_VERIFY"
+      "BIBLE_FIND","SCRIPTURE_VERIFY","BIBLE_CONTEXT_RESEARCH","CHARACTER_RESEARCH",
+      "LOCATION_RESEARCH","POPCORN_DISCOVERY","POPCORN_VERIFY"
     ]
   },
   production: {
     id: "production",
     name: "Production Crew",
     stages: [
-      "SCREENPLAY_DRAFT","SHOT_PLAN","STORYBOARD","ASSET_PLAN",
-      "PERFORMANCE_PLAN","VIDEO_GENERATE","EDIT_SCENE","DIALOGUE_AUDIO",
-      "MUSIC_SFX","COMPOSITE","COLOR_MASTER","FINAL_MASTER"
+      "STORY_BREAKDOWN","CHARACTER_CASTING","SHOT_PLANNING","ASSET_GENERATION",
+      "SOUND_GENERATION","EDITORIAL_MASTER","PROTOCOB_REVIEW"
     ]
   }
 });
 
 export const CREW_TASKS = Object.freeze({
-  BIBLE_FIND: { crew:"bible-finder", input:"scriptureReference", output:"scripture-evidence" },
-  POPCORN_DISCOVERY: { crew:"bible-finder", input:"verified-scripture", output:"movie-worthy-excerpts" },
-  POPCORN_SCAN: { crew:"bible-finder", input:"verified-scripture", output:"movie-worthy-excerpts" },
-  POPCORN_VERIFY: { crew:"bible-finder", input:"movie-worthy-excerpts", output:"verified-popcorns" },
-  SCRIPTURE_VERIFY: { crew:"bible-finder", input:"scripture-evidence", output:"verified-scripture" },
-  BIBLE_CONTEXT_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"context-packet" },
-  CHARACTER_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"character-packet" },
-  LOCATION_RESEARCH: { crew:"bible-finder", input:"verified-scripture", output:"location-packet" },
-  SCENE_BREAKDOWN: { crew:"bible-finder", input:"verified-scripture", output:"scene-brief" },
-  STORY_BREAKDOWN: { crew:"production", input:"scripture-evidence", output:"scene-drafts" },\n  CHARACTER_CASTING: { crew:"production", input:"scene-drafts", output:"characters" },\n  SHOT_PLANNING: { crew:"production", input:"scene-drafts", output:"shot-plan" },\n  ASSET_GENERATION: { crew:"production", input:"shot-plan", output:"video-shot" },\n  SOUND_GENERATION: { crew:"production", input:"scene-drafts", output:"audio-scene" },\n  EDITORIAL_MASTER: { crew:"production", input:"video-shot+audio-scene", output:"final-master" },\n  SCREENPLAY_DRAFT: { crew:"production", input:"scene-brief", output:"screenplay" },
-  SHOT_PLAN: { crew:"production", input:"screenplay", output:"shot-plan" },
-  STORYBOARD: { crew:"production", input:"shot-plan", output:"storyboard-plan" },
-  ASSET_PLAN: { crew:"production", input:"storyboard-plan", output:"asset-plan" },
-  PERFORMANCE_PLAN: { crew:"production", input:"asset-plan", output:"performance-plan" },
-  VIDEO_GENERATE: { crew:"production", input:"performance-plan", output:"video" },
-  EDIT_SCENE: { crew:"production", input:"video", output:"edited-video" },
-  DIALOGUE_AUDIO: { crew:"production", input:"screenplay", output:"dialogue-audio" },
-  MUSIC_SFX: { crew:"production", input:"edited-video", output:"music-sfx" },
-  COMPOSITE: { crew:"production", input:"edited-video", output:"composite" },
-  COLOR_MASTER: { crew:"production", input:"composite", output:"color-master" },
-  FINAL_MASTER: { crew:"production", input:"color-master", output:"final-master" }
+  BIBLE_FIND:{crew:"bible-finder",input:"premise",output:"scripture-evidence"},
+  SCRIPTURE_VERIFY:{crew:"bible-finder",input:"scripture-evidence",output:"verified-scripture"},
+  BIBLE_CONTEXT_RESEARCH:{crew:"bible-finder",input:"verified-scripture",output:"context-packet"},
+  CHARACTER_RESEARCH:{crew:"bible-finder",input:"verified-scripture",output:"character-packet"},
+  LOCATION_RESEARCH:{crew:"bible-finder",input:"verified-scripture",output:"location-packet"},
+  POPCORN_DISCOVERY:{crew:"bible-finder",input:"verified-scripture",output:"popcorns"},
+  POPCORN_VERIFY:{crew:"bible-finder",input:"popcorns",output:"verified-popcorns"},
+  STORY_BREAKDOWN:{crew:"production",input:"scripture-evidence",output:"scene-drafts"},
+  CHARACTER_CASTING:{crew:"production",input:"scene-drafts",output:"characters"},
+  SHOT_PLANNING:{crew:"production",input:"scene-drafts",output:"shot-plan"},
+  ASSET_GENERATION:{crew:"production",input:"shot-plan",output:"video-shot"},
+  SOUND_GENERATION:{crew:"production",input:"scene-drafts",output:"audio-scene"},
+  EDITORIAL_MASTER:{crew:"production",input:"video-shot+audio-scene",output:"final-master"},
+  PROTOCOB_REVIEW:{crew:"production",input:"concept-artifact",output:"user-approval"}
 });
 
-export function getCrewTask(task) {
+export function getCrewTask(task){
   const key=String(task||"").toUpperCase();
   const spec=CREW_TASKS[key];
-  if (!spec) throw new Error("Unknown crew task: "+key);
-  return { task:key, ...spec };
+  if(!spec) throw new Error("Unknown crew task: "+key);
+  return {task:key,...spec};
 }
