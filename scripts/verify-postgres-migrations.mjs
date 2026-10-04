@@ -13,3 +13,4 @@ if(/sqlite|better-sqlite|sqlite_master|pragma\s/.test(sql))errors.push("PostgreS
 if(expectPath&&existsSync(expectPath)){const x=JSON.parse(readFileSync(expectPath,"utf8"));for(const table of x.tables||[])if(!sql.includes('create table if not exists "'+table.toLowerCase()+'"'))errors.push("missing table "+table);for(const i of x.unique||[])if(!sql.includes(i.columns.map(c=>'"'+c.toLowerCase()+'"').join(",")))errors.push("missing unique/index columns "+i.table+"("+i.columns.join(",")+")")}
 if(errors.length){console.error("FAILED:",...errors.map(x=>"\n - "+x));process.exit(1)}
 console.log("OK: PostgreSQL migration journal and SQL checks passed:",entries.length,"migration(s)");
+}
