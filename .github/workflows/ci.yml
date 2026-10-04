@@ -27,6 +27,7 @@ jobs:
           path: drizzle
       - run: npm run db:migrate
       - run: npm run build
+      - run: npm run smoke:production
       - run: npm test
       - run: npm run verify:migrations
       - run: npm run db:seed
