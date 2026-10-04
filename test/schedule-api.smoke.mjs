@@ -31,6 +31,8 @@ test("SPEC-005 API smoke: calendar, day creation, assignment, order, unassign, a
     for (const [n,location] of [["One","Camp"],["Two","Moriah"],["Three","Camp"]]) {
       const scene = await json(`/api/projects/${id}/scenes`, { method:"POST", body:JSON.stringify({sceneNumber:n==="One"?1:n==="Two"?2:3,title:n,scriptureRef:"Genesis 1:1",location,dayOrNight:"DAY",actionSummary:n}) });
       assert.equal(scene.r.status,201);
+      if (!globalThis.__sceneIds) globalThis.__sceneIds = [];
+      globalThis.__sceneIds.push(scene.body.id);
     }
     const before = await json(`/api/projects/${id}/calendar`, {method:"GET"});
     assert.equal(before.r.status,200);
@@ -43,16 +45,18 @@ test("SPEC-005 API smoke: calendar, day creation, assignment, order, unassign, a
     assert.equal(duplicate.r.status,409);
     const badDate = await json(`/api/projects/${id}/shoot-days`, {method:"POST",body:JSON.stringify({shootDate:"not-a-date"})});
     assert.equal(badDate.r.status,400);
-    const assign = await json(`/api/shoot-days/${d1.body.id}/scenes`, {method:"POST",body:JSON.stringify({sceneIds:[1]})});
+    const sceneIds = globalThis.__sceneIds;
+    assert.equal(sceneIds.length, 3);
+    const assign = await json(`/api/shoot-days/${d1.body.id}/scenes`, {method:"POST",body:JSON.stringify({sceneIds:[sceneIds[0]]})});
     assert.equal(assign.r.status,200);
-    const moved = await json(`/api/shoot-days/${d2.body.id}/scenes`, {method:"POST",body:JSON.stringify({sceneIds:[1]})});
+    const moved = await json(`/api/shoot-days/${d2.body.id}/scenes`, {method:"POST",body:JSON.stringify({sceneIds:[sceneIds[0]]})});
     assert.equal(moved.r.status,200);
     const afterMove = await json(`/api/projects/${id}/calendar`, {method:"GET"});
     assert.deepEqual(afterMove.body.days[0].scenes.map(s=>s.id),[]);
-    assert.deepEqual(afterMove.body.days[1].scenes.map(s=>s.id),[1]);
-    const order = await json(`/api/shoot-days/${d1.body.id}/order`, {method:"PUT",body:JSON.stringify({sceneIds:[1]})});
+    assert.deepEqual(afterMove.body.days[1].scenes.map(s=>s.id),[sceneIds[0]]);
+    const order = await json(`/api/shoot-days/${d2.body.id}/order`, {method:"PUT",body:JSON.stringify({sceneIds:[sceneIds[0]]})});
     assert.equal(order.r.status,200);
-    const unassign = await fetch(base + "/api/scenes/1/assignment", {method:"DELETE"});
+    const unassign = await fetch(base + `/api/scenes/${sceneIds[0]}/assignment`, {method:"DELETE"});
     assert.equal(unassign.status,204);
     const auto = await json(`/api/projects/${id}/auto-schedule`, {method:"POST",body:JSON.stringify({maxScenes:2})});
     assert.equal(auto.r.status,200);
@@ -65,7 +69,7 @@ test("SPEC-005 API smoke: calendar, day creation, assignment, order, unassign, a
     assert.equal(deleted.status,204);
     const afterDelete = await json(`/api/projects/${id}/calendar`, {method:"GET"});
     assert.equal(afterDelete.body.summary.unassigned,1);
-    assert.equal(afterDelete.body.unassigned[0].id,2);
+    assert.equal(afterDelete.body.unassigned[0].id,sceneIds[1]);
   } finally {
     server.kill("SIGTERM");
   }
