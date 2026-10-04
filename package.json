@@ -12,7 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/schedule-api.smoke.mjs"
+    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs",
+    "verify:migrations": "node -e \"import('./scripts/verifyMigrations.js').then(({verifyMigrations})=>{const r=verifyMigrations({dir:'drizzle',expectations:JSON.parse(require('node:fs').readFileSync('scripts/spec005-expectations.json','utf8'))}); if(!r.ok){console.error(r.errors.join('\\\\n')); process.exit(1)} console.log('Migration verification passed:',r.migrationCount,'migration(s)')})\""
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
