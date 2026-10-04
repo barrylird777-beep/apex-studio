@@ -9,7 +9,7 @@ export function durableWorkerEnabled() {
 
 function getPool() {
   if (!durableWorkerEnabled()) return null;
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(5, Math.min(10, Number(process.env.APEX_WORKER_DB_POOL_MAX || 8))) });
+  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(8, Math.min(32, Number(process.env.APEX_WORKER_DB_POOL_MAX || 20))) });
   return pool;
 }
 
@@ -52,7 +52,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
   return { durable: true, id };
 }
 
-export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
+export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, taskType = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
   await ensureWorkerTaskSchema();
@@ -60,6 +60,7 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
     WHERE status='queued' AND attempts < max_attempts AND (next_run_at IS NULL OR next_run_at <= NOW())
+      AND ($4::text IS NULL OR task = $4)
     ORDER BY created_at
     FOR UPDATE SKIP LOCKED
     LIMIT $1
@@ -70,12 +71,12 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
     FROM candidate
     WHERE t.id=candidate.id
     RETURNING t.*`,
-    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
+    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs, taskType]);
   return r.rows;
 }
 
-export async function claimNextWorkerTask(leaseMs = 45000) {
-  const tasks = await claimNextWorkerTasks(1, leaseMs);
+export async function claimNextWorkerTask(leaseMs = 45000, taskType = null) {
+  const tasks = await claimNextWorkerTasks(1, leaseMs, taskType);
   return tasks[0] || null;
 }
 
