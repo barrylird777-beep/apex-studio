@@ -1,7 +1,6 @@
 import { RenderWorker } from "./src/core/render-worker.mjs";
 import { capacitySnapshot } from "./src/core/capacity.mjs";
 import { getProjectState } from "./src/services/projectManager.mjs";
-import { voiceoverWorkerStatus } from "./src/workers/voiceover-worker.mjs";
 import {
   durableWorkerEnabled,
   claimNextWorkerTasks,
@@ -20,6 +19,7 @@ async function executePermanentHealthTask(payload = {}) {
   } else if (["video-engine", "export", "render-cache", "visual-direction"].includes(role)) {
     await new RenderWorker().available();
   } else if (["voiceover", "audio-reference"].includes(role)) {
+    const { voiceoverWorkerStatus } = await import("./src/workers/voiceover-worker.mjs");
     await voiceoverWorkerStatus();
   } else {
     capacitySnapshot();
@@ -37,28 +37,26 @@ async function executePermanentHealthTask(payload = {}) {
 const workerOnly = String(process.env.APEX_WORKER_ONLY || "").toLowerCase() === "true";
 
 if (!workerOnly) {
-  // Keep the legacy AV1 daemon out of the durable-worker process startup path.
-  // It still loads only when this service is explicitly running in daemon mode.
   const { startProductionDaemon } = await import("./src/workers/av1-production-daemon.mjs");
   process.title = "apex-av1-production";
   await startProductionDaemon();
 } else {
   process.title = "apex-autonomous-worker";
-  if (!durableWorkerEnabled()) {
-    throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
-  }
+  if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 45000));
   const pollMs = Math.max(250, Number(process.env.APEX_WORKER_POLL_MS || 1000));
+  const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
+  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+  const shutdownDeadlineMs = Math.max(5000, Number(process.env.APEX_WORKER_SHUTDOWN_MS || 30000));
+  let stopping = false;
+  let emptyPolls = 0;
 
   console.log("[apex-worker] durable worker online");
 
-  const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
-  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
-  let stopping = false;
-  const shutdownDeadlineMs = Math.max(5000, Number(process.env.APEX_WORKER_SHUTDOWN_MS || 30000));
-  let emptyPolls = 0;
+  const inFlight = new Map();
+  const claimed = new Map();
 
   const executeTask = async (task) => {
     const heartbeat = setInterval(() => {
@@ -81,6 +79,16 @@ if (!workerOnly) {
     }
   };
 
+  const runTask = async (task) => {
+    claimed.set(task.id, task);
+    inFlight.set(task.id, task);
+    try { await executeTask(task); }
+    finally {
+      inFlight.delete(task.id);
+      claimed.delete(task.id);
+    }
+  };
+
   const shutdown = async (signal) => {
     if (stopping) return;
     stopping = true;
@@ -88,24 +96,14 @@ if (!workerOnly) {
     const deadline = Date.now() + shutdownDeadlineMs;
     while (inFlight.size && Date.now() < deadline) await sleep(250);
     const unstarted = [...claimed.values()].filter(task => !inFlight.has(task.id)).map(task => task.id);
-    await releaseWorkerTasks(unstarted).catch(error => console.error("[apex-worker] release failed:", error?.message || error));
+    await releaseWorkerTasks(unstarted).catch(error => {
+      console.error("[apex-worker] release failed:", error?.message || error);
+    });
     process.exit(0);
   };
+
   process.once("SIGTERM", () => void shutdown("SIGTERM"));
   process.once("SIGINT", () => void shutdown("SIGINT"));
-
-  const inFlight = new Map();
-  const claimed = new Map();
-  const runTask = async (task) => {
-    claimed.set(task.id, task);
-    inFlight.set(task.id, task);
-    try {
-      await executeTask(task);
-    } finally {
-      inFlight.delete(task.id);
-      claimed.delete(task.id);
-    }
-  };
 
   while (!stopping) {
     await requeueExpiredWorkerTasks().catch(error => {
@@ -118,6 +116,7 @@ if (!workerOnly) {
         await sleep(100);
         continue;
       }
+
       const tasks = await claimNextWorkerTasks(Math.min(batchSize, available), leaseMs);
       if (!tasks.length) {
         emptyPolls = Math.min(emptyPolls + 1, 6);
