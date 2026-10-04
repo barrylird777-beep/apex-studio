@@ -15,7 +15,7 @@ if(p[0]==="api"&&p[1]==="projects"&&p[3]==="calendar"&&req.method==="GET"){
 }
 if(p[0]==="api"&&p[1]==="projects"&&p[3]==="shoot-days"&&req.method==="POST"){
   const id=Number(p[2]); if(!Number.isInteger(id)) return send(res,400,{error:"Invalid project id"});
-  const body=await readBody(req); if(typeof body.shootDate!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(body.shootDate)) return send(res,400,{error:"shootDate must be YYYY-MM-DD"});
+  const body=await readBody(req); const validShootDate=(value:unknown)=>{if(typeof value!=="string"||!/^^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const [y,m,d]=value.split("-").map(Number); const dt=new Date(Date.UTC(y,m-1,d)); return dt.getUTCFullYear()===y&&dt.getUTCMonth()===m-1&&dt.getUTCDate()===d;}; if(!validShootDate(body.shootDate)) return send(res,400,{error:"shootDate must be a valid YYYY-MM-DD date"});
   try { const day=createShootDay({projectId:id,shootDate:body.shootDate,callTime:body.callTime||null,notes:String(body.notes||"")}); return day?send(res,201,day):send(res,404,{error:"Project not found"}); }
   catch(e){ if((e as any)?.code==="DUPLICATE_DATE") return send(res,409,{error:(e as any).message}); throw e; }
 }
