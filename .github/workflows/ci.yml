@@ -20,6 +20,11 @@ jobs:
           node-version: "22.x"
       - run: npm install
       - run: npm run db:generate
+      - name: Upload generated Drizzle migration
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-005-drizzle
+          path: drizzle
       - run: npm run db:migrate
       - run: npm run build
       - run: npm test
