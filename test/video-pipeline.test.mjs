@@ -1,4 +1,5 @@
 import test from 'node:test';
+import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { generateEvents, validateEvents, chapterRange } from '../src/video/events.mjs';
 import { produceFromRef } from '../src/video/pipeline.mjs';
-import { createMemoryLedger, createFileLedger } from '../src/video/ledger.mjs';
+import { createMemoryLedger, createFileLedger, createPostgresLedger } from '../src/video/ledger.mjs';
 
 const eventsJson = (over = {}) => ({
   events: [
@@ -82,6 +83,21 @@ test('generateEvents rejects an invalid ref before any model call', async () => 
   const gemini = fakeGemini([]);
   await assert.rejects(generateEvents({ gemini, ref: 'Genesis' }), /cannot find a chapter/);
   assert.equal(gemini.calls.json.length, 0);
+});
+
+test('PostgreSQL provenance ledger persists and reads a run when DATABASE_URL is available', async () => {
+  if (!process.env.DATABASE_URL) return;
+  const ledger = createPostgresLedger();
+  const run = crypto.randomUUID();
+  try {
+    await ledger.record({ run, kind: 'test', status: 'ok', ref: 'Genesis 37', metadata: { source: 'video-test' } });
+    const rows = await ledger.read(run);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].run, run);
+    assert.equal(rows[0].metadata.source, 'video-test');
+  } finally {
+    await ledger.close();
+  }
 });
 
 test('produceFromRef caches events, releases lock, writes provenance, and resumes', async () => {
