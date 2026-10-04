@@ -28,11 +28,11 @@ test("SPEC-005 API smoke: calendar, day creation, assignment, order, unassign, a
     const project = await json("/api/projects", { method:"POST", body:JSON.stringify({title:"SPEC-005 smoke"}) });
     assert.equal(project.r.status,201);
     const id = project.body.id;
+    const sceneIds = [];
     for (const [n,location] of [["One","Camp"],["Two","Moriah"],["Three","Camp"]]) {
       const scene = await json(`/api/projects/${id}/scenes`, { method:"POST", body:JSON.stringify({sceneNumber:n==="One"?1:n==="Two"?2:3,title:n,scriptureRef:"Genesis 1:1",location,dayOrNight:"DAY",actionSummary:n}) });
       assert.equal(scene.r.status,201);
-      if (!globalThis.__sceneIds) globalThis.__sceneIds = [];
-      globalThis.__sceneIds.push(scene.body.id);
+      sceneIds.push(scene.body.id);
     }
     const before = await json(`/api/projects/${id}/calendar`, {method:"GET"});
     assert.equal(before.r.status,200);
@@ -45,7 +45,6 @@ test("SPEC-005 API smoke: calendar, day creation, assignment, order, unassign, a
     assert.equal(duplicate.r.status,409);
     const badDate = await json(`/api/projects/${id}/shoot-days`, {method:"POST",body:JSON.stringify({shootDate:"not-a-date"})});
     assert.equal(badDate.r.status,400);
-    const sceneIds = globalThis.__sceneIds;
     assert.equal(sceneIds.length, 3);
     const assign = await json(`/api/shoot-days/${d1.body.id}/scenes`, {method:"POST",body:JSON.stringify({sceneIds:[sceneIds[0]]})});
     assert.equal(assign.r.status,200);
