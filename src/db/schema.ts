@@ -9,6 +9,7 @@ export const projects = pgTable("projects", {
   status: text("status").default("development"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  visualDna: jsonb("visual_dna").$type<Record<string, unknown>>().default({}),
 });
 
 export const characters = pgTable("characters", {
@@ -109,6 +110,50 @@ export const shootDayScenesRelations = relations(shootDayScenes, ({ one }) => ({
   scene: one(scenes, { fields: [shootDayScenes.sceneId], references: [scenes.id] }),
   shootDay: one(shootDays, { fields: [shootDayScenes.shootDayId], references: [shootDays.id] }),
 }));\nexport const scriptNotes = pgTable("script_notes", {\n  id: serial("id").primaryKey(),\n  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),\n  sceneId: integer("scene_id").references(() => scenes.id, { onDelete: "set null" }),\n  scriptureRef: text("scripture_ref").notNull(),\n  dialogue: text("dialogue"),\n  versionNotes: text("version_notes"),\n});\n\nexport const sceneArtifacts = pgTable("scene_artifacts", {\n  id: serial("id").primaryKey(),\n  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),\n  sceneId: integer("scene_id").references(() => scenes.id, { onDelete: "cascade" }).notNull(),\n  artifactType: text("artifact_type").notNull(),\n  storagePath: text("storage_path").notNull(),\n  contentHash: text("content_hash").notNull(),\n  lineage: jsonb("lineage").default({}),\n  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),\n  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),\n}, (table) => ({\n  contentHashUnique: uniqueIndex("scene_artifacts_content_hash_unique").on(table.contentHash),\n  projectSceneTypeIndex: index("scene_artifacts_project_scene_type_idx").on(table.projectId, table.sceneId, table.artifactType),\n}));\n
+
+
+export const shots = pgTable("shots", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  sceneId: integer("scene_id").references(() => scenes.id, { onDelete: "cascade" }).notNull(),
+  shotIndex: integer("shot_index").notNull(),
+  prompt: text("prompt").notNull(),
+  durationFrames: integer("duration_frames").notNull().default(72),
+  status: text("status").notNull().default("planned"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  sceneShotUnique: uniqueIndex("shots_scene_shot_unique").on(table.sceneId, table.shotIndex),
+  projectSceneIndex: index("shots_project_scene_idx").on(table.projectId, table.sceneId),
+}));
+
+export const protocobs = pgTable("protocobs", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  sceneId: integer("scene_id").references(() => scenes.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  concept: text("concept").notNull(),
+  prompt: text("prompt"),
+  visualDna: jsonb("visual_dna").default({}),
+  artifactPath: text("artifact_path"),
+  status: text("status").notNull().default("pending"),
+  cornNuts: integer("corn_nuts"),
+  createdBy: text("created_by").notNull().default("cob"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  projectStatusIndex: index("protocobs_project_status_idx").on(table.projectId, table.status),
+}));
+
+export const productionApprovals = pgTable("production_approvals", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  protocobId: integer("protocob_id").references(() => protocobs.id, { onDelete: "cascade" }),
+  artifactId: integer("artifact_id").references(() => sceneArtifacts.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
 
 export const bibleCollections = pgTable("bible_collections", {
   id: serial("id").primaryKey(),
