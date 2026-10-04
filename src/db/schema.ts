@@ -53,7 +53,9 @@ export const shootDays = pgTable("shoot_days", {
 
 export const shootDayScenes = pgTable("shoot_day_scenes", {
   sceneId: integer("scene_id").primaryKey().references(() => scenes.id, { onDelete: "cascade" }),
-  shootDayId: integer("shoot_day_id").references(() => shootDays.id, { onDelete: "cascade" }).notNull(),
+  shootDayId: integer("shoot_day_id").references(() => shootDays.id, { onDelete: "cascade" }),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  shootDate: text("shoot_date"),
   position: integer("position").notNull(),
 }, (table) => ({
   dayPositionIndex: index("shoot_day_scenes_day_position_idx").on(table.shootDayId, table.position),
