@@ -23,7 +23,12 @@ jobs:
       - name: Schema drift (every schema change must have a committed migration)
         run: |
           npx drizzle-kit generate
-          test -z "$(git status --porcelain drizzle)" || { git status --porcelain drizzle; exit 1; }
+          if test -n "$(git status --porcelain drizzle)"; then
+  git status --porcelain drizzle
+  tar -czf /tmp/generated-drizzle.tgz drizzle
+  echo "Generated migration differs from committed drizzle; artifact is available for repair."
+  exit 1
+fi
       - name: Migrations rebuild expected schema from empty
         run: npm run verify:migrations
       - name: Real migrate on a fresh database
