@@ -10,8 +10,8 @@ export const CAPACITY=Object.freeze({
   providerTimeoutMs:n(process.env.APEX_PROVIDER_TIMEOUT_MS,120000),
   renderTimeoutMs:n(process.env.APEX_RENDER_TIMEOUT_MS,86400000),
   storageBackend:process.env.APEX_STORAGE_BACKEND||"filesystem",
-  omniBackend:process.env.APEX_OMNI_BACKEND||"sqlite",
-  omniDatabase:process.env.APEX_OMNI_DB_FILE||"./apex-omni.sqlite",
+  omniBackend:"postgresql",
+  omniDatabase:process.env.DATABASE_URL||"",
   objectStore:process.env.APEX_OBJECT_STORE_URL||"",
   databaseUrl:process.env.DATABASE_URL||"",
   scaleMode:process.env.APEX_SCALE_MODE||"multi-node",
@@ -24,7 +24,7 @@ export const CAPACITY=Object.freeze({
 export function capacitySnapshot(){
   return {
     ...CAPACITY,
-    scalable:CAPACITY.omniBackend!=="sqlite"||Boolean(CAPACITY.databaseUrl),
+    scalable:Boolean(CAPACITY.databaseUrl),
     externalDatabaseConfigured:Boolean(CAPACITY.databaseUrl),
     objectStoreConfigured:Boolean(CAPACITY.objectStore),
     notes:[
