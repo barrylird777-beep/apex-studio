@@ -16,5 +16,7 @@ document.head.appendChild(style);
 const originalView=window.view;
 window.view=function(name){if(name==="bible")setTimeout(()=>document.title="HOLY MOLY · BIBLICALLY SEEN",0);return originalView?originalView(name):undefined};
 const decorate=()=>{document.querySelectorAll(".nav button").forEach(btn=>{const t=(btn.textContent||"").trim();if(t==="Bible Library")btn.textContent="HOLY MOLY";if(t==="Sacred Library")btn.textContent="HOLY MOLY · Library";if(t==="Apex Command")btn.textContent="BIBLICALLY SEEN";if(t==="Quirk Lab")btn.textContent="CornNut Lab"});document.querySelectorAll(".top h1,h1").forEach(h=>{if((h.textContent||"").trim()==="Apex Bible Story Studio")h.textContent="BIBLICALLY SEEN";if((h.textContent||"").trim()==="Bible Library")h.textContent="HOLY MOLY"})};
-decorate();new MutationObserver(decorate).observe(document.body,{childList:true,subtree:true});
+decorate();
+const godDid=()=>{if(document.getElementById("god-did-easter-egg"))return;const el=document.createElement("div");el.id="god-did-easter-egg";el.textContent="GOD DID";el.setAttribute("aria-label","GOD DID");el.style.cssText="position:fixed;right:18px;bottom:14px;z-index:9999;font-size:10px;font-weight:900;letter-spacing:.28em;color:rgba(246,224,190,.42);pointer-events:none;user-select:none;text-shadow:0 1px 8px rgba(0,0,0,.35)";document.body.appendChild(el)};
+godDid();new MutationObserver(()=>{decorate();godDid()}).observe(document.body,{childList:true,subtree:true});
 })();
