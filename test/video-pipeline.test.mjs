@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import pg from 'pg';
 import { generateEvents, validateEvents, chapterRange } from '../src/video/events.mjs';
 import { produceFromRef } from '../src/video/pipeline.mjs';
 import { createMemoryLedger, createFileLedger } from '../src/video/ledger.mjs';
@@ -102,13 +103,31 @@ test('produceFromRef caches events, releases lock, writes provenance, and resume
   assert.equal(second.calls.speech, 0);
 });
 
-test('live lock blocks concurrent production and failed runs unlock', async () => {
+test('production lock blocks a concurrent run and failed runs unlock', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'apex-lock-'));
-  writeFileSync(path.join(dir, '.lock'), JSON.stringify({ pid: process.pid, ts: Date.now() }));
-  await assert.rejects(
-    produceFromRef({ ref: 'Genesis 37', outDir: dir, gemini: fakeGemini([]), ledger: createMemoryLedger(), assemble, probe }),
-    /in progress/,
-  );
+  let unlockDb = null;
+  let db = null;
+  if (process.env.DATABASE_URL) {
+    db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    const client = await db.connect();
+    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [`apex-video:${path.resolve(dir)}`]);
+    unlockDb = async () => {
+      await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [`apex-video:${path.resolve(dir)}`]);
+      client.release();
+      await db.end();
+    };
+  } else {
+    writeFileSync(path.join(dir, '.lock'), JSON.stringify({ pid: process.pid, ts: Date.now() }));
+  }
+  try {
+    await assert.rejects(
+      produceFromRef({ ref: 'Genesis 37', outDir: dir, gemini: fakeGemini([]), ledger: createMemoryLedger(), assemble, probe }),
+      /in progress/,
+    );
+  } finally {
+    if (unlockDb) await unlockDb();
+  }
+
   const ledger = createFileLedger(path.join(dir, 'ledger.jsonl'));
   await assert.rejects(
     produceFromRef({
