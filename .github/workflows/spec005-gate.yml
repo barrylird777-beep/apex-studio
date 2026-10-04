@@ -20,15 +20,17 @@ jobs:
         with:
           node-version: "22.x"
       - run: npm install
+      - name: Generate Drizzle migration for drift inspection
+        run: npx drizzle-kit generate
+      - name: Upload generated Drizzle files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-drizzle
+          path: drizzle/
       - name: Schema drift (every schema change must have a committed migration)
         run: |
-          npx drizzle-kit generate
-          if test -n "$(git status --porcelain drizzle)"; then
-  git status --porcelain drizzle
-  tar -czf /tmp/generated-drizzle.tgz drizzle
-  echo "Generated migration differs from committed drizzle; artifact is available for repair."
-  exit 1
-fi
+          test -z "$(git status --porcelain drizzle)" || { git status --porcelain drizzle; exit 1; }
       - name: Migrations rebuild expected schema from empty
         run: npm run verify:migrations
       - name: Real migrate on a fresh database
