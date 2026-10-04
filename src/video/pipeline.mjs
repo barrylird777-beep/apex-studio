@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, open, rm, stat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import pg from 'pg';
 import { generateEvents, EVENTS_VERSION } from './events.mjs';
 import { produceHook } from './produce.mjs';
 import { contentId, atomicWrite, exists } from './cache.mjs';
@@ -9,6 +10,36 @@ import { createFileLedger } from './ledger.mjs';
 const sha256 = async (file) => createHash('sha256').update(await readFile(file)).digest('hex');
 
 async function acquireLock(dir, staleMs) {
+  if (String(process.env.DATABASE_URL || '').trim()) {
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    const client = await pool.connect();
+    try {
+      const locked = await client.query(
+        "SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked",
+        [`apex-video:${dir}`],
+      );
+      if (!locked.rows[0]?.locked) {
+        client.release();
+        await pool.end();
+        throw new Error(`another production run is in progress (${dir})`);
+      }
+      let released = false;
+      return async () => {
+        if (released) return;
+        released = true;
+        try {
+          await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [`apex-video:${dir}`]);
+        } finally {
+          client.release();
+          await pool.end();
+        }
+      };
+    } catch (error) {
+      if (!client.released) client.release();
+      await pool.end().catch(() => {});
+      throw error;
+    }
+  }
   const file = path.join(dir, '.lock');
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
