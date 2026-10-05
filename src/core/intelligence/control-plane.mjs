@@ -1,4 +1,4 @@
-import { createDurablePlan, materializePlanNodes, appendAgentEvent, updateExecutionNode, setPlanStatus } from "./durable-control-plane.mjs";
+import { createDurablePlan, appendAgentEvent, updateExecutionNode } from "./durable-control-plane.mjs";
 import crypto from "node:crypto";
 
 const uuid=()=>crypto.randomUUID();
@@ -23,8 +23,7 @@ export class IntelligenceControlPlane {
       if(!target) continue;
       target.dependsOn=(original.dependsOn??[]).map(name=>byName.get(name)?.id).filter(Boolean);
     }
-    await createDurablePlan({id:planId,goal:String(work.goal??"Unnamed Apex goal"),graph:graphSnapshot,context});
-    await materializePlanNodes(planId,nodes);
+    await createDurablePlan({id:planId,goal:String(work.goal??"Unnamed Apex goal"),graph:graphSnapshot,context,nodes});
     await appendAgentEvent({planId,eventType:"plan_created",payload:{nodeCount:nodes.length}});
     return {id:planId,graph:graphSnapshot,nodes};
   }
