@@ -3402,6 +3402,174 @@
       "language": "cop",
       "sourceId": "coptic-scriptorium",
       "status": "patristic"
+    },
+    {
+      "slug": "coptscriptorium-genesis10",
+      "title": "Coptic SCRIPTORIUM Genesis 10 document edition",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "chapter"
+    },
+    {
+      "slug": "coptscriptorium-genesis-cts",
+      "title": "Coptic SCRIPTORIUM CTS work/document/text-group identifiers",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "provenance"
+    },
+    {
+      "slug": "coptscriptorium-paula-xml",
+      "title": "Coptic SCRIPTORIUM PAULA XML layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "annotation"
+    },
+    {
+      "slug": "coptscriptorium-relannis",
+      "title": "Coptic SCRIPTORIUM relANNIS layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "annotation"
+    },
+    {
+      "slug": "coptscriptorium-annis",
+      "title": "Coptic SCRIPTORIUM ANNIS query corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "query-graph"
+    },
+    {
+      "slug": "sinai-manuscript-objects",
+      "title": "Sinai manuscript object records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "manuscript"
+    },
+    {
+      "slug": "sinai-inscribed-layers",
+      "title": "Sinai inscribed layer records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "codicology"
+    },
+    {
+      "slug": "sinai-text-units",
+      "title": "Sinai text unit records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-undertext-layers",
+      "title": "Sinai palimpsest undertext layer records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "palimpsest"
+    },
+    {
+      "slug": "sinai-works",
+      "title": "Sinai work authority records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "work"
+    },
+    {
+      "slug": "sinai-agents",
+      "title": "Sinai people/organization authority records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "agent"
+    },
+    {
+      "slug": "sinai-scribes",
+      "title": "Sinai scribe authority records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "person"
+    },
+    {
+      "slug": "sinai-owners",
+      "title": "Sinai manuscript owner authority records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "person"
+    },
+    {
+      "slug": "sinai-provenance",
+      "title": "Sinai manuscript provenance records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "provenance"
+    },
+    {
+      "slug": "sinai-collation",
+      "title": "Sinai manuscript collation structures",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "codicology"
+    },
+    {
+      "slug": "sinai-supports",
+      "title": "Sinai manuscript support/material records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "codicology"
+    },
+    {
+      "slug": "sinai-overtext",
+      "title": "Sinai palimpsest overtext layers",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "palimpsest"
+    },
+    {
+      "slug": "sinai-guest-content",
+      "title": "Sinai guest content layers",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "palimpsest"
+    },
+    {
+      "slug": "sinai-digital-rebindings",
+      "title": "Sinai digital rebinding records",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "codicology"
+    },
+    {
+      "slug": "coptot-ephesians-dataset",
+      "title": "Sahidic Ephesians manuscript transcriptions",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "manuscript"
+    },
+    {
+      "slug": "coptot-galatians-dataset",
+      "title": "Sahidic Galatians manuscript transcriptions",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "manuscript"
+    },
+    {
+      "slug": "coptot-pauline-datasets",
+      "title": "Selected Coptic Pauline manuscript transcriptions",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "manuscript"
+    },
+    {
+      "slug": "coptot-sahidic-bible-citations",
+      "title": "Sahidic Bible citation database",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "relationship"
+    },
+    {
+      "slug": "coptot-manuscript-speculation",
+      "title": "CoptOT manuscript speculation records",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "reconstruction"
     }
   ],
   "discoveryRun": {
@@ -3434,7 +3602,8 @@
       "Fresh source verification: MACULA Greek contains syntax trees, morphology, senses, semantic frames, participant referents, synonyms, mappings and adjunct types; STEPBible TAGNT explicitly tracks per-word edition membership, positional/meaning variants, lexical/morphological tags, plus TIPNR people/places/things and relationships; Coptic SCRIPTORIUM release data includes Bible corpora, papyri, apocrypha, patristic works and Magical Papyri with machine-readable annotation.",
       "Blast-off expansion: moved across Syriac, Greek, Latin, early English print, Jewish textual graph, NT manuscript witnesses, cross-reference edges and semantic Bible metadata. The graph now explicitly models authors, works, volumes, manuscripts, pages, witnesses, people, places, themes, events and relationship edges.",
       "Fresh verification: CoptOT documents manuscript cataloguing, standardized codex naming, diplomatic/critical editions, translations, Sahidic corpus and citation/lexicographic tools; CSNTM exposes manuscript classifications and feature metadata plus high-resolution images; Princeton Geniza Project publishes thousands of searchable transcriptions and research datasets; Biblissima IIIF records expose manuscript authority, codicology, language, date, shelfmark, contents and image manifests.",
-      "Fresh surface break: CoptOT explicitly exposes manuscript images, metadata API, page-level TEI transcriptions, collation rules, citations, inscriptions/ostraca, critical editions and translations. Sinai Manuscripts Data Portal currently exposes 401 text units across Arabic, Syriac, Greek, Coptic, Georgian, Armenian, Ge'ez and other languages, with biblical, Gospel, apocryphal, commentary, hymnal and lectionary genres. Kyprianos publishes downloadable manuscript and text tables updated July 2026. Coptic SCRIPTORIUM v6.3 reports over 2.38 million words and new biblical, patristic, hagiographic and fragment corpora."
+      "Fresh surface break: CoptOT explicitly exposes manuscript images, metadata API, page-level TEI transcriptions, collation rules, citations, inscriptions/ostraca, critical editions and translations. Sinai Manuscripts Data Portal currently exposes 401 text units across Arabic, Syriac, Greek, Coptic, Georgian, Armenian, Ge'ez and other languages, with biblical, Gospel, apocryphal, commentary, hymnal and lectionary genres. Kyprianos publishes downloadable manuscript and text tables updated July 2026. Coptic SCRIPTORIUM v6.3 reports over 2.38 million words and new biblical, patristic, hagiographic and fragment corpora.",
+      "Object-enumeration pass: Coptic SCRIPTORIUM exposes stable CTS work/text-group/document identifiers plus PAULA, relANNIS and ANNIS layers; Sinai Portal's current data model explicitly separates Manuscript Objects, Inscribed Layers, Text Units, Undertext Layers, Works and Agents, including scribes/owners and codicological/provenance data; CoptOT links separate Ephesians, Galatians and Pauline manuscript datasets and its Sahidic Bible citation/speculation tools."
     ]
   }
 }
