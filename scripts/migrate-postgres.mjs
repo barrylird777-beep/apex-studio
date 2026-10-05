@@ -10,7 +10,7 @@ if (!url) {
   process.exit(2);
 }
 
-const root = path.dirname(fileURLToPath(new URL("../", import.meta.url)));
+const root = fileURLToPath(new URL("../", import.meta.url));
 const dir = path.join(root, "postgres", "migrations");
 const pool = new Pool({ connectionString: url });
 
