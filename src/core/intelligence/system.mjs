@@ -5,6 +5,7 @@ import { DurablePlanScheduler } from "./durable-plan-scheduler.mjs";
 import { IntelligenceWorker } from "./intelligence-worker.mjs";
 import { IntelligenceControlPlane } from "./control-plane.mjs";
 import { IndependentVerifier } from "./independent-verifier.mjs";
+import { TitanOrchestrator } from "./titan-orchestrator.mjs";
 
 export function createApexIntelligenceSystem({
   capabilities=[],
@@ -36,10 +37,12 @@ export function createApexIntelligenceSystem({
   const scheduler=new DurablePlanScheduler({runtime,executor:nodeExecutor});
   const controlPlane=new IntelligenceControlPlane({platform,runtime,scheduler});
   const worker=new IntelligenceWorker({runtime,scheduler,concurrency:workerConcurrency});
+  const titan=new TitanOrchestrator({runtime,controlPlane,verifier:async result=>verifier.verify(result)});
 
   return Object.freeze({
-    platform,runtime,supervisor,verifier,scheduler,controlPlane,worker,
+    platform,runtime,supervisor,verifier,scheduler,controlPlane,worker,titan,
     async bootstrap() {
+      await titan.bootstrap();
       for(const agent of agents) await runtime.registerAgent(agent);
       return this.inspect();
     },
