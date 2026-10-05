@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { durableWorkerEnabled, enqueueWorkerTask } from "./durable-worker-store.mjs";
 
 const ROLE_PROMPTS = Object.freeze({
   "knowledge-research":"Research a Bible-related topic using available source-backed context. Separate established facts, uncertainty, and claims requiring verification. Preserve provenance.",
@@ -34,6 +35,7 @@ const now=()=>new Date().toISOString();
 export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), concurrency=16 }={}) {
   if(typeof dispatch!=="function") throw new TypeError("AI crew dispatch function is required");
   const safeConcurrency=Math.max(1,Math.min(128,Number(concurrency)||16));
+  const durable=durableWorkerEnabled();
   const maxQueue=Math.max(safeConcurrency,Math.min(5000,Number(process.env.APEX_AI_CREW_MAX_QUEUE)||2000));
   const recentLimit=Math.max(100,Math.min(1000,Number(process.env.APEX_AI_CREW_RECENT_LIMIT)||500));
   let roleCursor=0;
@@ -58,10 +60,61 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
     if(existing&&["queued","running"].includes(existing.status)) return {...existing,deduped:true};
     const item={id,sequence:++sequence,role,task,priority,priorityWeight:priorityMap[priority]||2,context,createdAt:now(),status:"queued",dedupeKey,attempts:0};
     dedupe.set(dedupeKey,item);
+
+    if (durable) {
+      const prompt = [
+        "APEX AI CREW ASSIGNMENT",
+        "ROLE: "+item.role,
+        "MISSION: "+item.task,
+        "EXECUTION RULES:",
+        "1. Produce concrete, technically actionable work.",
+        "2. Do not invent repository facts, sources, tests, files, or capabilities.",
+        "3. Identify defects before proposing changes.",
+        "4. Prefer root-cause fixes over cosmetic changes.",
+        "5. Preserve provenance and distinguish verified facts from inference.",
+        "6. Return implementation-ready output with acceptance criteria and validation steps.",
+        Object.keys(item.context).length ? "CONTEXT:\\n"+JSON.stringify(item.context) : ""
+      ].filter(Boolean).join("\\n");
+      void enqueueWorkerTask({
+        id: item.id,
+        workerId: "ai-crew",
+        role: "ai-crew",
+        task: item.task,
+        maxAttempts: Math.max(1, Math.min(5, Number(item.context?.maxAttempts || 3))),
+        dedupeKey,
+        traceId: item.context?.traceId || null,
+        payload: {
+          type: "ai-crew",
+          crewJobId: item.id,
+          crewRole: item.role,
+          prompt,
+          system: [
+            "You are an autonomous Apex specialist in the "+item.role+" lane.",
+            "Produce concrete, technically actionable work, not generic advice.",
+            "Do not invent repository facts, sources, tests, files, APIs, or capabilities.",
+            "Identify the highest-impact root defect first and give the smallest safe fix.",
+            "Separate verified evidence, inference, and unknowns.",
+            "Prefer deterministic outputs, idempotency, and measurable acceptance criteria.",
+            "Return implementation-ready output: defect, root cause, change, validation, next attack."
+          ].join(" ")
+        }
+      }).then(result => {
+        item.durableId=result.id;
+        item.status="queued";
+      }).catch(error => {
+        item.status="failed";
+        item.error=String(error?.message || error);
+        failed.push(item);
+        if(failed.length>recentLimit) failed.shift();
+        if(dedupe.get(item.dedupeKey)?.id===item.id) dedupe.delete(item.dedupeKey);
+      });
+      return {...item,durable:true};
+    }
+
     queue.push(item);
     queue.sort((a,b)=>b.priorityWeight-a.priorityWeight||a.sequence-b.sequence);
     pump();
-    return {...item};
+    return {...item,durable:false};
   }
 
   async function execute(item) {
@@ -145,6 +198,7 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
       queueUtilization:queue.length/maxQueue,
       throughput:{completed:completed.length,failed:failed.length},
       concurrency:safeConcurrency,
+      durable,
       queued:queue.length,
       active:active.size,
       completed:completed.length,
