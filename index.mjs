@@ -13,6 +13,7 @@ import {
 import { pool as dbPool } from "./src/db/index.ts";
 import { createEpisodeJobDispatcher } from "./src/core/mesh/episode-job-dispatcher.mjs";
 import { runWithTrace, log } from "./src/core/resilience/load-shedder.mjs";
+import { APEX_LIMITS } from "./src/core/mesh/apex-limits.mjs";
 
 async function executePermanentHealthTask(payload = {}) {
   const role = String(payload?.role || "general");
@@ -58,10 +59,10 @@ if (!workerOnly) {
   if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 45000));
+  const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000));
   const pollMs = Math.max(250, Number(process.env.APEX_WORKER_POLL_MS || 1000));
-  const concurrency = Math.max(1, Math.min(256, Number(process.env.APEX_WORKER_CONCURRENCY || 128)));
-  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 128)));
+  const concurrency = Math.max(1, Math.min(APEX_LIMITS.WORKER.MAX_CONCURRENCY, Number(process.env.APEX_WORKER_CONCURRENCY || APEX_LIMITS.WORKER.CONCURRENCY)));
+  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || APEX_LIMITS.WORKER.BATCH_SIZE)));
   const shutdownDeadlineMs = Math.max(5000, Number(process.env.APEX_WORKER_SHUTDOWN_MS || 30000));
   let stopping = false;
   let emptyPolls = 0;
