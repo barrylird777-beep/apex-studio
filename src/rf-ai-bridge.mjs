@@ -1,7 +1,7 @@
 import { GeminiMeshProvider } from "./core/mesh/gemini-mesh-provider.mjs";
 import { ClaudeMeshProvider } from "./core/mesh/claude-mesh-provider.mjs";
 import { evaluateQuorumConsensus } from "./network/rf-mesh-swarm.mjs";
-import { pool } from "./db/index.ts";
+import { pool } from "./db/index";
 
 function classificationFromText(text) {
   const lower = String(text || "").toLowerCase();
