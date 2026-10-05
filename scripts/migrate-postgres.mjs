@@ -20,7 +20,7 @@ try {
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   const files = (await fs.readdir(dir))
-    .filter(name => /^\\d+_.+\\.sql$/.test(name))
+    .filter(name => /^\d+_.+\.sql$/.test(name))
     .sort();
   for (const file of files) {
     const version = file.split("_", 1)[0];
