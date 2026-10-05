@@ -9,8 +9,10 @@ test("Apex intelligence system composes durable execution components", async () 
     verifierChecks:[{id:"output-shape",run:async target=>({passed:target.output?.echo!==undefined})}]
   });
   const inspected=await system.bootstrap();
-  assert.equal(inspected.agents.length,1);
+  assert.equal(inspected.agents.length,9);
+  assert.ok(inspected.agents.some(agent=>agent.id==="titan"));
   assert.equal(inspected.verifierChecks,1);
   assert.ok(system.controlPlane);
   assert.ok(system.worker);
+  assert.ok(system.titan);
 });
