@@ -61,6 +61,8 @@ async function generateScript({ pool, task }) {
     [p.episodeId]
   );
   const graphJobs = deps.rows.filter(row => row.status === "completed");
+  const failedGraphJobs = deps.rows.filter(row => row.status === "failed");
+  if (failedGraphJobs.length) throw new Error(`Graph expansion dependency failed: ${failedGraphJobs.map(row => row.id).join(",")}`);
   if (graphJobs.length < 2) {
     const ok = await deferWorkerTask(
       task.id,
@@ -135,7 +137,7 @@ async function renderPlan({ pool, task }) {
   const plan = {
     episodeId: p.episodeId,
     status: "planned",
-    sceneCount: Math.max(1, (script.match(/(?:^|\\n)\s*(?:scene|##)\\b/gi) || []).length),
+    sceneCount: Math.max(1, (script.match(/(?:^|\n)\s*(?:scene|##)\b/gi) || []).length),
     scriptLength: script.length,
     plannedAt: new Date().toISOString()
   };
