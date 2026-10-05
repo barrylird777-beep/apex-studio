@@ -2672,6 +2672,258 @@
       "language": "cop",
       "sourceId": "coptic-scriptorium",
       "status": "patristic"
+    },
+    {
+      "slug": "srophe-beth-gazo",
+      "title": "SROPHÉ Beth Gazo Syriac hymn corpus",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "liturgical"
+    },
+    {
+      "slug": "srophe-hymns",
+      "title": "SROPHÉ Syriac hymnographic corpus",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "liturgical"
+    },
+    {
+      "slug": "srophe-patristic",
+      "title": "SROPHÉ Syriac patristic corpus",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "patristic"
+    },
+    {
+      "slug": "srophe-apocrypha",
+      "title": "SROPHÉ Syriac apocryphal corpus",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "apocrypha"
+    },
+    {
+      "slug": "srophe-biblical",
+      "title": "SROPHÉ Syriac biblical corpus",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "scripture"
+    },
+    {
+      "slug": "srophe-lexical",
+      "title": "SROPHÉ Syriac lexical resources",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "lexicon"
+    },
+    {
+      "slug": "first1k-greek-authors",
+      "title": "First1K Greek author index",
+      "language": "grc",
+      "sourceId": "first1k",
+      "status": "person"
+    },
+    {
+      "slug": "first1k-greek-works",
+      "title": "First1K Greek work index",
+      "language": "grc",
+      "sourceId": "first1k",
+      "status": "work"
+    },
+    {
+      "slug": "first1k-greek-passages",
+      "title": "First1K Greek passage records",
+      "language": "grc",
+      "sourceId": "first1k",
+      "status": "text-unit"
+    },
+    {
+      "slug": "first1k-greek-entities",
+      "title": "First1K named-entity layer",
+      "language": "grc",
+      "sourceId": "first1k",
+      "status": "entity"
+    },
+    {
+      "slug": "corpus-corporum-authors",
+      "title": "Corpus Corporum author records",
+      "language": "la/multilingual",
+      "sourceId": "corpus-corporum",
+      "status": "person"
+    },
+    {
+      "slug": "corpus-corporum-works",
+      "title": "Corpus Corporum work records",
+      "language": "la/multilingual",
+      "sourceId": "corpus-corporum",
+      "status": "work"
+    },
+    {
+      "slug": "corpus-corporum-manuscripts",
+      "title": "Corpus Corporum manuscript metadata",
+      "language": "multilingual",
+      "sourceId": "corpus-corporum",
+      "status": "manuscript"
+    },
+    {
+      "slug": "patrologia-graeca-authors",
+      "title": "Patrologia Graeca author layer",
+      "language": "grc",
+      "sourceId": "patrologia-graeca",
+      "status": "person"
+    },
+    {
+      "slug": "patrologia-graeca-works",
+      "title": "Patrologia Graeca work layer",
+      "language": "grc",
+      "sourceId": "patrologia-graeca",
+      "status": "work"
+    },
+    {
+      "slug": "patrologia-graeca-volumes",
+      "title": "Patrologia Graeca volume layer",
+      "language": "grc",
+      "sourceId": "patrologia-graeca",
+      "status": "edition"
+    },
+    {
+      "slug": "open-greek-latin-tei",
+      "title": "OpenGreekAndLatin TEI texts",
+      "language": "grc/la",
+      "sourceId": "first1k",
+      "status": "scholarly-data"
+    },
+    {
+      "slug": "eebo-books",
+      "title": "EEBO-TCP individual book records",
+      "language": "en",
+      "sourceId": "eebo-tcp",
+      "status": "work"
+    },
+    {
+      "slug": "eebo-pages",
+      "title": "EEBO-TCP page/line records",
+      "language": "en",
+      "sourceId": "eebo-tcp",
+      "status": "text-unit"
+    },
+    {
+      "slug": "eebo-people",
+      "title": "EEBO-TCP named people",
+      "language": "en",
+      "sourceId": "eebo-tcp",
+      "status": "person"
+    },
+    {
+      "slug": "sefaria-books",
+      "title": "Sefaria individual book nodes",
+      "language": "he/en",
+      "sourceId": "sefaria",
+      "status": "work"
+    },
+    {
+      "slug": "sefaria-sheets",
+      "title": "Sefaria source-sheet nodes",
+      "language": "he/en",
+      "sourceId": "sefaria",
+      "status": "commentary"
+    },
+    {
+      "slug": "sefaria-links",
+      "title": "Sefaria text relationship edges",
+      "language": "he/en",
+      "sourceId": "sefaria",
+      "status": "relationship"
+    },
+    {
+      "slug": "sefaria-commentaries",
+      "title": "Sefaria commentary nodes",
+      "language": "he/en",
+      "sourceId": "sefaria",
+      "status": "commentary"
+    },
+    {
+      "slug": "sefaria-manuscript-metadata",
+      "title": "Sefaria manuscript/source metadata",
+      "language": "he/en",
+      "sourceId": "sefaria",
+      "status": "provenance"
+    },
+    {
+      "slug": "ntvmr-images",
+      "title": "NTVMR manuscript image objects",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "image"
+    },
+    {
+      "slug": "ntvmr-pages",
+      "title": "NTVMR manuscript page objects",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "manuscript"
+    },
+    {
+      "slug": "ntvmr-witnesses",
+      "title": "NTVMR textual witness objects",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "witness"
+    },
+    {
+      "slug": "ntvmr-transcription-units",
+      "title": "NTVMR transcription units",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "text-unit"
+    },
+    {
+      "slug": "openbible-crossref-edges",
+      "title": "OpenBible cross-reference edges",
+      "language": "multilingual",
+      "sourceId": "openbible-crossrefs",
+      "status": "relationship"
+    },
+    {
+      "slug": "openbible-crossref-clusters",
+      "title": "OpenBible cross-reference clusters",
+      "language": "multilingual",
+      "sourceId": "openbible-crossrefs",
+      "status": "relationship"
+    },
+    {
+      "slug": "theographic-people",
+      "title": "Theographic person metadata",
+      "language": "multilingual",
+      "sourceId": "theographic",
+      "status": "person"
+    },
+    {
+      "slug": "theographic-places",
+      "title": "Theographic place metadata",
+      "language": "multilingual",
+      "sourceId": "theographic",
+      "status": "place"
+    },
+    {
+      "slug": "theographic-themes",
+      "title": "Theographic theme metadata",
+      "language": "multilingual",
+      "sourceId": "theographic",
+      "status": "theme"
+    },
+    {
+      "slug": "theographic-events",
+      "title": "Theographic event metadata",
+      "language": "multilingual",
+      "sourceId": "theographic",
+      "status": "event"
+    },
+    {
+      "slug": "theographic-relationships",
+      "title": "Theographic relationship graph",
+      "language": "multilingual",
+      "sourceId": "theographic",
+      "status": "relationship"
     }
   ],
   "discoveryRun": {
@@ -2701,7 +2953,8 @@
       "Surface break continued: added linguistic annotation corpora, Greek critical-text resources, Coptic/Syriac corpora, manuscript image/transcription infrastructure, historical Christian corpora, semantic metadata and cross-reference graphs.",
       "Precision surface-break evidence: STEPBible exposes TAHOT, TAGNT, lexicons, proper-name entities, versification, morphology codes and manuscript-meaning variant datasets; MACULA Hebrew contains syntax trees, word senses, semantic roles and participant referents; NTVMR exposes a large Greek NT manuscript research environment; Coptic SCRIPTORIUM publishes multiple annotation formats.",
       "Deep object expansion validated against current source documentation: STEPBible exposes translator tags, tagged OT/NT corpora, lexicons, concept groups, proper-name entities and versification; MACULA exposes nested syntax, lowfat query structures and word-level records; Coptic SCRIPTORIUM exposes token, morpheme, entity, identity, treebank, manuscript-linked and aligned-translation layers.",
-      "Fresh source verification: MACULA Greek contains syntax trees, morphology, senses, semantic frames, participant referents, synonyms, mappings and adjunct types; STEPBible TAGNT explicitly tracks per-word edition membership, positional/meaning variants, lexical/morphological tags, plus TIPNR people/places/things and relationships; Coptic SCRIPTORIUM release data includes Bible corpora, papyri, apocrypha, patristic works and Magical Papyri with machine-readable annotation."
+      "Fresh source verification: MACULA Greek contains syntax trees, morphology, senses, semantic frames, participant referents, synonyms, mappings and adjunct types; STEPBible TAGNT explicitly tracks per-word edition membership, positional/meaning variants, lexical/morphological tags, plus TIPNR people/places/things and relationships; Coptic SCRIPTORIUM release data includes Bible corpora, papyri, apocrypha, patristic works and Magical Papyri with machine-readable annotation.",
+      "Blast-off expansion: moved across Syriac, Greek, Latin, early English print, Jewish textual graph, NT manuscript witnesses, cross-reference edges and semantic Bible metadata. The graph now explicitly models authors, works, volumes, manuscripts, pages, witnesses, people, places, themes, events and relationship edges."
     ]
   }
 }
