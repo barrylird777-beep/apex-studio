@@ -30,8 +30,6 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
         run: |
-          docker compose -f .github/postgres-test.yml up -d postgres
-          for i in $(seq 1 30); do pg_isready -h localhost -p 5432 -U postgres && break; sleep 1; done
           npm run db:migrate
       - name: Start server and wait for it
         run: |
