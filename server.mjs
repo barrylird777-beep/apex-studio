@@ -101,6 +101,25 @@ const aiCrew = createAiCrewEngine({
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
 
+const aiCrewAutoRun = String(process.env.APEX_AI_CREW_AUTORUN ?? 'true').toLowerCase() !== 'false';
+if (aiCrewAutoRun) {
+  const crewContext = {
+    mission: 'Continuously improve Apex Studio as a Bible intelligence and video-production system.',
+    rules: [
+      'Find root defects before proposing cosmetic work.',
+      'Prefer concrete implementation and tests.',
+      'Preserve provenance and distinguish verified facts from inference.',
+      'Do not claim files, tests, APIs, or capabilities that are not evidenced.',
+      'Surface blockers with a workaround path rather than stopping.'
+    ]
+  };
+  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 32))), crewContext);
+  const aiCrewPulse = setInterval(() => {
+    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 16))), crewContext);
+  }, Math.max(30000, Number(process.env.APEX_AI_CREW_PULSE_MS || 60000)));
+  aiCrewPulse.unref?.();
+}
+
 
 const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
