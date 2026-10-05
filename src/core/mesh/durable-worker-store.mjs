@@ -112,7 +112,7 @@ export async function completeWorkerTask(id, result = null, leaseToken, workerOw
   const r = await getPool().query(`UPDATE apex_worker_tasks SET
     status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
     next_run_at=NULL, result=$3::jsonb, updated_at=NOW()
-    WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
+    WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status IN ('claimed','running')`,
     [id, workerOwner, JSON.stringify(result), leaseToken]);
   return r.rowCount === 1;
 }
