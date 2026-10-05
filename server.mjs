@@ -172,6 +172,7 @@ app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.use('/api/search', createSearchRouter(dbPool));
+// Titan-protected mutation surfaces are mounted explicitly at the route boundary.
 app.use('/api/bible-production', async (req, res, next) => {
   try {
     const { default: router } = await import('./src/api/bible-production.mjs');
