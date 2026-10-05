@@ -50,9 +50,8 @@ function identityFor(type, item) {
   return String(item?.id ?? item?.url ?? item?.sourceUrl ?? `${type}:${JSON.stringify(item).slice(0, 300)}`);
 }
 
-function scoreRecord(query, record) {
+function scoreRecord(query, record, qTokens = tokenize(query)) {
   const q = normalize(query);
-  const qTokens = tokenize(q);
   if (!record.text) return 0;
 
   let score = 0;
@@ -96,6 +95,7 @@ function candidateIds(index, query) {
 function rankIndex(index, query, limit, options = {}) {
   const q = normalize(query);
   if (!q) return [];
+  const qTokens = tokenize(q);
   const max = Math.max(1, Math.min(1000, Number(limit) || 30));
   const filters = options.filters ?? {};
   const ids = candidateIds(index, q);
@@ -104,14 +104,14 @@ function rankIndex(index, query, limit, options = {}) {
   for (const id of ids) {
     const record = index.recordsById.get(id);
     if (!record || !matchesFilters(record.item, filters)) continue;
-    const score = scoreRecord(q, record);
+    const score = scoreRecord(q, record, qTokens);
     if (score <= 0) continue;
     out.push({
       type: record.type,
       item: record.item,
       score: Number(score.toFixed(4)),
       matchedQuery: q,
-      matchedTokens: tokenize(q).filter(token => record.tokenSet.has(token))
+      matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
     });
   }
 
