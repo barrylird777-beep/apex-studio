@@ -46,3 +46,13 @@ CREATE INDEX IF NOT EXISTS "bible_sources_search_gin_idx"
     coalesce("language",'') || ' ' ||
     coalesce("license",'')
   ));
+
+-- Trigram similarity catches misspellings and transliteration variants.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS "bible_sources_name_trgm_idx"
+  ON "bible_sources" USING GIN ("name" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "bible_entities_name_trgm_idx"
+  ON "bible_entities" USING GIN ("name" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "bible_passages_reference_trgm_idx"
+  ON "bible_passages" USING GIN ("reference" gin_trgm_ops);
