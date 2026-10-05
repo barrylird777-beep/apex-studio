@@ -31,10 +31,11 @@ export class IntelligenceWorker {
         ? result.verification
         : null;
 
-      if (!verified || verified.passed !== true) {
-        throw new Error("Intelligence node executor did not return independent verification evidence");
+      if (!verified || verified.passed !== true || verified.verifier === task.worker_id) {
+        throw new Error("Intelligence node executor requires independent verification evidence");
       }
 
+      await updateExecutionNode(task.payload.nodeId, { verification: verified, status: "completed" });
       const fenced = await completeWorkerTask(task.id, result, task.lease_token);
       if (!fenced) throw new Error("Worker lease lost before task completion");
       await appendAgentEvent({
