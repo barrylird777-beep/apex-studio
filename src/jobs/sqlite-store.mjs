@@ -60,9 +60,10 @@ export function createSqliteStore(db) {
   const claimTx=db.transaction((a)=>{
     const next=db.prepare("SELECT id FROM jobs WHERE status='queued' AND run_at<=? ORDER BY run_at,created_at,rowid LIMIT 1").get(a.now);
     if(!next)return null;
+    const leaseToken = typeof a.token === 'function' ? a.token() : a.token;
     db.prepare(`UPDATE jobs SET status='running',lease_token=@token,lease_expires_at=@exp,
       worker_id=@workerId,attempts=attempts+1,updated_at=@now WHERE id=@id`)
-      .run({token:a.token,exp:a.now+a.leaseMs,workerId:a.workerId,now:a.now,id:next.id});
+      .run({token:leaseToken,exp:a.now+a.leaseMs,workerId:a.workerId,now:a.now,id:next.id});
     return get("SELECT * FROM jobs WHERE id=?",next.id);
   });
 
