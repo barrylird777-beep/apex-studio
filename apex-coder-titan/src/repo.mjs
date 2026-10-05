@@ -7,8 +7,7 @@ import { promisify } from "node:util";
 const exec = promisify(execFile);
 
 export function resolveRepo(input) {
-  const repo = path.resolve(input || ".");
-  return repo;
+  return path.resolve(input || ".");
 }
 
 export async function assertRepo(repo) {
@@ -32,13 +31,24 @@ export async function git(repo, args, options = {}) {
   return { stdout, stderr };
 }
 
+export async function currentHead(repo) {
+  return (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
+}
+
+export async function assertClean(repo) {
+  const status = await git(repo, ["status", "--porcelain=v1"]);
+  if (status.stdout.trim()) {
+    throw new Error("Titan requires a clean source checkout. Commit or stash existing changes before starting.");
+  }
+}
+
 export async function discover(repo, maxDepth = 2) {
   const result = {};
   result.status = await git(repo, ["status", "--short"]);
   result.branch = await git(repo, ["branch", "--show-current"]);
   result.root = await git(repo, ["rev-parse", "--show-toplevel"]);
-  const ignored = await git(repo, ["ls-files", "--others", "--exclude-standard"]);
-  result.untracked = ignored.stdout.split("\n").filter(Boolean);
+  const untracked = await git(repo, ["ls-files", "--others", "--exclude-standard"]);
+  result.untracked = untracked.stdout.split("\n").filter(Boolean);
   result.files = await listFiles(repo, maxDepth);
   return result;
 }
@@ -47,11 +57,11 @@ async function listFiles(root, maxDepth) {
   const output = [];
   async function walk(dir, depth) {
     if (depth > maxDepth) return;
-    for (const name of await fs.readdir(dir, { withFileTypes: true })) {
-      if (name.name === ".git" || name.name === "node_modules") continue;
-      const full = path.join(dir, name.name);
+    for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      const full = path.join(dir, entry.name);
       output.push(path.relative(root, full));
-      if (name.isDirectory()) await walk(full, depth + 1);
+      if (entry.isDirectory()) await walk(full, depth + 1);
     }
   }
   await walk(root, 0);
@@ -59,11 +69,16 @@ async function listFiles(root, maxDepth) {
 }
 
 export async function makeWorktree(repo) {
-  const base = await git(repo, ["rev-parse", "HEAD"]);
+  const base = await currentHead(repo);
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-titan-"));
   const worktree = path.join(dir, "repo");
-  await git(repo, ["worktree", "add", "--detach", worktree, base.stdout.trim()], { timeout: 60_000 });
-  return { worktree, container: dir };
+  try {
+    await git(repo, ["worktree", "add", "--detach", worktree, base], { timeout: 60_000 });
+    return { worktree, container: dir, baseHead: base };
+  } catch (error) {
+    await fs.rm(dir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 export async function removeWorktree(repo, worktree, container) {
