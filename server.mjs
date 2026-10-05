@@ -24,6 +24,8 @@ import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-break
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
 import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
+import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
+import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -189,6 +191,17 @@ const permanentWorkerHeartbeat = setInterval(() => {
 }, apexOverseer.intervalMs);
 permanentWorkerHeartbeat.unref?.();
 
+const episodePipeline = new EpisodePipeline(dbPool);
+
+const webhookDaemon = durableWorkerEnabled()
+  ? setInterval(() => {
+      void dispatchCompletedWorkerEvents({ pool: dbPool }).catch(error => {
+        console.error("[webhook-dispatcher] dispatch failed:", error?.message || error);
+      });
+    }, Math.max(1000, Number(process.env.APEX_WEBHOOK_POLL_MS || 5000)))
+  : null;
+webhookDaemon?.unref?.();
+
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -204,6 +217,26 @@ app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:ove
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
+app.post('/api/episodes/produce', async (req, res) => {
+  try {
+    const book = String(req.body?.book || '').trim();
+    const chapter = Number(req.body?.chapter);
+    const verses = String(req.body?.verses || 'full').trim();
+    const traceId = String(req.headers['x-request-id'] || crypto.randomUUID());
+    if (!book || !Number.isInteger(chapter)) {
+      return res.status(400).json({ success: false, error: 'book and integer chapter are required' });
+    }
+    const result = await episodePipeline.igniteEpisode(book, chapter, verses, traceId);
+    return res.status(202).json({ success: true, ...result, traceId });
+  } catch (error) {
+    console.error('[episodes/produce] enqueue failed:', error?.message || error);
+    return res.status(400).json({
+      success: false,
+      error: error?.message || 'Episode pipeline enqueue failed'
+    });
+  }
+});
+
 app.use('/api/search', createSearchRouter(dbPool));
 // Titan-protected mutation surfaces are mounted explicitly at the route boundary.
 app.use('/api/bible-production', async (req, res, next) => {
