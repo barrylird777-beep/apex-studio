@@ -10,7 +10,7 @@ import {
   requeueExpiredWorkerTasks,
   releaseWorkerTasks
 } from "./src/core/mesh/durable-worker-store.mjs";
-import { pool as dbPool } from "./src/db/index.ts";
+import { pool as dbPool } from "./src/db/index";
 import { createEpisodeJobDispatcher } from "./src/core/mesh/episode-job-dispatcher.mjs";
 import { runWithTrace, log } from "./src/core/resilience/load-shedder.mjs";
 import { APEX_LIMITS } from "./src/core/mesh/apex-limits.mjs";
