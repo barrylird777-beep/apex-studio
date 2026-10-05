@@ -34,7 +34,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
-  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const safeLimit = Math.max(1, Math.min(256, Number(limit) || 128));
   const safeRole = role == null ? null : String(role).slice(0, 255);
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
@@ -166,17 +166,40 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const wait = Math.max(50, Number(retryMs) || 300);
   const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
   await db.query(`INSERT INTO rate_limits (key, tokens, updated_at)
-     VALUES ($1, $2, NOW()) ON CONFLICT (key) DO NOTHING`, [key, cap]);
-  for (;;) {
-    const r = await db.query(`UPDATE rate_limits SET
-        tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
-        updated_at = NOW()
-       WHERE key = $1
-         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`, [key, cap, refill]);
-    if (r.rowCount === 1) return true;
-    if (Date.now() >= deadline) return false;
-    await new Promise(resolve => setTimeout(resolve, wait + Math.random() * wait));
+    VALUES ($1, $2, NOW()) ON CONFLICT (key) DO NOTHING`, [key, cap]);
+
+  while (Date.now() < deadline) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const row = await client.query(
+        "SELECT tokens, updated_at FROM rate_limits WHERE key=$1 FOR UPDATE",
+        [key]
+      );
+      const current = row.rows[0];
+      if (!current) throw new Error(`Rate-limit bucket missing: ${key}`);
+      const elapsed = Math.max(0, (Date.now() - new Date(current.updated_at).getTime()) / 1000);
+      const available = Math.min(cap, Number(current.tokens) + elapsed * refill);
+      if (available >= 1) {
+        await client.query(
+          "UPDATE rate_limits SET tokens=$2, updated_at=NOW() WHERE key=$1",
+          [key, available - 1]
+        );
+        await client.query("COMMIT");
+        return true;
+      }
+      await client.query("ROLLBACK");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+    const remaining = Math.max(0, deadline - Date.now());
+    if (!remaining) break;
+    await new Promise(resolve => setTimeout(resolve, Math.min(wait + Math.floor(Math.random() * wait), remaining)));
   }
+  return false;
 }
 
 export async function claimExternalEffect(idempotencyKey) {
