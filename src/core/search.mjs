@@ -84,9 +84,10 @@ function scoreRecord(query, record, qTokens = tokenize(query)) {
 function candidateIds(index, query) {
   const tokens = tokenize(query);
   if (!tokens.length) return [];
-  const postings = tokens.map(token => index.inverted.get(token) ?? []);
+  const postings = tokens.map(token => index.inverted.get(token));
   const usable = postings.filter(Boolean);
   if (!usable.length) return [];
+  if (usable.length !== tokens.length) return [...new Set(usable.flat())];
 
   // AND first: precise multi-token queries stay tiny. Fall back to union for recall.
   if (usable.length === tokens.length) {
