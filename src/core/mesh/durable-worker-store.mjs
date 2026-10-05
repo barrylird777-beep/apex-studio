@@ -165,20 +165,58 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
   const wait = Math.max(50, Number(retryMs) || 300);
   const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
-  await db.query(`INSERT INTO rate_limits (key, tokens, updated_at)
-     VALUES ($1, $2, NOW()) ON CONFLICT (key) DO NOTHING`, [key, cap]);
-  for (;;) {
-    const r = await db.query(`UPDATE rate_limits SET
-        tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
-        updated_at = NOW()
-       WHERE key = $1
-         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`, [key, cap, refill]);
-    if (r.rowCount === 1) return true;
-    if (Date.now() >= deadline) return false;
-    await new Promise(resolve => setTimeout(resolve, wait + Math.random() * wait));
+
+  await db.query(
+    `INSERT INTO rate_limits (key, tokens, updated_at)
+     VALUES ($1, $2, clock_timestamp())
+     ON CONFLICT (key) DO NOTHING`,
+    [key, cap]
+  );
+
+  const client = await db.connect();
+  try {
+    for (;;) {
+      const remaining = deadline - Date.now();
+      if (remaining < 0) return false;
+
+      await client.query("BEGIN");
+      try {
+        const row = await client.query(
+          "SELECT tokens, updated_at FROM rate_limits WHERE key=$1 FOR UPDATE",
+          [key]
+        );
+        if (!row.rows[0]) throw new Error(`Rate-limit bucket disappeared: ${key}`);
+
+        const current = Number(row.rows[0].tokens);
+        const updatedMs = new Date(row.rows[0].updated_at).getTime();
+        const elapsedSeconds = Math.max(0, (Date.now() - updatedMs) / 1000);
+        const available = Math.min(cap, current + elapsedSeconds * refill);
+
+        if (available >= 1) {
+          await client.query(
+            "UPDATE rate_limits SET tokens=$2, updated_at=clock_timestamp() WHERE key=$1",
+            [key, available - 1]
+          );
+          await client.query("COMMIT");
+          return true;
+        }
+
+        await client.query("ROLLBACK");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw error;
+      }
+
+      const sleepMs = Math.min(
+        remaining,
+        Math.max(wait, Math.ceil(((1 - Math.min(cap, current + 0)) / refill) * 1000))
+      );
+      await new Promise((resolve) => setTimeout(resolve, Math.max(1, sleepMs)));
+    }
+  } finally {
+    client.release();
   }
 }
-
 export async function claimExternalEffect(idempotencyKey) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
