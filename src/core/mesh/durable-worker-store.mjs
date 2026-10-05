@@ -128,16 +128,6 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const db = getPool();
   const cap = Math.max(1, Number(capacity) || 10);
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
-  await db.query(`CREATE TABLE IF NOT EXISTS rate_limits (
-    key TEXT PRIMARY KEY,
-    tokens DOUBLE PRECISION NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await db.query(
-    `INSERT INTO rate_limits (key, tokens) VALUES ($1, $2)
-     ON CONFLICT (key) DO NOTHING`,
-    [key, cap]
-  );
   for (;;) {
     const r = await db.query(
       `UPDATE rate_limits SET
@@ -157,13 +147,6 @@ export async function claimExternalEffect(idempotencyKey) {
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
   const db = getPool();
-  await db.query(`CREATE TABLE IF NOT EXISTS apex_external_effects (
-    idempotency_key TEXT PRIMARY KEY,
-    status TEXT NOT NULL DEFAULT 'started',
-    result JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
   const r = await db.query(
     `INSERT INTO apex_external_effects (idempotency_key, status)
      VALUES ($1, 'started')
