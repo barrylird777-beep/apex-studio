@@ -48,9 +48,9 @@ jobs:
       - run: npm run db:seed
       - name: Start server for SPEC-005 HTTP smoke
         run: |
-          PORT=3001 npm start > /tmp/apex-server.log 2>&1 &
+          PORT=3000 npm start > /tmp/apex-server.log 2>&1 &
           echo $! > /tmp/apex-server.pid
-          for i in {1..30}; do curl -fsS http://localhost:3001/api/projects >/dev/null && exit 0; sleep 1; done
+          for i in {1..30}; do curl -fsS http://localhost:3000/api/projects >/dev/null && exit 0; sleep 1; done
           cat /tmp/apex-server.log
           exit 1
       - name: Run SPEC-005 HTTP smoke
