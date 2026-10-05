@@ -81,6 +81,7 @@ export function createStudio(options={}) {
   ];
   studio.searchCapabilities=[...SEARCH_CAPABILITIES,"bible-catalog","bible-families","bible-editions","outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
   studio._searchCache={index:null,builtAt:0};
+  studio._searchCollectionsCache={collections:null,builtAt:0};
   studio.rebuildSearchIndex=(options={})=>{
     const index=buildSearchIndex(searchCollections(),options);
     studio._searchCache={index,builtAt:Date.now()};
