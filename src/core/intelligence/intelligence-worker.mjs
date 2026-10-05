@@ -1,0 +1,95 @@
+import { claimNextWorkerTask, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
+import { updateExecutionNode, appendAgentEvent } from "./durable-control-plane.mjs";
+
+export class IntelligenceWorker {
+  constructor({ runtime, scheduler, concurrency = 4, leaseMs = 45000 } = {}) {
+    if (!runtime || !scheduler) throw new TypeError("runtime and scheduler are required");
+    this.runtime = runtime;
+    this.scheduler = scheduler;
+    this.concurrency = Math.max(1, Math.min(32, Number(concurrency) || 4));
+    this.leaseMs = Math.max(5000, Number(leaseMs) || 45000);
+    this.running = new Map();
+    this.stopping = false;
+  }
+
+  async processOne(signal) {
+    const task = await claimNextWorkerTask(this.leaseMs);
+    if (!task) return false;
+    if (task.task !== "execute-intelligence-node") {
+      await failWorkerTask(task.id, new Error("Unsupported intelligence task"), task.lease_token);
+      return true;
+    }
+
+    const heartbeat = setInterval(() => {
+      heartbeatWorkerTask(task.id, this.leaseMs, task.lease_token).catch(() => {});
+    }, Math.max(1000, Math.floor(this.leaseMs / 3)));
+
+    this.running.set(task.id, task);
+    try {
+      const result = await this.scheduler.executeTask(task, { signal });
+      const verified = result && typeof result === "object" && result.verification
+        ? result.verification
+        : null;
+
+      if (!verified || verified.passed !== true) {
+        throw new Error("Intelligence node executor did not return independent verification evidence");
+      }
+
+      const fenced = await completeWorkerTask(task.id, result, task.lease_token);
+      if (!fenced) throw new Error("Worker lease lost before task completion");
+      await appendAgentEvent({
+        agentId: task.worker_id,
+        planId: task.payload.planId,
+        nodeId: task.payload.nodeId,
+        eventType: "task_completed"
+      });
+      return true;
+    } catch (error) {
+      await updateExecutionNode(task.payload?.nodeId, {
+        status: "failed",
+        last_error: String(error?.message || error)
+      }).catch(() => {});
+      const fenced = await failWorkerTask(task.id, error, task.lease_token);
+      if (fenced) {
+        await appendAgentEvent({
+          agentId: task.worker_id,
+          planId: task.payload?.planId,
+          nodeId: task.payload?.nodeId,
+          eventType: "task_failed",
+          payload: { error: String(error?.message || error) }
+        }).catch(() => {});
+      }
+      return true;
+    } finally {
+      clearInterval(heartbeat);
+      this.running.delete(task.id);
+    }
+  }
+
+  async run({ signal } = {}) {
+    let processed = 0;
+    while (!this.stopping && !signal?.aborted) {
+      const capacity = this.concurrency - this.running.size;
+      if (capacity <= 0) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+        continue;
+      }
+      const results = await Promise.all(
+        Array.from({ length: capacity }, () => this.processOne(signal))
+      );
+      const count = results.filter(Boolean).length;
+      processed += count;
+      if (!count) break;
+    }
+    return { processed, running: this.running.size };
+  }
+
+  async stop({ timeoutMs = 30000 } = {}) {
+    this.stopping = true;
+    const deadline = Date.now() + timeoutMs;
+    while (this.running.size && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return { running: this.running.size, drained: this.running.size === 0 };
+  }
+}
