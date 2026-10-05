@@ -112,8 +112,9 @@ test("external side effect idempotency key admits only one caller", { skip: !has
   const key = "race-effect-" + crypto.randomUUID();
   await ensureWorkerTaskSchema();
   const [a, b] = await Promise.all([claimExternalEffect(key), claimExternalEffect(key)]);
-  assert.equal([a, b].filter(Boolean).length, 1);
-  assert.equal(await completeExternalEffect(key, { ok: true }), true);
+  assert.equal([a, b].filter(result => result.acquired).length, 1);
+  const winner = a.acquired ? a : b;
+  assert.equal(await completeExternalEffect(key, { ok: true }, winner.leaseToken), true);
   const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   try { await db.query("DELETE FROM apex_external_effects WHERE idempotency_key=$1", [key]); }
   finally { await db.end(); await closeWorkerStore(); }

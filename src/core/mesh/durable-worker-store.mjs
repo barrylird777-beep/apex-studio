@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -27,8 +28,10 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
     ON CONFLICT DO NOTHING`,
     [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey]);
-  const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
-  return { durable: true, id: existing?.rows?.[0]?.id || id };
+  const existing = dedupeKey
+    ? await db.query("SELECT id,status FROM apex_worker_tasks WHERE dedupe_key=$1 LIMIT 1", [dedupeKey])
+    : null;
+  return { durable: true, id: existing?.rows?.[0]?.id || id, existingStatus: existing?.rows?.[0]?.status || null };
 }
 
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
@@ -160,31 +163,51 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   }
 }
 
-export async function claimExternalEffect(idempotencyKey) {
-  if (!durableWorkerEnabled()) return true;
+export async function claimExternalEffect(idempotencyKey, leaseMs = 45000) {
+  if (!durableWorkerEnabled()) return { acquired: true, leaseToken: null };
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(
-    `INSERT INTO apex_external_effects (idempotency_key, status)
-     VALUES ($1, 'started')
-     ON CONFLICT (idempotency_key) DO NOTHING
-     RETURNING idempotency_key`,
-    [key]
+  const token = crypto.randomUUID();
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const r = await getPool().query(`
+    INSERT INTO apex_external_effects (idempotency_key,status,lease_owner,lease_token,lease_expires_at)
+    VALUES ($1,'started',$2,$3,NOW()+($4::double precision * INTERVAL '1 millisecond'))
+    ON CONFLICT (idempotency_key) DO UPDATE SET
+      lease_owner=EXCLUDED.lease_owner, lease_token=EXCLUDED.lease_token,
+      lease_expires_at=EXCLUDED.lease_expires_at, updated_at=NOW()
+    WHERE apex_external_effects.status='started'
+      AND apex_external_effects.lease_expires_at IS NOT NULL
+      AND apex_external_effects.lease_expires_at < NOW()
+    RETURNING lease_token`,
+    [key,owner,token,Math.max(5000,Number(leaseMs)||45000)]
   );
-  return r.rowCount === 1;
+  return { acquired:r.rowCount===1, leaseToken:r.rows[0]?.lease_token||null };
 }
 
-export async function completeExternalEffect(idempotencyKey, result = null) {
+export async function heartbeatExternalEffect(idempotencyKey, leaseToken, leaseMs = 45000) {
+  if (!durableWorkerEnabled()) return true;
+  const key=String(idempotencyKey||"").trim();
+  if (!key || !leaseToken) return false;
+  const owner=process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const r=await getPool().query(`UPDATE apex_external_effects
+    SET lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),updated_at=NOW()
+    WHERE idempotency_key=$1 AND status='started' AND lease_owner=$2 AND lease_token=$3`,
+    [key,owner,leaseToken,Math.max(5000,Number(leaseMs)||45000)]);
+  return r.rowCount===1;
+}
+
+export async function completeExternalEffect(idempotencyKey, result = null, leaseToken) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(
-    `UPDATE apex_external_effects
-     SET status='completed', result=$2::jsonb, updated_at=NOW()
-     WHERE idempotency_key=$1 AND status='started'`,
-    [key, JSON.stringify(result)]
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const r = await getPool().query(`
+    UPDATE apex_external_effects
+    SET status='completed', result=$2::jsonb, lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+    WHERE idempotency_key=$1 AND status='started' AND lease_owner=$3 AND lease_token=$4`,
+    [key,JSON.stringify(result),owner,leaseToken]
   );
-  return r.rowCount === 1;
+  return r.rowCount===1;
 }
 
 export async function queueStats() {
