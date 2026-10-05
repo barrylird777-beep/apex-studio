@@ -15,11 +15,11 @@ const owner = () => process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "l
 export async function registerDurableAgent(agent) {
   if (!enabled()) return { durable:false, agent };
   const r = await db().query(`INSERT INTO apex_agents
-    (id,role,status,capabilities,tools,permissions,metadata,last_heartbeat_at)
-    VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,NOW())
+    (id,role,status,capabilities,tools,permissions,metadata,max_concurrency,last_heartbeat_at)
+    VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8,NOW())
     ON CONFLICT (id) DO UPDATE SET role=EXCLUDED.role,status=EXCLUDED.status,
       capabilities=EXCLUDED.capabilities,tools=EXCLUDED.tools,permissions=EXCLUDED.permissions,
-      metadata=EXCLUDED.metadata,last_heartbeat_at=NOW(),updated_at=NOW()
+      metadata=EXCLUDED.metadata,max_concurrency=EXCLUDED.max_concurrency,last_heartbeat_at=NOW(),updated_at=NOW()
     RETURNING *`, [agent.id,agent.role||"general",agent.status||"ready",json(agent.capabilities),json(agent.tools),json(agent.permissions),json(agent.metadata),Math.max(1,Number(agent.maxConcurrency)||1)]);
   return { durable:true, agent:r.rows[0] };
 }
