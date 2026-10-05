@@ -157,7 +157,9 @@ if (!workerOnly) {
       }
 
       emptyPolls = 0;
-      await Promise.all(tasks.map(runTask));
+      // Keep the claim pipeline full while tasks execute; inFlight is the backpressure boundary.
+      for (const task of tasks) void runTask(task);
+      await sleep(0);
     } catch (error) {
       console.error("[apex-worker] queue poll failed:", error?.message || error);
       const base = Math.min(5000, pollMs * 2 ** Math.min(emptyPolls, 6));
