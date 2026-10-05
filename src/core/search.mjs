@@ -15,9 +15,9 @@ function normalize(value) {
   const raw = String(value ?? "");
   const cached = NORMALIZE_CACHE.get(raw);
   if (cached !== undefined) return cached;
-  const value = raw.normalize("NFKC").toLowerCase().trim();
-  if (NORMALIZE_CACHE.size < 20000) NORMALIZE_CACHE.set(raw, value);
-  return value;
+  const normalized = raw.normalize("NFKC").toLowerCase().trim();
+  if (NORMALIZE_CACHE.size < 20000) NORMALIZE_CACHE.set(raw, normalized);
+  return normalized;
 }
 
 function tokenize(value) {
@@ -37,11 +37,6 @@ function fieldValue(item, field) {
   return flatten(item?.[field]);
 }
 
-function fieldText(item, fields) {
-  if (!item || typeof item !== "object") return flatten(item);
-  return fields.map(key => fieldValue(item, key)).join(" ");
-}
-
 function matchesFilters(item, filters = {}) {
   for (const [key, expected] of Object.entries(filters)) {
     if (expected == null || expected === "") continue;
@@ -59,21 +54,16 @@ function identityFor(type, item) {
 function scoreRecord(query, record, qTokens = tokenize(query)) {
   const q = normalize(query);
   if (!record.text) return 0;
-
   let score = 0;
   if (record.text === q) score += 120;
   if (record.text.startsWith(q)) score += 50;
   if (record.text.includes(q)) score += 30;
-
   for (const [field, weight] of Object.entries(FIELD_WEIGHTS)) {
     const value = record.fields[field];
     if (value && value.includes(q)) score += weight;
   }
-
   let matched = 0;
-  for (const token of qTokens) {
-    if (record.tokenSet.has(token)) matched++;
-  }
+  for (const token of qTokens) if (record.tokenSet.has(token)) matched++;
   if (qTokens.length) {
     score += (matched / qTokens.length) * 40;
     if (matched === qTokens.length) score += 18;
@@ -89,23 +79,20 @@ function candidateIds(index, query) {
   if (!usable.length) return [];
   if (usable.length !== tokens.length) return [...new Set(usable.flat())];
 
-  // AND first: precise multi-token queries stay tiny. Fall back to union for recall.
-  if (usable.length === tokens.length) {
-    const ordered = [...usable].sort((a, b) => a.length - b.length);
-    let intersection = ordered[0];
-    for (let i = 1; i < ordered.length && intersection.length; i++) {
-      const next = ordered[i];
-      const keep = [];
-      let a = 0, b = 0;
-      while (a < intersection.length && b < next.length) {
-        if (intersection[a] === next[b]) { keep.push(intersection[a]); a++; b++; }
-        else if (intersection[a] < next[b]) a++;
-        else b++;
-      }
-      intersection = keep;
+  const ordered = [...usable].sort((a, b) => a.length - b.length);
+  let intersection = ordered[0];
+  for (let i = 1; i < ordered.length && intersection.length; i++) {
+    const next = ordered[i];
+    const keep = [];
+    let a = 0, b = 0;
+    while (a < intersection.length && b < next.length) {
+      if (intersection[a] === next[b]) { keep.push(intersection[a]); a++; b++; }
+      else if (intersection[a] < next[b]) a++;
+      else b++;
     }
-    if (intersection.length) return intersection;
+    intersection = keep;
   }
+  if (intersection.length) return intersection;
   return [...new Set(usable.flat())];
 }
 
@@ -131,3 +118,58 @@ function rankIndex(index, query, limit, options = {}) {
       matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
     });
   }
+
+  return out.sort((a, b) => b.score - a.score || String(a.item?.id ?? "").localeCompare(String(b.item?.id ?? ""))).slice(0, max);
+}
+
+export function universalSearch(query, collections = [], limit = 30, options = {}) {
+  const index = buildSearchIndex(collections, options);
+  return rankIndex(index, query, limit, options);
+}
+
+export function buildSearchIndex(collections = [], options = {}) {
+  const fields = Array.isArray(options.fields) && options.fields.length ? options.fields : DEFAULT_FIELDS;
+  const recordsById = new Map();
+  const inverted = new Map();
+
+  for (const c of collections) {
+    for (const item of c.items ?? []) {
+      const id = identityFor(c.type ?? "record", item);
+      if (recordsById.has(id)) continue;
+      const fieldsMap = Object.fromEntries(fields.map(field => [field, normalize(fieldValue(item, field))]));
+      const text = fields.map(field => fieldsMap[field]).join(" ").trim();
+      const tokens = tokenize(text);
+      const record = { id, type: c.type ?? "record", item, fields: fieldsMap, text, tokens, tokenSet: new Set(tokens) };
+      recordsById.set(id, record);
+      for (const token of tokens) {
+        let posting = inverted.get(token);
+        if (!posting) inverted.set(token, posting = []);
+        posting.push(id);
+      }
+    }
+  }
+
+  for (const posting of inverted.values()) posting.sort();
+
+  return {
+    version: 4,
+    createdAt: new Date().toISOString(),
+    fields,
+    records: [...recordsById.values()],
+    recordsById,
+    inverted,
+    size: recordsById.size,
+    tokenCount: inverted.size
+  };
+}
+
+export function searchIndex(index, query, limit = 30, options = {}) {
+  if (!index?.recordsById || !index?.inverted) return [];
+  return rankIndex(index, query, limit, options);
+}
+
+export const SEARCH_CAPABILITIES = Object.freeze([
+  "exact", "token", "phrase", "field-aware", "cross-collection", "deduplicated", "ranked",
+  "knowledge-graph-aware", "multilingual-unicode", "deep-limit", "federated-source-ready",
+  "inverted-index", "candidate-pruning", "filter-aware", "stable-ranking"
+]);
