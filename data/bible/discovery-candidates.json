@@ -78,6 +78,24 @@
       "kind": "catalog-and-distribution",
       "url": "https://ebible.org/",
       "notes": "Current multilingual Bible catalog with freely redistributable and restricted-distribution resources; formats include HTML, EPUB, USFX, USFM, SQL and others."
+    },
+    {
+      "id": "open-translation-bible",
+      "kind": "repository",
+      "url": "https://github.com/OpenTranslationBible/open-bible",
+      "notes": "Open Translation Bible; CC BY-SA 4.0; multilingual open-source Bible project."
+    },
+    {
+      "id": "biblia-libre",
+      "kind": "repository",
+      "url": "https://github.com/biblia-del-pueblo/BibliaLibre",
+      "notes": "OpenSource/Public Domain Bible collection with Markdown/EPUB/PDF/USFM resources."
+    },
+    {
+      "id": "public-domain-bibles",
+      "kind": "repository",
+      "url": "https://github.com/nigelmsipa/public-domain-bibles",
+      "notes": "Plain-text public-domain/freely licensed Bible corpus; useful as a secondary manifestation source."
     }
   ],
   "candidates": [
@@ -542,6 +560,195 @@
       "language": "multilingual",
       "sourceId": "ebible-org",
       "status": "candidate"
+    },
+    {
+      "slug": "auhelawa-nt",
+      "title": "'Auhelawa NT",
+      "language": "'Auhelawa",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "abau-nt",
+      "title": "Abau NT",
+      "language": "Abau",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "abureni-nt",
+      "title": "Abureni NT",
+      "language": "Abureni",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "achagua-partial-nt",
+      "title": "Achagua Partial NT",
+      "language": "Achagua",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "achi-rabinal-nt-new",
+      "title": "Achi Rabinal NT (new orthography)",
+      "language": "Achi",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "achi-rabinal-nt-traditional",
+      "title": "Achi Rabinal NT (traditional orthography)",
+      "language": "Achi",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "achi-new-testament",
+      "title": "New Testament in Achi",
+      "language": "Achi",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "achuar-shiwiar-bible",
+      "title": "Achuar-shiwiar Bible",
+      "language": "Achuar-shiwiar",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "adioukrou-amani-owr-nt",
+      "title": "Adioukrou: Amani Owr New Testament",
+      "language": "Adioukrou",
+      "sourceId": "ebible-org",
+      "status": "translation"
+    },
+    {
+      "slug": "armenian-open-translation-bible",
+      "title": "Open Translation Bible — Armenian",
+      "language": "hy",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "hindi-open-translation-bible",
+      "title": "Open Translation Bible — Hindi",
+      "language": "hi",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "persian-open-translation-bible",
+      "title": "Open Translation Bible — Persian",
+      "language": "fa",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "french-open-translation-bible",
+      "title": "Open Translation Bible — French",
+      "language": "fr",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "norwegian-open-translation-bible",
+      "title": "Open Translation Bible — Norwegian Bokmål",
+      "language": "nb",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "spanish-biblia-libre",
+      "title": "Biblia Libre — Spanish",
+      "language": "es",
+      "sourceId": "biblia-libre",
+      "status": "translation"
+    },
+    {
+      "slug": "german-biblia-libre",
+      "title": "Biblia Libre — German",
+      "language": "de",
+      "sourceId": "biblia-libre",
+      "status": "translation"
+    },
+    {
+      "slug": "english-biblia-libre",
+      "title": "Biblia Libre — English",
+      "language": "en",
+      "sourceId": "biblia-libre",
+      "status": "translation"
+    },
+    {
+      "slug": "english-revised-version-1885",
+      "title": "English Revised Version",
+      "language": "en",
+      "sourceId": "public-domain-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "julia-e-smith-translation",
+      "title": "Julia E. Smith Translation",
+      "language": "en",
+      "sourceId": "public-domain-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "webster-revision",
+      "title": "Webster's Revision",
+      "language": "en",
+      "sourceId": "public-domain-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "geneva-1599",
+      "title": "Geneva Bible 1599",
+      "language": "en",
+      "sourceId": "public-domain-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "akjv",
+      "title": "American King James Version",
+      "language": "en",
+      "sourceId": "public-domain-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "modern-literal-version",
+      "title": "Modern Literal Version",
+      "language": "en",
+      "sourceId": "public-domain-bibles",
+      "status": "freely-licensed"
+    },
+    {
+      "slug": "majority-text",
+      "title": "Majority Text",
+      "language": "grc",
+      "sourceId": "public-domain-bibles",
+      "status": "original-language"
+    },
+    {
+      "slug": "spanish-rv1909",
+      "title": "Reina-Valera 1909",
+      "language": "es",
+      "sourceId": "public-domain-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "spanish-biblia-espanol-sencillo",
+      "title": "La Biblia en Español Sencillo",
+      "language": "es",
+      "sourceId": "open-bibles",
+      "status": "cc-by-4.0"
+    },
+    {
+      "slug": "spanish-palabra-dios-para-ti",
+      "title": "Palabra de Dios para ti",
+      "language": "es",
+      "sourceId": "open-bibles",
+      "status": "cc-by-sa-4.0"
     }
   ],
   "discoveryRun": {
@@ -549,7 +756,10 @@
     "evidence": [
       "eBible.org current catalog lists these English and multilingual resources.",
       "eBible.org metrics report 1,543 Bible translations and 1,024 languages with freely redistributable translations for September 2026.",
-      "Open Bibles repository confirms public-domain/free-license status for its listed files."
+      "Open Bibles repository confirms public-domain/free-license status for its listed files.",
+      "Current eBible.org translation metrics expose concrete minority-language resources including Auhelawa, Abau, Abureni, Achagua, Achi, Achuar-shiwiar, and Adioukrou.",
+      "Open Translation Bible currently lists English, Hindi, Persian, French, and Norwegian Bokmål releases under CC BY-SA 4.0.",
+      "Additional open/public-domain repositories provide distinct translation manifestations and licensing metadata; repository mirrors are not counted as separate works."
     ]
   }
 }
