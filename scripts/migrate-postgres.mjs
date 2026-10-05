@@ -26,13 +26,42 @@ try {
     .filter(name => /^\d+_.+\.sql$/.test(name))
     .sort();
 
+  // Migration identity must include the filename when numeric prefixes collide.
+  // Older databases recorded only the numeric prefix, so for a duplicate prefix
+  // the legacy row represents the first lexicographically ordered migration.
+  const groups = new Map();
   for (const file of files) {
-    const version = file.split("_", 1)[0];
-    const exists = await client.query(
+    const prefix = file.split("_", 1)[0];
+    const group = groups.get(prefix) || [];
+    group.push(file);
+    groups.set(prefix, group);
+  }
+
+  for (const file of files) {
+    const prefix = file.split("_", 1)[0];
+    const group = groups.get(prefix);
+    const duplicatePrefix = group.length > 1;
+    const version = duplicatePrefix ? file : prefix;
+
+    const exact = await client.query(
       "SELECT 1 FROM apex_schema_migrations WHERE version=$1",
       [version],
     );
-    if (exists.rowCount) continue;
+    if (exact.rowCount) continue;
+
+    if (duplicatePrefix) {
+      const legacy = await client.query(
+        "SELECT 1 FROM apex_schema_migrations WHERE version=$1",
+        [prefix],
+      );
+      if (legacy.rowCount && group[0] === file) {
+        await client.query(
+          "INSERT INTO apex_schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING",
+          [version],
+        );
+        continue;
+      }
+    }
 
     const sql = await fs.readFile(path.join(dir, file), "utf8");
     try {
