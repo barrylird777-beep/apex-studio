@@ -5,7 +5,7 @@ export class IntelligenceWorker {
   constructor({ runtime, scheduler, concurrency = 4, leaseMs = 45000 } = {}) {
     if (!runtime || !scheduler) throw new TypeError("runtime and scheduler are required");
     this.runtime = runtime;
-    this.scheduler = scheduler;
+    this.scheduler = scheduler;\n    this.verifier = verifier;
     this.concurrency = Math.max(1, Math.min(32, Number(concurrency) || 4));
     this.leaseMs = Math.max(5000, Number(leaseMs) || 45000);
     this.running = new Map();
