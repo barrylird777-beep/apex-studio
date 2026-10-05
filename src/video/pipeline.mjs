@@ -142,7 +142,7 @@ export async function produceFromRef({
     await provenance.record({ run, kind: 'run', status: 'finished', ref });
     return { ...result, quality, eventsPath: events.file, runId: run };
   } catch (error) {
-    await provenance.record({
+    if (provenance) await provenance.record({
       run, kind: 'run', status: 'failed', ref,
       error: String(error.message ?? error).slice(0, 500),
     }).catch(() => {});
