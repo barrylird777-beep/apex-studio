@@ -11,8 +11,10 @@ export class GeminiMeshProvider {
     if (!this.apiKey) throw new Error('Gemini not configured');
     const model = options.model || this.model;
     const rateLimit = await acquireAiRateLimit({
+      key: 'gemini',
       capacity: Number(process.env.GEMINI_RATE_LIMIT_CAPACITY || 10),
-      refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (10 / 60))
+      refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (10 / 60)),
+      maxWaitMs: Number(process.env.GEMINI_RATE_LIMIT_MAX_WAIT_MS || 10000)
     });
     if (!rateLimit) throw new Error('Gemini shared rate limit reached; retry later');
     const body = {
@@ -22,7 +24,8 @@ export class GeminiMeshProvider {
     const response = await fetch(`${this.endpoint}/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(Number(process.env.GEMINI_TIMEOUT_MS || 30000))
     });
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
