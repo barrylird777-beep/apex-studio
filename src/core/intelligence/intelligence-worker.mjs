@@ -1,5 +1,5 @@
 import { claimNextWorkerTask, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
-import { updateExecutionNodeForLease, appendAgentEvent } from "./durable-control-plane.mjs";
+import { bindExecutionNodeLease, updateExecutionNodeForLease, appendAgentEvent } from "./durable-control-plane.mjs";
 
 export class IntelligenceWorker {
   constructor({ runtime, scheduler, concurrency = 4, leaseMs = 45000 } = {}) {
@@ -20,7 +20,7 @@ export class IntelligenceWorker {
       return true;
     }
 
-    const heartbeat = setInterval(() => {
+    const bound = await bindExecutionNodeLease(task.payload?.nodeId, task.id, task.lease_token);\n    if (!bound) {\n      await failWorkerTask(task.id, new Error("Execution node lease binding rejected"), task.lease_token);\n      return true;\n    }\n\n    const heartbeat = setInterval(() => {
       heartbeatWorkerTask(task.id, this.leaseMs, task.lease_token).catch(() => {});
     }, Math.max(1000, Math.floor(this.leaseMs / 3)));
 
