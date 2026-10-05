@@ -4,7 +4,7 @@ BEGIN
   IF NEW.status='completed' AND NEW.verification IS NULL THEN
     RAISE EXCEPTION 'Execution node % cannot complete without verification evidence', NEW.id;
   END IF;
-  IF OLD.status='completed' AND NEW.status <> 'completed' THEN
+  IF TG_OP='UPDATE' AND OLD.status='completed' AND NEW.status <> 'completed' THEN
     RAISE EXCEPTION 'Completed execution node % cannot be reopened', NEW.id;
   END IF;
   IF NEW.status='running' AND NEW.worker_task_id IS NULL THEN
