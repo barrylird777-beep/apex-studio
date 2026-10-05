@@ -234,6 +234,42 @@
       "kind": "textual-criticism",
       "url": "https://github.com/Jossifresben/BibCrit",
       "notes": "Biblical textual criticism research corpus and analysis datasets."
+    },
+    {
+      "id": "targum-corpus",
+      "kind": "translation-corpus",
+      "url": "https://targum.net/",
+      "notes": "Multilingual New Testament translation corpus with work/edition/instance/book-coverage/provenance structure."
+    },
+    {
+      "id": "open-bible-data",
+      "kind": "open-data",
+      "url": "https://freely-given.org/OBD/",
+      "notes": "Open Bible Data with parallel translations, interlinear alignment, cross-references and dictionaries."
+    },
+    {
+      "id": "bible-translation-project",
+      "kind": "translation-genealogy",
+      "url": "https://www.bibletranslations.org/",
+      "notes": "Translation origin trees linking translations to manuscripts, translations and commentaries."
+    },
+    {
+      "id": "bible-corpus",
+      "kind": "parallel-corpus",
+      "url": "https://github.com/christos-c/bible-corpus",
+      "notes": "Multilingual parallel Bible corpus with book/chapter/verse alignment."
+    },
+    {
+      "id": "open-scriptorium",
+      "kind": "scripture-scholarship",
+      "url": "https://openscriptorium.org/",
+      "notes": "Cross-referenced scripture, deuterocanon, Talmud, historical commentary and word-level alignment."
+    },
+    {
+      "id": "bible-mcp-corpus-survey",
+      "kind": "corpus-index",
+      "url": "https://github.com/nirajagarwal/bible-mcp",
+      "notes": "Survey/index of open Christian scholarship corpora across canon, patristics, apocrypha, pseudepigrapha and related layers."
     }
   ],
   "candidates": [
@@ -1461,6 +1497,188 @@
       "language": "syr",
       "sourceId": "srophe-manuscripts",
       "status": "patristic"
+    },
+    {
+      "slug": "targum-334-editions",
+      "title": "Targum NT corpus — 334 unique editions",
+      "language": "multilingual",
+      "sourceId": "targum-corpus",
+      "status": "translation-corpus"
+    },
+    {
+      "slug": "targum-651-instances",
+      "title": "Targum NT corpus — 651 translation instances",
+      "language": "multilingual",
+      "sourceId": "targum-corpus",
+      "status": "manifestation-corpus"
+    },
+    {
+      "slug": "targum-book-coverage",
+      "title": "Targum per-instance book coverage",
+      "language": "multilingual",
+      "sourceId": "targum-corpus",
+      "status": "metadata"
+    },
+    {
+      "slug": "targum-provenance",
+      "title": "Targum work/edition/instance provenance graph",
+      "language": "multilingual",
+      "sourceId": "targum-corpus",
+      "status": "provenance"
+    },
+    {
+      "slug": "open-bible-data-parallel",
+      "title": "Open Bible Data parallel translation layer",
+      "language": "multilingual",
+      "sourceId": "open-bible-data",
+      "status": "parallel-text"
+    },
+    {
+      "slug": "open-bible-data-interlinear",
+      "title": "Open Bible Data Hebrew/Greek interlinear layer",
+      "language": "he/grc/en",
+      "sourceId": "open-bible-data",
+      "status": "interlinear"
+    },
+    {
+      "slug": "open-bible-data-crossrefs",
+      "title": "Open Bible Data cross-reference graph",
+      "language": "multilingual",
+      "sourceId": "open-bible-data",
+      "status": "cross-reference"
+    },
+    {
+      "slug": "open-bible-data-dictionaries",
+      "title": "Open Bible Data Bible dictionary layer",
+      "language": "en",
+      "sourceId": "open-bible-data",
+      "status": "dictionary"
+    },
+    {
+      "slug": "translation-origin-tree",
+      "title": "Bible Translation Project translation genealogy",
+      "language": "multilingual",
+      "sourceId": "bible-translation-project",
+      "status": "genealogy"
+    },
+    {
+      "slug": "multilingual-parallel-bible-corpus",
+      "title": "Multilingual parallel Bible corpus",
+      "language": "multilingual",
+      "sourceId": "bible-corpus",
+      "status": "parallel-corpus"
+    },
+    {
+      "slug": "open-scriptorium-hebrew-bible",
+      "title": "Open Scriptorium Hebrew Bible corpus",
+      "language": "he",
+      "sourceId": "open-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "open-scriptorium-greek-nt",
+      "title": "Open Scriptorium Greek New Testament corpus",
+      "language": "grc",
+      "sourceId": "open-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "open-scriptorium-septuagint",
+      "title": "Open Scriptorium Septuagint corpus",
+      "language": "grc",
+      "sourceId": "open-scriptorium",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "open-scriptorium-deuterocanon",
+      "title": "Open Scriptorium Deuterocanon corpus",
+      "language": "grc",
+      "sourceId": "open-scriptorium",
+      "status": "deuterocanon"
+    },
+    {
+      "slug": "open-scriptorium-talmud",
+      "title": "Open Scriptorium Babylonian Talmud corpus",
+      "language": "arc",
+      "sourceId": "open-scriptorium",
+      "status": "rabbinic"
+    },
+    {
+      "slug": "open-scriptorium-philo",
+      "title": "Open Scriptorium Philo corpus",
+      "language": "grc",
+      "sourceId": "open-scriptorium",
+      "status": "jewish-literature"
+    },
+    {
+      "slug": "open-scriptorium-josephus",
+      "title": "Open Scriptorium Josephus corpus",
+      "language": "grc",
+      "sourceId": "open-scriptorium",
+      "status": "jewish-literature"
+    },
+    {
+      "slug": "open-scriptorium-origen",
+      "title": "Open Scriptorium Origen corpus",
+      "language": "grc",
+      "sourceId": "open-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "open-scriptorium-patristics",
+      "title": "Open Scriptorium patristic/post-patristic corpus",
+      "language": "multilingual",
+      "sourceId": "open-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "dss-53568-source-lines",
+      "title": "Dead Sea Scrolls 53,568 transcribed source-text lines",
+      "language": "he/ar/grc",
+      "sourceId": "open-dead-sea",
+      "status": "manuscript-corpus"
+    },
+    {
+      "slug": "dss-53479-english-drafts",
+      "title": "Dead Sea Scrolls 53,479 English machine-draft lines",
+      "language": "en",
+      "sourceId": "open-dead-sea",
+      "status": "translation-corpus"
+    },
+    {
+      "slug": "christian-scholarship-canon-layer",
+      "title": "Christian scholarship canonical corpus layer",
+      "language": "multilingual",
+      "sourceId": "bible-mcp-corpus-survey",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "christian-scholarship-patristic-layer",
+      "title": "Christian scholarship patristic corpus layer",
+      "language": "multilingual",
+      "sourceId": "bible-mcp-corpus-survey",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "christian-scholarship-apocrypha-layer",
+      "title": "Christian scholarship apocrypha/pseudepigrapha layer",
+      "language": "multilingual",
+      "sourceId": "bible-mcp-corpus-survey",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "christian-scholarship-gnostic-layer",
+      "title": "Christian scholarship gnostic/heterodox literature layer",
+      "language": "multilingual",
+      "sourceId": "bible-mcp-corpus-survey",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "christian-scholarship-mystics-layer",
+      "title": "Christian scholarship mystics literature layer",
+      "language": "multilingual",
+      "sourceId": "bible-mcp-corpus-survey",
+      "status": "knowledge-base"
     }
   ],
   "discoveryRun": {
@@ -1481,7 +1699,11 @@
       "Dead Sea Scrolls Digital Library exposes fragment-level image and metadata browsing by site, language and content, including biblical and non-biblical compositions.",
       "Current Open Translation Bible repository lists releases through Swahili and additional languages; each language is captured as a separate edition candidate.",
       "BOOST: added concrete textual corpora, manuscript witnesses, linguistic databases, patristic corpora, ancient translations, and textual-criticism datasets rather than only catalog-level records.",
-      "Current research repositories expose Peshitta OT/NT, BHSA Hebrew, Dead Sea Scrolls, Targums, Ephrem, Syriac manuscripts, lexicons and cross-corpus linguistic data."
+      "Current research repositories expose Peshitta OT/NT, BHSA Hebrew, Dead Sea Scrolls, Targums, Ephrem, Syriac manuscripts, lexicons and cross-corpus linguistic data.",
+      "Current Targum corpus demonstrates the desired work/edition/instance model: 223 works, 334 editions and 651 instances across five languages, with book coverage and provenance.",
+      "Open Bible Data currently has nearly 1.3 million generated pages with parallel, interlinear, dictionary and cross-reference layers.",
+      "Open Dead Sea currently reports 53,568 transcribed source-text lines and 53,479 published English machine-draft reading-aid lines.",
+      "Open Scriptorium combines scripture, deuterocanon, Talmud, historical Jewish literature and patristic/post-patristic voices with verse-level cross-referencing."
     ]
   }
 }
