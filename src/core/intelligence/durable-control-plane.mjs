@@ -20,7 +20,7 @@ export async function registerDurableAgent(agent) {
     ON CONFLICT (id) DO UPDATE SET role=EXCLUDED.role,status=EXCLUDED.status,
       capabilities=EXCLUDED.capabilities,tools=EXCLUDED.tools,permissions=EXCLUDED.permissions,
       metadata=EXCLUDED.metadata,max_concurrency=EXCLUDED.max_concurrency,last_heartbeat_at=NOW(),updated_at=NOW()
-    RETURNING *`, [agent.id,agent.role||"general",agent.status||"ready",json(agent.capabilities),json(agent.tools),json(agent.permissions),json(agent.metadata),Math.max(1,Number(agent.maxConcurrency)||1)]);
+    RETURNING *`, [agent.id,agent.role||"general",agent.status||"ready",json(agent.capabilities),json(agent.tools),json(agent.permissions),json(agent.metadata)]);
   return { durable:true, agent:r.rows[0] };
 }
 
