@@ -15,11 +15,12 @@ export class DurablePlanScheduler {
     for(const node of nodes) {
       if(signal?.aborted) break;
       try {
-        const agent=this.runtime.listAgents().find(a=>a.status==="ready"&&a.capabilities.includes(node.capability));
+        const agent=this.runtime.listAgents().filter(a=>a.status==="ready"&&a.capabilities.includes(node.capability)&&a.active<a.maxConcurrency).sort((a,b)=>(a.active/a.maxConcurrency)-(b.active/b.maxConcurrency))[0];
         if(!agent) {
           await updateExecutionNode(node.id,{status:"pending",last_error:"No eligible agent"});
           continue;
         }
+        if (!this.runtime.reserve(agent.id)) { await updateExecutionNode(node.id,{status:"pending",last_error:"Agent capacity unavailable"}); continue; }
         const taskId=crypto.randomUUID();
         const enqueued=await enqueueWorkerTask({
           id:taskId,workerId:agent.id,role:agent.role,task:"execute-intelligence-node",
@@ -35,6 +36,7 @@ export class DurablePlanScheduler {
         await appendAgentEvent({agentId:agent.id,planId:node.plan_id,nodeId:node.id,eventType:"node_queued"});
         queued++;
       } catch(error) {
+        if (agent) this.runtime.release(agent.id);
         await updateExecutionNode(node.id,{status:"failed",last_error:String(error?.message||error)});
         await appendAgentEvent({planId:node.plan_id,nodeId:node.id,eventType:"node_queue_failed",payload:{error:String(error?.message||error)}});
         failed++;
