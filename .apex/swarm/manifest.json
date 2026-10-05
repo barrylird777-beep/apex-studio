@@ -1,0 +1,13 @@
+{
+  "swarm_version": "3.1.0",
+  "operational_mode": "Black-Pen Warp Speed",
+  "execution": "existing-apex-worker-spine",
+  "queue": "apex_worker_tasks",
+  "agents": [
+    { "id": "agent-alpha", "domain": "Database & GIN/Trigram Optimization", "crew_roles": ["knowledge-research","performance"], "status": "READY" },
+    { "id": "agent-beta", "domain": "AST Titan Mutation Engine & Concurrency", "crew_roles": ["infrastructure","qa"], "status": "READY" },
+    { "id": "agent-gamma", "domain": "Durable Worker Fleet & Fencing", "crew_roles": ["infrastructure","observability"], "status": "READY" },
+    { "id": "agent-delta", "domain": "AI Mesh Fallback & Circuit Breakers", "crew_roles": ["automation","performance"], "status": "READY" },
+    { "id": "agent-epsilon", "domain": "E2E Adversarial Chaos Testing", "crew_roles": ["qa","release-qa"], "status": "READY" }
+  ]
+}
