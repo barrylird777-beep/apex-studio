@@ -270,6 +270,36 @@
       "kind": "corpus-index",
       "url": "https://github.com/nirajagarwal/bible-mcp",
       "notes": "Survey/index of open Christian scholarship corpora across canon, patristics, apocrypha, pseudepigrapha and related layers."
+    },
+    {
+      "id": "caccht",
+      "kind": "annotated-corpus",
+      "url": "https://caccht.github.io/",
+      "notes": "Annotated corpora of ancient Semitic texts."
+    },
+    {
+      "id": "etcbc-dss",
+      "kind": "manuscript-corpus",
+      "url": "https://github.com/ETCBC/dss",
+      "notes": "Dead Sea Scrolls Text-Fabric data."
+    },
+    {
+      "id": "qumran-reader",
+      "kind": "manuscript-corpus",
+      "url": "https://qumran.dev/",
+      "notes": "Structured Qumran biblical and non-biblical corpus."
+    },
+    {
+      "id": "pta",
+      "kind": "patristic-archive",
+      "url": "https://github.com/PatristicTextArchive",
+      "notes": "Open antique Christian texts, manuscripts, lexica and metadata."
+    },
+    {
+      "id": "etcbc",
+      "kind": "biblical-corpus-network",
+      "url": "https://github.com/ETCBC",
+      "notes": "Research ecosystem for BHSA, DSS, Targum, Peshitta and Syriac."
     }
   ],
   "candidates": [
@@ -1679,6 +1709,174 @@
       "language": "multilingual",
       "sourceId": "bible-mcp-corpus-survey",
       "status": "knowledge-base"
+    },
+    {
+      "slug": "caccht-bhsa",
+      "title": "CACCHT Biblical Hebrew annotated corpus",
+      "language": "he",
+      "sourceId": "caccht",
+      "status": "linguistic-corpus"
+    },
+    {
+      "slug": "caccht-dss",
+      "title": "CACCHT Dead Sea Scrolls annotated corpus",
+      "language": "he/arc/grc",
+      "sourceId": "caccht",
+      "status": "manuscript-corpus"
+    },
+    {
+      "slug": "caccht-samaritan-pentateuch",
+      "title": "CACCHT Samaritan Pentateuch annotated corpus",
+      "language": "he",
+      "sourceId": "caccht",
+      "status": "textual-witness"
+    },
+    {
+      "slug": "caccht-targum",
+      "title": "CACCHT Targum annotated corpus",
+      "language": "aram",
+      "sourceId": "caccht",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "caccht-septuagint",
+      "title": "CACCHT Septuagint annotated corpus",
+      "language": "grc",
+      "sourceId": "caccht",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "etcbc-dss-scroll",
+      "title": "DSS scroll-level entities",
+      "language": "he/arc/grc",
+      "sourceId": "etcbc-dss",
+      "status": "manuscript"
+    },
+    {
+      "slug": "etcbc-dss-fragment",
+      "title": "DSS fragment-level entities",
+      "language": "he/arc/grc",
+      "sourceId": "etcbc-dss",
+      "status": "artifact"
+    },
+    {
+      "slug": "etcbc-dss-line",
+      "title": "DSS line-level entities",
+      "language": "he/arc/grc",
+      "sourceId": "etcbc-dss",
+      "status": "text-unit"
+    },
+    {
+      "slug": "etcbc-dss-word",
+      "title": "DSS word-level entities",
+      "language": "he/arc/grc",
+      "sourceId": "etcbc-dss",
+      "status": "text-unit"
+    },
+    {
+      "slug": "etcbc-dss-verse",
+      "title": "DSS biblical verse alignment",
+      "language": "he",
+      "sourceId": "etcbc-dss",
+      "status": "alignment"
+    },
+    {
+      "slug": "qumran-266-biblical-scrolls",
+      "title": "Qumran Digital Reader — 266 biblical scrolls",
+      "language": "he/arc/grc",
+      "sourceId": "qumran-reader",
+      "status": "manuscript"
+    },
+    {
+      "slug": "qumran-735-nonbiblical",
+      "title": "Qumran Digital Reader — 735 non-biblical texts",
+      "language": "he/arc/grc",
+      "sourceId": "qumran-reader",
+      "status": "ancient-text"
+    },
+    {
+      "slug": "qumran-morphology",
+      "title": "Qumran word-level morphology",
+      "language": "he/arc/grc",
+      "sourceId": "qumran-reader",
+      "status": "linguistics"
+    },
+    {
+      "slug": "qumran-lexicon",
+      "title": "Qumran lexical definitions",
+      "language": "he/arc/grc",
+      "sourceId": "qumran-reader",
+      "status": "lexicon"
+    },
+    {
+      "slug": "pta-editions",
+      "title": "Patristic Text Archive editions",
+      "language": "grc/la/syr",
+      "sourceId": "pta",
+      "status": "patristic"
+    },
+    {
+      "slug": "pta-manuscripts",
+      "title": "Patristic Text Archive manuscript database",
+      "language": "grc/la/syr",
+      "sourceId": "pta",
+      "status": "manuscript"
+    },
+    {
+      "slug": "pta-lexika",
+      "title": "Patristic Text Archive lexica",
+      "language": "grc/la/syr",
+      "sourceId": "pta",
+      "status": "lexicon"
+    },
+    {
+      "slug": "pta-metadata",
+      "title": "Patristic Text Archive metadata",
+      "language": "multilingual",
+      "sourceId": "pta",
+      "status": "provenance"
+    },
+    {
+      "slug": "etcbc-parallels",
+      "title": "BHSA parallel relationships",
+      "language": "he",
+      "sourceId": "etcbc",
+      "status": "parallel"
+    },
+    {
+      "slug": "etcbc-syntax-trees",
+      "title": "BHSA sentence trees",
+      "language": "he",
+      "sourceId": "etcbc",
+      "status": "syntax"
+    },
+    {
+      "slug": "etcbc-valence",
+      "title": "BHSA verbal valence",
+      "language": "he",
+      "sourceId": "etcbc",
+      "status": "linguistics"
+    },
+    {
+      "slug": "etcbc-phonology",
+      "title": "BHSA phonology",
+      "language": "he",
+      "sourceId": "etcbc",
+      "status": "linguistics"
+    },
+    {
+      "slug": "etcbc-bridging",
+      "title": "Open Scriptures morphology bridge",
+      "language": "he",
+      "sourceId": "etcbc",
+      "status": "morphology"
+    },
+    {
+      "slug": "etcbc-syriac",
+      "title": "ETCBC Syriac corpus",
+      "language": "syr",
+      "sourceId": "etcbc",
+      "status": "corpus"
     }
   ],
   "discoveryRun": {
@@ -1703,7 +1901,8 @@
       "Current Targum corpus demonstrates the desired work/edition/instance model: 223 works, 334 editions and 651 instances across five languages, with book coverage and provenance.",
       "Open Bible Data currently has nearly 1.3 million generated pages with parallel, interlinear, dictionary and cross-reference layers.",
       "Open Dead Sea currently reports 53,568 transcribed source-text lines and 53,479 published English machine-draft reading-aid lines.",
-      "Open Scriptorium combines scripture, deuterocanon, Talmud, historical Jewish literature and patristic/post-patristic voices with verse-level cross-referencing."
+      "Open Scriptorium combines scripture, deuterocanon, Talmud, historical Jewish literature and patristic/post-patristic voices with verse-level cross-referencing.",
+      "Surface break: node-level knowledge objects now include scrolls, fragments, lines, words, verses, morphology, syntax, lexical data, parallels, manuscript metadata and scholarly encodings."
     ]
   }
 }
