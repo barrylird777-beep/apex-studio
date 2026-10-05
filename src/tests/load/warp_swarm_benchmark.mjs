@@ -39,25 +39,39 @@ export async function runWarpBenchmark({
       });
     }));
 
-    const workers = Array.from({ length: workerCount }, async (_, workerIndex) => {
+    const claimAndComplete = async (workerIndex) => {
       let processed = 0;
       for (;;) {
-        const task = await claimNextWorkerTask(leaseMs);
-        if (!task) break;
-        if (task.payload?.benchmark !== prefix) {
-          await completeWorkerTask(task.id, { ignored: true }, task.lease_token);
-          continue;
-        }
-        const completed = await completeWorkerTask(
-          task.id,
-          { workerIndex, benchmark: prefix },
-          task.lease_token
-        );
-        if (!completed) throw new Error(`FENCING FAILURE for task ${task.id}`);
-        processed++;
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const claim = await client.query(`WITH candidate AS (
+            SELECT id FROM apex_worker_tasks
+            WHERE status='queued' AND payload->>'benchmark'=$1
+            ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
+          )
+          UPDATE apex_worker_tasks t
+          SET status='running', attempts=attempts+1, lease_owner=$2,
+              lease_token=gen_random_uuid()::text, last_worker_pid=$3,
+              lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
+          FROM candidate WHERE t.id=candidate.id
+          RETURNING t.id,t.lease_token`, [prefix, `warp-benchmark-${workerIndex}`, process.pid, leaseMs]);
+          if (!claim.rows.length) { await client.query('COMMIT'); break; }
+          const task = claim.rows[0];
+          const done = await client.query(`UPDATE apex_worker_tasks
+            SET status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
+                result=$3::jsonb, updated_at=NOW()
+            WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
+            [task.id, `warp-benchmark-${workerIndex}`, JSON.stringify({ workerIndex, benchmark: prefix }), task.lease_token]);
+          await client.query('COMMIT');
+          if (done.rowCount !== 1) throw new Error(`FENCING FAILURE for task ${task.id}`);
+          processed++;
+        } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+        finally { client.release(); }
       }
       return processed;
-    });
+    };
+    const workers = Array.from({ length: workerCount }, (_, workerIndex) => claimAndComplete(workerIndex));
 
     const results = await Promise.all(workers);
     const totalProcessed = results.reduce((sum, value) => sum + value, 0);
