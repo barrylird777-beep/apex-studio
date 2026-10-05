@@ -1,1 +1,1 @@
-web: node server.mjs
+web: npm run db:migrate:workers && node server.mjs

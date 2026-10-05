@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node server.mjs",
+    "startCommand": "npm run db:migrate:workers && node server.mjs",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

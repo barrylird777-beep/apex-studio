@@ -13,7 +13,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, ensureWorkerTaskSchema, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -23,7 +23,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 if (durableWorkerEnabled()) {
-  void ensureWorkerTaskSchema().catch(error => console.error("[worker-store] schema initialization failed", error));
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
   reclaimTimer.unref?.();
 }
