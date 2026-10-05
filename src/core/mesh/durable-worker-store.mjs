@@ -15,40 +15,13 @@ function getPool() {
 
 export async function ensureWorkerTaskSchema() {
   if (!durableWorkerEnabled()) return false;
-  await getPool().query(`CREATE TABLE IF NOT EXISTS apex_worker_tasks (
-    id UUID PRIMARY KEY,
-    worker_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    task TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'queued',
-    attempts INTEGER NOT NULL DEFAULT 0,
-    max_attempts INTEGER NOT NULL DEFAULT 5,
-    lease_owner TEXT,
-    lease_token TEXT,
-    lease_expires_at TIMESTAMPTZ,
-    next_run_at TIMESTAMPTZ,
-    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    result JSONB,
-    last_error TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    dedupe_key TEXT,
-    recovered_count INTEGER NOT NULL DEFAULT 0
-  )`);
-  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS lease_token TEXT`);
-  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ`);
-  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS dedupe_key TEXT`);
-  await getPool().query(`ALTER TABLE apex_worker_tasks ADD COLUMN IF NOT EXISTS recovered_count INTEGER NOT NULL DEFAULT 0`);
-  await getPool().query(`CREATE UNIQUE INDEX IF NOT EXISTS apex_worker_tasks_dedupe_idx ON apex_worker_tasks(dedupe_key) WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')`);
-  await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_queue_idx ON apex_worker_tasks(status, created_at)`);
-  await getPool().query(`CREATE INDEX IF NOT EXISTS apex_worker_tasks_lease_idx ON apex_worker_tasks(status, lease_expires_at)`);
+  await getPool().query("SELECT 1 FROM apex_worker_tasks LIMIT 0");
   return true;
 }
 
 export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null }) {
   if (!durableWorkerEnabled()) return { durable: false, id };
   const db = getPool();
-  await ensureWorkerTaskSchema();
   await db.query(`INSERT INTO apex_worker_tasks
     (id, worker_id, role, task, payload, max_attempts, dedupe_key)
     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
@@ -61,7 +34,6 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
-  await ensureWorkerTaskSchema();
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
@@ -138,7 +110,6 @@ export async function releaseWorkerTasks(taskIds = []) {
 
 export async function requeueExpiredWorkerTasks(limit = 500) {
   if (!durableWorkerEnabled()) return 0;
-  await ensureWorkerTaskSchema();
   const r = await getPool().query(`WITH x AS (
     SELECT id FROM apex_worker_tasks WHERE status='running' AND lease_expires_at<NOW()
     ORDER BY lease_expires_at LIMIT $1
