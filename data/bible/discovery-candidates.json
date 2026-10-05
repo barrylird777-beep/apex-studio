@@ -186,6 +186,54 @@
       "kind": "scholarly-bibliography",
       "url": "https://orion.huji.ac.il/",
       "notes": "Online Dead Sea Scrolls bibliography with 21,000+ entries."
+    },
+    {
+      "id": "etcbc-peshitta",
+      "kind": "research-corpus",
+      "url": "https://github.com/ETCBC/peshitta",
+      "notes": "Peshitta OT Text-Fabric corpus with biblical and extended-family resources."
+    },
+    {
+      "id": "jossifresben-peshitta",
+      "kind": "research-corpus",
+      "url": "https://github.com/Jossifresben/peshitta",
+      "notes": "Syriac Peshitta NT corpus and linguistic/root research data."
+    },
+    {
+      "id": "etcbc-syriac",
+      "kind": "research-corpus",
+      "url": "https://github.com/ETCBC/syriac",
+      "notes": "ETCBC Syriac corpus with Peshitta text."
+    },
+    {
+      "id": "etcbc-bhsa",
+      "kind": "research-corpus",
+      "url": "https://github.com/ETCBC/bhsa",
+      "notes": "Biblical Hebrew Bible with linguistic annotations."
+    },
+    {
+      "id": "aramaic-root-atlas",
+      "kind": "research-corpus",
+      "url": "https://github.com/Jossifresben/aramaic-root-atlas",
+      "notes": "Cross-corpus Aramaic/Syriac research datasets."
+    },
+    {
+      "id": "srophe-manuscripts",
+      "kind": "manuscript-catalog",
+      "url": "https://github.com/srophe/manuscripts",
+      "notes": "Syriac manuscript metadata and manuscript-content records."
+    },
+    {
+      "id": "etcbc-linksyr",
+      "kind": "lexicon",
+      "url": "https://github.com/ETCBC/linksyr",
+      "notes": "Peshitta Syriac lexicon and linguistic resources."
+    },
+    {
+      "id": "bibcrit",
+      "kind": "textual-criticism",
+      "url": "https://github.com/Jossifresben/BibCrit",
+      "notes": "Biblical textual criticism research corpus and analysis datasets."
     }
   ],
   "candidates": [
@@ -1196,6 +1244,223 @@
       "language": "sw-TZ",
       "sourceId": "open-translation-bible",
       "status": "translation"
+    },
+    {
+      "slug": "peshitta-ot-textfabric",
+      "title": "Peshitta Syriac Old Testament — Text-Fabric",
+      "language": "syr",
+      "sourceId": "etcbc-peshitta",
+      "status": "corpus"
+    },
+    {
+      "slug": "peshitta-nt-corpus",
+      "title": "Peshitta Syriac New Testament corpus",
+      "language": "syr",
+      "sourceId": "jossifresben-peshitta",
+      "status": "corpus"
+    },
+    {
+      "slug": "syrnt-textfabric",
+      "title": "Syriac New Testament — Text-Fabric",
+      "language": "syr",
+      "sourceId": "etcbc-syriac",
+      "status": "corpus"
+    },
+    {
+      "slug": "bhsa-hebrew-bible",
+      "title": "Biblical Hebrew Bible + linguistic annotations (BHSA)",
+      "language": "he",
+      "sourceId": "etcbc-bhsa",
+      "status": "linguistic-corpus"
+    },
+    {
+      "slug": "dss-textfabric",
+      "title": "Dead Sea Scrolls Text-Fabric corpus",
+      "language": "he/ar",
+      "sourceId": "etcbc-peshitta",
+      "status": "manuscript-corpus"
+    },
+    {
+      "slug": "etcbc-extrabiblical",
+      "title": "Extra-biblical ETCBC encoded texts",
+      "language": "he/ar",
+      "sourceId": "etcbc-peshitta",
+      "status": "ancient-text"
+    },
+    {
+      "slug": "targum-onkelos-corpus",
+      "title": "Targum Onkelos corpus",
+      "language": "aram",
+      "sourceId": "aramaic-root-atlas",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "targum-jonathan-corpus",
+      "title": "Targum Jonathan corpus",
+      "language": "aram",
+      "sourceId": "aramaic-root-atlas",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "targum-writings-corpus",
+      "title": "Targum Writings corpus",
+      "language": "aram",
+      "sourceId": "aramaic-root-atlas",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "ephrem-nisibis-corpus",
+      "title": "Ephrem Nisibis Syriac corpus",
+      "language": "syr",
+      "sourceId": "aramaic-root-atlas",
+      "status": "patristic"
+    },
+    {
+      "slug": "ephrem-other-works-corpus",
+      "title": "Ephrem other works Syriac corpus",
+      "language": "syr",
+      "sourceId": "aramaic-root-atlas",
+      "status": "patristic"
+    },
+    {
+      "slug": "syriac-manuscript-catalog",
+      "title": "Syriac manuscript catalog records",
+      "language": "syr",
+      "sourceId": "srophe-manuscripts",
+      "status": "manuscript"
+    },
+    {
+      "slug": "peshitta-syriac-lexicon",
+      "title": "Peshitta Syriac lexicon",
+      "language": "syr/en",
+      "sourceId": "etcbc-linksyr",
+      "status": "lexicon"
+    },
+    {
+      "slug": "dead-sea-scroll-biblical-witnesses",
+      "title": "Dead Sea Scrolls biblical witnesses",
+      "language": "he",
+      "sourceId": "dead-sea-scrolls-digital-library",
+      "status": "manuscript"
+    },
+    {
+      "slug": "dead-sea-scroll-nonbiblical-witnesses",
+      "title": "Dead Sea Scrolls non-biblical compositions",
+      "language": "he/ar",
+      "sourceId": "dead-sea-scrolls-digital-library",
+      "status": "ancient-text"
+    },
+    {
+      "slug": "aramaic-biblical-corpus",
+      "title": "Biblical Aramaic corpus",
+      "language": "aram",
+      "sourceId": "aramaic-root-atlas",
+      "status": "corpus"
+    },
+    {
+      "slug": "sbl-greek-new-testament-corpus",
+      "title": "SBL Greek New Testament corpus",
+      "language": "grc",
+      "sourceId": "concord",
+      "status": "original-language"
+    },
+    {
+      "slug": "majority-greek-text-corpus",
+      "title": "Majority Greek Text corpus",
+      "language": "grc",
+      "sourceId": "public-domain-bibles",
+      "status": "original-language"
+    },
+    {
+      "slug": "greek-septuagint-corpus",
+      "title": "Greek Septuagint corpus",
+      "language": "grc",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "vulgate-latin-corpus",
+      "title": "Latin Vulgate corpus",
+      "language": "la",
+      "sourceId": "open-bibles",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "coptic-scripture-corpus",
+      "title": "Coptic Scripture resources",
+      "language": "cop",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "armenian-scripture-corpus",
+      "title": "Armenian Scripture resources",
+      "language": "hy",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "georgian-scripture-corpus",
+      "title": "Georgian Scripture resources",
+      "language": "ka",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "ethiopic-scripture-corpus",
+      "title": "Ge'ez/Ethiopic Scripture resources",
+      "language": "gez",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "gothic-scripture-corpus",
+      "title": "Gothic Bible resources",
+      "language": "got",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "old-church-slavonic-scripture",
+      "title": "Old Church Slavonic Bible resources",
+      "language": "chu",
+      "sourceId": "ebible-org",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "syriac-peshitta-manuscripts",
+      "title": "Syriac Peshitta manuscript witnesses",
+      "language": "syr",
+      "sourceId": "srophe-manuscripts",
+      "status": "manuscript"
+    },
+    {
+      "slug": "bible-knowledge-root-atlas",
+      "title": "Aramaic/Syriac root and cognate knowledge atlas",
+      "language": "aram/syr/he",
+      "sourceId": "aramaic-root-atlas",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "biblical-textual-criticism-dataset",
+      "title": "Biblical textual criticism research corpus",
+      "language": "multilingual",
+      "sourceId": "bibcrit",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "nt-use-of-ot-corpus",
+      "title": "New Testament use-of-Old-Testament analysis corpus",
+      "language": "grc/he/syr",
+      "sourceId": "bibcrit",
+      "status": "knowledge-base"
+    },
+    {
+      "slug": "patristic-syriac-corpus",
+      "title": "Digital Syriac Corpus patristic works",
+      "language": "syr",
+      "sourceId": "srophe-manuscripts",
+      "status": "patristic"
     }
   ],
   "discoveryRun": {
@@ -1214,7 +1479,9 @@
       "Current Find-A-Bible catalog reports 6,722 Bibles across 7,929 languages and 244 countries.",
       "Current Open.Bible catalog reports 945 openly licensed Bible translations.",
       "Dead Sea Scrolls Digital Library exposes fragment-level image and metadata browsing by site, language and content, including biblical and non-biblical compositions.",
-      "Current Open Translation Bible repository lists releases through Swahili and additional languages; each language is captured as a separate edition candidate."
+      "Current Open Translation Bible repository lists releases through Swahili and additional languages; each language is captured as a separate edition candidate.",
+      "BOOST: added concrete textual corpora, manuscript witnesses, linguistic databases, patristic corpora, ancient translations, and textual-criticism datasets rather than only catalog-level records.",
+      "Current research repositories expose Peshitta OT/NT, BHSA Hebrew, Dead Sea Scrolls, Targums, Ephrem, Syriac manuscripts, lexicons and cross-corpus linguistic data."
     ]
   }
 }
