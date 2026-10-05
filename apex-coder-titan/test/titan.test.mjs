@@ -1,17 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { config, validateConfig } from "../src/config.mjs";
+import { config } from "../src/config.mjs";
 
-test("Titan defaults are bounded and explicit", () => {
+test("Titan defaults favor the free fast swarm", () => {
   assert.equal(config.maxDepth, 2);
-  assert.equal(config.implementationRounds, 72);
-  assert.equal(config.repairPasses, 7);
-  assert.equal(config.repairTurns, 20);
-  assert.equal(config.model, "gpt-5.6-sol");
-});
-
-test("configuration reports missing API key without crashing", () => {
-  if (!process.env.OPENAI_API_KEY) {
-    assert.deepEqual(validateConfig(), { ok: false, error: "OPENAI_API_KEY is not configured." });
-  }
+  assert.equal(config.implementationRounds, 12);
+  assert.equal(config.repairPasses, 2);
+  assert.equal(config.repairTurns, 6);
+  assert.equal(config.auditConcurrency, 3);
+  assert.equal(config.model, "openai/gpt-oss-120b");
+  assert.equal(config.geminiModel, "gemini-3.8-flash");
+  assert.equal(config.reasoningEffort, "high");
 });
