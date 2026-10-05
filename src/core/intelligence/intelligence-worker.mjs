@@ -25,12 +25,16 @@ export class IntelligenceWorker {
     }
     if (task.task !== "execute-intelligence-node") {
       await failWorkerTask(task.id, new Error("Unsupported intelligence task"), task.lease_token);
+      this.claimed.delete(task.id);
+      this.runtime.release?.(task.worker_id);
       return true;
     }
 
     const bound = await bindExecutionNodeLease(task.payload?.nodeId, task.id, task.lease_token);
     if (!bound) {
       await failWorkerTask(task.id, new Error("Execution node lease binding rejected"), task.lease_token);
+      this.claimed.delete(task.id);
+      this.runtime.release?.(task.worker_id);
       return true;
     }
 
