@@ -80,6 +80,7 @@ export class IntelligenceWorker {
     } finally {
       clearInterval(heartbeat);
       this.running.delete(task.id);
+      this.runtime.release?.(task.worker_id);
     }
   }
 
