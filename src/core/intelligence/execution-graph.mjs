@@ -38,7 +38,7 @@ export class ExecutionGraph {
       [...(this.edges.get(n.id) ?? [])].every(dep => this.nodes.get(dep)?.status === "completed"));
   }
 
-  async run(executor, { verify = true, signal } = {}) {
+  async run(executor, { verify = true, verifier, signal } = {}) {
     this.assertAcyclic();
     while (true) {
       if (signal?.aborted) throw new Error("Execution aborted");
@@ -48,8 +48,10 @@ export class ExecutionGraph {
         node.status = "running"; node.attempts++;
         try {
           node.result = await executor(node, { signal, graph: this });
-          if (verify && typeof executor.verify === "function") {
-            node.verification = await executor.verify(node, { signal, graph: this });
+          if (verify) {
+            const verifyFn = typeof verifier === "function" ? verifier : executor.verify;
+            if (typeof verifyFn !== "function") throw new Error("Independent verifier required for verified execution");
+            node.verification = await verifyFn(node, { signal, graph: this });
             if (!node.verification?.passed) throw new Error("Verification failed for " + node.name);
           }
           node.status = "completed";
