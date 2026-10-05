@@ -171,7 +171,8 @@ export async function runTitan({ repoPath, assignment, signal, onEvent = () => {
   const state = {
     runId,
     sourceHead,
-    verdict: "RED",
+    evidenceVerdict: "INCONCLUSIVE",
+    requiresFinalInspection: true,
     events: [],
     evidence: [],
     specialists: [],
@@ -306,7 +307,7 @@ export async function runTitan({ repoPath, assignment, signal, onEvent = () => {
 
     assertNotAborted(signal);
     if ((await currentHead(repo)) !== sourceHead) {
-      state.verdict = "RED";
+      state.evidenceVerdict = "FAIL";
       throw new Error("Source HEAD changed while Titan was running; result rejected as a race.");
     }
 
