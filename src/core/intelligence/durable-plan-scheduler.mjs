@@ -29,6 +29,7 @@ export class DurablePlanScheduler {
         });
         if (!enqueued.durable) throw new Error("Durable intelligence scheduling requires DATABASE_URL");
         if (enqueued.existingStatus && !["queued","running"].includes(enqueued.existingStatus)) {
+          this.runtime.release(agent.id);
           await updateExecutionNode(node.id,{status:"pending",last_error:`Existing worker task is terminal: ${enqueued.existingStatus}`});
           continue;
         }
