@@ -40,6 +40,7 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
   let sequence=0;
   const queue=[];
   const active=new Map();
+  const dedupe=new Map();
   const completed=[];
   const failed=[];
   let running=true;
@@ -49,8 +50,16 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
     const task=String(input.task||ROLE_PROMPTS[role]||"Audit and improve the assigned Apex subsystem.");
     if(queue.length>=maxQueue) throw new Error(`AI crew queue capacity exceeded (${maxQueue})`);
     const id=input.id||crypto.randomUUID();
-    const item={id,sequence:++sequence,role,task,context:input.context&&typeof input.context==="object"?input.context:{},createdAt:now(),status:"queued"};
+    const priorityMap={critical:4,high:3,normal:2,low:1};
+    const priority=String(input.priority||"normal").toLowerCase();
+    const context=input.context&&typeof input.context==="object"?input.context:{};
+    const dedupeKey=String(input.dedupeKey||[role,task,JSON.stringify(context)].join("|"));
+    const existing=dedupe.get(dedupeKey);
+    if(existing&&["queued","running"].includes(existing.status)) return {...existing,deduped:true};
+    const item={id,sequence:++sequence,role,task,priority,priorityWeight:priorityMap[priority]||2,context,createdAt:now(),status:"queued",dedupeKey,attempts:0};
+    dedupe.set(dedupeKey,item);
     queue.push(item);
+    queue.sort((a,b)=>b.priorityWeight-a.priorityWeight||a.sequence-b.sequence);
     pump();
     return {...item};
   }
@@ -60,7 +69,13 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
     item.startedAt=now();
     active.set(item.id,item);
     try {
-      const result=await dispatch({
+      let result;
+      let lastError;
+      const maxAttempts=Math.max(1,Math.min(3,Number(item.context?.maxAttempts||process.env.APEX_AI_CREW_MAX_ATTEMPTS)||2));
+      for(let attempt=1;attempt<=maxAttempts;attempt++) {
+        item.attempts=attempt;
+        try {
+          result=await dispatch({
         type:"inference",
         prompt: [
           "APEX AI CREW ASSIGNMENT",
@@ -75,8 +90,23 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
           "6. Return implementation-ready output with acceptance criteria and validation steps.",
           item.context && Object.keys(item.context).length ? "CONTEXT:\n"+JSON.stringify(item.context) : ""
         ].filter(Boolean).join("\n"),
-        system: "You are an autonomous Apex specialist. Work as a member of a coordinated engineering and Bible-production crew. Be precise, evidence-driven, and implementation-oriented."
-      });
+        system: [
+            "You are an autonomous Apex specialist in the "+item.role+" lane.",
+            "Produce concrete, technically actionable work, not generic advice.",
+            "Do not invent repository facts, sources, tests, files, APIs, or capabilities.",
+            "Identify the highest-impact root defect first and give the smallest safe fix.",
+            "Separate verified evidence, inference, and unknowns.",
+            "Prefer parallelizable work, deterministic outputs, idempotency, and measurable acceptance criteria.",
+            "Return implementation-ready output: defect, root cause, change, validation, next attack."
+          ].join(" ")
+          });
+          break;
+        } catch(error) {
+          lastError=error;
+          if(attempt<maxAttempts) await new Promise(resolve=>setTimeout(resolve,Math.min(2000,150*Math.pow(2,attempt-1))));
+        }
+      }
+      if(result===undefined) throw lastError||new Error("AI crew dispatch failed");
       item.status="completed";
       item.result=result;
       item.completedAt=now();
@@ -90,6 +120,7 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
       if(failed.length>recentLimit) failed.shift();
     } finally {
       active.delete(item.id);
+      if(dedupe.get(item.dedupeKey)?.id===item.id) dedupe.delete(item.dedupeKey);
       pump();
     }
   }
@@ -101,7 +132,8 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
 
   function burst(count=32, context={}) {
     const n=Math.max(1,Math.min(Math.max(1,maxQueue-queue.length),Number(count)||32));
-    return Array.from({length:n},(_,i)=>enqueue({role:roles[i%roles.length],context}));
+    const batchId=String(context?.batchId||"");
+    return Array.from({length:n},(_,i)=>{ const role=roles[(roleCursor+i)%roles.length]; return enqueue({role,context,priority:context?.priority,dedupeKey:batchId?[batchId,role].join("|"):undefined}); });
   }
 
   function status() {
