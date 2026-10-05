@@ -41,6 +41,7 @@ import { OmniStore } from "../core/omni-store.mjs";
 import { buildRiskReport, createRiskHandshake } from "../core/omni-risk.mjs";
 import { parseProsody } from "../core/prosody.mjs";
 import { monoCompatibleWidth } from "../core/stereo.mjs";
+import { bibleCatalog } from "../biblical/bible-catalog.mjs";
 import { createEditorProject, addTrack, addClip, addKeyframe, addEffect, addCaption, addMarker, setTransition, createExportPlan, validateEditorProject, trimClip, splitClip, moveClip, removeClip, snapshotEditor, restoreEditor, setTrackState, addTrackGroup, toggleTrackGroup, snapTime, moveClipSnapped } from "../core/editor-engine.mjs";
 
 export function createStudio(options={}) {
@@ -67,6 +68,8 @@ export function createStudio(options={}) {
   studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
   void studio.omniStore.init();
   const searchCollections=()=>[
+    {type:"bible.families",items:bibleCatalog().families},
+    {type:"bible.editions",items:bibleCatalog().editions},
     {type:"projects",items:studio.projects.list()},
     {type:"memories",items:studio.memory.items},
     {type:"assets",items:[...studio.assets.assets.values()]},
@@ -75,7 +78,7 @@ export function createStudio(options={}) {
     {type:"graph.entities",items:[...studio.graph.entities.values()]},
     {type:"graph.relations",items:[...studio.graph.relations.values()]}
   ];
-  studio.searchCapabilities=[...SEARCH_CAPABILITIES,"outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
+  studio.searchCapabilities=[...SEARCH_CAPABILITIES,"bible-catalog","bible-families","bible-editions","outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
   studio._searchCache={index:null,builtAt:0};
   studio.rebuildSearchIndex=(options={})=>{
     const index=buildSearchIndex(searchCollections(),options);
