@@ -137,8 +137,33 @@ function scanSecrets(diff) {
 }
 
 async function finalSecurityScan(worktree) {
+  await git(worktree, ["add", "-N", "--", "."]);
   const diff = await git(worktree, ["diff", "--no-ext-diff", "--unified=0"]);
   return { ok: !scanSecrets(diff.stdout), scannedBytes: Buffer.byteLength(diff.stdout, "utf8") };
+}
+
+async function persistMutation(worktree, runId) {
+  const status = await git(worktree, ["status", "--porcelain"]);
+  if (!status.stdout.trim()) return { changed: false };
+
+  const branch = "titan/" + runId;
+  await git(worktree, ["switch", "-c", branch]);
+  await git(worktree, ["add", "--all"]);
+  const staged = await git(worktree, ["diff", "--cached", "--name-only"]);
+  if (!staged.stdout.trim()) return { changed: false };
+
+  await git(worktree, [
+    "-c", "user.name=Apex Titan",
+    "-c", "user.email=apex-titan@localhost",
+    "commit", "-m", "titan: preserve candidate mutation " + runId
+  ], { timeout: 120_000 });
+
+  return {
+    changed: true,
+    branch,
+    commit: await currentHead(worktree),
+    files: staged.stdout.split("\n").filter(Boolean)
+  };
 }
 
 async function persistEvidence(state) {
@@ -296,11 +321,20 @@ export async function runTitan({ repoPath, assignment, signal, onEvent = () => {
     else if (!checks.length) state.verdict = "YELLOW";
     else state.verdict = "RED";
 
+    if (security.ok) {
+      state.mutation = await persistMutation(work.worktree, runId);
+      emit("mutation.persisted", state.mutation);
+    } else {
+      state.mutation = { changed: false, reason: "security scan failed; candidate not committed" };
+      emit("mutation.rejected", state.mutation);
+    }
+
     emit("king-cob.verdict", {
       verdict: state.verdict,
       evidenceCount: state.evidence.length,
       checks: finalEvidence.map(item => ({ name: item.name, ok: item.ok })),
-      securityOk: security.ok
+      securityOk: security.ok,
+      mutation: state.mutation
     });
   } finally {
     if (work) {
