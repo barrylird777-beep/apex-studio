@@ -160,6 +160,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+
+// Install the API trust boundary before ANY API route, including status/capacity
+// endpoints. Only the explicit public health allowlist can bypass it.
+app.use('/api', ownerAuthMiddleware);
+
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
   success:true,
@@ -185,9 +190,6 @@ app.use('/api/bible-production', async (req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.use(express.static(path.join(__dirname, 'public')));
-// All API routes are owner-protected by default. The auth middleware explicitly
-// allowlists only the public health endpoint and CORS preflight.
-app.use('/api', ownerAuthMiddleware);
 // Persistent SE-X assets are served through a dedicated static mount. The
 // storage module validates all filenames before they are written, while
 // Express prevents traversal outside STORAGE_DIR when serving them.
