@@ -420,6 +420,18 @@
       "kind": "manuscript-metadata",
       "url": "https://iiif.biblissima.fr/",
       "notes": "IIIF manuscript and rare-book metadata/manifests."
+    },
+    {
+      "id": "sinai-portal",
+      "kind": "palimpsest-manuscript-portal",
+      "url": "https://sinaiportal.library.ucla.edu/",
+      "notes": "Sinai manuscript text units, images, languages, genres and IIIF infrastructure."
+    },
+    {
+      "id": "kyprianos",
+      "kind": "coptic-magical-papyri",
+      "url": "https://www.coptic-magic.phil.uni-wuerzburg.de/",
+      "notes": "Coptic Magical Papyri manuscript and text database."
     }
   ],
   "candidates": [
@@ -3152,6 +3164,244 @@
       "language": "multilingual",
       "sourceId": "biblissima",
       "status": "codicology"
+    },
+    {
+      "slug": "coptot-manuscript-images",
+      "title": "CoptOT manuscript image dataset",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "image"
+    },
+    {
+      "slug": "coptot-manuscript-metadata",
+      "title": "CoptOT manuscript metadata API",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "metadata"
+    },
+    {
+      "slug": "coptot-transcription-pages",
+      "title": "CoptOT page-level TEI transcriptions",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "transcription"
+    },
+    {
+      "slug": "coptot-collation-rules",
+      "title": "CoptOT critical-apparatus collation rules",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "textual-criticism"
+    },
+    {
+      "slug": "coptot-extra-biblical-citations",
+      "title": "CoptOT extra-biblical OT citations",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "relationship"
+    },
+    {
+      "slug": "coptot-inscriptions-ostraca",
+      "title": "CoptOT inscriptions and ostraca citations",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "artifact"
+    },
+    {
+      "slug": "coptot-critical-edition-books",
+      "title": "CoptOT critical edition book objects",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "edition"
+    },
+    {
+      "slug": "coptot-english-translations",
+      "title": "CoptOT English translations",
+      "language": "en",
+      "sourceId": "coptot",
+      "status": "translation"
+    },
+    {
+      "slug": "coptot-german-translations",
+      "title": "CoptOT German translations",
+      "language": "de",
+      "sourceId": "coptot",
+      "status": "translation"
+    },
+    {
+      "slug": "coptot-arabic-translations",
+      "title": "CoptOT Arabic translations",
+      "language": "ar",
+      "sourceId": "coptot",
+      "status": "translation"
+    },
+    {
+      "slug": "sinai-textunits-biblical",
+      "title": "Sinai Palimpsests biblical text units",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-textunits-gospels",
+      "title": "Sinai Palimpsests Gospel text units",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-textunits-apocrypha",
+      "title": "Sinai Palimpsests apocryphal text units",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-textunits-commentaries",
+      "title": "Sinai Palimpsests commentary text units",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "commentary"
+    },
+    {
+      "slug": "sinai-textunits-hymnals",
+      "title": "Sinai Palimpsests hymnal text units",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "liturgical"
+    },
+    {
+      "slug": "sinai-textunits-lectionaries",
+      "title": "Sinai Palimpsests lectionary text units",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "liturgical"
+    },
+    {
+      "slug": "sinai-textunits-syriac",
+      "title": "Sinai Palimpsests Syriac text units",
+      "language": "syr",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-textunits-georgian",
+      "title": "Sinai Palimpsests Georgian text units",
+      "language": "kat",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-textunits-greek",
+      "title": "Sinai Palimpsests Greek text units",
+      "language": "grc",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-textunits-coptic",
+      "title": "Sinai Palimpsests Coptic text units",
+      "language": "cop",
+      "sourceId": "sinai-portal",
+      "status": "text-unit"
+    },
+    {
+      "slug": "sinai-iiif-manifests",
+      "title": "Sinai Palimpsests IIIF image manifests",
+      "language": "multilingual",
+      "sourceId": "sinai-portal",
+      "status": "image"
+    },
+    {
+      "slug": "kyprianos-manuscripts",
+      "title": "Kyprianos Coptic Magical Papyri manuscript records",
+      "language": "cop",
+      "sourceId": "kyprianos",
+      "status": "manuscript"
+    },
+    {
+      "slug": "kyprianos-texts",
+      "title": "Kyprianos Coptic Magical Papyri text records",
+      "language": "cop",
+      "sourceId": "kyprianos",
+      "status": "text"
+    },
+    {
+      "slug": "kyprianos-editors",
+      "title": "Kyprianos editor attribution records",
+      "language": "multilingual",
+      "sourceId": "kyprianos",
+      "status": "provenance"
+    },
+    {
+      "slug": "coptic-scriptorium-2.38m-words",
+      "title": "Coptic SCRIPTORIUM 2.38M-word corpus layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "corpus"
+    },
+    {
+      "slug": "coptic-scriptorium-jonah",
+      "title": "Bohairic Jonah corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "coptic-scriptorium-1corinthians",
+      "title": "Sahidic 1 Corinthians manually annotated corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "coptic-scriptorium-life-chrysostom",
+      "title": "Life of John Chrysostom corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "coptic-scriptorium-life-hilaria",
+      "title": "Life of Hilaria corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "hagiography"
+    },
+    {
+      "slug": "coptic-scriptorium-life-marina",
+      "title": "Life of Marina corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "hagiography"
+    },
+    {
+      "slug": "coptic-scriptorium-pseudo-cyril",
+      "title": "Pseudo-Cyril of Alexandria corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "coptic-scriptorium-literary-fragments",
+      "title": "Coptic literary fragments corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "fragment"
+    },
+    {
+      "slug": "coptic-scriptorium-proclus",
+      "title": "Proclus homilies corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "coptic-scriptorium-shenoute",
+      "title": "Shenoute works corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
     }
   ],
   "discoveryRun": {
@@ -3183,7 +3433,8 @@
       "Deep object expansion validated against current source documentation: STEPBible exposes translator tags, tagged OT/NT corpora, lexicons, concept groups, proper-name entities and versification; MACULA exposes nested syntax, lowfat query structures and word-level records; Coptic SCRIPTORIUM exposes token, morpheme, entity, identity, treebank, manuscript-linked and aligned-translation layers.",
       "Fresh source verification: MACULA Greek contains syntax trees, morphology, senses, semantic frames, participant referents, synonyms, mappings and adjunct types; STEPBible TAGNT explicitly tracks per-word edition membership, positional/meaning variants, lexical/morphological tags, plus TIPNR people/places/things and relationships; Coptic SCRIPTORIUM release data includes Bible corpora, papyri, apocrypha, patristic works and Magical Papyri with machine-readable annotation.",
       "Blast-off expansion: moved across Syriac, Greek, Latin, early English print, Jewish textual graph, NT manuscript witnesses, cross-reference edges and semantic Bible metadata. The graph now explicitly models authors, works, volumes, manuscripts, pages, witnesses, people, places, themes, events and relationship edges.",
-      "Fresh verification: CoptOT documents manuscript cataloguing, standardized codex naming, diplomatic/critical editions, translations, Sahidic corpus and citation/lexicographic tools; CSNTM exposes manuscript classifications and feature metadata plus high-resolution images; Princeton Geniza Project publishes thousands of searchable transcriptions and research datasets; Biblissima IIIF records expose manuscript authority, codicology, language, date, shelfmark, contents and image manifests."
+      "Fresh verification: CoptOT documents manuscript cataloguing, standardized codex naming, diplomatic/critical editions, translations, Sahidic corpus and citation/lexicographic tools; CSNTM exposes manuscript classifications and feature metadata plus high-resolution images; Princeton Geniza Project publishes thousands of searchable transcriptions and research datasets; Biblissima IIIF records expose manuscript authority, codicology, language, date, shelfmark, contents and image manifests.",
+      "Fresh surface break: CoptOT explicitly exposes manuscript images, metadata API, page-level TEI transcriptions, collation rules, citations, inscriptions/ostraca, critical editions and translations. Sinai Manuscripts Data Portal currently exposes 401 text units across Arabic, Syriac, Greek, Coptic, Georgian, Armenian, Ge'ez and other languages, with biblical, Gospel, apocryphal, commentary, hymnal and lectionary genres. Kyprianos publishes downloadable manuscript and text tables updated July 2026. Coptic SCRIPTORIUM v6.3 reports over 2.38 million words and new biblical, patristic, hagiographic and fragment corpora."
     ]
   }
 }
