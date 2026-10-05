@@ -13,7 +13,7 @@
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:migrate:workers": "node scripts/migrate-postgres.mjs",
-    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs test/intelligence-platform.test.mjs",
+    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs test/intelligence-platform.test.mjs test/agent-runtime.test.mjs test/intelligence-worker.test.mjs",
     "verify:migrations": "node scripts/verify-postgres-migrations.mjs scripts/spec005-expectations.json",
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
