@@ -19,14 +19,14 @@ export async function ensureWorkerTaskSchema() {
   return true;
 }
 
-export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null }) {
+export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null, traceId = null }) {
   if (!durableWorkerEnabled()) return { durable: false, id };
   const db = getPool();
   await db.query(`INSERT INTO apex_worker_tasks
-    (id, worker_id, role, task, payload, max_attempts, dedupe_key)
-    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
+    (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
+    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
     ON CONFLICT DO NOTHING`,
-    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey]);
+    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey, traceId ? String(traceId).slice(0,255) : null]);
   const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
   return { durable: true, id: existing?.rows?.[0]?.id || id };
 }
@@ -43,12 +43,12 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=gen_random_uuid()::text, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$4, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     FROM candidate
     WHERE t.id=candidate.id
     RETURNING t.*`,
-    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
+    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs, process.pid]);
   return r.rows;
 }
 
@@ -110,6 +110,16 @@ export async function deferWorkerTask(id, delayMs = 1000, reason = "Dependency n
         last_error=$4, updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$5 AND status='running'`,
     [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", safeDelay, String(reason).slice(0,4000), leaseToken]);
+  return r.rowCount === 1;
+}
+
+export async function quarantineWorkerTask(id, reason, leaseToken) {
+  if (!durableWorkerEnabled()) return false;
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const r = await getPool().query(
+    "UPDATE apex_worker_tasks SET status='failed', quarantine_reason=$3, last_error=$3, lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'",
+    [id, owner, String(reason || "QUARANTINED").slice(0,4000), leaseToken]
+  );
   return r.rowCount === 1;
 }
 
