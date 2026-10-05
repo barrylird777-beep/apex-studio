@@ -20,6 +20,7 @@ import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWor
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
+import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -214,39 +215,63 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 // 1. HIGH-AVAILABILITY INFERENCE MESH
 // ============================================================
 
+const aiCircuitBreakers = createAiCircuitBreakerRegistry({
+  failureThreshold: Number(process.env.APEX_AI_FAILURE_THRESHOLD || 5),
+  resetTimeoutMs: Number(process.env.APEX_AI_RESET_TIMEOUT_MS || 10000),
+  maxResetTimeoutMs: Number(process.env.APEX_AI_MAX_RESET_TIMEOUT_MS || 120000),
+  jitterMs: Number(process.env.APEX_AI_JITTER_MS || 2000),
+});
+
+function providerHttpError(provider, response, detail) {
+  const error = new Error(`${provider} ${response.status}${detail ? `: ${detail}` : ''}`);
+  error.status = response.status;
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) error.retryAfterMs = Math.max(0, seconds * 1000);
+    else {
+      const date = Date.parse(retryAfter);
+      if (Number.isFinite(date)) error.retryAfterMs = Math.max(0, date - Date.now());
+    }
+  }
+  return error;
+}
+
 const DEFAULT_SYSTEM =
   'You are Apex Studio production intelligence: research, analytics, scripting utility, audio, video, automation, publishing, experimentation, reliability, security, and operations. Do not invent sources or hidden capabilities.';
 
 async function callOpenAICompatible({ url, apiKey, model, prompt, system, provider, extraHeaders = {}, bodyExtras = {} }) {
   if (!apiKey) throw new Error(provider + ' not configured');
 
-  const response = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      ...extraHeaders,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
-        { role: 'user', content: String(prompt) },
-      ],
-      temperature: 0.8,
-      ...bodyExtras,
-    }),
-  }, 15000);
+  return aiCircuitBreakers.get(provider).execute(async () => {
+    const response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+          { role: 'user', content: String(prompt) },
+        ],
+        temperature: 0.8,
+        ...bodyExtras,
+      }),
+    }, 15000);
 
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
-    throw new Error(`${provider} ${response.status}${detail ? `: ${detail}` : ''}`);
-  }
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+      throw providerHttpError(provider, response, detail);
+    }
 
-  const data = await response.json();
-  const output = data?.choices?.[0]?.message?.content;
-  if (!output) throw new Error('Empty ' + provider + ' response');
-  return String(output).trim();
+    const data = await response.json();
+    const output = data?.choices?.[0]?.message?.content;
+    if (!output) throw new Error('Empty ' + provider + ' response');
+    return String(output).trim();
+  });
 }
 
 async function callMistral(prompt, system) {
@@ -306,29 +331,31 @@ async function callNvidia(prompt, system) {
 
 async function callCohere(prompt, system) {
   if (!process.env.COHERE_API_KEY) throw new Error('Cohere not configured');
-  const response = await fetchWithTimeout('https://api.cohere.com/v2/chat', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: process.env.COHERE_MODEL || 'command-a-03-2025',
-      messages: [
-        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
-        { role: 'user', content: String(prompt) },
-      ],
-      temperature: 0.8,
-    }),
-  }, 15000);
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
-    throw new Error(`Cohere ${response.status}${detail ? `: ${detail}` : ''}`);
-  }
-  const data = await response.json();
-  const output = data?.message?.content?.map?.((part) => part?.text || '').join('').trim();
-  if (!output) throw new Error('Empty Cohere response');
-  return output;
+  return aiCircuitBreakers.get('Cohere').execute(async () => {
+    const response = await fetchWithTimeout('https://api.cohere.com/v2/chat', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.COHERE_MODEL || 'command-a-03-2025',
+        messages: [
+          { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+          { role: 'user', content: String(prompt) },
+        ],
+        temperature: 0.8,
+      }),
+    }, 15000);
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+      throw providerHttpError('Cohere', response, detail);
+    }
+    const data = await response.json();
+    const output = data?.message?.content?.map?.((part) => part?.text || '').join('').trim();
+    if (!output) throw new Error('Empty Cohere response');
+    return output;
+  });
 }
 
 async function callOllama(prompt, system) {
