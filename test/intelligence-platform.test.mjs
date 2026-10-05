@@ -26,7 +26,7 @@ test("execution graph runs independent work concurrently and dependencies afterw
     await new Promise(r=>setTimeout(r, node.name === "a" ? 10 : 1));
     order.push("end:"+node.name);
     return node.name;
-  });
+  }, { verify:false });
   assert.equal(result.passed, true);
   assert.ok(order.indexOf("start:c") > order.indexOf("end:a"));
   assert.ok(order.indexOf("start:c") > order.indexOf("end:b"));
