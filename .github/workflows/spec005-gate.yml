@@ -26,6 +26,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d apex_test"
           --health-interval 2s --health-timeout 3s --health-retries 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
