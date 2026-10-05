@@ -18,5 +18,5 @@ export async function updateScene(id:number,x:any){
   return (await db.select().from(scenes).where(eq(scenes.id,id)).limit(1).execute())[0]??null;
 }
 export async function deleteScene(id:number){
-  return (await db.delete(scenes).where(eq(scenes.id,id)).execute()).rowCount>0;
+  return (await db.delete(scenes).where(eq(scenes.id,id)).execute()).rowCount ?? 0) > 0;
 }
