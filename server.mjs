@@ -21,6 +21,7 @@ import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from '
 import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
+import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -32,6 +33,11 @@ if (durableWorkerEnabled()) {
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
+
+const aiCrew = createAiCrewEngine({
+  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 24))),
+  dispatch: payload => meshWorkerSupervisor.dispatch(payload)
+});
 const permanentWorkerFleet = createPermanentWorkerFleet();
 const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
 for (const worker of permanentWorkerFleet.workers) {
@@ -1268,6 +1274,32 @@ app.post('/api/mesh/jobs', async (req, res) => {
 
 app.get('/api/mesh/workers', (_req, res) => {
   res.json({ success: true, ...meshWorkerSupervisor.status() });
+});
+
+app.get('/api/crew/status', (_req, res) => {
+  res.json({ success: true, crew: aiCrew.status(), fleet: fleetStatus(permanentWorkerFleet), overseer: overseerStatus(apexOverseer, permanentWorkerFleet) });
+});
+
+app.post('/api/crew/jobs', (req, res) => {
+  try {
+    const job = aiCrew.enqueue({
+      role: req.body?.role,
+      task: req.body?.task,
+      context: req.body?.context
+    });
+    res.status(202).json({ success: true, job });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/crew/burst', (req, res) => {
+  try {
+    const jobs = aiCrew.burst(req.body?.count ?? 32, req.body?.context ?? {});
+    res.status(202).json({ success: true, queued: jobs.length, jobs });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
 });
 
 app.get('/api/mesh/status', (_req, res) => {
