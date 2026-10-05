@@ -1,3 +1,4 @@
+import { APEX_LIMITS } from "./apex-limits.mjs";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -9,7 +10,7 @@ export function durableWorkerEnabled() {
 
 function getPool() {
   if (!durableWorkerEnabled()) return null;
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(5, Math.min(20, Number(process.env.APEX_WORKER_DB_POOL_MAX || 12))) });
+  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(5, APEX_LIMITS.WORKER.DB_POOL_MAX, Number(process.env.APEX_WORKER_DB_POOL_MAX || APEX_LIMITS.WORKER.DB_POOL_DEFAULT))) });
   return pool;
 }
 
@@ -34,7 +35,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
-  const safeLimit = Math.max(1, Math.min(256, Number(limit) || 128));
+  const safeLimit = Math.max(1, APEX_LIMITS.WORKER.MAX_BATCH_SIZE, Number(limit) || APEX_LIMITS.WORKER.BATCH_SIZE));
   const safeRole = role == null ? null : String(role).slice(0, 255);
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
