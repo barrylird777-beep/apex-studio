@@ -80,18 +80,19 @@ export function createStudio(options={}) {
     {type:"graph.relations",items:[...studio.graph.relations.values()]}
   ];
   studio.searchCapabilities=[...SEARCH_CAPABILITIES,"bible-catalog","bible-families","bible-editions","outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
-  studio._searchCache={index:null,builtAt:0};
+  studio._searchCache={index:null,builtAt:0,key:""};
   studio._searchCollectionsCache={collections:null,builtAt:0};
   studio.rebuildSearchIndex=(options={})=>{
     const index=buildSearchIndex(searchCollections(),options);
-    studio._searchCache={index,builtAt:Date.now()};
+    studio._searchCache={index,builtAt:Date.now(),key:JSON.stringify(Array.isArray(options.fields)?options.fields:null)};
     return index;
   };
   studio.search=(query,limit=30,options={})=>{
-    const ttl=Math.max(0,Math.min(10000,Number(options.cacheTtlMs??1500)));
+    const ttl=Math.max(0,Math.min(30000,Number(options.cacheTtlMs??10000)));
     const now=Date.now();
     const index=studio._searchCache.index;
-    if (!index || now-studio._searchCache.builtAt>ttl) studio.rebuildSearchIndex(options);
+    const key=JSON.stringify(Array.isArray(options.fields)?options.fields:null);
+    if (!index || key!==studio._searchCache.key || now-studio._searchCache.builtAt>ttl) studio.rebuildSearchIndex(options);
     return searchIndex(studio._searchCache.index,query,limit,options);
   };
   studio.searchIndex=options=>studio.rebuildSearchIndex(options);
