@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "migrations": [
+    {
+      "idx": 0,
+      "tag": "0000_postgres_foundation"
+    },
+    {
+      "idx": 1,
+      "tag": "0001_production_creative"
+    },
+    {
+      "idx": 2,
+      "tag": "0002_durable_worker_claimed"
+    },
+    {
+      "idx": 3,
+      "tag": "0003_asset_provenance"
+    },
+    {
+      "idx": 4,
+      "tag": "0004_worker_support_tables"
+    }
+  ]
+}
