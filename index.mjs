@@ -81,8 +81,17 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const episodeResult = await runWithTrace({ job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") }, () => dispatchEpisodeJob(task));
-      const result = episodeResult ?? await executePermanentHealthTask(task.payload || {});
+      const result = await runWithTrace(
+        { job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") },
+        async () => {
+          const dispatched = await dispatchEpisodeJob(task);
+          if (dispatched !== null) return dispatched;
+          if (String(task?.payload?.type || "") === "permanent-health") {
+            return executePermanentHealthTask(task.payload || {});
+          }
+          throw new Error(`Unknown durable worker task: role=${String(task?.role || "")} task=${String(task?.task || "")}`);
+        }
+      );
       if (result?.deferred) return;
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
