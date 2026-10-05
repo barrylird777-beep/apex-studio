@@ -71,19 +71,33 @@ export function createStudio(options={}) {
     {type:"memories",items:studio.memory.items},
     {type:"assets",items:[...studio.assets.assets.values()]},
     {type:"sources",items:studio.sources.list()},
-    {type:"documents",items:studio.knowledgeBase.list()}
+    {type:"documents",items:studio.knowledgeBase.list()},
+    {type:"graph.entities",items:[...studio.graph.entities.values()]},
+    {type:"graph.relations",items:[...studio.graph.relations.values()]}
   ];
   studio.searchCapabilities=[...SEARCH_CAPABILITIES,"outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
-  studio.search=(query,limit=30,options={})=>universalSearch(query,searchCollections(),limit,options);
-  studio.searchIndex=()=>buildSearchIndex(searchCollections());
-  studio.searchIndexed=(index,query,limit=30)=>searchIndex(index,query,limit);
+  studio._searchCache={index:null,builtAt:0};
+  studio.rebuildSearchIndex=(options={})=>{
+    const index=buildSearchIndex(searchCollections(),options);
+    studio._searchCache={index,builtAt:Date.now()};
+    return index;
+  };
+  studio.search=(query,limit=30,options={})=>{
+    const ttl=Math.max(0,Math.min(10000,Number(options.cacheTtlMs??1500)));
+    const now=Date.now();
+    const index=studio._searchCache.index;
+    if (!index || now-studio._searchCache.builtAt>ttl) studio.rebuildSearchIndex(options);
+    return searchIndex(studio._searchCache.index,query,limit,options);
+  };
+  studio.searchIndex=options=>studio.rebuildSearchIndex(options);
+  studio.searchIndexed=(index,query,limit=30,options={})=>searchIndex(index,query,limit,options);
   studio.searchFederated=async(query,options={})=>studio.sex.search(query,options);
   studio.omniRisk=(input={})=>buildRiskReport(input);
   studio.beginOmniReview=(input={})=>{const h=createRiskHandshake(studio.omniRisk(input));studio.omniHandshakes.set(h.id,h);return h};
   studio.confirmOmniReview=(id,approved)=>{const h=studio.omniHandshakes.get(id);if(!h)throw new Error("Risk review not found");h.state=approved===true?"approved":"cancelled";h.decidedAt=new Date().toISOString();return h};
   studio.command=async(name,args={})=>studio.commandsRouter.dispatch(name,args);
   studio.commandsRouter
-    .register("search",({query,limit=30})=>studio.search(query,limit))
+    .register("search",({query,limit=30,...options})=>studio.search(query,limit,options))
     .register("omni.risk",input=>buildRiskReport(input))
     .register("omni.prosody",input=>parseProsody(input.text))
     .register("omni.stereo",input=>monoCompatibleWidth(input))
