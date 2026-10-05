@@ -101,10 +101,16 @@ if (!workerOnly) {
     console.log(`[apex-worker] ${signal} received; draining`);
     const deadline = Date.now() + shutdownDeadlineMs;
     while (inFlight.size && Date.now() < deadline) await sleep(250);
-    const unstarted = [...claimed.values()].filter(task => !inFlight.has(task.id)).map(task => task.id);
-    await releaseWorkerTasks(unstarted, unstarted.map(id => claimed.get(id)?.lease_token).filter(Boolean)).catch(error => {
-      console.error("[apex-worker] release failed:", error?.message || error);
-    });
+
+    const unstartedTasks = [...claimed.values()].filter(task => !inFlight.has(task.id));
+    if (unstartedTasks.length) {
+      await releaseWorkerTasks(
+        unstartedTasks.map(task => task.id),
+        unstartedTasks.map(task => task.lease_token)
+      ).catch(error => {
+        console.error("[apex-worker] release failed:", error?.message || error);
+      });
+    }
     process.exit(0);
   };
 
