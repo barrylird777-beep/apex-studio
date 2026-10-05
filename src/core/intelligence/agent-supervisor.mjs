@@ -10,10 +10,10 @@ export class AgentSupervisor {
     return {agentId,healthy:Boolean(a)&&a.status==="ready"&&cooldownUntil<=Date.now(),failures,cooldownUntil};
   }
   async recordFailure(agentId) {
-    const result=await this.runtime.quarantine(agentId);
-    this.failures.set(agentId,(this.failures.get(agentId)??0)+1);
-    if((this.failures.get(agentId)??0)<this.failureThreshold) await this.runtime.revive(agentId);
-    else this.cooldowns.set(agentId,Date.now()+this.cooldownMs);
+    const result=await this.runtime.quarantine(agentId, this.failureThreshold);
+    const failures=Number(result?.failure_count ?? ((this.failures.get(agentId)??0)+1));
+    this.failures.set(agentId,failures);
+    if(failures>=this.failureThreshold) this.cooldowns.set(agentId,Date.now()+this.cooldownMs);
     return {durable:result,...this.health(agentId)};
   }
   async recordSuccess(agentId) {
