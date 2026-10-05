@@ -28,8 +28,10 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
     ON CONFLICT DO NOTHING`,
     [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey]);
-  const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
-  return { durable: true, id: existing?.rows?.[0]?.id || id };
+  const existing = dedupeKey
+    ? await db.query("SELECT id,status FROM apex_worker_tasks WHERE dedupe_key=$1 LIMIT 1", [dedupeKey])
+    : null;
+  return { durable: true, id: existing?.rows?.[0]?.id || id, existingStatus: existing?.rows?.[0]?.status || null };
 }
 
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
