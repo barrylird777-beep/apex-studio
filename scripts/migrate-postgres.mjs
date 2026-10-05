@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -9,7 +10,7 @@ if (!url) {
   process.exit(2);
 }
 
-const root = path.resolve(new URL("..", import.meta.url).pathname);
+const root = path.dirname(fileURLToPath(new URL("../", import.meta.url)));
 const dir = path.join(root, "postgres", "migrations");
 const pool = new Pool({ connectionString: url });
 
