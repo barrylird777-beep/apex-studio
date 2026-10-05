@@ -71,6 +71,7 @@ if (!workerOnly) {
 
   const inFlight = new Map();
   const claimed = new Map();
+  const started = new Set();
 
   const executeTask = async (task) => {
     const heartbeat = setInterval(() => {
@@ -103,10 +104,12 @@ if (!workerOnly) {
 
   const runTask = async (task) => {
     claimed.set(task.id, task);
+    started.add(task.id);
     inFlight.set(task.id, task);
     try { await executeTask(task); }
     finally {
       inFlight.delete(task.id);
+      started.delete(task.id);
       claimed.delete(task.id);
     }
   };
@@ -118,7 +121,7 @@ if (!workerOnly) {
     const deadline = Date.now() + shutdownDeadlineMs;
     while (inFlight.size && Date.now() < deadline) await sleep(250);
 
-    const unstartedTasks = [...claimed.values()].filter(task => !inFlight.has(task.id));
+    const unstartedTasks = [...claimed.values()].filter(task => !started.has(task.id));
     if (unstartedTasks.length) {
       await releaseWorkerTasks(
         unstartedTasks.map(task => task.id),
