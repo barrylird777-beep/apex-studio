@@ -1,4 +1,4 @@
-import { pool as defaultPool } from "../db/index.ts";
+import { pool as defaultPool } from "../db/index";
 
 function metricLabel(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
