@@ -11,13 +11,13 @@ test("intelligence worker validates independent verification before completion",
       return { output: "x", verification: { passed: true, verifier: "independent-check" } };
     }
   };
-  const worker = new IntelligenceWorker({ runtime, scheduler });
+  const worker = new IntelligenceWorker({ runtime, scheduler, verifier: async () => ({ passed: true, verifier: "independent-qa" }) });
   assert.equal(typeof worker.processOne, "function");
   assert.equal(typeof worker.stop, "function");
   assert.deepEqual(calls, []);
 });
 
 test("intelligence worker exposes bounded concurrency", () => {
-  const worker = new IntelligenceWorker({ runtime: {}, scheduler: {}, concurrency: 100 });
+  const worker = new IntelligenceWorker({ runtime: {}, scheduler: {}, verifier: async () => ({ passed: true, verifier: "qa" }), concurrency: 100 });
   assert.equal(worker.concurrency, 32);
 });
