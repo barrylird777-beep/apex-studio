@@ -19,7 +19,9 @@ export class AgentRuntime {
   }
   async registerSpecialist(input={}) { return this.registerAgent({...input,metadata:{...(input.metadata??{}),specialist:true}}); }
   getAgent(id){return structuredClone(this.agents.get(id)??null)}
-  listAgents(){return [...this.agents.values()].map(structuredClone)}
+  listAgents(){return [...this.agents.values()].map(a=>({...structuredClone(a),active:this.active.get(a.id)??0}))}
+  reserve(agentId){const a=this.agents.get(agentId);if(!a||a.status!=="ready")return false;const n=this.active.get(agentId)??0;if(n>=a.maxConcurrency)return false;this.active.set(agentId,n+1);return true}
+  release(agentId){const n=this.active.get(agentId)??0;if(n<=1)this.active.delete(agentId);else this.active.set(agentId,n-1)}
   async heartbeat(agentId,status="ready"){const a=this.agents.get(agentId);if(!a)throw new Error("Agent not registered: "+agentId);a.status=status;return heartbeatDurableAgent(agentId,status)}
   async quarantine(agentId){const result=await setDurableAgentFailure(agentId);const a=this.agents.get(agentId);if(a&&result)a.status=result.status;return result}
   async revive(agentId){const result=await reviveDurableAgent(agentId);if(result){const a=this.agents.get(agentId);if(a)a.status="ready"}return result}
