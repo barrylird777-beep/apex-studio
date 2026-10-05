@@ -97,7 +97,7 @@ meshWorkerSupervisor.start();
 permanentWorkerSupervisor.start();
 
 const aiCrew = createAiCrewEngine({
-  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 24))),
+  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 48))),
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
 
@@ -113,10 +113,10 @@ if (aiCrewAutoRun) {
       'Surface blockers with a workaround path rather than stopping.'
     ]
   };
-  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 32))), crewContext);
+  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 96))), crewContext);
   const aiCrewPulse = setInterval(() => {
-    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 16))), crewContext);
-  }, Math.max(30000, Number(process.env.APEX_AI_CREW_PULSE_MS || 60000)));
+    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 48))), crewContext);
+  }, Math.max(30000, Number(process.env.APEX_AI_CREW_PULSE_MS || 15000)));
   aiCrewPulse.unref?.();
 }
 
