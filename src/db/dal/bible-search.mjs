@@ -26,6 +26,36 @@ export class BibleSearch {
     this.pool = pool ?? createDefaultPool();
   }
 
+  async search(queryText, { limit = 50, collectionId = null, similarityThreshold = 0.3 } = {}) {
+    const query = cleanQuery(queryText);
+    if (!query) return [];
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL pg_trgm.similarity_threshold = $1", [Number(similarityThreshold)]);
+      const params = [query, safeLimit(limit)];
+      const scope = collectionId == null ? "" : " AND p.collection_id = $3";
+      if (collectionId != null) params.push(Number(collectionId));
+      const { rows } = await client.query(
+        `SELECT p.id, p.collection_id, p.source_id, p.reference, p.book, p.chapter,
+                p.verse_start, p.verse_end, p.text,
+                similarity(p.text, $1) AS similarity
+           FROM bible_passages p
+          WHERE p.text % $1${scope}
+          ORDER BY similarity DESC, p.id ASC
+          LIMIT $2`,
+        params
+      );
+      await client.query("COMMIT");
+      return rows;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async fuzzySearch(queryText, { limit = 50, collectionId = null } = {}) {
     const query = cleanQuery(queryText);
     if (!query) return [];
