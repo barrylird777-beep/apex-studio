@@ -1,5 +1,5 @@
 import { claimNextWorkerTask, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
-import { updateExecutionNode, appendAgentEvent } from "./durable-control-plane.mjs";
+import { updateExecutionNodeForLease, appendAgentEvent } from "./durable-control-plane.mjs";
 
 export class IntelligenceWorker {
   constructor({ runtime, scheduler, concurrency = 4, leaseMs = 45000 } = {}) {
@@ -35,7 +35,8 @@ export class IntelligenceWorker {
         throw new Error("Intelligence node executor requires independent verification evidence");
       }
 
-      await updateExecutionNode(task.payload.nodeId, { verification: verified, status: "completed" });
+      const nodeCompleted = await updateExecutionNodeForLease(task.payload.nodeId, task.id, task.lease_token, { verification: verified, status: "completed" });
+      if (!nodeCompleted) throw new Error("Execution node lease fence rejected completion");
       const fenced = await completeWorkerTask(task.id, result, task.lease_token);
       if (!fenced) throw new Error("Worker lease lost before task completion");
       await appendAgentEvent({
@@ -46,7 +47,7 @@ export class IntelligenceWorker {
       });
       return true;
     } catch (error) {
-      await updateExecutionNode(task.payload?.nodeId, {
+      await updateExecutionNodeForLease(task.payload?.nodeId, task.id, task.lease_token, {
         status: "failed",
         last_error: String(error?.message || error)
       }).catch(() => {});
