@@ -23,12 +23,20 @@ export function log(level, message, fields = {}) {
 
 let currentElu = 0;
 let lastElu = performance.eventLoopUtilization();
+let pressureSamples = 0;
+let recoverySamples = 0;
 
 export function startLoadShedder({ intervalMs = 1000, threshold = 0.9 } = {}) {
   const timer = setInterval(() => {
     const now = performance.eventLoopUtilization();
-    currentElu = performance.eventLoopUtilization(now, lastElu).utilization;
+    const sample = performance.eventLoopUtilization(now, lastElu).utilization;
     lastElu = now;
+    if (sample >= 0.9) { pressureSamples++; recoverySamples = 0; }
+    else if (sample <= 0.75) { recoverySamples++; pressureSamples = 0; }
+    else { pressureSamples = Math.max(0, pressureSamples - 1); recoverySamples = 0; }
+    if (pressureSamples >= 2) currentElu = sample;
+    else if (recoverySamples >= 2) currentElu = sample;
+    else currentElu = Math.max(0, Math.min(1, currentElu * 0.7 + sample * 0.3));
   }, Math.max(250, intervalMs));
   timer.unref?.();
   return () => clearInterval(timer);
