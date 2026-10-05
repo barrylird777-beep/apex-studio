@@ -61,10 +61,10 @@ export async function materializePlanNodes(planId,nodes) {
   try {
     await client.query("BEGIN");
     for (const n of nodes) await client.query(`INSERT INTO apex_execution_nodes
-      (id,plan_id,name,capability,depends_on,max_attempts)
-      VALUES($1,$2,$3,$4,$5::uuid[],$6)
+      (id,plan_id,name,capability,depends_on,max_attempts,input,metadata)
+      VALUES($1,$2,$3,$4,$5::uuid[],$6,$7::jsonb,$8::jsonb)
       ON CONFLICT(plan_id,name) DO NOTHING`,
-      [n.id,planId,n.name,n.capability,n.dependsOn||[],n.maxAttempts||3]);
+      [n.id,planId,n.name,n.capability,n.dependsOn||[],n.maxAttempts||3,json(n.input),json(n.metadata)]);
     await client.query("COMMIT");
     return {durable:true,count:nodes.length};
   } catch(e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
