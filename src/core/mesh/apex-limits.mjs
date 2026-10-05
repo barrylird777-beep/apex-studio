@@ -1,22 +1,22 @@
 // @ts-check
 
-/** Canonical capacity contract. Runtime workers remain bounded by these ceilings. */
+/** Canonical high-throughput capacity contract. Runtime remains bounded by explicit infrastructure ceilings. */
 export const APEX_LIMITS = Object.freeze({
   WORKER: Object.freeze({
-    CONCURRENCY: 128,
-    MAX_CONCURRENCY: 256,
-    BATCH_SIZE: 128,
-    MAX_BATCH_SIZE: 256,
+    CONCURRENCY: 256,
+    MAX_CONCURRENCY: 512,
+    BATCH_SIZE: 256,
+    MAX_BATCH_SIZE: 512,
     LEASE_TTL_SECONDS: 45,
     HEARTBEAT_INTERVAL_MS: 15000,
-    DB_POOL_DEFAULT: 12,
-    DB_POOL_MAX: 20,
+    DB_POOL_DEFAULT: 24,
+    DB_POOL_MAX: 32,
   }),
   AI_CREW: Object.freeze({
-    IN_MEMORY_CONCURRENCY: 64,
-    MAX_CONCURRENCY_BOUND: 256,
-    QUEUE_CAPACITY: 10000,
-    MAX_QUEUE_CAPACITY: 20000,
+    IN_MEMORY_CONCURRENCY: 128,
+    MAX_CONCURRENCY_BOUND: 512,
+    QUEUE_CAPACITY: 50000,
+    MAX_QUEUE_CAPACITY: 100000,
     EMBEDDING_DIMENSION: 1536,
   }),
   GEMINI: Object.freeze({
@@ -32,7 +32,11 @@ export const APEX_LIMITS = Object.freeze({
     MAX_BLACK_INTERVAL_SECONDS: 3,
     MAX_SILENCE_SECONDS: 5,
   }),
-  INFRASTRUCTURE: Object.freeze({ NODE_VERSION: "22+", DATABASE: "PostgreSQL", VECTOR_INDEX: "pgvector/HNSW" }),
+  INFRASTRUCTURE: Object.freeze({
+    NODE_VERSION: "22+",
+    DATABASE: "PostgreSQL",
+    VECTOR_INDEX: "pgvector/HNSW"
+  }),
 });
 
 export default APEX_LIMITS;
