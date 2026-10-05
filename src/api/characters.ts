@@ -27,5 +27,5 @@ export async function updateCharacter(id:number,x:CharacterInput){
 }
 export async function deleteCharacter(id:number){
   const result=await db.delete(characters).where(eq(characters.id,id)).execute();
-  return result.rowCount>0;
+  return (result.rowCount ?? 0)>0;
 }
