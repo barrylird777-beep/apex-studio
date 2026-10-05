@@ -34,10 +34,6 @@ const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
 
-const aiCrew = createAiCrewEngine({
-  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 24))),
-  dispatch: payload => meshWorkerSupervisor.dispatch(payload)
-});
 const permanentWorkerFleet = createPermanentWorkerFleet();
 const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
 for (const worker of permanentWorkerFleet.workers) {
@@ -99,6 +95,12 @@ const permanentWorkerSupervisor = new WorkerSupervisor({
 
 meshWorkerSupervisor.start();
 permanentWorkerSupervisor.start();
+
+const aiCrew = createAiCrewEngine({
+  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 24))),
+  dispatch: payload => meshWorkerSupervisor.dispatch(payload)
+});
+
 
 const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
