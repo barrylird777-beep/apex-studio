@@ -19,7 +19,7 @@ export async function createShootDay({projectId,shootDate,callTime=null,notes=""
   const row=created?(await db.select().from(shootDays).where(eq(shootDays.id,created.id)).limit(1).execute())[0]:null;
   return row?mapDay(row):null;
 }
-export async function deleteShootDay(id:number){return (await db.delete(shootDays).where(eq(shootDays.id,id)).execute()).rowCount>0;}
+export async function deleteShootDay(id:number){return (await db.delete(shootDays).where(eq(shootDays.id,id)).execute()).rowCount ?? 0) > 0;}
 export async function getDay(id:number){const row=(await db.select().from(shootDays).where(eq(shootDays.id,id)).limit(1).execute())[0];return row ? mapDay(row) : null;}
 export async function listDays(projectId:number){return (await db.select().from(shootDays).where(eq(shootDays.projectId,projectId)).orderBy(asc(shootDays.date),asc(shootDays.id)).execute()).map(mapDay);}
 export async function listAssignments(projectId:number){
