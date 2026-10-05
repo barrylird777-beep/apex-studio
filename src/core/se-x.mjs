@@ -112,16 +112,18 @@ export class SexEngine {
     this.timeoutMs = timeoutMs;
   }
 
-  async search(query, { sources = [], approved = false } = {}) {
+  async search(query, { sources = [], approved = false, mode = "federated", maxResults = 100, metadata = {} } = {}) {
     const startedAt = now();
     const run = {
       id: uid("search"),
       query: String(query ?? ""),
-      mode: "STANDARD",
+      mode: String(mode || "federated").toUpperCase(),
       startedAt,
       status: "running",
       fragments: fragments(query),
-      sources: [...new Set(sources.map(String))]
+      sources: [...new Set(sources.map(String))],
+      capabilities: ["web-retrieval", "redirect-safe", "content-size-limited", "timeout-bounded", "parallel-fetch", "provenance"],
+      metadata: metadata && typeof metadata === "object" ? metadata : {}
     };
 
     this.events?.emit?.("sex.started", run);
@@ -140,7 +142,7 @@ export class SexEngine {
       }
     });
 
-    run.results = results;
+    run.results = results.filter(Boolean).slice(0, Math.max(1, Math.min(1000, Number(maxResults) || 100)));
     run.finishedAt = now();
     run.status = "complete";
     await this.store?.append?.("search_runs", run);
