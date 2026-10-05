@@ -116,94 +116,18 @@ function rankIndex(index, query, limit, options = {}) {
   const max = Math.max(1, Math.min(1000, Number(limit) || 30));
   const filters = options.filters ?? {};
   const ids = candidateIds(index, q);
-  const out = new Array(Math.min(ids.length, max));
-  let outLength = 0;
+  const out = [];
 
   for (const id of ids) {
     const record = index.recordsById.get(id);
     if (!record || !matchesFilters(record.item, filters)) continue;
     const score = scoreRecord(q, record, qTokens);
     if (score <= 0) continue;
-    if (outLength < out.length) {
-      out[outLength++] = {
-        type: record.type,
-        item: record.item,
-        score: Number(score.toFixed(4)),
-        matchedQuery: q,
-        matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
-      };
-    } else {
-      out.push({
-        type: record.type,
-        item: record.item,
-        score: Number(score.toFixed(4)),
-        matchedQuery: q,
-        matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
-      });
-    }
+    out.push({
+      type: record.type,
+      item: record.item,
+      score: Number(score.toFixed(4)),
+      matchedQuery: q,
+      matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
+    });
   }
-
-  // Exact/phrase hits should dominate, then relevance, then stable identity.
-  out.length = outLength;
-  return out.sort((a, b) => b.score - a.score || String(a.item?.id ?? "").localeCompare(String(b.item?.id ?? ""))).slice(0, max);
-}
-
-export function universalSearch(query, collections = [], limit = 30, options = {}) {
-  const index = buildSearchIndex(collections, options);
-  return rankIndex(index, query, limit, options);
-}
-
-export function buildSearchIndex(collections = [], options = {}) {
-  const fields = Array.isArray(options.fields) && options.fields.length ? options.fields : DEFAULT_FIELDS;
-  const recordsById = new Map();
-  const inverted = new Map();
-
-  for (const c of collections) {
-    for (const item of c.items ?? []) {
-      const id = identityFor(c.type ?? "record", item);
-      if (recordsById.has(id)) continue;
-
-      const fieldsMap = Object.fromEntries(fields.map(field => [field, normalize(fieldValue(item, field))]));
-      const text = fields.map(field => fieldsMap[field]).join(" ").trim();
-      const tokens = tokenize(text);
-      const record = {
-        id,
-        type: c.type ?? "record",
-        item,
-        fields: fieldsMap,
-        text,
-        tokens,
-        tokenSet: new Set(tokens)
-      };
-      recordsById.set(id, record);
-      for (const token of tokens) {
-        let posting = inverted.get(token);
-        if (!posting) inverted.set(token, posting = []);
-        posting.push(id);
-      }
-    }
-  }
-
-  for (const posting of inverted.values()) posting.sort();
-  return {
-    version: 3,
-    createdAt: new Date().toISOString(),
-    fields,
-    records: [...recordsById.values()],
-    recordsById,
-    inverted,
-    size: recordsById.size,
-    tokenCount: inverted.size
-  };
-}
-
-export function searchIndex(index, query, limit = 30, options = {}) {
-  if (!index?.recordsById || !index?.inverted) return [];
-  return rankIndex(index, query, limit, options);
-}
-
-export const SEARCH_CAPABILITIES = Object.freeze([
-  "exact", "token", "phrase", "field-aware", "cross-collection", "deduplicated", "ranked",
-  "knowledge-graph-aware", "multilingual-unicode", "deep-limit", "federated-source-ready",
-  "inverted-index", "candidate-pruning", "filter-aware", "stable-ranking"
-]);
