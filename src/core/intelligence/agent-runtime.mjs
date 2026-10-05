@@ -14,7 +14,9 @@ export class AgentRuntime {
     const agent={id:String(input.id),role:String(input.role??"general"),capabilities:[...new Set(input.capabilities.map(String))],
       tools:[...new Set((input.tools??[]).map(String))],permissions:[...new Set((input.permissions??[]).map(String))],
       status:"ready",maxConcurrency:Math.max(1,Number(input.maxConcurrency??1)),metadata:input.metadata??{},createdAt:new Date().toISOString()};
-    this.agents.set(agent.id,agent); await registerDurableAgent(agent); await appendAgentEvent({agentId:agent.id,eventType:"registered",payload:{role:agent.role}});
+    await registerDurableAgent(agent);
+    await appendAgentEvent({agentId:agent.id,eventType:"registered",payload:{role:agent.role}});
+    this.agents.set(agent.id,agent);
     return structuredClone(agent);
   }
   async registerSpecialist(input={}) { return this.registerAgent({...input,metadata:{...(input.metadata??{}),specialist:true}}); }
