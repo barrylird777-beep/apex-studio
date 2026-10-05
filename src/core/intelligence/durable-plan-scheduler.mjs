@@ -51,8 +51,12 @@ export class DurablePlanScheduler {
     await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_started"});
     try {
       const result=await this.executor(task,{signal, runtime:this.runtime});
-      await updateExecutionNode(nodeId,{status:"completed",result});
-      await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_completed"});
+      const verification=result?.verification;
+      if (!verification || verification.passed !== true) {
+        throw new Error("Node execution requires independent verification evidence before completion");
+      }
+      await updateExecutionNode(nodeId,{status:"completed",result,verification});
+      await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_completed",payload:{verified:true}});
       return result;
     } catch(error) {
       await updateExecutionNode(nodeId,{status:"failed",last_error:String(error?.message||error)});
