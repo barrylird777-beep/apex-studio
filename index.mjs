@@ -102,7 +102,7 @@ if (!workerOnly) {
     const deadline = Date.now() + shutdownDeadlineMs;
     while (inFlight.size && Date.now() < deadline) await sleep(250);
     const unstarted = [...claimed.values()].filter(task => !inFlight.has(task.id)).map(task => task.id);
-    await releaseWorkerTasks(unstarted).catch(error => {
+    await releaseWorkerTasks(unstarted, unstarted.map(id => claimed.get(id)?.lease_token).filter(Boolean)).catch(error => {
       console.error("[apex-worker] release failed:", error?.message || error);
     });
     process.exit(0);

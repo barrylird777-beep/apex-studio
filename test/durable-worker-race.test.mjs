@@ -92,3 +92,15 @@ test("external side effect idempotency key admits only one caller", { skip: !has
   try { await db.query("DELETE FROM apex_external_effects WHERE idempotency_key=$1", [key]); }
   finally { await db.end(); await closeWorkerStore(); }
 });
+
+
+test("shutdown release requires matching lease tokens", { skip: !hasDatabase }, async () => {
+  const id = crypto.randomUUID();
+  await ensureWorkerTaskSchema();
+  await enqueueWorkerTask({ id, workerId: "release-test", role: "general", task: "release" });
+  const task = await claimWorkerTask(id, 15000);
+  assert.ok(task?.lease_token);
+  assert.equal(await (await import("../src/core/mesh/durable-worker-store.mjs")).releaseWorkerTasks([id], ["wrong-token"]), 0);
+  assert.equal(await (await import("../src/core/mesh/durable-worker-store.mjs")).releaseWorkerTasks([id], [task.lease_token]), 1);
+  await closeWorkerStore();
+});
