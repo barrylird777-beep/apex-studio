@@ -67,9 +67,10 @@ export function createStudio(options={}) {
   };
   studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
   void studio.omniStore.init();
+  const bibleCatalogSnapshot=bibleCatalog();
   const searchCollections=()=>[
-    {type:"bible.families",items:bibleCatalog().families},
-    {type:"bible.editions",items:bibleCatalog().editions},
+    {type:"bible.families",items:bibleCatalogSnapshot.families},
+    {type:"bible.editions",items:bibleCatalogSnapshot.editions},
     {type:"projects",items:studio.projects.list()},
     {type:"memories",items:studio.memory.items},
     {type:"assets",items:[...studio.assets.assets.values()]},
