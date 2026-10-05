@@ -93,6 +93,24 @@ export async function claimReadyExecutionNodes(limit=20) {
   return r.rows;
 }
 
+export async function updateExecutionNodeForLease(id, workerTaskId, leaseToken, patch={}) {
+  if (!enabled()) return false;
+  const allowed = new Set(["status","result","verification","last_error"]);
+  const fields=[]; const values=[id,workerTaskId,leaseToken]; let i=4;
+  for (const [key,value] of Object.entries(patch)) {
+    if (!allowed.has(key)) continue;
+    fields.push(key+"=$"+i+(["result","verification"].includes(key)?"::jsonb":""));
+    values.push(["result","verification"].includes(key)?json(value):value); i++;
+  }
+  if (!fields.length) return false;
+  fields.push("updated_at=NOW()");
+  const r=await db().query(
+    "UPDATE apex_execution_nodes SET "+fields.join(",")+" WHERE id=$1 AND worker_task_id=$2 AND worker_lease_token=$3",
+    values
+  );
+  return r.rowCount===1;
+}
+
 export async function updateExecutionNode(id, patch={}) {
   if (!enabled()) return false;
   const fields=[]; const values=[id]; let i=2;
