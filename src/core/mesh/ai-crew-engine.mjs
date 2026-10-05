@@ -132,8 +132,10 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
 
   function burst(count=32, context={}) {
     const n=Math.max(1,Math.min(Math.max(1,maxQueue-queue.length),Number(count)||32));
-    const batchId=String(context?.batchId||"");
-    return Array.from({length:n},(_,i)=>{ const role=roles[(roleCursor+i)%roles.length]; return enqueue({role,context,priority:context?.priority,dedupeKey:batchId?[batchId,i].join("|"):undefined}); });
+    const batchId=String(context?.batchId||crypto.randomUUID());
+    const jobs=Array.from({length:n},(_,i)=>{ const role=roles[(roleCursor+i)%roles.length]; return enqueue({role,context:{...context,batchId},priority:context?.priority,dedupeKey:[batchId,i].join("|")}); });
+    roleCursor=(roleCursor+n)%Math.max(1,roles.length);
+    return jobs;
   }
 
   function status() {
