@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "start": "tsx src/api/server.ts",
+    "check": "npm run typecheck && npm test",
+    "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "node scripts/migrate-postgres.mjs",
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
