@@ -207,18 +207,33 @@ const seedCharacters = [
 
 export async function seed() {
   console.log("Seeding characters...");
-  const existing = db.select({ id: characters.id, canonicalName: characters.canonicalName }).from(characters).all();
+  const existing = await db
+    .select({ id: characters.id, canonicalName: characters.canonicalName })
+    .from(characters);
   const byName = new Map(existing.map(row => [row.canonicalName, row.id]));
+
   for (const character of seedCharacters) {
     const id = byName.get(character.canonicalName);
-    if (id) {
-      db.update(characters).set(character).where(eq(characters.id, id)).run();
+    if (id !== undefined) {
+      await db
+        .update(characters)
+        .set(character)
+        .where(eq(characters.id, id));
     } else {
-      const inserted = db.insert(characters).values(character).returning({ id: characters.id }).get();
-      byName.set(character.canonicalName, inserted.id);
+      const inserted = await db
+        .insert(characters)
+        .values(character)
+        .returning({ id: characters.id });
+      const row = inserted[0];
+      if (!row) throw new Error(`Failed to insert character: ${character.canonicalName}`);
+      byName.set(character.canonicalName, row.id);
     }
   }
+
   console.log(`Seeded/updated ${seedCharacters.length} canonical character records; preserved existing non-seed records.`);
 }
 
-seed().catch(error => { console.error(error); process.exitCode = 1; });
+seed().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

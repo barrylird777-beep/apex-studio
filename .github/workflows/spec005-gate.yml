@@ -14,6 +14,18 @@ jobs:
   spec005-gate:
     name: spec005-gate
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: apex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d apex_test"
+          --health-interval 2s --health-timeout 3s --health-retries 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,8 +39,13 @@ jobs:
       - name: Migrations rebuild expected schema from empty
         run: npm run verify:migrations
       - name: Real migrate on a fresh database
-        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
+        run: |
+          npm run db:migrate
       - name: Start server and wait for it
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
         run: |
           (PORT=3000 npm start > /tmp/apex-server.log 2>&1 & echo $! > /tmp/apex-server.pid)
           for i in $(seq 1 30); do
