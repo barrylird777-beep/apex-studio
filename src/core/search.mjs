@@ -86,9 +86,8 @@ function candidateIds(index, query) {
   // AND first: precise multi-token queries stay tiny. Fall back to union for recall.
   if (usable.length === tokens.length) {
     const smallest = [...postings].sort((a, b) => a.length - b.length)[0];
-    const others = new Set(usable.flat());
-    const intersection = smallest.filter(id => others.has(id) &&
-      usable.every(posting => posting.includes(id)));
+    const postingSets = usable.map(posting => new Set(posting));
+    const intersection = smallest.filter(id => postingSets.every(set => set.has(id)));
     if (intersection.length) return intersection;
   }
   return [...new Set(usable.flat())];
