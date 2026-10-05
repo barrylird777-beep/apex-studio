@@ -32,11 +32,11 @@ const ROLE_PROMPTS = Object.freeze({
 
 const now=()=>new Date().toISOString();
 
-export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), concurrency=16 }={}) {
+export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), concurrency=64 }={}) {
   if(typeof dispatch!=="function") throw new TypeError("AI crew dispatch function is required");
-  const safeConcurrency=Math.max(1,Math.min(128,Number(concurrency)||16));
+  const safeConcurrency=Math.max(1,Math.min(256,Number(concurrency)||64));
   const durable=durableWorkerEnabled();
-  const maxQueue=Math.max(safeConcurrency,Math.min(5000,Number(process.env.APEX_AI_CREW_MAX_QUEUE)||2000));
+  const maxQueue=Math.max(safeConcurrency,Math.min(20000,Number(process.env.APEX_AI_CREW_MAX_QUEUE)||10000));
   const recentLimit=Math.max(100,Math.min(1000,Number(process.env.APEX_AI_CREW_RECENT_LIMIT)||500));
   let roleCursor=0;
   let sequence=0;
