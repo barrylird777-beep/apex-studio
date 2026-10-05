@@ -43,7 +43,7 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=md5(random()::text || clock_timestamp()::text || t.id::text), lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=gen_random_uuid()::text, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     FROM candidate
     WHERE t.id=candidate.id
@@ -62,7 +62,7 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
   const db = getPool();
   const r = await db.query(`UPDATE apex_worker_tasks
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=md5(random()::text || clock_timestamp()::text || $1::text), lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=gen_random_uuid()::text, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
       AND attempts < max_attempts AND (next_run_at IS NULL OR next_run_at <= NOW())
