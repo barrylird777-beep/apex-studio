@@ -10,8 +10,14 @@ const FIELD_WEIGHTS = Object.freeze({
   source: 5, tags: 8, topics: 8, keywords: 8
 });
 
+const NORMALIZE_CACHE = new Map();
 function normalize(value) {
-  return String(value ?? "").normalize("NFKC").toLowerCase().trim();
+  const raw = String(value ?? "");
+  const cached = NORMALIZE_CACHE.get(raw);
+  if (cached !== undefined) return cached;
+  const value = raw.normalize("NFKC").toLowerCase().trim();
+  if (NORMALIZE_CACHE.size < 20000) NORMALIZE_CACHE.set(raw, value);
+  return value;
 }
 
 function tokenize(value) {
