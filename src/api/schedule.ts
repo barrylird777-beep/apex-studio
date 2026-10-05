@@ -20,9 +20,12 @@ export async function createShootDay({projectId,shootDate,callTime=null,notes=""
   return row?mapDay(row):null;
 }
 export async function deleteShootDay(id:number){return (await db.delete(shootDays).where(eq(shootDays.id,id)).execute()).rowCount>0;}
-export async function getDay(id:number){const row=(await db.select().from(shootDays).where(eq(shootDays.id,id)).limit(1).execute())[0];return row?mapDay(row):null;}
+export async function getDay(id:number){const row=(await db.select().from(shootDays).where(eq(shootDays.id,id)).limit(1).execute())[0];return row ? mapDay(row) : null;}
 export async function listDays(projectId:number){return (await db.select().from(shootDays).where(eq(shootDays.projectId,projectId)).orderBy(asc(shootDays.date),asc(shootDays.id)).execute()).map(mapDay);}
-export async function listAssignments(projectId:number){return db.select({sceneId:shootDayScenes.sceneId,shootDayId:shootDayScenes.shootDayId,position:shootDayScenes.position}).from(shootDayScenes).innerJoin(shootDays,eq(shootDayScenes.shootDayId,shootDays.id)).where(eq(shootDays.projectId,projectId)).orderBy(asc(shootDayScenes.position),asc(shootDayScenes.sceneId)).execute();}
+export async function listAssignments(projectId:number){
+  const rows=await db.select({sceneId:shootDayScenes.sceneId,shootDayId:shootDayScenes.shootDayId,position:shootDayScenes.position}).from(shootDayScenes).innerJoin(shootDays,eq(shootDayScenes.shootDayId,shootDays.id)).where(eq(shootDays.projectId,projectId)).orderBy(asc(shootDayScenes.position),asc(shootDayScenes.sceneId)).execute();
+  return rows.filter((row): row is typeof row & {shootDayId:number} => row.shootDayId!==null);
+}
 export async function listScenesForProject(projectId:number){return (await db.select().from(scenes).where(eq(scenes.projectId,projectId)).orderBy(asc(scenes.sceneNumber),asc(scenes.id)).execute()).map(mapScene);}
 export async function assignScenes(shootDayId:number,sceneIds:unknown[]){
   const day=await getDay(shootDayId); if(!day)throw Object.assign(new Error("Shoot day not found"),{code:"NOT_FOUND"});
