@@ -88,7 +88,6 @@ export async function claimNextWorkerTask(leaseMs = 45000) {
 export async function claimWorkerTask(id, leaseMs = 45000) {
   if (!durableWorkerEnabled()) return null;
   const db = getPool();
-  await ensureWorkerTaskSchema();
   const r = await db.query(`UPDATE apex_worker_tasks
     SET status='running', attempts=attempts+1,
         lease_owner=$2, lease_token=md5(random()::text || clock_timestamp()::text || $1::text), lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
@@ -219,7 +218,6 @@ export async function completeExternalEffect(idempotencyKey, result = null) {
 
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
-  await ensureWorkerTaskSchema();
   const db = getPool();
   const r = await db.query(`SELECT
     COUNT(*) FILTER (WHERE status='queued')::int AS queued,
