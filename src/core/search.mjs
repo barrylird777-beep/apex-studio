@@ -33,8 +33,17 @@ function flatten(value, depth = 0) {
   return "";
 }
 
+const FIELD_VALUE_CACHE = new WeakMap();
 function fieldValue(item, field) {
-  return flatten(item?.[field]);
+  let cache = FIELD_VALUE_CACHE.get(item);
+  if (!cache) {
+    cache = new Map();
+    FIELD_VALUE_CACHE.set(item, cache);
+  }
+  if (cache.has(field)) return cache.get(field);
+  const value = flatten(item?.[field]);
+  cache.set(field, value);
+  return value;
 }
 
 function matchesFilters(item, filters = {}) {
