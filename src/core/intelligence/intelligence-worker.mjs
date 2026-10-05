@@ -5,7 +5,7 @@ export class IntelligenceWorker {
   constructor({ runtime, scheduler, concurrency = 4, leaseMs = 45000 } = {}) {
     if (!runtime || !scheduler) throw new TypeError("runtime and scheduler are required");
     this.runtime = runtime;
-    this.scheduler = scheduler;\n    this.verifier = verifier;
+    this.scheduler = scheduler;
     this.concurrency = Math.max(1, Math.min(32, Number(concurrency) || 4));
     this.leaseMs = Math.max(5000, Number(leaseMs) || 45000);
     this.running = new Map();
@@ -13,14 +13,21 @@ export class IntelligenceWorker {
   }
 
   async processOne(signal) {
-    const claimed = await claimNextWorkerTasks(1, this.leaseMs);\n    const task = claimed[0];
+    const claimed = await claimNextWorkerTasks(1, this.leaseMs);
+    const task = claimed[0];
     if (!task) return false;
     if (task.task !== "execute-intelligence-node") {
       await failWorkerTask(task.id, new Error("Unsupported intelligence task"), task.lease_token);
       return true;
     }
 
-    const bound = await bindExecutionNodeLease(task.payload?.nodeId, task.id, task.lease_token);\n    if (!bound) {\n      await failWorkerTask(task.id, new Error("Execution node lease binding rejected"), task.lease_token);\n      return true;\n    }\n\n    const heartbeat = setInterval(() => {
+    const bound = await bindExecutionNodeLease(task.payload?.nodeId, task.id, task.lease_token);
+    if (!bound) {
+      await failWorkerTask(task.id, new Error("Execution node lease binding rejected"), task.lease_token);
+      return true;
+    }
+
+    const heartbeat = setInterval(() => {
       heartbeatWorkerTask(task.id, this.leaseMs, task.lease_token).catch(() => {});
     }, Math.max(1000, Math.floor(this.leaseMs / 3)));
 
