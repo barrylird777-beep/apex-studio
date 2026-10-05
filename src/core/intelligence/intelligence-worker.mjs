@@ -9,6 +9,7 @@ export class IntelligenceWorker {
     this.concurrency = Math.max(1, Math.min(32, Number(concurrency) || 4));
     this.leaseMs = Math.max(5000, Number(leaseMs) || 45000);
     this.running = new Map();
+    this.claimed = new Map();
     this.stopping = false;
   }
 
@@ -16,6 +17,12 @@ export class IntelligenceWorker {
     const claimed = await claimNextWorkerTasks(1, this.leaseMs);
     const task = claimed[0];
     if (!task) return false;
+    this.claimed.set(task.id, task);
+    if (this.stopping || signal?.aborted) {
+      this.claimed.delete(task.id);
+      await releaseWorkerTasks([task.id], [task.lease_token]);
+      return false;
+    }
     if (task.task !== "execute-intelligence-node") {
       await failWorkerTask(task.id, new Error("Unsupported intelligence task"), task.lease_token);
       return true;
@@ -31,6 +38,7 @@ export class IntelligenceWorker {
       heartbeatWorkerTask(task.id, this.leaseMs, task.lease_token).catch(() => {});
     }, Math.max(1000, Math.floor(this.leaseMs / 3)));
 
+    this.claimed.delete(task.id);
     this.running.set(task.id, task);
     try {
       const result = await this.scheduler.executeTask(task, { signal });
@@ -95,6 +103,11 @@ export class IntelligenceWorker {
 
   async stop({ timeoutMs = 30000 } = {}) {
     this.stopping = true;
+    const claimed = [...this.claimed.values()];
+    if (claimed.length) {
+      await releaseWorkerTasks(claimed.map(task => task.id), claimed.map(task => task.lease_token));
+      for (const task of claimed) this.claimed.delete(task.id);
+    }
     const deadline = Date.now() + timeoutMs;
     while (this.running.size && Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 50));
