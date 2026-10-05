@@ -47,3 +47,24 @@ test('public health path remains allowlisted when middleware is mounted at /api'
   assert.equal(isPublicApiPath('/api/health'), true);
   assert.equal(isPublicApiPath('/api/health?probe=1'), false);
 });
+
+
+test('privileged route families reject missing credentials', () => {
+  const routes = [
+    '/api/oracle', '/api/forge', '/api/audio',
+    '/api/media/image', '/api/media/video',
+    '/api/render/export', '/api/ai/generate',
+    '/api/ai/collaborate', '/api/mesh/jobs',
+    '/api/voiceover/jobs', '/api/workers/durable'
+  ];
+  for (const path of routes) {
+    const response = { statusCode: null, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; }, set() {} };
+    const previous = process.env.APEX_COMMANDER_TOKEN;
+    process.env.APEX_COMMANDER_TOKEN = 'expected-secret';
+    ownerAuthMiddleware({ method: 'POST', path, originalUrl: path, get() { return ''; } }, response, () => {
+      throw new Error('protected route reached without credentials: ' + path);
+    });
+    process.env.APEX_COMMANDER_TOKEN = previous;
+    assert.equal(response.statusCode, 401, path);
+  }
+});
