@@ -36,7 +36,7 @@ export function createQueue({
 
     async claim(workerId) {
       await this.touchWorker(workerId);
-      return store.claimOne({ workerId, now: now(), leaseMs, token });
+      return store.claimOne({ workerId, now: now(), leaseMs, token: token() });
     },
 
     async heartbeat(job) {
