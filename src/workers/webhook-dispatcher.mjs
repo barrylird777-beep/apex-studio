@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { Pool } from "pg";
+import { pool as dbPool } from "../db/index.ts";
 import { claimExternalEffect, completeExternalEffect } from "../core/mesh/durable-worker-store.mjs";
 
 function eventIdFor(taskId) {
@@ -22,10 +22,7 @@ export async function dispatchCompletedWorkerEvents({
   if (!webhookUrl) return { enabled: false, dispatched: 0, failed: 0 };
   if (typeof fetchImpl !== "function") throw new Error("fetch is unavailable");
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString && !providedPool) return { enabled: false, dispatched: 0, failed: 0 };
-
-  const pool = providedPool || new Pool({ connectionString, max: 2 });
+  const pool = providedPool || dbPool;
   let dispatched = 0;
   let failed = 0;
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
@@ -119,8 +116,6 @@ export async function dispatchCompletedWorkerEvents({
         clearTimeout(timer);
       }
     }
-  } finally {
-    if (!providedPool) await pool.end();
   }
 
   return { enabled: true, dispatched, failed };
