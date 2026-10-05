@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Willynilly discovery queue: broad Bible/scripture candidate capture before Cabale deduplication and enrichment.",
+  "policy": {
+    "discovery": "over-inclusive",
+    "deduplication": "work/edition/witness/manifestation",
+    "textImport": "separate step; never infer redistribution rights from discovery alone"
+  },
+  "sources": [
+    {
+      "id": "dbs-arc",
+      "kind": "metadata-api",
+      "url": "https://arc.dbs.org/",
+      "notes": "Scripture edition metadata, languages, sources, and download links; candidate discovery source."
+    },
+    {
+      "id": "openscriptures",
+      "kind": "repository-organization",
+      "url": "https://github.com/openscriptures",
+      "notes": "Hebrew Bible, Greek resources, lexicons, and linked-data projects."
+    },
+    {
+      "id": "open-bibles",
+      "kind": "repository",
+      "url": "https://github.com/seven1m/open-bibles",
+      "notes": "Public-domain and freely licensed Bible translations in OSIS/USFX/Zefania formats."
+    },
+    {
+      "id": "openbible",
+      "kind": "repository",
+      "url": "https://github.com/churchstudio-org/openbible",
+      "notes": "Structured public-domain/freely licensed Bible sources."
+    }
+  ],
+  "candidates": [
+    {"slug":"albanian-bible","title":"Albanian Bible","language":"sq","sourceId":"open-bibles","sourcePath":"sqi-albanian.osis.xml"},
+    {"slug":"bulgarian-bible","title":"Bulgarian Bible","language":"bg","sourceId":"open-bibles","sourcePath":"bul-bulgarian.osis.xml"},
+    {"slug":"chinese-cuv-traditional","title":"Chinese Union Version","language":"zh","sourceId":"open-bibles","sourcePath":"chi-cuv.usfx.xml"},
+    {"slug":"chinese-cuv-simplified","title":"Chinese Union Version (Simplified)","language":"zh","sourceId":"open-bibles","sourcePath":"chi-cuv-simp.usfx.xml"},
+    {"slug":"cherokee-new-testament","title":"Cherokee New Testament","language":"chr","sourceId":"open-bibles","sourcePath":"chr-cherokee.usfx.xml"},
+    {"slug":"croatian-bible","title":"Croatian Bible","language":"hr","sourceId":"open-bibles","sourcePath":"hrv-croatian.osis.xml"},
+    {"slug":"danish-bible","title":"Danish Bible","language":"da","sourceId":"open-bibles","sourcePath":"dan-danish.osis.xml"},
+    {"slug":"dutch-statenvertaling","title":"Statenvertaling","language":"nl","sourceId":"open-bibles","sourcePath":"dut-statenvertaling.zefania.xml"},
+    {"slug":"english-asv","title":"American Standard Version","language":"en","sourceId":"open-bibles","sourcePath":"eng-asv.zefania.xml"},
+    {"slug":"english-bbe","title":"Bible in Basic English","language":"en","sourceId":"open-bibles","sourcePath":"eng-bbe.usfx.xml"},
+    {"slug":"english-darby","title":"Darby Bible","language":"en","sourceId":"open-bibles","sourcePath":"eng-darby.zefania.xml"},
+    {"slug":"english-douay-rheims","title":"Douay-Rheims 1899 American Edition","language":"en","sourceId":"open-bibles","sourcePath":"eng-dra.zefania.xml"},
+    {"slug":"open-english-bible-commonwealth","title":"Open English Bible, Commonwealth Edition","language":"en","sourceId":"open-bibles","sourcePath":"eng-gb-oeb.osis.xml"},
+    {"slug":"openscriptures-hebrew-bible","title":"Open Scriptures Hebrew Bible","language":"he","sourceId":"openscriptures","sourcePath":"morphhb"},
+    {"slug":"westminster-leningrad-codex","title":"Westminster Leningrad Codex","language":"he","sourceId":"openscriptures","sourcePath":"morphhb/wlc"},
+    {"slug":"strongs-hebrew-greek","title":"Strong's Dictionaries of Hebrew and Greek","language":"en","sourceId":"openscriptures","sourcePath":"strongs"},
+    {"slug":"septuagint-rahlfs","title":"Septuaginta (Rahlfs 1935)","language":"grc","sourceId":"lxx-project","sourcePath":"LXX.tsv"},
+    {"slug":"septuagint-swete-variants","title":"Swete Septuagint variant readings","language":"grc","sourceId":"lxx-project","sourcePath":"variants.json"},
+    {"slug":"smith-van-dyck","title":"Smith-Van Dyck","language":"ar","sourceId":"dbs-arc","status":"candidate"},
+    {"slug":"louis-segond-1910","title":"Louis Segond 1910","language":"fr","sourceId":"dbs-arc","status":"candidate"},
+    {"slug":"luther-1912","title":"Lutherbibel 1912","language":"de","sourceId":"dbs-arc","status":"candidate"},
+    {"slug":"biblia-cornilescu","title":"Biblia Cornilescu","language":"ro","sourceId":"dbs-arc","status":"candidate"},
+    {"slug":"synodal-translation","title":"Synodal Translation","language":"ru","sourceId":"dbs-arc","status":"candidate"},
+    {"slug":"bibeln-1917","title":"Bibeln 1917","language":"sv","sourceId":"dbs-arc","status":"candidate"}
+  ]
+}
