@@ -14,8 +14,9 @@ export class DurablePlanScheduler {
     let queued=0,failed=0;
     for(const node of nodes) {
       if(signal?.aborted) break;
+      let agent=null;
       try {
-        const agent=this.runtime.listAgents().filter(a=>a.status==="ready"&&a.capabilities.includes(node.capability)&&a.active<a.maxConcurrency).sort((a,b)=>(a.active/a.maxConcurrency)-(b.active/b.maxConcurrency))[0];
+        agent=this.runtime.listAgents().filter(a=>a.status==="ready"&&a.capabilities.includes(node.capability)&&a.active<a.maxConcurrency).sort((a,b)=>(a.active/a.maxConcurrency)-(b.active/b.maxConcurrency))[0];
         if(!agent) {
           await updateExecutionNode(node.id,{status:"pending",last_error:"No eligible agent"});
           continue;
