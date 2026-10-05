@@ -17,6 +17,7 @@ import { durableWorkerEnabled, enqueueWorkerTask, queueStats, requeueExpiredWork
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
+import { ownerAuthMiddleware } from './src/security/owner-auth.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -159,6 +160,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+
+// Install the API trust boundary before ANY API route, including status/capacity
+// endpoints. Only the explicit public health allowlist can bypass it.
+app.use('/api', ownerAuthMiddleware);
+
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
   success:true,
