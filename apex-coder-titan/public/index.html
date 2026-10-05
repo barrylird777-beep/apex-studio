@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apex Coder Titan</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:20px;background:#0b0d10;color:#f4f6f8}
+input,textarea,button{width:100%;box-sizing:border-box;margin:8px 0;padding:12px;border-radius:8px;border:1px solid #39414d;background:#151a21;color:inherit}
+textarea{min-height:180px}button{cursor:pointer;font-weight:700}pre{white-space:pre-wrap;background:#11151b;padding:14px;border-radius:8px;overflow:auto}
+</style>
+</head>
+<body>
+<h1>Apex Coder Titan</h1>
+<p>Isolated implementation, specialist audits, repair passes, and King Cob evidence gate.</p>
+<label>Repository path</label>
+<input id="repo" value="/workspaces/apex-studio">
+<label>Assignment</label>
+<textarea id="assignment">Inspect Apex and implement the requested engineering work. Verify every change with the repository's discovered checks. Do not touch remote Git.</textarea>
+<button id="run">START TITAN</button>
+<pre id="out">Ready.</pre>
+<script>
+const out=document.querySelector("#out");
+document.querySelector("#run").onclick=async()=>{
+  out.textContent="Titan running...";
+  try{
+    const r=await fetch("/api/titan/run",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({repoPath:document.querySelector("#repo").value,assignment:document.querySelector("#assignment").value})});
+    const j=await r.json();
+    out.textContent=JSON.stringify(j,null,2);
+  }catch(e){out.textContent=String(e)}
+};
+</script>
+</body>
+</html>
