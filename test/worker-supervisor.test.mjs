@@ -30,3 +30,29 @@ test('worker supervisor dispatch rejects before startup', async () => {
   const supervisor = new WorkerSupervisor({ handler: async () => ({ ok: true }) });
   assert.throws(() => supervisor.dispatch({}), /not running/i);
 });
+
+
+test('worker supervisor stop drains active work and rejects queued work', async () => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const supervisor = new WorkerSupervisor({
+    workers: 1,
+    handler: async () => { await gate; return { ok: true }; }
+  });
+  supervisor.start();
+  const active = supervisor.dispatch({ id: 'active' });
+  const queued = supervisor.dispatch({ id: 'queued' });
+  const stopping = supervisor.stop();
+  await assert.rejects(queued, /stopped before queued work started/i);
+  assert.equal(supervisor.status().started, false);
+  release();
+  assert.deepEqual(await active, { ok: true });
+  await stopping;
+  assert.equal(supervisor.status().pool.active, 0);
+  assert.equal(supervisor.status().pool.queued, 0);
+  assert.throws(() => supervisor.dispatch({}), /not running/i);
+});
+
+test('worker pool requires a handler', () => {
+  assert.throws(() => new WorkerSupervisor({}), /requires a handler/i);
+});
