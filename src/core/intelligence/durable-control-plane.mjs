@@ -93,6 +93,17 @@ export async function claimReadyExecutionNodes(limit=20) {
   return r.rows;
 }
 
+export async function bindExecutionNodeLease(nodeId, workerTaskId, leaseToken) {
+  if (!enabled()) return false;
+  const r = await db().query(
+    `UPDATE apex_execution_nodes
+     SET worker_lease_token=$3, updated_at=NOW()
+     WHERE id=$1 AND worker_task_id=$2 AND status='queued' AND worker_lease_token IS NULL`,
+    [nodeId, workerTaskId, leaseToken]
+  );
+  return r.rowCount===1;
+}
+
 export async function updateExecutionNodeForLease(id, workerTaskId, leaseToken, patch={}) {
   if (!enabled()) return false;
   const allowed = new Set(["status","result","verification","last_error"]);
