@@ -1,8 +1,5 @@
 import { APEX_LIMITS } from "./apex-limits.mjs";
-import pg from "pg";
-
-const { Pool } = pg;
-let pool;
+import { pool as dbPool } from "../../db/index.ts";
 
 export function durableWorkerEnabled() {
   return Boolean(String(process.env.DATABASE_URL || "").trim());
@@ -10,8 +7,7 @@ export function durableWorkerEnabled() {
 
 function getPool() {
   if (!durableWorkerEnabled()) return null;
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.min(APEX_LIMITS.WORKER.DB_POOL_MAX, Math.max(5, Number(process.env.APEX_WORKER_DB_POOL_MAX || APEX_LIMITS.WORKER.DB_POOL_DEFAULT)))) });
-  return pool;
+  return dbPool;
 }
 
 export async function ensureWorkerTaskSchema() {
@@ -234,6 +230,6 @@ export async function queueStats() {
 }
 
 export async function closeWorkerStore() {
-  if (pool) await pool.end();
-  pool = null;
+  // The durable worker store shares the canonical application PostgreSQL pool.
+  // Pool lifecycle is owned by src/db/index.ts, not by this store.
 }
