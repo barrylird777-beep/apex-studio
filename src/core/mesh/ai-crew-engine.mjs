@@ -1,3 +1,4 @@
+import { APEX_LIMITS } from "./apex-limits.mjs";
 import crypto from "node:crypto";
 import { durableWorkerEnabled, enqueueWorkerTask } from "./durable-worker-store.mjs";
 
@@ -32,11 +33,11 @@ const ROLE_PROMPTS = Object.freeze({
 
 const now=()=>new Date().toISOString();
 
-export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), concurrency=64 }={}) {
+export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), concurrency=APEX_LIMITS.AI_CREW.IN_MEMORY_CONCURRENCY }={}) {
   if(typeof dispatch!=="function") throw new TypeError("AI crew dispatch function is required");
-  const safeConcurrency=Math.max(1,Math.min(256,Number(concurrency)||64));
+  const safeConcurrency=Math.max(1,Math.min(APEX_LIMITS.AI_CREW.MAX_CONCURRENCY_BOUND,Number(concurrency)||APEX_LIMITS.AI_CREW.IN_MEMORY_CONCURRENCY));
   const durable=durableWorkerEnabled();
-  const maxQueue=Math.max(safeConcurrency,Math.min(20000,Number(process.env.APEX_AI_CREW_MAX_QUEUE)||10000));
+  const maxQueue=Math.max(safeConcurrency,Math.min(APEX_LIMITS.AI_CREW.MAX_QUEUE_CAPACITY,Number(process.env.APEX_AI_CREW_MAX_QUEUE)||APEX_LIMITS.AI_CREW.QUEUE_CAPACITY));
   const recentLimit=Math.max(100,Math.min(1000,Number(process.env.APEX_AI_CREW_RECENT_LIMIT)||500));
   let roleCursor=0;
   let sequence=0;
