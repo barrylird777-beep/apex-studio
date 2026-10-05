@@ -10,6 +10,8 @@ import {
   requeueExpiredWorkerTasks,
   releaseWorkerTasks
 } from "./src/core/mesh/durable-worker-store.mjs";
+import { pool as dbPool } from "./src/db/index.ts";
+import { createEpisodeJobDispatcher } from "./src/core/mesh/episode-job-dispatcher.mjs";
 
 async function executePermanentHealthTask(payload = {}) {
   const role = String(payload?.role || "general");
@@ -53,6 +55,8 @@ if (!workerOnly) {
   let stopping = false;
   let emptyPolls = 0;
 
+  const dispatchEpisodeJob = createEpisodeJobDispatcher({ pool: dbPool });
+
   console.log("[apex-worker] durable worker online");
 
   const inFlight = new Map();
@@ -66,7 +70,8 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const result = await executePermanentHealthTask(task.payload || {});
+      const episodeResult = await dispatchEpisodeJob(task);
+      const result = episodeResult ?? await executePermanentHealthTask(task.payload || {});
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
