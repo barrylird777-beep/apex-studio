@@ -103,33 +103,42 @@ export async function failWorkerTask(id, error, leaseToken) {
 
 export async function releaseWorkerTasks(taskIds = [], leaseTokens = []) {
   if (!durableWorkerEnabled() || !taskIds.length) return 0;
-  const db = getPool();
-  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
   if (leaseTokens.length !== taskIds.length) throw new Error("releaseWorkerTasks requires one lease token per task");
-  const r = await db.query("UPDATE apex_worker_tasks SET status='queued', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='running' AND lease_owner=$2 AND lease_token = ANY($3::text[])", [taskIds, owner, leaseTokens]);
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const r = await getPool().query(`UPDATE apex_worker_tasks t
+    SET status='queued', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+    FROM unnest($1::uuid[], $2::text[]) AS release(id, token)
+    WHERE t.id=release.id AND t.status='running' AND t.lease_owner=$3 AND t.lease_token=release.token`,
+    [taskIds, leaseTokens, owner]);
   return r.rowCount;
 }
 
 export async function requeueExpiredWorkerTasks(limit = 500) {
   if (!durableWorkerEnabled()) return 0;
+  const safeLimit = Math.max(1, Math.min(5000, Number(limit) || 500));
   const r = await getPool().query(`WITH x AS (
-    SELECT id FROM apex_worker_tasks WHERE status='running' AND lease_expires_at<NOW()
-    ORDER BY lease_expires_at LIMIT $1
+    SELECT id FROM apex_worker_tasks
+    WHERE status='running' AND lease_expires_at<NOW()
+    ORDER BY lease_expires_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT $1
   ) UPDATE apex_worker_tasks t SET
     status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
     lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
     recovered_count=recovered_count+1,
     next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + ((LEAST(300, POWER(2, attempts)) + (random() * 5)) * INTERVAL '1 second') END,
     last_error='Worker lease expired; task reclaimed', updated_at=NOW()
-    FROM x WHERE t.id=x.id RETURNING t.id`, [limit]);
+    FROM x WHERE t.id=x.id RETURNING t.id`, [safeLimit]);
   return r.rowCount;
 }
 
-export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refillPerSecond = 10 / 60, retryMs = 300 } = {}) {
+export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refillPerSecond = 10 / 60, retryMs = 300, maxWaitMs = 30000 } = {}) {
   if (!durableWorkerEnabled()) return true;
   const db = getPool();
   const cap = Math.max(1, Number(capacity) || 10);
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
+  const wait = Math.max(50, Number(retryMs) || 300);
+  const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
   await db.query(
     `INSERT INTO rate_limits (key, tokens, updated_at)
      VALUES ($1, $2 - 1, NOW())
@@ -146,7 +155,8 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
       [key, cap, refill]
     );
     if (r.rowCount === 1) return true;
-    await new Promise(resolve => setTimeout(resolve, Math.max(50, retryMs) + Math.random() * Math.max(50, retryMs)));
+    if (Date.now() >= deadline) return false;
+    await new Promise(resolve => setTimeout(resolve, wait + Math.random() * wait));
   }
 }
 
@@ -154,8 +164,7 @@ export async function claimExternalEffect(idempotencyKey) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const db = getPool();
-  const r = await db.query(
+  const r = await getPool().query(
     `INSERT INTO apex_external_effects (idempotency_key, status)
      VALUES ($1, 'started')
      ON CONFLICT (idempotency_key) DO NOTHING
@@ -180,8 +189,7 @@ export async function completeExternalEffect(idempotencyKey, result = null) {
 
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
-  const db = getPool();
-  const r = await db.query(`SELECT
+  const r = await getPool().query(`SELECT
     COUNT(*) FILTER (WHERE status='queued')::int AS queued,
     COUNT(*) FILTER (WHERE status='running')::int AS running,
     COUNT(*) FILTER (WHERE status='completed')::int AS completed,
