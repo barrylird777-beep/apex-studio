@@ -116,23 +116,35 @@ function rankIndex(index, query, limit, options = {}) {
   const max = Math.max(1, Math.min(1000, Number(limit) || 30));
   const filters = options.filters ?? {};
   const ids = candidateIds(index, q);
-  const out = [];
+  const out = new Array(Math.min(ids.length, max));
+  let outLength = 0;
 
   for (const id of ids) {
     const record = index.recordsById.get(id);
     if (!record || !matchesFilters(record.item, filters)) continue;
     const score = scoreRecord(q, record, qTokens);
     if (score <= 0) continue;
-    out.push({
-      type: record.type,
-      item: record.item,
-      score: Number(score.toFixed(4)),
-      matchedQuery: q,
-      matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
-    });
+    if (outLength < out.length) {
+      out[outLength++] = {
+        type: record.type,
+        item: record.item,
+        score: Number(score.toFixed(4)),
+        matchedQuery: q,
+        matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
+      };
+    } else {
+      out.push({
+        type: record.type,
+        item: record.item,
+        score: Number(score.toFixed(4)),
+        matchedQuery: q,
+        matchedTokens: qTokens.filter(token => record.tokenSet.has(token))
+      });
+    }
   }
 
   // Exact/phrase hits should dominate, then relevance, then stable identity.
+  out.length = outLength;
   return out.sort((a, b) => b.score - a.score || String(a.item?.id ?? "").localeCompare(String(b.item?.id ?? ""))).slice(0, max);
 }
 
