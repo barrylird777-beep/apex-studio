@@ -1,4 +1,4 @@
-import { claimNextWorkerTask, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
+import { claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
 import { bindExecutionNodeLease, updateExecutionNodeForLease, appendAgentEvent } from "./durable-control-plane.mjs";
 
 export class IntelligenceWorker {
@@ -13,7 +13,7 @@ export class IntelligenceWorker {
   }
 
   async processOne(signal) {
-    const task = await claimNextWorkerTask(this.leaseMs);
+    const claimed = await claimNextWorkerTasks(1, this.leaseMs);\n    const task = claimed[0];
     if (!task) return false;
     if (task.task !== "execute-intelligence-node") {
       await failWorkerTask(task.id, new Error("Unsupported intelligence task"), task.lease_token);
