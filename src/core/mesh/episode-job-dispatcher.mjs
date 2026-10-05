@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { GeminiMeshProvider } from "./gemini-mesh-provider.mjs";
 import { ClaudeMeshProvider } from "./claude-mesh-provider.mjs";
 import { enqueueWorkerTask, deferWorkerTask } from "./durable-worker-store.mjs";
+import { executeCrewInference } from "./crew-inference-worker.mjs";
 
 function json(value) {
   return JSON.stringify(value ?? {});
@@ -150,6 +151,23 @@ async function renderPlan({ pool, task }) {
   return plan;
 }
 
+async function aiCrewEvaluate({ task }) {
+  const payload = task?.payload && typeof task.payload === "object" ? task.payload : {};
+  const prompt = String(payload.prompt || "").trim();
+  const system = String(payload.system || "").trim();
+  if (!prompt) throw new Error("AI crew task requires a prompt");
+  const result = await executeCrewInference(prompt, system || undefined);
+  return {
+    type: "ai-crew-result",
+    crewJobId: payload.crewJobId || task.id,
+    role: payload.crewRole || "general",
+    provider: result.provider,
+    text: result.text,
+    failures: result.failures || [],
+    completedAt: new Date().toISOString()
+  };
+}
+
 async function rfAnomalyEvaluate({ task }) {
   const payload = task?.payload && typeof task.payload === "object" ? task.payload : {};
   const bssid = String(payload.bssid || "").trim();
@@ -179,6 +197,8 @@ export function createEpisodeJobDispatcher({ pool }) {
         return renderPlan({ pool, task });
       case "rf-anomaly-evaluate":
         return rfAnomalyEvaluate({ task });
+      case "ai-crew":
+        return aiCrewEvaluate({ task });
       default:
         return null;
     }
