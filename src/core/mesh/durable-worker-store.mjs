@@ -182,6 +182,18 @@ export async function claimExternalEffect(idempotencyKey, leaseMs = 45000) {
   return { acquired:r.rowCount===1, leaseToken:r.rows[0]?.lease_token||null };
 }
 
+export async function heartbeatExternalEffect(idempotencyKey, leaseToken, leaseMs = 45000) {
+  if (!durableWorkerEnabled()) return true;
+  const key=String(idempotencyKey||"").trim();
+  if (!key || !leaseToken) return false;
+  const owner=process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const r=await getPool().query(`UPDATE apex_external_effects
+    SET lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),updated_at=NOW()
+    WHERE idempotency_key=$1 AND status='started' AND lease_owner=$2 AND lease_token=$3`,
+    [key,owner,leaseToken,Math.max(5000,Number(leaseMs)||45000)]);
+  return r.rowCount===1;
+}
+
 export async function completeExternalEffect(idempotencyKey, result = null, leaseToken) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
