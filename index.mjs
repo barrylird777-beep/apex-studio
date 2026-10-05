@@ -24,6 +24,16 @@ async function executePermanentHealthTask(payload = {}) {
   } else if (["voiceover", "audio-reference"].includes(role)) {
     const { voiceoverWorkerStatus } = await import("./src/workers/voiceover-worker.mjs");
     await voiceoverWorkerStatus();
+  } else if (role === "security-observation") {
+    const report = payload?.report;
+    if (!report || report.classification !== "behavioral_heuristic" || report.telemetryOnly !== true) {
+      throw new Error("Security observation task requires behavioral telemetry");
+    }
+    log("warn", "High-confidence wireless anomaly queued for configured downstream alert workflow", {
+      threat_count: Number(report.threatCount || 0),
+      high_confidence_count: Number(report.highConfidenceCount || 0),
+      classification: report.classification
+    });
   } else {
     capacitySnapshot();
   }
