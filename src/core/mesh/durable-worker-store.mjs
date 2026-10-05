@@ -31,24 +31,28 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
   return { durable: true, id: existing?.rows?.[0]?.id || id };
 }
 
-export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {
+export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const safeRole = role == null ? null : String(role).slice(0, 255);
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
-    WHERE status='queued' AND attempts < max_attempts AND (next_run_at IS NULL OR next_run_at <= NOW())
+    WHERE status='queued'
+      AND attempts < max_attempts
+      AND (next_run_at IS NULL OR next_run_at <= NOW())
+      AND ($3::text IS NULL OR role=$3)
     ORDER BY created_at
     FOR UPDATE SKIP LOCKED
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$4, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$5, lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     FROM candidate
     WHERE t.id=candidate.id
     RETURNING t.*`,
-    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs, process.pid]);
+    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", safeRole, leaseMs, process.pid]);
   return r.rows;
 }
 
