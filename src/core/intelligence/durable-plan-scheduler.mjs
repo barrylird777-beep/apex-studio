@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { enqueueWorkerTask } from "../mesh/durable-worker-store.mjs";
-import { claimReadyExecutionNodes, updateExecutionNode, setPlanStatus, appendAgentEvent } from "./durable-control-plane.mjs";
+import { claimReadyExecutionNodes, updateExecutionNode, updateExecutionNodeForLease, setPlanStatus, appendAgentEvent } from "./durable-control-plane.mjs";
 
 export class DurablePlanScheduler {
   constructor({ runtime, executor, batchSize=20 }={}) {
@@ -41,7 +41,8 @@ export class DurablePlanScheduler {
   async executeTask(task,{signal}={}) {
     const {planId,nodeId}=task.payload||{};
     if(!planId||!nodeId) throw new Error("Intelligence task requires planId and nodeId");
-    await updateExecutionNode(nodeId,{status:"running"});
+    const fenced = await updateExecutionNodeForLease(nodeId, task.id, task.lease_token, { status:"running" });
+    if (!fenced) throw new Error("Execution node lease fence rejected task start");
     await setPlanStatus(planId,"running");
     await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_started"});
     try {
