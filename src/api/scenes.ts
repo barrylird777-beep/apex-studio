@@ -7,7 +7,9 @@ export async function createScene(x:any){
   const project=(await db.select({id:projects.id}).from(projects).where(eq(projects.id,Number(x.projectId))).limit(1).execute())[0];
   if(!project)return null;
   const [created]=await db.insert(scenes).values(clean(x)).returning({id:scenes.id});
-  return created?(await db.select().from(scenes).where(eq(scenes.id,created.id)).limit(1).execute())[0]??null:null;
+  if(!created)return null;
+  const row=(await db.select().from(scenes).where(eq(scenes.id,created.id)).limit(1).execute())[0];
+  return row??null;
 }
 export async function updateScene(id:number,x:any){
   const old=(await db.select().from(scenes).where(eq(scenes.id,id)).limit(1).execute())[0];
