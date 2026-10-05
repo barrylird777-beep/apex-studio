@@ -1,0 +1,4 @@
+.env
+.titan/
+node_modules/
+*.log
