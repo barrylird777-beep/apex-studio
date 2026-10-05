@@ -73,7 +73,7 @@ test('missing narration is rejected', async () => {
 
 test('invalid events are refused before model calls', async () => {
   const g = fakeGemini({ jsonResponses: [] });
-  await assert.rejects(generateHookPlan({ gemini: g, ref: 'x', events: [{ id: 'e', summary: 's' }] }), /need sources/);
+  await assert.rejects(generateHookPlan({ gemini: g, ref: 'x', events: [{ id: 'e', summary: 's' }] }), /needs sources/);
   assert.equal(g.calls.json.length, 0);
 });
 
