@@ -30,32 +30,302 @@
       "kind": "repository",
       "url": "https://github.com/churchstudio-org/openbible",
       "notes": "Structured public-domain/freely licensed Bible sources."
+    },
+    {
+      "id": "midvash-bible-api",
+      "kind": "public-api",
+      "url": "https://github.com/midvash/bible-api",
+      "notes": "Current public/open translation API; version catalog and multilingual access."
+    },
+    {
+      "id": "getbible",
+      "kind": "translation-catalog-api",
+      "url": "https://getbible.net/api/bible/",
+      "notes": "Translation catalogue, distribution metadata, books, chapters, checksums."
+    },
+    {
+      "id": "api-bible",
+      "kind": "licensed-api",
+      "url": "https://api.bible/",
+      "notes": "Bible/DBL metadata and licensed content access."
+    },
+    {
+      "id": "digital-bible-library",
+      "kind": "catalog",
+      "url": "https://library.bible/",
+      "notes": "Bible content metadata and licensing."
+    },
+    {
+      "id": "open-bible-api",
+      "kind": "repository",
+      "url": "https://github.com/praytify-app/open-bible-api",
+      "notes": "eBible.org-derived multilingual translation ingestion."
+    },
+    {
+      "id": "bibleql",
+      "kind": "repository",
+      "url": "https://github.com/lporras/bibleql",
+      "notes": "40+ translations/30+ languages plus larger Bible XML collections."
+    },
+    {
+      "id": "concord",
+      "kind": "repository",
+      "url": "https://github.com/kbennett2000/concord",
+      "notes": "Public-domain translations plus original-language and study datasets."
     }
   ],
   "candidates": [
-    {"slug":"albanian-bible","title":"Albanian Bible","language":"sq","sourceId":"open-bibles","sourcePath":"sqi-albanian.osis.xml"},
-    {"slug":"bulgarian-bible","title":"Bulgarian Bible","language":"bg","sourceId":"open-bibles","sourcePath":"bul-bulgarian.osis.xml"},
-    {"slug":"chinese-cuv-traditional","title":"Chinese Union Version","language":"zh","sourceId":"open-bibles","sourcePath":"chi-cuv.usfx.xml"},
-    {"slug":"chinese-cuv-simplified","title":"Chinese Union Version (Simplified)","language":"zh","sourceId":"open-bibles","sourcePath":"chi-cuv-simp.usfx.xml"},
-    {"slug":"cherokee-new-testament","title":"Cherokee New Testament","language":"chr","sourceId":"open-bibles","sourcePath":"chr-cherokee.usfx.xml"},
-    {"slug":"croatian-bible","title":"Croatian Bible","language":"hr","sourceId":"open-bibles","sourcePath":"hrv-croatian.osis.xml"},
-    {"slug":"danish-bible","title":"Danish Bible","language":"da","sourceId":"open-bibles","sourcePath":"dan-danish.osis.xml"},
-    {"slug":"dutch-statenvertaling","title":"Statenvertaling","language":"nl","sourceId":"open-bibles","sourcePath":"dut-statenvertaling.zefania.xml"},
-    {"slug":"english-asv","title":"American Standard Version","language":"en","sourceId":"open-bibles","sourcePath":"eng-asv.zefania.xml"},
-    {"slug":"english-bbe","title":"Bible in Basic English","language":"en","sourceId":"open-bibles","sourcePath":"eng-bbe.usfx.xml"},
-    {"slug":"english-darby","title":"Darby Bible","language":"en","sourceId":"open-bibles","sourcePath":"eng-darby.zefania.xml"},
-    {"slug":"english-douay-rheims","title":"Douay-Rheims 1899 American Edition","language":"en","sourceId":"open-bibles","sourcePath":"eng-dra.zefania.xml"},
-    {"slug":"open-english-bible-commonwealth","title":"Open English Bible, Commonwealth Edition","language":"en","sourceId":"open-bibles","sourcePath":"eng-gb-oeb.osis.xml"},
-    {"slug":"openscriptures-hebrew-bible","title":"Open Scriptures Hebrew Bible","language":"he","sourceId":"openscriptures","sourcePath":"morphhb"},
-    {"slug":"westminster-leningrad-codex","title":"Westminster Leningrad Codex","language":"he","sourceId":"openscriptures","sourcePath":"morphhb/wlc"},
-    {"slug":"strongs-hebrew-greek","title":"Strong's Dictionaries of Hebrew and Greek","language":"en","sourceId":"openscriptures","sourcePath":"strongs"},
-    {"slug":"septuagint-rahlfs","title":"Septuaginta (Rahlfs 1935)","language":"grc","sourceId":"lxx-project","sourcePath":"LXX.tsv"},
-    {"slug":"septuagint-swete-variants","title":"Swete Septuagint variant readings","language":"grc","sourceId":"lxx-project","sourcePath":"variants.json"},
-    {"slug":"smith-van-dyck","title":"Smith-Van Dyck","language":"ar","sourceId":"dbs-arc","status":"candidate"},
-    {"slug":"louis-segond-1910","title":"Louis Segond 1910","language":"fr","sourceId":"dbs-arc","status":"candidate"},
-    {"slug":"luther-1912","title":"Lutherbibel 1912","language":"de","sourceId":"dbs-arc","status":"candidate"},
-    {"slug":"biblia-cornilescu","title":"Biblia Cornilescu","language":"ro","sourceId":"dbs-arc","status":"candidate"},
-    {"slug":"synodal-translation","title":"Synodal Translation","language":"ru","sourceId":"dbs-arc","status":"candidate"},
-    {"slug":"bibeln-1917","title":"Bibeln 1917","language":"sv","sourceId":"dbs-arc","status":"candidate"}
+    {
+      "slug": "albanian-bible",
+      "title": "Albanian Bible",
+      "language": "sq",
+      "sourceId": "open-bibles",
+      "sourcePath": "sqi-albanian.osis.xml"
+    },
+    {
+      "slug": "bulgarian-bible",
+      "title": "Bulgarian Bible",
+      "language": "bg",
+      "sourceId": "open-bibles",
+      "sourcePath": "bul-bulgarian.osis.xml"
+    },
+    {
+      "slug": "chinese-cuv-traditional",
+      "title": "Chinese Union Version",
+      "language": "zh",
+      "sourceId": "open-bibles",
+      "sourcePath": "chi-cuv.usfx.xml"
+    },
+    {
+      "slug": "chinese-cuv-simplified",
+      "title": "Chinese Union Version (Simplified)",
+      "language": "zh",
+      "sourceId": "open-bibles",
+      "sourcePath": "chi-cuv-simp.usfx.xml"
+    },
+    {
+      "slug": "cherokee-new-testament",
+      "title": "Cherokee New Testament",
+      "language": "chr",
+      "sourceId": "open-bibles",
+      "sourcePath": "chr-cherokee.usfx.xml"
+    },
+    {
+      "slug": "croatian-bible",
+      "title": "Croatian Bible",
+      "language": "hr",
+      "sourceId": "open-bibles",
+      "sourcePath": "hrv-croatian.osis.xml"
+    },
+    {
+      "slug": "danish-bible",
+      "title": "Danish Bible",
+      "language": "da",
+      "sourceId": "open-bibles",
+      "sourcePath": "dan-danish.osis.xml"
+    },
+    {
+      "slug": "dutch-statenvertaling",
+      "title": "Statenvertaling",
+      "language": "nl",
+      "sourceId": "open-bibles",
+      "sourcePath": "dut-statenvertaling.zefania.xml"
+    },
+    {
+      "slug": "english-asv",
+      "title": "American Standard Version",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "sourcePath": "eng-asv.zefania.xml"
+    },
+    {
+      "slug": "english-bbe",
+      "title": "Bible in Basic English",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "sourcePath": "eng-bbe.usfx.xml"
+    },
+    {
+      "slug": "english-darby",
+      "title": "Darby Bible",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "sourcePath": "eng-darby.zefania.xml"
+    },
+    {
+      "slug": "english-douay-rheims",
+      "title": "Douay-Rheims 1899 American Edition",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "sourcePath": "eng-dra.zefania.xml"
+    },
+    {
+      "slug": "open-english-bible-commonwealth",
+      "title": "Open English Bible, Commonwealth Edition",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "sourcePath": "eng-gb-oeb.osis.xml"
+    },
+    {
+      "slug": "openscriptures-hebrew-bible",
+      "title": "Open Scriptures Hebrew Bible",
+      "language": "he",
+      "sourceId": "openscriptures",
+      "sourcePath": "morphhb"
+    },
+    {
+      "slug": "westminster-leningrad-codex",
+      "title": "Westminster Leningrad Codex",
+      "language": "he",
+      "sourceId": "openscriptures",
+      "sourcePath": "morphhb/wlc"
+    },
+    {
+      "slug": "strongs-hebrew-greek",
+      "title": "Strong's Dictionaries of Hebrew and Greek",
+      "language": "en",
+      "sourceId": "openscriptures",
+      "sourcePath": "strongs"
+    },
+    {
+      "slug": "septuagint-rahlfs",
+      "title": "Septuaginta (Rahlfs 1935)",
+      "language": "grc",
+      "sourceId": "lxx-project",
+      "sourcePath": "LXX.tsv"
+    },
+    {
+      "slug": "septuagint-swete-variants",
+      "title": "Swete Septuagint variant readings",
+      "language": "grc",
+      "sourceId": "lxx-project",
+      "sourcePath": "variants.json"
+    },
+    {
+      "slug": "smith-van-dyck",
+      "title": "Smith-Van Dyck",
+      "language": "ar",
+      "sourceId": "dbs-arc",
+      "status": "candidate"
+    },
+    {
+      "slug": "louis-segond-1910",
+      "title": "Louis Segond 1910",
+      "language": "fr",
+      "sourceId": "dbs-arc",
+      "status": "candidate"
+    },
+    {
+      "slug": "luther-1912",
+      "title": "Lutherbibel 1912",
+      "language": "de",
+      "sourceId": "dbs-arc",
+      "status": "candidate"
+    },
+    {
+      "slug": "biblia-cornilescu",
+      "title": "Biblia Cornilescu",
+      "language": "ro",
+      "sourceId": "dbs-arc",
+      "status": "candidate"
+    },
+    {
+      "slug": "synodal-translation",
+      "title": "Synodal Translation",
+      "language": "ru",
+      "sourceId": "dbs-arc",
+      "status": "candidate"
+    },
+    {
+      "slug": "bibeln-1917",
+      "title": "Bibeln 1917",
+      "language": "sv",
+      "sourceId": "dbs-arc",
+      "status": "candidate"
+    },
+    {
+      "slug": "midvash-multilingual-catalog",
+      "title": "Midvash public/open translation catalog",
+      "language": "multilingual",
+      "sourceId": "midvash-bible-api",
+      "status": "discovery-source"
+    },
+    {
+      "slug": "getbible-translation-catalog",
+      "title": "GetBible translation catalog",
+      "language": "multilingual",
+      "sourceId": "getbible",
+      "status": "discovery-source"
+    },
+    {
+      "slug": "api-bible-dbl-catalog",
+      "title": "API.Bible / Digital Bible Library catalog",
+      "language": "multilingual",
+      "sourceId": "api-bible",
+      "status": "discovery-source"
+    },
+    {
+      "slug": "ebible-org-multilingual",
+      "title": "eBible.org translation corpus",
+      "language": "multilingual",
+      "sourceId": "open-bible-api",
+      "status": "discovery-source"
+    },
+    {
+      "slug": "bible-list-xml-collection",
+      "title": "Bible List XML collection",
+      "language": "multilingual",
+      "sourceId": "bibleql",
+      "status": "discovery-source"
+    },
+    {
+      "slug": "holy-bible-xml-format-collection",
+      "title": "Holy-Bible-XML-Format collection",
+      "language": "multilingual",
+      "sourceId": "bibleql",
+      "status": "discovery-source"
+    },
+    {
+      "slug": "sbl-greek-new-testament",
+      "title": "SBL Greek New Testament",
+      "language": "grc",
+      "sourceId": "concord",
+      "status": "original-language"
+    },
+    {
+      "slug": "amalgamated-hebrew-old-testament",
+      "title": "Amalgamated Hebrew Old Testament / OSHB tradition",
+      "language": "he",
+      "sourceId": "concord",
+      "status": "original-language"
+    },
+    {
+      "slug": "strongs-greek-lexicon",
+      "title": "Strong's Greek Lexicon",
+      "language": "grc/en",
+      "sourceId": "concord",
+      "status": "lexicon"
+    },
+    {
+      "slug": "strongs-hebrew-lexicon",
+      "title": "Strong's Hebrew Lexicon",
+      "language": "he/en",
+      "sourceId": "concord",
+      "status": "lexicon"
+    },
+    {
+      "slug": "naves-topical-bible",
+      "title": "Nave's Topical Bible",
+      "language": "en",
+      "sourceId": "concord",
+      "status": "commentary/reference"
+    },
+    {
+      "slug": "openbible-cross-references",
+      "title": "OpenBible.info cross-reference dataset",
+      "language": "multilingual",
+      "sourceId": "concord",
+      "status": "reference"
+    }
   ]
 }
