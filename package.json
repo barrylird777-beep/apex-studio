@@ -18,7 +18,8 @@
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "db:migrate:postgres": "node scripts/migrate-postgres.mjs",
-    "test:search:planner": "node scripts/adversarial-bible-trigram-planner.mjs"
+    "test:search:planner": "node scripts/adversarial-bible-trigram-planner.mjs",
+    "test:warp": "node src/tests/load/warp_swarm_benchmark.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
