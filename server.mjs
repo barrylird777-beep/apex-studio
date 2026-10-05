@@ -23,6 +23,7 @@ import { createSearchRouter } from './src/api/routes/search.mjs';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
+import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1377,6 +1378,15 @@ app.post('/api/voiceover/jobs', async (req,res) => {
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
     res.status(202).json({success:true,id,status:'queued'});
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
+});
+
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.type(prometheusContentType());
+    res.send(await scrapePrometheusMetrics());
+  } catch (error) {
+    res.status(503).type(prometheusContentType()).send('# HELP apex_metrics_scrape_error Metrics scrape failure.\\n# TYPE apex_metrics_scrape_error gauge\\napex_metrics_scrape_error 1\\n');
+  }
 });
 
 app.get(['/health', '/api/health'], (_req, res) => {
