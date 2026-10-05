@@ -101,6 +101,18 @@ export async function failWorkerTask(id, error, leaseToken) {
   return r.rowCount === 1;
 }
 
+export async function deferWorkerTask(id, delayMs = 1000, reason = "Dependency not ready", leaseToken) {
+  if (!durableWorkerEnabled()) return false;
+  const safeDelay = Math.max(100, Math.min(300000, Number(delayMs) || 1000));
+  const r = await getPool().query(`UPDATE apex_worker_tasks
+    SET status='queued', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
+        next_run_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        last_error=$4, updated_at=NOW()
+    WHERE id=$1 AND lease_owner=$2 AND lease_token=$5 AND status='running'`,
+    [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", safeDelay, String(reason).slice(0,4000), leaseToken]);
+  return r.rowCount === 1;
+}
+
 export async function releaseWorkerTasks(taskIds = [], leaseTokens = []) {
   if (!durableWorkerEnabled() || !taskIds.length) return 0;
   if (leaseTokens.length !== taskIds.length) throw new Error("releaseWorkerTasks requires one lease token per task");
@@ -139,21 +151,14 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
   const wait = Math.max(50, Number(retryMs) || 300);
   const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
-  await db.query(
-    `INSERT INTO rate_limits (key, tokens, updated_at)
-     VALUES ($1, $2, NOW())
-     ON CONFLICT (key) DO NOTHING`,
-    [key, cap]
-  );
+  await db.query(`INSERT INTO rate_limits (key, tokens, updated_at)
+     VALUES ($1, $2, NOW()) ON CONFLICT (key) DO NOTHING`, [key, cap]);
   for (;;) {
-    const r = await db.query(
-      `UPDATE rate_limits SET
+    const r = await db.query(`UPDATE rate_limits SET
         tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
         updated_at = NOW()
        WHERE key = $1
-         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`,
-      [key, cap, refill]
-    );
+         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`, [key, cap, refill]);
     if (r.rowCount === 1) return true;
     if (Date.now() >= deadline) return false;
     await new Promise(resolve => setTimeout(resolve, wait + Math.random() * wait));
@@ -164,13 +169,8 @@ export async function claimExternalEffect(idempotencyKey) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(
-    `INSERT INTO apex_external_effects (idempotency_key, status)
-     VALUES ($1, 'started')
-     ON CONFLICT (idempotency_key) DO NOTHING
-     RETURNING idempotency_key`,
-    [key]
-  );
+  const r = await getPool().query(`INSERT INTO apex_external_effects (idempotency_key, status)
+     VALUES ($1, 'started') ON CONFLICT (idempotency_key) DO NOTHING RETURNING idempotency_key`, [key]);
   return r.rowCount === 1;
 }
 
@@ -178,24 +178,18 @@ export async function completeExternalEffect(idempotencyKey, result = null) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(
-    `UPDATE apex_external_effects
-     SET status='completed', result=$2::jsonb, updated_at=NOW()
-     WHERE idempotency_key=$1 AND status='started'`,
-    [key, JSON.stringify(result)]
-  );
+  const r = await getPool().query(`UPDATE apex_external_effects SET status='completed', result=$2::jsonb, updated_at=NOW()
+     WHERE idempotency_key=$1 AND status='started'`, [key, JSON.stringify(result)]);
   return r.rowCount === 1;
 }
 
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
-  const r = await getPool().query(`SELECT
-    COUNT(*) FILTER (WHERE status='queued')::int AS queued,
+  const r = await getPool().query(`SELECT COUNT(*) FILTER (WHERE status='queued')::int AS queued,
     COUNT(*) FILTER (WHERE status='running')::int AS running,
     COUNT(*) FILTER (WHERE status='completed')::int AS completed,
     COUNT(*) FILTER (WHERE status='failed')::int AS failed,
-    COUNT(*)::int AS total
-    FROM apex_worker_tasks`);
+    COUNT(*)::int AS total FROM apex_worker_tasks`);
   return { durable: true, ...r.rows[0] };
 }
 
