@@ -136,8 +136,15 @@ export function buildSearchIndex(collections = [], options = {}) {
     for (const item of c.items ?? []) {
       const id = identityFor(c.type ?? "record", item);
       if (recordsById.has(id)) continue;
-      const fieldsMap = Object.fromEntries(fields.map(field => [field, normalize(fieldValue(item, field))]));
-      const text = fields.map(field => fieldsMap[field]).join(" ").trim();
+      const fieldsMap = {};
+      const textParts = new Array(fields.length);
+      for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
+        const value = normalize(fieldValue(item, field));
+        fieldsMap[field] = value;
+        textParts[i] = value;
+      }
+      const text = textParts.join(" ").trim();
       const tokens = tokenize(text);
       const record = { id, type: c.type ?? "record", item, fields: fieldsMap, text, tokens, tokenSet: new Set(tokens) };
       recordsById.set(id, record);
