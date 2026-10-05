@@ -95,7 +95,7 @@ export async function failWorkerTask(id, error, leaseToken) {
     SET status=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
         lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
         next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + ((LEAST(300, POWER(2, attempts)) + (random() * 5)) * INTERVAL '1 second') END,
-        last_error=$3, updated_at=NOW()
+        last_error=$3, quarantine_reason=CASE WHEN attempts >= max_attempts THEN 'MAX_ATTEMPTS_EXHAUSTED' ELSE quarantine_reason END, updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
     [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", message, leaseToken]);
   return r.rowCount === 1;
@@ -149,7 +149,7 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
     lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL,
     recovered_count=recovered_count+1,
     next_run_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() + ((LEAST(300, POWER(2, attempts)) + (random() * 5)) * INTERVAL '1 second') END,
-    last_error='Worker lease expired; task reclaimed', updated_at=NOW()
+    last_error='Worker lease expired; task reclaimed', quarantine_reason=CASE WHEN attempts >= max_attempts THEN 'LEASE_EXPIRY_MAX_ATTEMPTS' ELSE quarantine_reason END, updated_at=NOW()
     FROM x WHERE t.id=x.id RETURNING t.id`, [safeLimit]);
   return r.rowCount;
 }
