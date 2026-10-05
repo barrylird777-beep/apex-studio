@@ -27,6 +27,7 @@ import { scrapePrometheusMetrics, prometheusContentType } from './src/observabil
 import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
 import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
+import { requireTitanAuth } from './src/security/require-titan-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1390,6 +1391,47 @@ app.post('/api/mesh/jobs', async (req, res) => {
 
 app.get('/api/mesh/workers', (_req, res) => {
   res.json({ success: true, ...meshWorkerSupervisor.status() });
+});
+
+app.post('/api/rf/evaluate', requireTitanAuth, async (req, res) => {
+  try {
+    const bssid = String(req.body?.bssid || '').trim().toLowerCase();
+    const embedding = req.body?.embedding;
+
+    if (!/^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$/.test(bssid)) {
+      return res.status(400).json({ success: false, error: 'Invalid RF BSSID' });
+    }
+    if (!Array.isArray(embedding) || embedding.length !== 1536) {
+      return res.status(400).json({ success: false, error: 'embedding must contain exactly 1536 dimensions' });
+    }
+    if (!embedding.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+      return res.status(400).json({ success: false, error: 'embedding contains invalid numeric values' });
+    }
+    if (!durableWorkerEnabled()) {
+      return res.status(503).json({ success: false, error: 'Durable worker queue is unavailable' });
+    }
+
+    const taskId = crypto.randomUUID();
+    const result = await enqueueWorkerTask({
+      id: taskId,
+      workerId: 'rf-api',
+      role: 'rf-anomaly-evaluate',
+      task: 'rf-anomaly-evaluate',
+      payload: { bssid, embedding },
+      maxAttempts: 3,
+      dedupeKey: `rf-anomaly:${bssid}:${crypto.createHash('sha256').update(JSON.stringify(embedding)).digest('hex').slice(0, 32)}`,
+      traceId: String(req.headers['x-request-id'] || '')
+    });
+
+    return res.status(202).json({
+      success: true,
+      status: 'queued',
+      taskId: result.id,
+      durable: result.durable
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message });
+  }
 });
 
 app.get('/api/crew/status', (_req, res) => {
