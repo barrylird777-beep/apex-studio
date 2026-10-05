@@ -28,7 +28,8 @@ export class DurablePlanScheduler {
         });
         if (!enqueued.durable) throw new Error("Durable intelligence scheduling requires DATABASE_URL");
         if (enqueued.existingStatus && !["queued","running"].includes(enqueued.existingStatus)) {
-          throw new Error(`Existing worker task is terminal: ${enqueued.existingStatus}`);
+          await updateExecutionNode(node.id,{status:"pending",last_error:`Existing worker task is terminal: ${enqueued.existingStatus}`});
+          continue;
         }
         await updateExecutionNode(node.id,{status:"queued",worker_task_id:enqueued.id});
         await appendAgentEvent({agentId:agent.id,planId:node.plan_id,nodeId:node.id,eventType:"node_queued"});
