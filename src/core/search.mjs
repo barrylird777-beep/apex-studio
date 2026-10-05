@@ -171,6 +171,7 @@ export function buildSearchIndex(collections = [], options = {}) {
     }
   }
 
+  for (const posting of inverted.values()) posting.sort();
   return {
     version: 3,
     createdAt: new Date().toISOString(),
