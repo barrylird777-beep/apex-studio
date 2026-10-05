@@ -20,6 +20,7 @@ import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWor
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
+import { createRfRouter } from './src/api/routes/rf.mjs';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
@@ -295,6 +296,7 @@ app.post('/api/episodes/produce', async (req, res) => {
 });
 
 app.use('/api/search', createSearchRouter(dbPool));
+app.use('/api/rf', createRfRouter());
 // Titan-protected mutation surfaces are mounted explicitly at the route boundary.
 app.use('/api/bible-production', async (req, res, next) => {
   try {

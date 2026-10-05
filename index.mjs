@@ -13,6 +13,7 @@ import {
 import { pool as dbPool } from "./src/db/index.ts";
 import { createEpisodeJobDispatcher } from "./src/core/mesh/episode-job-dispatcher.mjs";
 import { runWithTrace, log } from "./src/core/resilience/load-shedder.mjs";
+import { processRfAnomalyTrigger } from "./src/core/mesh/rf-ai-bridge.mjs";
 
 async function executePermanentHealthTask(payload = {}) {
   const role = String(payload?.role || "general");
@@ -81,7 +82,10 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const episodeResult = await runWithTrace({ job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") }, () => dispatchEpisodeJob(task));
+      const rfResult = String(task.role || task.task || "") === "rf-anomaly-evaluate"
+        ? await processRfAnomalyTrigger(task.payload?.bssid, task.payload?.embedding)
+        : null;
+      const episodeResult = rfResult ?? await runWithTrace({ job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") }, () => dispatchEpisodeJob(task));
       const result = episodeResult ?? await executePermanentHealthTask(task.payload || {});
       if (result?.deferred) return;
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
