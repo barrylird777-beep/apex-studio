@@ -19,7 +19,8 @@ export function isPublicApiPath(pathname) {
 }
 
 export function ownerAuthMiddleware(req, res, next) {
-  if (req.method === 'OPTIONS' || isPublicApiPath(req.path)) return next();
+  const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
+  if (req.method === 'OPTIONS' || isPublicApiPath(requestPath)) return next();
 
   const configuredToken = String(process.env.APEX_COMMANDER_TOKEN || '');
   if (!configuredToken) {
