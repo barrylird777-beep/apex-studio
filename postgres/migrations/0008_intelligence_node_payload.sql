@@ -1,0 +1,3 @@
+ALTER TABLE apex_execution_nodes
+  ADD COLUMN IF NOT EXISTS input JSONB,
+  ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
