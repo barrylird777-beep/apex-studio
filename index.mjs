@@ -72,6 +72,7 @@ if (!workerOnly) {
     try {
       const episodeResult = await dispatchEpisodeJob(task);
       const result = episodeResult ?? await executePermanentHealthTask(task.payload || {});
+      if (result?.deferred) return;
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
