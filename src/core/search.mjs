@@ -58,9 +58,8 @@ function scoreRecord(query, record, qTokens = tokenize(query)) {
   if (record.text === q) score += 120;
   if (record.text.startsWith(q)) score += 50;
   if (record.text.includes(q)) score += 30;
-  for (const [field, weight] of Object.entries(FIELD_WEIGHTS)) {
-    const value = record.fields[field];
-    if (value && value.includes(q)) score += weight;
+  for (const [field, weight] of record.weightedFields) {
+    if (weight && field.includes(q)) score += weight;
   }
   let matched = 0;
   for (const token of qTokens) if (record.tokenSet.has(token)) matched++;
@@ -146,7 +145,12 @@ export function buildSearchIndex(collections = [], options = {}) {
       }
       const text = textParts.join(" ").trim();
       const tokens = tokenize(text);
-      const record = { id, type: c.type ?? "record", item, fields: fieldsMap, text, tokens, tokenSet: new Set(tokens) };
+      const weightedFields = [];
+      for (const [field, weight] of Object.entries(FIELD_WEIGHTS)) {
+        const value = fieldsMap[field];
+        if (value) weightedFields.push([value, weight]);
+      }
+      const record = { id, type: c.type ?? "record", item, fields: fieldsMap, text, tokens, tokenSet: new Set(tokens), weightedFields };
       recordsById.set(id, record);
       for (const token of tokens) {
         let posting = inverted.get(token);
