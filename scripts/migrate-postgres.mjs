@@ -6,13 +6,13 @@ import pg from 'pg';
 
 const { Pool } = pg;
 const root = path.resolve('drizzle-pg');
-const journalPath = path.join(root, 'meta', '_journal.json');
+const manifestPath = path.join(root, 'meta', 'manifest.json');
 const databaseUrl = String(process.env.DATABASE_URL || '').trim();
 
 if (!databaseUrl) throw new Error('DATABASE_URL is required for PostgreSQL migrations');
 
-const journal = JSON.parse(await readFile(journalPath, 'utf8'));
-const entries = Array.isArray(journal.entries) ? journal.entries : [];
+const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+const entries = Array.isArray(manifest.migrations) ? manifest.migrations : [];
 if (!entries.length) throw new Error('PostgreSQL migration journal is empty');
 
 const pool = new Pool({
