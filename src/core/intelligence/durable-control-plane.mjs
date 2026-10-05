@@ -48,11 +48,25 @@ export async function reviveDurableAgent(agentId) {
   return r.rowCount===1;
 }
 
-export async function createDurablePlan({id,goal,graph,context={}}) {
+export async function createDurablePlan({id,goal,graph,context={},nodes=[]}) {
   if (!enabled()) return { durable:false,id };
-  const r=await db().query(`INSERT INTO apex_execution_plans(id,goal,graph,context)
-    VALUES($1,$2,$3::jsonb,$4::jsonb) RETURNING *`,[id,goal,json(graph),json(context)]);
-  return { durable:true,plan:r.rows[0] };
+  const client=await db().connect();
+  try {
+    await client.query("BEGIN");
+    const r=await client.query(`INSERT INTO apex_execution_plans(id,goal,graph,context)
+      VALUES($1,$2,$3::jsonb,$4::jsonb) RETURNING *`,[id,goal,json(graph),json(context)]);
+    for (const n of nodes) await client.query(`INSERT INTO apex_execution_nodes
+      (id,plan_id,name,capability,depends_on,max_attempts,input,metadata)
+      VALUES($1,$2,$3,$4,$5::uuid[],$6,$7::jsonb,$8::jsonb)`,
+      [n.id,id,n.name,n.capability,n.dependsOn||[],n.maxAttempts||3,json(n.input),json(n.metadata)]);
+    await client.query("COMMIT");
+    return { durable:true,plan:r.rows[0] };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function materializePlanNodes(planId,nodes) {
