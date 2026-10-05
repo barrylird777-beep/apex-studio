@@ -21,12 +21,16 @@ export class DurablePlanScheduler {
           continue;
         }
         const taskId=crypto.randomUUID();
-        await enqueueWorkerTask({
+        const enqueued=await enqueueWorkerTask({
           id:taskId,workerId:agent.id,role:agent.role,task:"execute-intelligence-node",
           payload:{planId:node.plan_id,nodeId:node.id,capability:node.capability,input:node.input,metadata:node.metadata},
           maxAttempts:node.max_attempts,dedupeKey:"apex:node:"+node.id
         });
-        await updateExecutionNode(node.id,{status:"queued",worker_task_id:taskId});
+        if (!enqueued.durable) throw new Error("Durable intelligence scheduling requires DATABASE_URL");
+        if (enqueued.existingStatus && !["queued","running"].includes(enqueued.existingStatus)) {
+          throw new Error(`Existing worker task is terminal: ${enqueued.existingStatus}`);
+        }
+        await updateExecutionNode(node.id,{status:"queued",worker_task_id:enqueued.id});
         await appendAgentEvent({agentId:agent.id,planId:node.plan_id,nodeId:node.id,eventType:"node_queued"});
         queued++;
       } catch(error) {
