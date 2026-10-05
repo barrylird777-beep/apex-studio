@@ -53,7 +53,8 @@ export async function listAssignments(projectId: number) {
     .from(shootDayScenes)
     .innerJoin(shootDays, eq(shootDayScenes.shootDayId, shootDays.id))
     .where(eq(shootDays.projectId, projectId))
-    .orderBy(asc(shootDayScenes.position), asc(shootDayScenes.sceneId));
+    .orderBy(asc(shootDayScenes.position), asc(shootDayScenes.sceneId))
+    .then(rows => rows.filter((row): row is typeof row & { shootDayId: number } => row.shootDayId !== null));
 }
 
 export async function listScenesForProject(projectId: number) {
