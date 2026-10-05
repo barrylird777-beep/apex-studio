@@ -51,9 +51,7 @@ async function executePermanentHealthTask(payload = {}) {
 const workerOnly = String(process.env.APEX_WORKER_ONLY || "").toLowerCase() === "true";
 
 if (!workerOnly) {
-  const { startProductionDaemon } = await import("./src/workers/av1-production-daemon.mjs");
-  process.title = "apex-av1-production";
-  await startProductionDaemon();
+  throw new Error("index.mjs is reserved for the PostgreSQL durable worker; set APEX_WORKER_ONLY=true");
 } else {
   process.title = "apex-autonomous-worker";
   if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
