@@ -2315,6 +2315,153 @@
       "language": "syr",
       "sourceId": "srophe",
       "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-ttesh",
+      "title": "TTESV translator tags",
+      "language": "en",
+      "sourceId": "stepbible",
+      "status": "translation-annotation"
+    },
+    {
+      "slug": "stepbible-tagot",
+      "title": "TAGOT Greek Old Testament tagged corpus",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "ancient-translation"
+    },
+    {
+      "slug": "stepbible-tfbdb",
+      "title": "TFBDB formatted BDB lexicon",
+      "language": "he",
+      "sourceId": "stepbible",
+      "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-tbcwg",
+      "title": "TBCWG biblical concept word groups",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "concept-graph"
+    },
+    {
+      "slug": "stepbible-variants-by-word",
+      "title": "Greek edition membership per word",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "variant-graph"
+    },
+    {
+      "slug": "stepbible-proper-person",
+      "title": "Individual biblical person records",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "person"
+    },
+    {
+      "slug": "stepbible-proper-place",
+      "title": "Individual biblical place records",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "place"
+    },
+    {
+      "slug": "stepbible-proper-thing",
+      "title": "Individual biblical object records",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "entity"
+    },
+    {
+      "slug": "stepbible-verse-mapping",
+      "title": "Cross-tradition versification mapping",
+      "language": "multilingual",
+      "sourceId": "stepbible",
+      "status": "alignment"
+    },
+    {
+      "slug": "macula-hebrew-nodes",
+      "title": "MACULA Hebrew nested syntax nodes",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "syntax-node"
+    },
+    {
+      "slug": "macula-hebrew-lowfat",
+      "title": "MACULA Hebrew lowfat query nodes",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "query-graph"
+    },
+    {
+      "slug": "macula-hebrew-tsv",
+      "title": "MACULA Hebrew word-level records",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "word-record"
+    },
+    {
+      "slug": "coptic-token-layer",
+      "title": "Coptic token layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "token"
+    },
+    {
+      "slug": "coptic-morpheme-layer",
+      "title": "Coptic morpheme/orthography layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "morphology"
+    },
+    {
+      "slug": "coptic-entity-layer",
+      "title": "Coptic named-entity layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "entity"
+    },
+    {
+      "slug": "coptic-identity-layer",
+      "title": "Coptic entity identity/Wikification layer",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "entity-link"
+    },
+    {
+      "slug": "coptic-treebank",
+      "title": "Coptic gold-standard treebank",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "treebank"
+    },
+    {
+      "slug": "coptic-manuscript-documents",
+      "title": "Coptic manuscript-linked documents",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "manuscript"
+    },
+    {
+      "slug": "coptic-aligned-translations",
+      "title": "Coptic texts with aligned translations",
+      "language": "cop/en/grc",
+      "sourceId": "coptic-scriptorium",
+      "status": "parallel"
+    },
+    {
+      "slug": "coptic-dictionary",
+      "title": "Coptic lexical lookup resource",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-data-quality",
+      "title": "STEPBible data issue/quality registry",
+      "language": "multilingual",
+      "sourceId": "stepbible",
+      "status": "quality-control"
     }
   ],
   "discoveryRun": {
@@ -2342,7 +2489,8 @@
       "Open Scriptorium combines scripture, deuterocanon, Talmud, historical Jewish literature and patristic/post-patristic voices with verse-level cross-referencing.",
       "Surface break: node-level knowledge objects now include scrolls, fragments, lines, words, verses, morphology, syntax, lexical data, parallels, manuscript metadata and scholarly encodings.",
       "Surface break continued: added linguistic annotation corpora, Greek critical-text resources, Coptic/Syriac corpora, manuscript image/transcription infrastructure, historical Christian corpora, semantic metadata and cross-reference graphs.",
-      "Precision surface-break evidence: STEPBible exposes TAHOT, TAGNT, lexicons, proper-name entities, versification, morphology codes and manuscript-meaning variant datasets; MACULA Hebrew contains syntax trees, word senses, semantic roles and participant referents; NTVMR exposes a large Greek NT manuscript research environment; Coptic SCRIPTORIUM publishes multiple annotation formats."
+      "Precision surface-break evidence: STEPBible exposes TAHOT, TAGNT, lexicons, proper-name entities, versification, morphology codes and manuscript-meaning variant datasets; MACULA Hebrew contains syntax trees, word senses, semantic roles and participant referents; NTVMR exposes a large Greek NT manuscript research environment; Coptic SCRIPTORIUM publishes multiple annotation formats.",
+      "Deep object expansion validated against current source documentation: STEPBible exposes translator tags, tagged OT/NT corpora, lexicons, concept groups, proper-name entities and versification; MACULA exposes nested syntax, lowfat query structures and word-level records; Coptic SCRIPTORIUM exposes token, morpheme, entity, identity, treebank, manuscript-linked and aligned-translation layers."
     ]
   }
 }
