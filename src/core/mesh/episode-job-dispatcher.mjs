@@ -30,8 +30,8 @@ async function graphExpansion({ pool, task }) {
     `SELECT id, reference, book, chapter, verse_start, verse_end, text, canonical, metadata
        FROM bible_passages
       WHERE book=$1 AND chapter=$2
-        AND ($3='full' OR verse_start <= split_part($3,'-',1)::int
-          OR verse_end >= split_part($3,'-',1)::int)
+        AND ($3='full' OR (verse_start <= split_part($3,'-',1)::int AND verse_end >= split_part($3,'-',1)::int)
+          OR ($3 LIKE '%-%' AND verse_start <= split_part($3,'-',2)::int AND verse_end >= split_part($3,'-',1)::int))
       ORDER BY verse_start
       LIMIT 250`,
     [String(p.book), Number(p.chapter), String(p.verses || "full")]
@@ -111,9 +111,10 @@ async function generateScript({ pool, task }) {
     workerId: "episode-pipeline",
     role: "episode-render",
     task: "episode-render",
-    payload: { episodeId: p.episodeId, stage: 3, dependsOn: task.id },
+    payload: { episodeId: p.episodeId, stage: 3, dependsOn: task.id, traceId: task.trace_id || p.traceId || null },
     maxAttempts: 5,
-    dedupeKey: renderKey
+    dedupeKey: renderKey,
+    traceId: task.trace_id || p.traceId || null
   });
   await pool.query(
     "UPDATE apex_episode_pipelines SET status='scripted', updated_at=NOW() WHERE id=$1",
