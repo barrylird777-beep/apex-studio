@@ -10,6 +10,7 @@ const int = (name, fallback) => {
 export const config = Object.freeze({
   port: int("TITAN_PORT", 8787),
   maxDepth: int("TITAN_MAX_DEPTH", 2),
+  auditConcurrency: int("TITAN_AUDIT_CONCURRENCY", 6),
   implementationRounds: int("TITAN_IMPLEMENTATION_ROUNDS", 72),
   repairPasses: int("TITAN_REPAIR_PASSES", 7),
   repairTurns: int("TITAN_REPAIR_TURNS", 20),
