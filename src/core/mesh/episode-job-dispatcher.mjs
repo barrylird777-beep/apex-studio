@@ -3,6 +3,7 @@ import { GeminiMeshProvider } from "./gemini-mesh-provider.mjs";
 import { ClaudeMeshProvider } from "./claude-mesh-provider.mjs";
 import { enqueueWorkerTask, deferWorkerTask } from "./durable-worker-store.mjs";
 import { executeCrewInference } from "./crew-inference-worker.mjs";
+import MediaRenderHandler from "../../workers/handlers/media-render-handler.mjs";
 
 function json(value) {
   return JSON.stringify(value ?? {});
@@ -112,7 +113,7 @@ async function generateScript({ pool, task }) {
     workerId: "episode-pipeline",
     role: "episode-render",
     task: "episode-render",
-    payload: { episodeId: p.episodeId, stage: 3, dependsOn: task.id, traceId: task.trace_id || p.traceId || null },
+    payload: { episodeId: p.episodeId, book: p.book, chapter: Number(p.chapter), verses: p.verses || "full", stage: 3, dependsOn: task.id, traceId: task.trace_id || p.traceId || null },
     maxAttempts: 5,
     dedupeKey: renderKey,
     traceId: task.trace_id || p.traceId || null
@@ -124,7 +125,7 @@ async function generateScript({ pool, task }) {
   return { episodeId: p.episodeId, scriptLength: String(script).length, renderJobId: renderId };
 }
 
-async function renderPlan({ pool, task }) {
+async function renderPlan({ pool, task, mediaRenderHandler }) {
   const p = episodePayload(task);
   const r = await pool.query(
     "SELECT raw_data FROM apex_episode_context WHERE episode_id=$1 AND context_type='script'",
@@ -144,11 +145,12 @@ async function renderPlan({ pool, task }) {
     plannedAt: new Date().toISOString()
   };
   await saveContext(pool, p.episodeId, "render-plan", plan);
+  const media = await mediaRenderHandler.process({ episodeId: p.episodeId, book: p.book, chapter: Number(p.chapter), durationSeconds: Number(p.durationSeconds) || undefined });
   await pool.query(
-    "UPDATE apex_episode_pipelines SET status='render-planned', updated_at=NOW() WHERE id=$1",
+    "UPDATE apex_episode_pipelines SET status='rendered', updated_at=NOW() WHERE id=$1",
     [p.episodeId]
   );
-  return plan;
+  return { ...plan, media };
 }
 
 async function aiCrewEvaluate({ task }) {
@@ -187,6 +189,7 @@ async function rfAnomalyEvaluate({ task }) {
 
 export function createEpisodeJobDispatcher({ pool }) {
   if (!pool) throw new TypeError("Episode dispatcher requires PostgreSQL");
+  const mediaRenderHandler = new MediaRenderHandler(pool);
   return async function dispatchEpisodeJob(task) {
     switch (String(task?.role || task?.task || "")) {
       case "graph-expansion":
@@ -194,7 +197,7 @@ export function createEpisodeJobDispatcher({ pool }) {
       case "episode-script-generation":
         return generateScript({ pool, task });
       case "episode-render":
-        return renderPlan({ pool, task });
+        return renderPlan({ pool, task, mediaRenderHandler });
       case "rf-anomaly-evaluate":
         return rfAnomalyEvaluate({ task });
       case "ai-crew":
