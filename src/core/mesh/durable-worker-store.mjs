@@ -62,11 +62,11 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
   const db = getPool();
   const r = await db.query(`UPDATE apex_worker_tasks
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=gen_random_uuid()::text, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$4, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
       AND attempts < max_attempts AND (next_run_at IS NULL OR next_run_at <= NOW())
-    RETURNING *`, [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs]);
+    RETURNING *`, [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", leaseMs, process.pid]);
   return r.rows[0] || null;
 }
 
