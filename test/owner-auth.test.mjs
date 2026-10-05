@@ -41,3 +41,9 @@ test('valid bearer token reaches the protected route', () => {
   assert.equal(reached, true);
   process.env.APEX_COMMANDER_TOKEN = previous;
 });
+
+
+test('public health path remains allowlisted when middleware is mounted at /api', () => {
+  assert.equal(isPublicApiPath('/api/health'), true);
+  assert.equal(isPublicApiPath('/api/health?probe=1'), false);
+});
