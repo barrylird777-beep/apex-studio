@@ -22,9 +22,13 @@ import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
+import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+startLoadShedder({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) });
+app.use(loadShedderMiddleware({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) }));
+app.use((req,res,next) => runWithTrace({ trace_id: String(req.headers['x-request-id'] || crypto.randomUUID()) }, next));
 
 if (durableWorkerEnabled()) {
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
@@ -97,7 +101,7 @@ meshWorkerSupervisor.start();
 permanentWorkerSupervisor.start();
 
 const aiCrew = createAiCrewEngine({
-  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 48))),
+  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 64))),
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
 
@@ -113,9 +117,9 @@ if (aiCrewAutoRun) {
       'Surface blockers with a workaround path rather than stopping.'
     ]
   };
-  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 96))), crewContext);
+  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 128))), crewContext);
   const aiCrewPulse = setInterval(() => {
-    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 48))), crewContext);
+    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 64))), crewContext);
   }, Math.max(30000, Number(process.env.APEX_AI_CREW_PULSE_MS || 15000)));
   aiCrewPulse.unref?.();
 }
