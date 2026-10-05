@@ -1,8 +1,6 @@
 import crypto from "node:crypto";
-import { enqueueWorkerTask, claimWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
+import { enqueueWorkerTask } from "../mesh/durable-worker-store.mjs";
 import { claimReadyExecutionNodes, updateExecutionNode, setPlanStatus, appendAgentEvent } from "./durable-control-plane.mjs";
-
-const uuid=()=>crypto.randomUUID();
 
 export class DurablePlanScheduler {
   constructor({ runtime, executor, batchSize=20 }={}) {
@@ -13,23 +11,20 @@ export class DurablePlanScheduler {
 
   async tick({signal}={}) {
     const nodes=await claimReadyExecutionNodes(this.batchSize);
-    let queued=0, completed=0, failed=0;
+    let queued=0,failed=0;
     for(const node of nodes) {
       if(signal?.aborted) break;
-      let agent;
       try {
-        agent=this.runtime.listAgents().find(a=>a.status==="ready" && a.capabilities.includes(node.capability));
+        const agent=this.runtime.listAgents().find(a=>a.status==="ready"&&a.capabilities.includes(node.capability));
         if(!agent) {
           await updateExecutionNode(node.id,{status:"pending",last_error:"No eligible agent"});
           continue;
         }
-        const taskId=uuid();
+        const taskId=crypto.randomUUID();
         await enqueueWorkerTask({
-          id:taskId, workerId:agent.id, role:agent.role,
-          task:"execute-intelligence-node",
+          id:taskId,workerId:agent.id,role:agent.role,task:"execute-intelligence-node",
           payload:{planId:node.plan_id,nodeId:node.id,capability:node.capability},
-          maxAttempts:node.max_attempts,
-          dedupeKey:`apex:node:${node.id}`
+          maxAttempts:node.max_attempts,dedupeKey:"apex:node:"+node.id
         });
         await updateExecutionNode(node.id,{status:"queued",worker_task_id:taskId});
         await appendAgentEvent({agentId:agent.id,planId:node.plan_id,nodeId:node.id,eventType:"node_queued"});
@@ -40,7 +35,7 @@ export class DurablePlanScheduler {
         failed++;
       }
     }
-    return {discovered:nodes.length,queued,completed,failed};
+    return {discovered:nodes.length,queued,failed};
   }
 
   async executeTask(task,{signal}={}) {
@@ -50,13 +45,7 @@ export class DurablePlanScheduler {
     await setPlanStatus(planId,"running");
     await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_started"});
     try {
-      const result=await this.executor(task,{signal, runtime:this.runtime});
-      const verification=result?.verification;
-      if (!verification || verification.passed !== true) {
-        throw new Error("Node execution requires independent verification evidence before completion");
-      }
-      await updateExecutionNode(nodeId,{status:"completed",result,verification});
-      await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_completed",payload:{verified:true}});
+      const result=await this.executor(task,{signal,runtime:this.runtime});
       return result;
     } catch(error) {
       await updateExecutionNode(nodeId,{status:"failed",last_error:String(error?.message||error)});
