@@ -13,6 +13,7 @@ if [ ! -f .env ]; then
 fi
 
 npm install
+npm run db:migrate:workers
 npm install -g pm2
 pm2 start ecosystem.config.cjs
 pm2 save
