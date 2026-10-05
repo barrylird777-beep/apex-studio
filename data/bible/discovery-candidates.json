@@ -2462,6 +2462,216 @@
       "language": "multilingual",
       "sourceId": "stepbible",
       "status": "quality-control"
+    },
+    {
+      "slug": "macula-greek-nt-syntax",
+      "title": "MACULA Greek NT syntax trees",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "syntax"
+    },
+    {
+      "slug": "macula-greek-morphology",
+      "title": "MACULA Greek NT morphology",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "morphology"
+    },
+    {
+      "slug": "macula-greek-wordsenses",
+      "title": "MACULA Greek NT word senses",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "semantic"
+    },
+    {
+      "slug": "macula-greek-semantic-frames",
+      "title": "MACULA Greek semantic frames",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "semantic"
+    },
+    {
+      "slug": "macula-greek-participants",
+      "title": "MACULA Greek participant referents",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "entity-graph"
+    },
+    {
+      "slug": "macula-greek-synonyms",
+      "title": "MACULA Greek synonym relations",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "relationship"
+    },
+    {
+      "slug": "macula-greek-mappings",
+      "title": "MACULA Greek text mappings",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "alignment"
+    },
+    {
+      "slug": "macula-greek-adjuncts",
+      "title": "MACULA Greek adjunct types",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "syntax"
+    },
+    {
+      "slug": "macula-greek-n1904-sbl",
+      "title": "Nestle 1904 ↔ SBLGNT word mappings",
+      "language": "grc",
+      "sourceId": "clear-bible",
+      "status": "alignment"
+    },
+    {
+      "slug": "stepbible-tagnt-edition-membership",
+      "title": "TAGNT per-word edition membership",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "textual-variant"
+    },
+    {
+      "slug": "stepbible-tagnt-positional-variants",
+      "title": "TAGNT positional variants",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "textual-variant"
+    },
+    {
+      "slug": "stepbible-tagnt-meaning-variants",
+      "title": "TAGNT meaning variants",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "textual-variant"
+    },
+    {
+      "slug": "stepbible-tagnt-lexical-links",
+      "title": "TAGNT lexical links",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-tagnt-morphology",
+      "title": "TAGNT morphology",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "morphology"
+    },
+    {
+      "slug": "stepbible-tipnr-people",
+      "title": "TIPNR individual people",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "person"
+    },
+    {
+      "slug": "stepbible-tipnr-places",
+      "title": "TIPNR individual places",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "place"
+    },
+    {
+      "slug": "stepbible-tipnr-things",
+      "title": "TIPNR individual things",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "entity"
+    },
+    {
+      "slug": "stepbible-tipnr-relationships",
+      "title": "TIPNR family/relationship edges",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "relationship"
+    },
+    {
+      "slug": "stepbible-tipnr-geolocation",
+      "title": "TIPNR place geolocation",
+      "language": "multilingual",
+      "sourceId": "stepbible",
+      "status": "geography"
+    },
+    {
+      "slug": "coptic-bible-corpus",
+      "title": "Coptic SCRIPTORIUM Bible corpora",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "coptic-bible-nt",
+      "title": "Coptic New Testament corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "coptic-bible-ot",
+      "title": "Coptic Old Testament corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "scripture"
+    },
+    {
+      "slug": "coptic-biblical-parallels",
+      "title": "Coptic biblical parallel witnesses",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "parallel"
+    },
+    {
+      "slug": "coptic-patristic-documents",
+      "title": "Coptic patristic documents",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "coptic-papyri-documents",
+      "title": "Coptic documentary papyri",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "artifact"
+    },
+    {
+      "slug": "coptic-apocrypha",
+      "title": "Coptic apocryphal texts",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "apocrypha"
+    },
+    {
+      "slug": "coptic-magical-papyri",
+      "title": "Coptic Magical Papyri corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "artifact"
+    },
+    {
+      "slug": "coptic-apophthegmata",
+      "title": "Coptic Apophthegmata Patrum corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "coptic-pseudo-ephrem",
+      "title": "Coptic Pseudo-Ephrem corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
+    },
+    {
+      "slug": "coptic-pseudo-timothy",
+      "title": "Coptic Pseudo-Timothy of Alexandria corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "patristic"
     }
   ],
   "discoveryRun": {
@@ -2490,7 +2700,8 @@
       "Surface break: node-level knowledge objects now include scrolls, fragments, lines, words, verses, morphology, syntax, lexical data, parallels, manuscript metadata and scholarly encodings.",
       "Surface break continued: added linguistic annotation corpora, Greek critical-text resources, Coptic/Syriac corpora, manuscript image/transcription infrastructure, historical Christian corpora, semantic metadata and cross-reference graphs.",
       "Precision surface-break evidence: STEPBible exposes TAHOT, TAGNT, lexicons, proper-name entities, versification, morphology codes and manuscript-meaning variant datasets; MACULA Hebrew contains syntax trees, word senses, semantic roles and participant referents; NTVMR exposes a large Greek NT manuscript research environment; Coptic SCRIPTORIUM publishes multiple annotation formats.",
-      "Deep object expansion validated against current source documentation: STEPBible exposes translator tags, tagged OT/NT corpora, lexicons, concept groups, proper-name entities and versification; MACULA exposes nested syntax, lowfat query structures and word-level records; Coptic SCRIPTORIUM exposes token, morpheme, entity, identity, treebank, manuscript-linked and aligned-translation layers."
+      "Deep object expansion validated against current source documentation: STEPBible exposes translator tags, tagged OT/NT corpora, lexicons, concept groups, proper-name entities and versification; MACULA exposes nested syntax, lowfat query structures and word-level records; Coptic SCRIPTORIUM exposes token, morpheme, entity, identity, treebank, manuscript-linked and aligned-translation layers.",
+      "Fresh source verification: MACULA Greek contains syntax trees, morphology, senses, semantic frames, participant referents, synonyms, mappings and adjunct types; STEPBible TAGNT explicitly tracks per-word edition membership, positional/meaning variants, lexical/morphological tags, plus TIPNR people/places/things and relationships; Coptic SCRIPTORIUM release data includes Bible corpora, papyri, apocrypha, patristic works and Magical Papyri with machine-readable annotation."
     ]
   }
 }
