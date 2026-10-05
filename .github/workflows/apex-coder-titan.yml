@@ -1,0 +1,44 @@
+name: Apex Coder Titan
+
+on:
+  pull_request:
+    paths:
+      - "apex-coder-titan/**"
+      - ".github/workflows/apex-coder-titan.yml"
+  push:
+    branches: [main, feat/apex-coder-titan]
+    paths:
+      - "apex-coder-titan/**"
+      - ".github/workflows/apex-coder-titan.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  titan:
+    name: Titan unit verification
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apex-coder-titan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: apex-coder-titan/package.json
+      - name: Install
+        run: npm install --ignore-scripts
+      - name: Test
+        run: npm test
+      - name: Syntax check
+        run: |
+          node --check src/config.mjs
+          node --check src/repo.mjs
+          node --check src/checks.mjs
+          node --check src/ai.mjs
+          node --check src/titan.mjs
+          node --check src/server.mjs
