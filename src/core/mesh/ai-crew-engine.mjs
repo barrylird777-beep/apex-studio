@@ -34,6 +34,10 @@ const now=()=>new Date().toISOString();
 export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), concurrency=16 }={}) {
   if(typeof dispatch!=="function") throw new TypeError("AI crew dispatch function is required");
   const safeConcurrency=Math.max(1,Math.min(128,Number(concurrency)||16));
+  const maxQueue=Math.max(safeConcurrency,Math.min(5000,Number(process.env.APEX_AI_CREW_MAX_QUEUE)||2000));
+  const recentLimit=Math.max(100,Math.min(1000,Number(process.env.APEX_AI_CREW_RECENT_LIMIT)||500));
+  let roleCursor=0;
+  let sequence=0;
   const queue=[];
   const active=new Map();
   const completed=[];
@@ -41,10 +45,11 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
   let running=true;
 
   function enqueue(input={}) {
-    const role=String(input.role||roles[Math.floor(Math.random()*roles.length)]||"qa");
+    const role=String(input.role||roles[roleCursor++%Math.max(1,roles.length)]||"qa");
     const task=String(input.task||ROLE_PROMPTS[role]||"Audit and improve the assigned Apex subsystem.");
+    if(queue.length>=maxQueue) throw new Error(`AI crew queue capacity exceeded (${maxQueue})`);
     const id=input.id||crypto.randomUUID();
-    const item={id,role,task,context:input.context&&typeof input.context==="object"?input.context:{},createdAt:now(),status:"queued"};
+    const item={id,sequence:++sequence,role,task,context:input.context&&typeof input.context==="object"?input.context:{},createdAt:now(),status:"queued"};
     queue.push(item);
     pump();
     return {...item};
@@ -76,13 +81,13 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
       item.result=result;
       item.completedAt=now();
       completed.push(item);
-      if(completed.length>200) completed.shift();
+      if(completed.length>recentLimit) completed.shift();
     } catch(error) {
       item.status="failed";
       item.error=String(error?.message||error);
       item.completedAt=now();
       failed.push(item);
-      if(failed.length>200) failed.shift();
+      if(failed.length>recentLimit) failed.shift();
     } finally {
       active.delete(item.id);
       pump();
@@ -95,13 +100,16 @@ export function createAiCrewEngine({ dispatch, roles=Object.keys(ROLE_PROMPTS), 
   }
 
   function burst(count=32, context={}) {
-    const n=Math.max(1,Math.min(500,Number(count)||32));
+    const n=Math.max(1,Math.min(Math.max(1,maxQueue-queue.length),Number(count)||32));
     return Array.from({length:n},(_,i)=>enqueue({role:roles[i%roles.length],context}));
   }
 
   function status() {
     return {
       running,
+      queueCapacity:maxQueue,
+      queueUtilization:queue.length/maxQueue,
+      throughput:{completed:completed.length,failed:failed.length},
       concurrency:safeConcurrency,
       queued:queue.length,
       active:active.size,
