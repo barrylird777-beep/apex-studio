@@ -209,7 +209,7 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
 
       const sleepMs = Math.min(
         remaining,
-        Math.max(wait, Math.ceil(((1 - Math.min(cap, current + 0)) / refill) * 1000))
+        Math.max(wait, Math.ceil((1 / refill) * 1000))
       );
       await new Promise((resolve) => setTimeout(resolve, Math.max(1, sleepMs)));
     }
