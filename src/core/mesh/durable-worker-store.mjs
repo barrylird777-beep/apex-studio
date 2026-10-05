@@ -138,25 +138,49 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const cap = Math.max(1, Number(capacity) || 10);
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
   const wait = Math.max(50, Number(retryMs) || 300);
-  const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
+  const maxWait = Math.max(0, Number(maxWaitMs) || 0);
+  const deadline = Date.now() + maxWait;
+
   await db.query(
     `INSERT INTO rate_limits (key, tokens, updated_at)
-     VALUES ($1, $2, NOW())
+     VALUES ($1, $2, clock_timestamp())
      ON CONFLICT (key) DO NOTHING`,
     [key, cap]
   );
+
   for (;;) {
-    const r = await db.query(
-      `UPDATE rate_limits SET
-        tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
-        updated_at = NOW()
-       WHERE key = $1
-         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`,
-      [key, cap, refill]
-    );
-    if (r.rowCount === 1) return true;
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await client.query(
+        `SELECT tokens, updated_at FROM rate_limits WHERE key=$1 FOR UPDATE`,
+        [key]
+      );
+      if (current.rowCount !== 1) throw new Error("Rate-limit bucket disappeared");
+      const row = current.rows[0];
+      const elapsed = Math.max(0, (Date.now() - new Date(row.updated_at).getTime()) / 1000);
+      const available = Math.min(cap, Number(row.tokens) + elapsed * refill);
+
+      if (available >= 1) {
+        await client.query(
+          `UPDATE rate_limits SET tokens=$2, updated_at=clock_timestamp() WHERE key=$1`,
+          [key, available - 1]
+        );
+        await client.query("COMMIT");
+        return true;
+      }
+
+      await client.query("ROLLBACK");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+
     if (Date.now() >= deadline) return false;
-    await new Promise(resolve => setTimeout(resolve, wait + Math.random() * wait));
+    const remaining = Math.max(0, deadline - Date.now());
+    await new Promise(resolve => setTimeout(resolve, Math.min(wait + Math.random() * wait, remaining)));
   }
 }
 
