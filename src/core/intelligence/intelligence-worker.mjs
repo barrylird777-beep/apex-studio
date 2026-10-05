@@ -1,4 +1,4 @@
-import { claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from "../mesh/durable-worker-store.mjs";
+import { claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from "../mesh/durable-worker-store.mjs";
 import { bindExecutionNodeLease, updateExecutionNodeForLease, appendAgentEvent } from "./durable-control-plane.mjs";
 
 export class IntelligenceWorker {
