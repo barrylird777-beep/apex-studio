@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config, validateConfig } from "./config.mjs";
@@ -32,7 +33,7 @@ app.post("/api/titan/run", async (req, res) => {
     return res.status(400).json({ error: "assignment is required." });
   }
 
-  const runId = cryptoRandomId();
+  const runId = crypto.randomUUID();
   const job = {
     runId,
     status: "running",
@@ -104,9 +105,6 @@ app.post("/api/titan/run/:runId/cancel", (req, res) => {
   res.status(202).json({ runId: job.runId, status: "cancelling" });
 });
 
-function cryptoRandomId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-}
 
 app.listen(config.port, "127.0.0.1", () => {
   console.log(`Apex Coder Titan listening on http://127.0.0.1:${config.port}`);
