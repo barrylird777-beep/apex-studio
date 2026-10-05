@@ -1,4 +1,17 @@
-import { pool as defaultPool } from "../index.ts";
+import pg from "pg";
+
+const { Pool } = pg;
+
+function createDefaultPool() {
+  const connectionString = String(process.env.DATABASE_URL || "").trim();
+  if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL Bible search.");
+  return new Pool({
+    connectionString,
+    max: Math.max(2, Math.min(20, Number(process.env.APEX_DB_POOL_MAX || 20))),
+    idleTimeoutMillis: Number(process.env.APEX_DB_IDLE_TIMEOUT_MS || 30000),
+    connectionTimeoutMillis: Number(process.env.APEX_DB_CONNECTION_TIMEOUT_MS || 10000)
+  });
+}
 
 function safeLimit(value, fallback = 50) {
   return Math.max(1, Math.min(500, Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : fallback));
@@ -9,8 +22,8 @@ function cleanQuery(value) {
 }
 
 export class BibleSearch {
-  constructor(pool = defaultPool) {
-    this.pool = pool;
+  constructor(pool = null) {
+    this.pool = pool ?? createDefaultPool();
   }
 
   async fuzzySearch(queryText, { limit = 50, collectionId = null } = {}) {
