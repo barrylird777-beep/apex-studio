@@ -8,3 +8,19 @@ test("agent runtime requires durable registration", async () => {
   assert.equal(agent.id,"test-specialist");
   assert.equal(runtime.listAgents().length,1);
 });
+
+
+test("agent runtime enforces per-agent concurrency capacity", async () => {
+  const runtime=new AgentRuntime();
+  await runtime.registerAgent({id:"capacity-agent",capabilities:["testing"],maxConcurrency:2});
+  assert.equal(runtime.reserve("capacity-agent"),true);
+  assert.equal(runtime.reserve("capacity-agent"),true);
+  assert.equal(runtime.reserve("capacity-agent"),false);
+  assert.equal(runtime.getAgent("capacity-agent").active,2);
+  runtime.release("capacity-agent");
+  assert.equal(runtime.reserve("capacity-agent"),true);
+  assert.equal(runtime.getAgent("capacity-agent").active,2);
+  runtime.release("capacity-agent");
+  runtime.release("capacity-agent");
+  assert.equal(runtime.getAgent("capacity-agent").active,0);
+});
