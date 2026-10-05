@@ -402,6 +402,24 @@
       "kind": "latin-corpus",
       "url": "https://mlat.uzh.ch/",
       "notes": "Corpus Corporum Latin resources."
+    },
+    {
+      "id": "coptot",
+      "kind": "coptic-ot-manuscript-edition",
+      "url": "https://coptot.manuscriptroom.com/",
+      "notes": "Digital Coptic OT manuscript documentation and editions."
+    },
+    {
+      "id": "geniza",
+      "kind": "geniza-corpus",
+      "url": "https://genizalab.princeton.edu/",
+      "notes": "Open-access Cairo Geniza descriptions, transcriptions and research data."
+    },
+    {
+      "id": "biblissima",
+      "kind": "manuscript-metadata",
+      "url": "https://iiif.biblissima.fr/",
+      "notes": "IIIF manuscript and rare-book metadata/manifests."
     }
   ],
   "candidates": [
@@ -2924,6 +2942,216 @@
       "language": "multilingual",
       "sourceId": "theographic",
       "status": "relationship"
+    },
+    {
+      "slug": "coptot-manuscript-list",
+      "title": "Coptic Old Testament manuscript catalog",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "manuscript"
+    },
+    {
+      "slug": "coptot-codex-naming",
+      "title": "Coptic biblical codex naming system",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "metadata"
+    },
+    {
+      "slug": "coptot-diplomatic-editions",
+      "title": "Coptic OT diplomatic editions",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "edition"
+    },
+    {
+      "slug": "coptot-critical-editions",
+      "title": "Coptic OT critical editions",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "edition"
+    },
+    {
+      "slug": "coptot-translations",
+      "title": "Coptic OT English German Arabic translations",
+      "language": "cop/en/de/ar",
+      "sourceId": "coptot",
+      "status": "translation"
+    },
+    {
+      "slug": "coptot-sahidic-corpus",
+      "title": "Sahidic OT annotated corpus",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "linguistic-corpus"
+    },
+    {
+      "slug": "coptot-citation-db",
+      "title": "Sahidic Bible citation database",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "relationship"
+    },
+    {
+      "slug": "coptot-lexicography",
+      "title": "Coptic OT lexicography layer",
+      "language": "cop",
+      "sourceId": "coptot",
+      "status": "lexicon"
+    },
+    {
+      "slug": "csntm-manuscript-records",
+      "title": "CSNTM Greek NT manuscript records",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "csntm-papyrus-records",
+      "title": "CSNTM papyrus records",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "csntm-majuscule-records",
+      "title": "CSNTM majuscule records",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "csntm-minuscule-records",
+      "title": "CSNTM minuscule records",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "csntm-lectionary-records",
+      "title": "CSNTM lectionary records",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "csntm-manuscript-features",
+      "title": "CSNTM manuscript feature metadata",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "codicology"
+    },
+    {
+      "slug": "csntm-highres-images",
+      "title": "CSNTM high-resolution manuscript images",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "image"
+    },
+    {
+      "slug": "etcbc-syriac-word-features",
+      "title": "ETCBC Syriac word features",
+      "language": "syr",
+      "sourceId": "etcbc",
+      "status": "morphology"
+    },
+    {
+      "slug": "etcbc-syriac-lexemes",
+      "title": "ETCBC Syriac lexemes",
+      "language": "syr",
+      "sourceId": "etcbc",
+      "status": "lexicon"
+    },
+    {
+      "slug": "etcbc-syriac-glosses",
+      "title": "ETCBC Syriac English glosses",
+      "language": "syr/en",
+      "sourceId": "etcbc",
+      "status": "translation"
+    },
+    {
+      "slug": "etcbc-syriac-verbal-features",
+      "title": "ETCBC Syriac verbal stem tense person gender number voice",
+      "language": "syr",
+      "sourceId": "etcbc",
+      "status": "morphology"
+    },
+    {
+      "slug": "etcbc-syriac-estrangela",
+      "title": "ETCBC Syriac Estrangela representation",
+      "language": "syr",
+      "sourceId": "etcbc",
+      "status": "script"
+    },
+    {
+      "slug": "geniza-biblical-fragments",
+      "title": "Princeton Geniza biblical-relevant fragments",
+      "language": "he/arc/ara",
+      "sourceId": "geniza",
+      "status": "manuscript"
+    },
+    {
+      "slug": "geniza-transcriptions",
+      "title": "Princeton Geniza searchable transcriptions",
+      "language": "he/arc/ara",
+      "sourceId": "geniza",
+      "status": "transcription"
+    },
+    {
+      "slug": "geniza-translations",
+      "title": "Princeton Geniza translations",
+      "language": "he/arc/ara",
+      "sourceId": "geniza",
+      "status": "translation"
+    },
+    {
+      "slug": "geniza-glossaries",
+      "title": "Princeton Geniza glossaries",
+      "language": "multilingual",
+      "sourceId": "geniza",
+      "status": "lexicon"
+    },
+    {
+      "slug": "geniza-document-structures",
+      "title": "Princeton Geniza documentary structures",
+      "language": "multilingual",
+      "sourceId": "geniza",
+      "status": "metadata"
+    },
+    {
+      "slug": "sefaria-manuscript-api",
+      "title": "Sefaria manuscript associations per text reference",
+      "language": "he/en",
+      "sourceId": "sefaria",
+      "status": "manuscript"
+    },
+    {
+      "slug": "biblissima-hebrew-bible-manuscripts",
+      "title": "Biblissima Hebrew Bible manuscript records",
+      "language": "he",
+      "sourceId": "biblissima",
+      "status": "manuscript"
+    },
+    {
+      "slug": "biblissima-iiif-manifests",
+      "title": "Biblissima IIIF manuscript manifests",
+      "language": "multilingual",
+      "sourceId": "biblissima",
+      "status": "image"
+    },
+    {
+      "slug": "biblissima-authorities",
+      "title": "Biblissima authority entities for manuscripts",
+      "language": "multilingual",
+      "sourceId": "biblissima",
+      "status": "entity"
+    },
+    {
+      "slug": "biblissima-codicology",
+      "title": "Biblissima manuscript codicological metadata",
+      "language": "multilingual",
+      "sourceId": "biblissima",
+      "status": "codicology"
     }
   ],
   "discoveryRun": {
@@ -2954,7 +3182,8 @@
       "Precision surface-break evidence: STEPBible exposes TAHOT, TAGNT, lexicons, proper-name entities, versification, morphology codes and manuscript-meaning variant datasets; MACULA Hebrew contains syntax trees, word senses, semantic roles and participant referents; NTVMR exposes a large Greek NT manuscript research environment; Coptic SCRIPTORIUM publishes multiple annotation formats.",
       "Deep object expansion validated against current source documentation: STEPBible exposes translator tags, tagged OT/NT corpora, lexicons, concept groups, proper-name entities and versification; MACULA exposes nested syntax, lowfat query structures and word-level records; Coptic SCRIPTORIUM exposes token, morpheme, entity, identity, treebank, manuscript-linked and aligned-translation layers.",
       "Fresh source verification: MACULA Greek contains syntax trees, morphology, senses, semantic frames, participant referents, synonyms, mappings and adjunct types; STEPBible TAGNT explicitly tracks per-word edition membership, positional/meaning variants, lexical/morphological tags, plus TIPNR people/places/things and relationships; Coptic SCRIPTORIUM release data includes Bible corpora, papyri, apocrypha, patristic works and Magical Papyri with machine-readable annotation.",
-      "Blast-off expansion: moved across Syriac, Greek, Latin, early English print, Jewish textual graph, NT manuscript witnesses, cross-reference edges and semantic Bible metadata. The graph now explicitly models authors, works, volumes, manuscripts, pages, witnesses, people, places, themes, events and relationship edges."
+      "Blast-off expansion: moved across Syriac, Greek, Latin, early English print, Jewish textual graph, NT manuscript witnesses, cross-reference edges and semantic Bible metadata. The graph now explicitly models authors, works, volumes, manuscripts, pages, witnesses, people, places, themes, events and relationship edges.",
+      "Fresh verification: CoptOT documents manuscript cataloguing, standardized codex naming, diplomatic/critical editions, translations, Sahidic corpus and citation/lexicographic tools; CSNTM exposes manuscript classifications and feature metadata plus high-resolution images; Princeton Geniza Project publishes thousands of searchable transcriptions and research datasets; Biblissima IIIF records expose manuscript authority, codicology, language, date, shelfmark, contents and image manifests."
     ]
   }
 }
