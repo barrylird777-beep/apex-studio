@@ -72,6 +72,12 @@
       "kind": "repository",
       "url": "https://github.com/kbennett2000/concord",
       "notes": "Public-domain translations plus original-language and study datasets."
+    },
+    {
+      "id": "ebible-org",
+      "kind": "catalog-and-distribution",
+      "url": "https://ebible.org/",
+      "notes": "Current multilingual Bible catalog with freely redistributable and restricted-distribution resources; formats include HTML, EPUB, USFX, USFM, SQL and others."
     }
   ],
   "candidates": [
@@ -326,6 +332,224 @@
       "language": "multilingual",
       "sourceId": "concord",
       "status": "reference"
+    },
+    {
+      "slug": "czech-bible-kralicka",
+      "title": "Bible kralická",
+      "language": "cs",
+      "sourceId": "open-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "world-english-bible",
+      "title": "World English Bible",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "world-english-bible-british",
+      "title": "World English Bible British Edition",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "king-james-version",
+      "title": "King James Version",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "open-english-bible-us",
+      "title": "Open English Bible US Edition",
+      "language": "en",
+      "sourceId": "open-bibles",
+      "status": "public-domain"
+    },
+    {
+      "slug": "russian-synodal",
+      "title": "Russian Synodal Bible",
+      "language": "ru",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "arabic-van-dyck",
+      "title": "Arabic Van Dyck Bible",
+      "language": "ar",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "brenton-lxx",
+      "title": "Brenton Septuagint",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "wycliffe-bible",
+      "title": "Wycliffe Bible",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "youngs-literal-translation",
+      "title": "Young's Literal Translation",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "literal-standard-version",
+      "title": "Literal Standard Version",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "free-bible-version",
+      "title": "Free Bible Version",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "world-messianic-bible",
+      "title": "World Messianic Bible",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "world-messianic-bible-british",
+      "title": "World Messianic Bible British Edition",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "orthodox-jewish-bible",
+      "title": "Orthodox Jewish Bible",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "targum-onkelos-etheridge",
+      "title": "Targum Onkelos Etheridge",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "lxx2012",
+      "title": "LXX2012 Septuagint in American English",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "revised-version-apocrypha",
+      "title": "Revised Version with Apocrypha",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "translation-for-translators",
+      "title": "A Translation for Translators",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "majority-standard-bible",
+      "title": "Majority Standard Bible",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "jps-tanakh-1917",
+      "title": "JPS TaNaKH 1917",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "isaac-leeser-tanakh",
+      "title": "Isaac Leeser Tanakh",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "american-standard-version-byzantine",
+      "title": "ASV Byzantine Text",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "kjv-apocrypha",
+      "title": "KJV with Apocrypha",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "tyndale-new-testament",
+      "title": "Tyndale New Testament",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "text-critical-english-new-testament",
+      "title": "Text-Critical English New Testament",
+      "language": "en",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "australian-aboriginal-scriptures",
+      "title": "Australian Aboriginal Bible resources",
+      "language": "multilingual",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "pacific-bibles",
+      "title": "Pacific Bible resources",
+      "language": "multilingual",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "papua-new-guinea-scriptures",
+      "title": "Papua New Guinea Scripture resources",
+      "language": "multilingual",
+      "sourceId": "ebible-org",
+      "status": "candidate"
+    },
+    {
+      "slug": "vanuatu-bibles",
+      "title": "Vanuatu Bible resources",
+      "language": "multilingual",
+      "sourceId": "ebible-org",
+      "status": "candidate"
     }
-  ]
+  ],
+  "discoveryRun": {
+    "timestamp": "2026-10-05",
+    "evidence": [
+      "eBible.org current catalog lists these English and multilingual resources.",
+      "eBible.org metrics report 1,543 Bible translations and 1,024 languages with freely redistributable translations for September 2026.",
+      "Open Bibles repository confirms public-domain/free-license status for its listed files."
+    ]
+  }
 }
