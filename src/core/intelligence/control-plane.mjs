@@ -44,10 +44,10 @@ export class IntelligenceControlPlane {
     if(!verification||typeof verification!=="object") throw new TypeError("verification evidence is required");
     const ok=verification.passed===true;
     if(!ok) {
-      await updateNode(nodeId,{status:"failed",verification,last_error:String(verification.reason??"Verification failed")});
+      await updateExecutionNode(nodeId,{status:"failed",verification,last_error:String(verification.reason??"Verification failed")});
       return false;
     }
-    await updateNode(nodeId,{verification});
+    await updateExecutionNode(nodeId,{verification});
     return true;
   }
 }
