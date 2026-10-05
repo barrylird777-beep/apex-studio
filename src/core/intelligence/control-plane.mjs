@@ -1,5 +1,6 @@
-import crypto from "node:crypto";
 import { createDurablePlan, materializePlanNodes, appendAgentEvent, updateExecutionNode, setPlanStatus } from "./durable-control-plane.mjs";
+import { updateExecutionNode as updateNode } from "./durable-control-plane.mjs";
+import crypto from "node:crypto";
 
 const uuid=()=>crypto.randomUUID();
 
@@ -14,29 +15,24 @@ export class IntelligenceControlPlane {
     const planId=uuid();
     const graphSnapshot=graph.snapshot();
     const nodes=graphSnapshot.nodes.map(n=>({
-      id: uuid(),
-      name:n.name,
-      capability:n.capability,
-      dependsOn:[],
-      maxAttempts:n.maxAttempts??3,
-      input:n.input,
-      metadata:n.metadata
+      id:uuid(), name:n.name, capability:n.capability, dependsOn:[],
+      maxAttempts:n.maxAttempts??3, input:n.input, metadata:n.metadata
     }));
     const byName=new Map(nodes.map(n=>[n.name,n]));
-    for(const original of (work.tasks??[])) {
+    for(const original of(work.tasks??[])) {
       const target=byName.get(original.name);
+      if(!target) continue;
       target.dependsOn=(original.dependsOn??[]).map(name=>byName.get(name)?.id).filter(Boolean);
     }
     await createDurablePlan({id:planId,goal:String(work.goal??"Unnamed Apex goal"),graph:graphSnapshot,context});
     await materializePlanNodes(planId,nodes);
-    await setPlanStatus(planId,"planned");
     await appendAgentEvent({planId,eventType:"plan_created",payload:{nodeCount:nodes.length}});
     return {id:planId,graph:graphSnapshot,nodes};
   }
 
   async run({signal,maxTicks=100}={}) {
-    let ticks=0, totalQueued=0;
-    while(!signal?.aborted && ticks<maxTicks) {
+    let ticks=0,totalQueued=0;
+    while(!signal?.aborted&&ticks<maxTicks) {
       const result=await this.scheduler.tick({signal});
       totalQueued+=result.queued; ticks++;
       if(result.discovered===0) break;
@@ -46,13 +42,13 @@ export class IntelligenceControlPlane {
   }
 
   async markVerified(nodeId,verification) {
-    if(!verification || typeof verification!=="object") throw new TypeError("verification evidence is required");
+    if(!verification||typeof verification!=="object") throw new TypeError("verification evidence is required");
     const ok=verification.passed===true;
     if(!ok) {
-      await updateExecutionNode(nodeId,{status:"failed",verification,last_error:String(verification.reason??"Verification failed")});
+      await updateNode(nodeId,{status:"failed",verification,last_error:String(verification.reason??"Verification failed")});
       return false;
     }
-    await updateExecutionNode(nodeId,{status:"completed",verification});
+    await updateNode(nodeId,{verification});
     return true;
   }
 }
