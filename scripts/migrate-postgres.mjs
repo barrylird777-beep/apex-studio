@@ -6,7 +6,7 @@ import pg from 'pg';
 
 const { Pool } = pg;
 const root = path.resolve('drizzle-pg');
-const manifestPath = path.join(root, 'meta', 'manifest.json');
+const manifestPath = path.resolve('scripts/postgres-migration-manifest.json');
 const databaseUrl = String(process.env.DATABASE_URL || '').trim();
 
 if (!databaseUrl) throw new Error('DATABASE_URL is required for PostgreSQL migrations');
