@@ -1,5 +1,4 @@
 import { createDurablePlan, materializePlanNodes, appendAgentEvent, updateExecutionNode, setPlanStatus } from "./durable-control-plane.mjs";
-import { updateExecutionNode as updateNode } from "./durable-control-plane.mjs";
 import crypto from "node:crypto";
 
 const uuid=()=>crypto.randomUUID();
