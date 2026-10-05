@@ -1,3 +1,4 @@
+import { pool as dbPool } from "../db/index.ts";
 import http from "node:http";import {createReadStream,existsSync} from "node:fs";import {extname,join} from "node:path";import {fileURLToPath} from "node:url";import {spawn} from "node:child_process";import {createProject,deleteProject,getProjectOverview,listProjects,updateProject} from "./projects";import {createCharacter,deleteCharacter,getCharacter,listCharacters,updateCharacter} from "./characters";import {listScenes,createScene,updateScene,deleteScene} from "./scenes";// @ts-ignore JavaScript pipeline modules are runtime-tested by Node.
 import {generateBreakdown,BreakdownError} from "../scripture/breakdown.js";
 import {getCalendar,createShootDay,deleteShootDay,assignScenes,reorderDay,unassignScene,runAutoSchedule} from "./schedule";
@@ -7,6 +8,29 @@ const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(pr
 const send=(res:http.ServerResponse,status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json"});res.end(status===204?"":JSON.stringify(data))};
 const readBody=(req:http.IncomingMessage)=>new Promise<any>((resolve,reject)=>{let s="";req.on("data",c=>s+=c);req.on("end",()=>{try{resolve(s?JSON.parse(s):{})}catch{reject(Error("Invalid JSON"))}});req.on("error",reject)});
 const server=http.createServer(async(req,res)=>{try{const u=new URL(req.url||"/","http://localhost"),p=u.pathname.split("/").filter(Boolean);
+if(p[0]==="api"&&p[1]==="overseer"&&p[2]==="metrics"&&req.method==="GET"){
+  try {
+    const [queueStats, activeWorkers] = await Promise.all([
+      dbPool.query(`SELECT status, COUNT(*)::int AS count
+        FROM apex_worker_tasks
+        GROUP BY status
+        ORDER BY status`),
+      dbPool.query(`SELECT id, worker_id, role, task, lease_expires_at, attempts
+        FROM apex_worker_tasks
+        WHERE status='running'
+        ORDER BY lease_expires_at NULLS LAST`)
+    ]);
+    return send(res,200,{
+      status:"operational",
+      timestamp:new Date().toISOString(),
+      queueSummary:queueStats.rows,
+      activeTasks:activeWorkers.rows
+    });
+  } catch (error) {
+    console.error("overseer metrics failed",error);
+    return send(res,500,{error:"Overseer Metrics Error"});
+  }
+}
 if(p[0]==="api"&&p[1]==="characters"){if(p.length===2&&req.method==="GET")return send(res,200,await listCharacters(u.searchParams.get("q")||""));if(p.length===2&&req.method==="POST")return send(res,201,await createCharacter(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid character id"});if(p.length===3&&req.method==="GET"){const c=await getCharacter(id);return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="PUT"){const c=await updateCharacter(id,await readBody(req));return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="DELETE"){return await deleteCharacter(id)?send(res,204,null):send(res,404,{error:"Character not found"})}}
 if(p[0]==="api"&&p[1]==="projects"){if(p.length===2&&req.method==="GET")return send(res,200,await listProjects());if(p.length===2&&req.method==="POST")return send(res,201,await createProject(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid project id"});if(p[3]==="overview"&&req.method==="GET"){const o=await getProjectOverview(id);return o?send(res,200,o):send(res,404,{error:"Project not found"})}if(p.length===3&&req.method==="PUT"){const o=await updateProject(id,await readBody(req));return o?send(res,200,o):send(res,404,{error:"Project not found"})}if(p.length===3&&req.method==="DELETE"){await deleteProject(id);return send(res,204,null)}if(p[3]==="scenes"&&req.method==="GET")return send(res,200,await listScenes(id));if(p[3]==="scenes"&&req.method==="POST"){const s=await createScene({...await readBody(req),projectId:id});return s?send(res,201,s):send(res,404,{error:"Project not found"})}}
 if(p[0]==="api"&&p[1]==="projects"&&p[3]==="calendar"&&req.method==="GET"){
