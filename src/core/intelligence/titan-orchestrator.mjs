@@ -1,8 +1,5 @@
-import crypto from "node:crypto";
 import { TITAN_PROFILE, createTitanCrew } from "./titan-profile.mjs";
 import { registerDurableAgent, appendAgentEvent } from "./durable-control-plane.mjs";
-
-const uuid=()=>crypto.randomUUID();
 
 export class TitanOrchestrator {
   constructor({ runtime, controlPlane, verifier }={}) {
