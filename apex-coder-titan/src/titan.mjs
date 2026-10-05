@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { config } from "./config.mjs";
-import { TitanAI, extractText } from "./ai.mjs";
+import { TitanAI, GeminiAuditAI, extractText, extractChatText } from "./ai.mjs";
 import { assertRepo, assertClean, currentHead, discover, makeWorktree, removeWorktree, git } from "./repo.mjs";
 import { discoverChecks, runChecks } from "./checks.mjs";
 
