@@ -150,6 +150,23 @@ async function renderPlan({ pool, task }) {
   return plan;
 }
 
+async function rfAnomalyEvaluate({ task }) {
+  const payload = task?.payload && typeof task.payload === "object" ? task.payload : {};
+  const bssid = String(payload.bssid || "").trim();
+  const embedding = payload.embedding;
+
+  if (!bssid) throw new Error("RF anomaly task requires bssid");
+  if (!Array.isArray(embedding) || embedding.length !== 1536) {
+    throw new Error("RF anomaly task requires a 1536-dimensional embedding");
+  }
+  if (!embedding.every((value) => typeof value === "number" && Number.isFinite(value))) {
+    throw new Error("RF anomaly task embedding contains invalid values");
+  }
+
+  const { processRfAnomalyTrigger } = await import("../../rf-ai-bridge.mjs");
+  return processRfAnomalyTrigger(bssid, embedding);
+}
+
 export function createEpisodeJobDispatcher({ pool }) {
   if (!pool) throw new TypeError("Episode dispatcher requires PostgreSQL");
   return async function dispatchEpisodeJob(task) {
@@ -160,6 +177,8 @@ export function createEpisodeJobDispatcher({ pool }) {
         return generateScript({ pool, task });
       case "episode-render":
         return renderPlan({ pool, task });
+      case "rf-anomaly-evaluate":
+        return rfAnomalyEvaluate({ task });
       default:
         return null;
     }
