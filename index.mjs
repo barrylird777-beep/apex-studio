@@ -1,9 +1,12 @@
+import { startProductionDaemon } from "./src/workers/av1-production-daemon.mjs";
 import { RenderWorker } from "./src/core/render-worker.mjs";
 import { capacitySnapshot } from "./src/core/capacity.mjs";
 import { getProjectState } from "./src/services/projectManager.mjs";
+import { voiceoverWorkerStatus } from "./src/workers/voiceover-worker.mjs";
 import {
   durableWorkerEnabled,
   claimNextWorkerTasks,
+  startWorkerTask,
   heartbeatWorkerTask,
   completeWorkerTask,
   failWorkerTask,
@@ -19,7 +22,6 @@ async function executePermanentHealthTask(payload = {}) {
   } else if (["video-engine", "export", "render-cache", "visual-direction"].includes(role)) {
     await new RenderWorker().available();
   } else if (["voiceover", "audio-reference"].includes(role)) {
-    const { voiceoverWorkerStatus } = await import("./src/workers/voiceover-worker.mjs");
     await voiceoverWorkerStatus();
   } else {
     capacitySnapshot();
@@ -37,28 +39,32 @@ async function executePermanentHealthTask(payload = {}) {
 const workerOnly = String(process.env.APEX_WORKER_ONLY || "").toLowerCase() === "true";
 
 if (!workerOnly) {
-  const { startProductionDaemon } = await import("./src/workers/av1-production-daemon.mjs");
   process.title = "apex-av1-production";
   await startProductionDaemon();
 } else {
   process.title = "apex-autonomous-worker";
-  if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
+  if (!durableWorkerEnabled()) {
+    throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
+  }
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 45000));
   const pollMs = Math.max(250, Number(process.env.APEX_WORKER_POLL_MS || 1000));
-  const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
-  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
-  const shutdownDeadlineMs = Math.max(5000, Number(process.env.APEX_WORKER_SHUTDOWN_MS || 30000));
-  let stopping = false;
-  let emptyPolls = 0;
 
   console.log("[apex-worker] durable worker online");
 
-  const inFlight = new Map();
-  const claimed = new Map();
+  const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
+  const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+  let stopping = false;
+  const shutdownDeadlineMs = Math.max(5000, Number(process.env.APEX_WORKER_SHUTDOWN_MS || 30000));
+  let emptyPolls = 0;
 
   const executeTask = async (task) => {
+    const started = await startWorkerTask(task.id, task.lease_token);
+    if (!started) {
+      console.warn("[apex-worker] claim lost before start; task will not execute", task.id);
+      return;
+    }
     const heartbeat = setInterval(() => {
       void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
         console.error("[apex-worker] heartbeat failed:", error?.message || error);
@@ -69,29 +75,19 @@ if (!workerOnly) {
       const result = await executePermanentHealthTask(task.payload || {});
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
-        console.warn("[apex-worker] completion fenced out", task.id, task.role);
+        console.warn("[apex-worker] completion fence rejected", task.id);
         return;
       }
       console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
-      await failWorkerTask(task.id, error, task.lease_token).then(ok => {
-        if (!ok) console.warn("[apex-worker] failure update fenced out", task.id);
-      }).catch(failure => {
+      const failed = await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
+        return false;
       });
+      if (!failed) console.warn("[apex-worker] failure fence rejected", task.id);
       console.error("[apex-worker] task failed:", task.id, error?.message || error);
     } finally {
       clearInterval(heartbeat);
-    }
-  };
-
-  const runTask = async (task) => {
-    claimed.set(task.id, task);
-    inFlight.set(task.id, task);
-    try { await executeTask(task); }
-    finally {
-      inFlight.delete(task.id);
-      claimed.delete(task.id);
     }
   };
 
@@ -102,14 +98,15 @@ if (!workerOnly) {
     const deadline = Date.now() + shutdownDeadlineMs;
     while (inFlight.size && Date.now() < deadline) await sleep(250);
     const unstarted = [...claimed.values()].filter(task => !inFlight.has(task.id)).map(task => task.id);
-    await releaseWorkerTasks(unstarted).catch(error => {
-      console.error("[apex-worker] release failed:", error?.message || error);
-    });
+    await releaseWorkerTasks(unstarted).catch(error => console.error('[apex-worker] release failed:', error?.message || error));
     process.exit(0);
   };
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
 
-  process.once("SIGTERM", () => void shutdown("SIGTERM"));
-  process.once("SIGINT", () => void shutdown("SIGINT"));
+  const inFlight = new Map();
+  const claimed = new Map();
+  const runTask = async (task) => { claimed.set(task.id, task); inFlight.set(task.id, task); try { await executeTask(task); } finally { inFlight.delete(task.id); claimed.delete(task.id); } };
 
   while (!stopping) {
     await requeueExpiredWorkerTasks().catch(error => {
@@ -118,11 +115,7 @@ if (!workerOnly) {
 
     try {
       const available = Math.max(0, concurrency - inFlight.size);
-      if (!available) {
-        await sleep(100);
-        continue;
-      }
-
+      if (!available) { await sleep(100); continue; }
       const tasks = await claimNextWorkerTasks(Math.min(batchSize, available), leaseMs);
       if (!tasks.length) {
         emptyPolls = Math.min(emptyPolls + 1, 6);

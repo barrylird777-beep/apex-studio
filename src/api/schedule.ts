@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/index";
 import { projects, scenes, shootDayScenes, shootDays } from "../db/schema";
 import { autoSchedule, buildCalendar } from "../schedule/rules.js";
@@ -22,31 +22,29 @@ const mapScene = (r: SceneRow) => ({
   location: { name: r.location ?? "", timeOfDay: r.dayOrNight || "UNSPECIFIED" },
 });
 
-export function createShootDay({ projectId, shootDate, callTime = null, notes = "" }: ShootDayInput) {
-  const project = db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).get();
+export async function createShootDay({ projectId, shootDate, callTime = null, notes = "" }: ShootDayInput) {
+  const project = await db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
   if (!project) return null;
-  const existing = db.select().from(shootDays)
-    .where(and(eq(shootDays.projectId, projectId), eq(shootDays.date, shootDate))).get();
+  const existing = await db.select().from(shootDays).where(and(eq(shootDays.projectId, projectId), eq(shootDays.date, shootDate))).then(r => r[0]);
   if (existing) throw Object.assign(new Error("A shoot day already exists for this project and date"), { code: "DUPLICATE_DATE" });
-  const result = db.insert(shootDays).values({ projectId, date: shootDate, notes, callTime, unit: "1st Unit" }).run();
-  return mapDay(db.select().from(shootDays).where(eq(shootDays.id, Number(result.lastInsertRowid))).get()!);
-}
-
-export function deleteShootDay(id: number) {
-  return db.delete(shootDays).where(eq(shootDays.id, id)).run().changes > 0;
-}
-
-export function getDay(id: number) {
-  const row = db.select().from(shootDays).where(eq(shootDays.id, id)).get();
+  const [row] = await db.insert(shootDays).values({ projectId, date: shootDate, notes, callTime, unit: "1st Unit" }).returning();
   return row ? mapDay(row) : null;
 }
 
-export function listDays(projectId: number) {
-  return db.select().from(shootDays).where(eq(shootDays.projectId, projectId))
-    .orderBy(asc(shootDays.date), asc(shootDays.id)).all().map(mapDay);
+export async function deleteShootDay(id: number) {
+  return (await db.delete(shootDays).where(eq(shootDays.id, id)).returning({ id: shootDays.id })).length > 0;
 }
 
-export function listAssignments(projectId: number) {
+export async function getDay(id: number) {
+  const row = await db.select().from(shootDays).where(eq(shootDays.id, id)).then(r => r[0]);
+  return row ? mapDay(row) : null;
+}
+
+export async function listDays(projectId: number) {
+  return (await db.select().from(shootDays).where(eq(shootDays.projectId, projectId)).orderBy(asc(shootDays.date), asc(shootDays.id))).map(mapDay);
+}
+
+export async function listAssignments(projectId: number) {
   return db.select({
     sceneId: shootDayScenes.sceneId,
     shootDayId: shootDayScenes.shootDayId,
@@ -56,71 +54,73 @@ export function listAssignments(projectId: number) {
     .innerJoin(shootDays, eq(shootDayScenes.shootDayId, shootDays.id))
     .where(eq(shootDays.projectId, projectId))
     .orderBy(asc(shootDayScenes.position), asc(shootDayScenes.sceneId))
-    .all();
+    .then(rows => rows.filter((row): row is typeof row & { shootDayId: number } => row.shootDayId !== null));
 }
 
-export function listScenesForProject(projectId: number) {
-  return db.select().from(scenes).where(eq(scenes.projectId, projectId))
-    .orderBy(asc(scenes.sceneNumber), asc(scenes.id)).all().map(mapScene);
+export async function listScenesForProject(projectId: number) {
+  return (await db.select().from(scenes).where(eq(scenes.projectId, projectId)).orderBy(asc(scenes.sceneNumber), asc(scenes.id))).map(mapScene);
 }
 
-export function assignScenes(shootDayId: number, sceneIds: unknown[]) {
-  const day = getDay(shootDayId);
+export async function assignScenes(shootDayId: number, sceneIds: unknown[]) {
+  const day = await getDay(shootDayId);
   if (!day) throw Object.assign(new Error("Shoot day not found"), { code: "NOT_FOUND" });
   const uniqueIds = [...new Set(sceneIds.map(Number))];
   const valid = uniqueIds.length
-    ? db.select({ id: scenes.id }).from(scenes).where(eq(scenes.projectId, day.projectId)).all().map(x => x.id)
+    ? (await db.select({ id: scenes.id }).from(scenes).where(and(eq(scenes.projectId, day.projectId), inArray(scenes.id, uniqueIds)))).map(x => x.id)
     : [];
   if (uniqueIds.some(id => !valid.includes(id))) {
     throw Object.assign(new Error("All scenes must belong to the same project as the shoot day"), { code: "PROJECT_SCOPE" });
   }
-  const existing = db.select().from(shootDayScenes)
-    .where(eq(shootDayScenes.shootDayId, shootDayId)).orderBy(asc(shootDayScenes.position)).all();
+
+  const existing = await db.select().from(shootDayScenes)
+    .where(eq(shootDayScenes.shootDayId, shootDayId)).orderBy(asc(shootDayScenes.position));
   const current = existing.map(x => x.sceneId).filter(id => !uniqueIds.includes(id));
-  db.transaction(tx => {
-    for (const id of uniqueIds) tx.delete(shootDayScenes).where(eq(shootDayScenes.sceneId, id)).run();
-    for (const [position, sceneId] of [...current, ...uniqueIds].entries()) {
-      tx.insert(shootDayScenes).values({ sceneId, shootDayId, position }).run();
+
+  await db.transaction(async tx => {
+    if (uniqueIds.length) await tx.delete(shootDayScenes).where(inArray(shootDayScenes.sceneId, uniqueIds));
+    if (current.length) await tx.delete(shootDayScenes).where(eq(shootDayScenes.shootDayId, shootDayId));
+    const rows = [...current, ...uniqueIds].map((sceneId, position) => ({ sceneId, shootDayId, position }));
+    if (rows.length) await tx.insert(shootDayScenes).values(rows);
+  });
+  return listAssignments(day.projectId);
+}
+
+export async function unassignScene(sceneId: number) {
+  return (await db.delete(shootDayScenes).where(eq(shootDayScenes.sceneId, sceneId)).returning({ sceneId: shootDayScenes.sceneId })).length > 0;
+}
+
+export async function reorderDay(shootDayId: number, sceneIds: unknown[]) {
+  const day = await getDay(shootDayId);
+  if (!day) throw Object.assign(new Error("Shoot day not found"), { code: "NOT_FOUND" });
+  const uniqueIds = [...new Set(sceneIds.map(Number))];
+  const assigned = (await db.select({ sceneId: shootDayScenes.sceneId }).from(shootDayScenes).where(eq(shootDayScenes.shootDayId, shootDayId))).map(x => x.sceneId);
+  if (assigned.length !== uniqueIds.length || assigned.some(id => !uniqueIds.includes(id))) {
+    throw Object.assign(new Error("Order must contain exactly the scenes assigned to this day"), { code: "INVALID_ORDER" });
+  }
+  await db.transaction(async tx => {
+    for (const [position, sceneId] of uniqueIds.entries()) {
+      await tx.update(shootDayScenes).set({ position }).where(and(eq(shootDayScenes.shootDayId, shootDayId), eq(shootDayScenes.sceneId, sceneId)));
     }
   });
   return listAssignments(day.projectId);
 }
 
-export function unassignScene(sceneId: number) {
-  return db.delete(shootDayScenes).where(eq(shootDayScenes.sceneId, sceneId)).run().changes > 0;
+export async function getCalendar(projectId: number, options?: ScheduleOptions) {
+  const scenesForProject = await listScenesForProject(projectId);
+  const days = await listDays(projectId);
+  return buildCalendar({ days, assignments: await listAssignments(projectId), scenes: scenesForProject, options });
 }
 
-export function reorderDay(shootDayId: number, sceneIds: unknown[]) {
-  const day = getDay(shootDayId);
-  if (!day) throw Object.assign(new Error("Shoot day not found"), { code: "NOT_FOUND" });
-  const uniqueIds = [...new Set(sceneIds.map(Number))];
-  const assigned = db.select({ sceneId: shootDayScenes.sceneId })
-    .from(shootDayScenes).where(eq(shootDayScenes.shootDayId, shootDayId)).all().map(x => x.sceneId);
-  if (assigned.length !== uniqueIds.length || assigned.some(id => !uniqueIds.includes(id))) {
-    throw Object.assign(new Error("Order must contain exactly the scenes assigned to this day"), { code: "INVALID_ORDER" });
-  }
-  db.transaction(tx => uniqueIds.forEach((sceneId, position) => tx.update(shootDayScenes)
-    .set({ position })
-    .where(and(eq(shootDayScenes.shootDayId, shootDayId), eq(shootDayScenes.sceneId, sceneId))).run()));
-  return listAssignments(day.projectId);
-}
-
-export function getCalendar(projectId: number, options?: ScheduleOptions) {
-  const scenesForProject = listScenesForProject(projectId);
-  const days = listDays(projectId);
-  return buildCalendar({ days, assignments: listAssignments(projectId), scenes: scenesForProject, options });
-}
-
-export function runAutoSchedule(projectId: number, options?: ScheduleOptions) {
-  const all = listScenesForProject(projectId);
-  const assignments = listAssignments(projectId);
+export async function runAutoSchedule(projectId: number, options?: ScheduleOptions) {
+  const all = await listScenesForProject(projectId);
+  const assignments = await listAssignments(projectId);
   const assigned = new Set(assignments.map(a => a.sceneId));
   const unassigned = all.filter(s => !assigned.has(s.id));
-  const days = listDays(projectId).map(d => ({
+  const days = await listDays(projectId);
+  const result = autoSchedule(unassigned, days.map(d => ({
     ...d,
     existingCount: assignments.filter(a => a.shootDayId === d.id).length,
-  }));
-  const result = autoSchedule(unassigned, days, options);
-  for (const item of result.plan) assignScenes(item.dayId, item.sceneIds);
-  return { ...getCalendar(projectId, options), overflow: result.overflow };
+  })), options);
+  for (const item of result.plan) await assignScenes(item.dayId, item.sceneIds);
+  return { ...(await getCalendar(projectId, options)), overflow: result.overflow };
 }

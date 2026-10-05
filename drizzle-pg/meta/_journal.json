@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1760000000000,
+      "tag": "0000_postgres_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1760001000000,
+      "tag": "0001_production_creative",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791140977016,
+      "tag": "0002_durable_worker_claimed",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791141500000,
+      "tag": "0003_asset_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791142000000,
+      "tag": "0004_worker_support_tables",
+      "breakpoints": true
+    }
+  ]
+}

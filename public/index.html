@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080b12"><meta name="description" content="Apex Bible Story Studio">
-<link rel="manifest" href="/manifest.webmanifest"><title>Apex Bible Story Studio</title>
+<meta name="theme-color" content="#080b12"><meta name="description" content="BIBLICALLY SEEN — a cozy Scripture-to-cinema studio with HOLY MOLY, Kernels, Cobs, Popcorns, Protocobs and CornNuts.">
+<link rel="manifest" href="/manifest.webmanifest"><title>BIBLICALLY SEEN · HOLY MOLY</title>
 <style>
 :root{
   --bg:#05070b;--panel:rgba(18,22,30,.62);--panel2:rgba(13,17,24,.72);
@@ -471,4 +471,5 @@ async function audioEditRun(){try{const r=await audioApi("/audio/edit",{operatio
 async function audioMixRun(){try{const inputs=$("mixInputs").value.split("\n").map(x=>x.trim()).filter(Boolean);const r=await audioApi("/audio/edit",{operation:"mix",inputs});$("mixOut").innerHTML='<audio controls src="'+esc(r.url)+'"></audio><div>'+esc(r.path)+'</div>'}catch(e){$("mixOut").textContent=e.message}}
 const _view=view;view=function(name){_view(name);if(name==="audio-station")loadAudioStation()}
 </script><script src="/vision-editor.js"></script><script src="/omni-studio.js"></script><script src="/apex-dashboard.js"></script>
+<script src="/biblically-seen-theme.js"></script>
 </body></html>

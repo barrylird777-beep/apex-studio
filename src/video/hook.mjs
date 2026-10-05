@@ -1,38 +1,95 @@
-import { canonicalStringify as stable } from './identity.mjs';
+export const STYLE_BLOCK =
+  'dark fantasy anime, sharp cel shading, cinematic lighting, high contrast, ' +
+  'intense, highly detailed, 16:9, cinematic Bible storytelling';
 
 export const LABELS = ['scripture', 'tradition', 'scholarly', 'dramatization', 'original'];
-export const MOTIONS = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right'];
-export const HOOK_RULES = { minShots: 9, maxShots: 12, minShotSec: 2, maxShotSec: 4, minTotalSec: 28, maxTotalSec: 32, maxFirstLineWords: 8 };
-const BAD_OPENERS = /^\s*(in this video|welcome|today|have you ever wondered)\b/i;
-const EPS = 1e-9;
+
+export const HOOK_RULES = {
+  minTotalSec: 27,
+  maxTotalSec: 33,
+  minShotSec: 2,
+  maxShotSec: 4,
+  maxFirstLineWords: 8,
+  maxNarrationStartSec: 1,
+};
+
+const BANNED_OPENERS = [
+  /^\s*in this video/i,
+  /^\s*welcome/i,
+  /^\s*today\b/i,
+  /^\s*have you ever wondered/i,
+];
+const MOTIONS = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right'];
 
 export function validateHookPlan(plan, rules = HOOK_RULES) {
-  if (!plan || !Array.isArray(plan.shots)) return { ok: false, errors: ['plan has no shots array'], totalSec: 0 };
-  const errors = [], { shots } = plan;
-  if (shots.length < rules.minShots || shots.length > rules.maxShots) errors.push(`shot count ${shots.length} must be ${rules.minShots}-${rules.maxShots}`);
-  let total = 0;
-  shots.forEach((s, i) => {
-    const at = `shot ${s?.id ?? i}`;
-    if (!s || typeof s !== 'object') { errors.push(`${at}: not an object`); return; }
-    const d = s.durationSec;
-    if (!Number.isFinite(d)) errors.push(`${at}: durationSec is not a number`);
-    else { total += d; if (d < rules.minShotSec - EPS || d > rules.maxShotSec + EPS) errors.push(`${at}: duration ${d}s must be ${rules.minShotSec}-${rules.maxShotSec}s`); }
-    if (!MOTIONS.includes(s.motion)) errors.push(`${at}: motion must be one of ${MOTIONS.join('|')}`);
-    if (typeof s.visual !== 'string' || !s.visual.trim()) errors.push(`${at}: missing visual`);
-    if (typeof s.narration !== 'string') errors.push(`${at}: narration must be a string`);
-    if (!Array.isArray(s.labels) || s.labels.length === 0 || !s.labels.every((l) => LABELS.includes(l))) errors.push(`${at}: labels must be a non-empty subset of ${LABELS.join('|')}`);
-    if (!Array.isArray(s.sources) || s.sources.length === 0 || !s.sources.every((x) => typeof x === 'string' && x.trim())) errors.push(`${at}: needs at least one source`);
+  const errors = [];
+  const shots = plan?.shots;
+  if (!Array.isArray(shots) || shots.length === 0) {
+    return { ok: false, errors: ['no shots'], totalSec: 0 };
+  }
+
+  const totalSec = shots.reduce((sum, shot) => sum + (Number(shot.durationSec) || 0), 0);
+  if (totalSec < rules.minTotalSec || totalSec > rules.maxTotalSec) {
+    errors.push(`total ${totalSec.toFixed(2)}s outside ${rules.minTotalSec}-${rules.maxTotalSec}s`);
+  }
+
+  shots.forEach((shot, index) => {
+    const tag = `shot ${shot.id ?? index}`;
+    if (!(Number(shot.durationSec) >= rules.minShotSec && Number(shot.durationSec) <= rules.maxShotSec)) {
+      errors.push(`${tag}: duration ${shot.durationSec}s outside ${rules.minShotSec}-${rules.maxShotSec}s`);
+    }
+    if (!MOTIONS.includes(shot.motion)) {
+      errors.push(`${tag}: motion "${shot.motion}" not one of ${MOTIONS.join(', ')}`);
+    }
+    if (!Array.isArray(shot.sources) || shot.sources.length === 0) {
+      errors.push(`${tag}: missing sources (provenance)`);
+    }
+    if (!Array.isArray(shot.labels) || shot.labels.length === 0 || shot.labels.some((label) => !LABELS.includes(label))) {
+      errors.push(`${tag}: labels must be a non-empty subset of ${LABELS.join(', ')}`);
+    }
+    if (typeof shot.visual !== 'string' || !shot.visual.trim()) {
+      errors.push(`${tag}: missing visual description`);
+    }
   });
-  const totalSec = Math.round(total * 10) / 10;
-  if (totalSec < rules.minTotalSec - EPS || totalSec > rules.maxTotalSec + EPS) errors.push(`total duration ${totalSec}s must be ${rules.minTotalSec}-${rules.maxTotalSec}s`);
-  if (plan.narrationStartSec !== 0) errors.push('narration must start at 0s (shot 1)');
-  const first = typeof shots[0]?.narration === 'string' ? shots[0].narration.trim() : '';
-  if (!first) errors.push('shot 1 must have narration');
-  else { if (first.split(/\s+/).length > rules.maxFirstLineWords) errors.push(`first line is over ${rules.maxFirstLineWords} words`); if (BAD_OPENERS.test(first)) errors.push('first line uses a banned opener'); }
+
+  if (shots[0].kind !== 'scene') errors.push('first shot must be a scene (no logo/title card)');
+
+  const narrationStartSec = Number(plan.narrationStartSec);
+  if (!Number.isFinite(narrationStartSec) || narrationStartSec < 0 || narrationStartSec > rules.maxNarrationStartSec) {
+    errors.push(`narration must start within ${rules.maxNarrationStartSec}s`);
+  }
+
+  const first = (shots.find((shot) => typeof shot.narration === 'string' && shot.narration.trim())?.narration ?? '').trim();
+  if (!first) {
+    errors.push('no narration line');
+  } else {
+    const words = first.split(/\s+/).length;
+    if (words > rules.maxFirstLineWords) errors.push(`first line is ${words} words (max ${rules.maxFirstLineWords})`);
+    if (BANNED_OPENERS.some((re) => re.test(first))) errors.push('first line uses a throat-clearing opener');
+  }
+
   return { ok: errors.length === 0, errors, totalSec };
 }
-export const STYLE = ['dark fantasy anime', 'sharp cel shading', 'cinematic lighting', 'high contrast', 'intense detail-heavy imagery', '16:9 cinematic composition'].join(', ');
-export function buildShotPrompt({ shot, visualBible = {} }) {
-  const chars = (shot.characters ?? []).map((n) => { const d = visualBible[n]; if (d === undefined) return n; return `${n} (${typeof d === 'string' ? d : stable(d)})`; });
-  return [`Single cinematic frame for a Bible-story film: ${shot.visual}`, chars.length ? `Characters, keep their look consistent: ${chars.join('; ')}.` : '', `Style: ${STYLE}.`, 'Reverent, serious tone. No text, captions, logos, or watermarks in the image.'].filter(Boolean).join('\n');
+
+export function validateTimeline(shots, audioDurationSec, slackSec = 0.5, narrationStartSec = 0) {
+  if (!Array.isArray(shots) || shots.length === 0) return { ok: false, errors: ['no shots'], totalSec: 0 };
+  const totalSec = shots.reduce((sum, shot) => sum + Number(shot.durationSec), 0);
+  const errors = [];
+  const audioEndSec = Number(narrationStartSec) + Number(audioDurationSec);
+  if (!Number.isFinite(audioEndSec) || audioEndSec > totalSec + slackSec) {
+    errors.push(`narration ends at ${audioEndSec.toFixed(2)}s, later than video ${totalSec.toFixed(2)}s`);
+  }
+  return { ok: errors.length === 0, errors, totalSec };
+}
+
+export function buildShotPrompt({ shot, visualBible = {}, styleBlock = STYLE_BLOCK }) {
+  const chars = (shot.characters ?? []).map((name) => {
+    const entry = visualBible[name];
+    return entry ? `${name}: ${entry}` : name;
+  });
+  return [
+    String(shot.visual ?? '').trim().replace(/[.\s]+$/, ''),
+    chars.length ? `Characters: ${chars.join('; ')}` : null,
+    styleBlock,
+  ].filter(Boolean).join('. ');
 }

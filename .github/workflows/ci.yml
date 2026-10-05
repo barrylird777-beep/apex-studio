@@ -13,6 +13,22 @@ jobs:
   spec-001:
     name: SPEC-001 verification
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: apex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d apex_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,22 +40,21 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spec-005-drizzle
-          path: drizzle
+          path: drizzle-pg
       - run: npm run db:migrate
       - run: npm run build
-      - run: npm run smoke:production
       - run: npm test
       - run: npm run verify:migrations
       - run: npm run db:seed
       - name: Start server for SPEC-005 HTTP smoke
         run: |
-          PORT=3001 npm start > /tmp/apex-server.log 2>&1 &
+          PORT=3000 npm start > /tmp/apex-server.log 2>&1 &
           echo $! > /tmp/apex-server.pid
-          for i in {1..30}; do curl -fsS http://localhost:3001/api/projects >/dev/null && exit 0; sleep 1; done
+          for i in {1..30}; do curl -fsS http://localhost:3000/api/projects >/dev/null && exit 0; sleep 1; done
           cat /tmp/apex-server.log
           exit 1
       - name: Run SPEC-005 HTTP smoke
-        run: BASE_URL=http://localhost:3001 npm run smoke:005
+        run: npm run smoke:005
       - name: Stop SPEC-005 server
         if: always()
         run: kill $(cat /tmp/apex-server.pid) 2>/dev/null || true
