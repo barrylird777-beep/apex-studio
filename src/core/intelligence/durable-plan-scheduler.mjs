@@ -23,7 +23,7 @@ export class DurablePlanScheduler {
         const taskId=crypto.randomUUID();
         await enqueueWorkerTask({
           id:taskId,workerId:agent.id,role:agent.role,task:"execute-intelligence-node",
-          payload:{planId:node.plan_id,nodeId:node.id,capability:node.capability},
+          payload:{planId:node.plan_id,nodeId:node.id,capability:node.capability,input:node.input,metadata:node.metadata},
           maxAttempts:node.max_attempts,dedupeKey:"apex:node:"+node.id
         });
         await updateExecutionNode(node.id,{status:"queued",worker_task_id:taskId});
