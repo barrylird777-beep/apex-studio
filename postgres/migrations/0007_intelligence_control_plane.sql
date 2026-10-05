@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS apex_agents (
   tools JSONB NOT NULL DEFAULT '[]'::jsonb,
   permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  max_concurrency INTEGER NOT NULL DEFAULT 1 CHECK (max_concurrency > 0),
   failure_count INTEGER NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
   last_heartbeat_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
