@@ -101,10 +101,12 @@ export async function failWorkerTask(id, error, leaseToken) {
   return r.rowCount === 1;
 }
 
-export async function releaseWorkerTasks(taskIds = []) {
+export async function releaseWorkerTasks(taskIds = [], leaseTokens = []) {
   if (!durableWorkerEnabled() || !taskIds.length) return 0;
   const db = getPool();
-  const r = await db.query("UPDATE apex_worker_tasks SET status='queued', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='running' AND lease_owner=$2", [taskIds, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local"]);
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  if (leaseTokens.length !== taskIds.length) throw new Error("releaseWorkerTasks requires one lease token per task");
+  const r = await db.query("UPDATE apex_worker_tasks SET status='queued', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='running' AND lease_owner=$2 AND lease_token = ANY($3::text[])", [taskIds, owner, leaseTokens]);
   return r.rowCount;
 }
 
@@ -128,6 +130,12 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const db = getPool();
   const cap = Math.max(1, Number(capacity) || 10);
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
+  await db.query(
+    `INSERT INTO rate_limits (key, tokens, updated_at)
+     VALUES ($1, $2 - 1, NOW())
+     ON CONFLICT (key) DO NOTHING`,
+    [key, cap]
+  );
   for (;;) {
     const r = await db.query(
       `UPDATE rate_limits SET
