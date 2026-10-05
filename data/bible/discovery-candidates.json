@@ -156,6 +156,36 @@
       "kind": "translation-catalog",
       "url": "https://www.jw.org/",
       "notes": "Current New World Translation language catalog; discovery only, rights/terms validated separately."
+    },
+    {
+      "id": "find-a-bible-live",
+      "kind": "global-scripture-catalog",
+      "url": "https://find.bible/",
+      "notes": "Global Scripture catalog; current site exposes 6,722 Bibles, 7,929 languages and 244 countries."
+    },
+    {
+      "id": "global-bible",
+      "kind": "global-scripture-catalog",
+      "url": "https://global.bible/",
+      "notes": "Global Bible discovery platform with Scripture in 1,000+ languages."
+    },
+    {
+      "id": "dead-sea-scrolls-digital-library",
+      "kind": "manuscript-archive",
+      "url": "https://www.deadseascrolls.org.il/",
+      "notes": "Leon Levy Dead Sea Scrolls Digital Library with fragment images, language/content/site indexing."
+    },
+    {
+      "id": "qumranica",
+      "kind": "scholarly-manuscript-platform",
+      "url": "https://www.qumranica.org/",
+      "notes": "Digital scholarly editions and linguistic data for Qumran texts."
+    },
+    {
+      "id": "orion-bibliography",
+      "kind": "scholarly-bibliography",
+      "url": "https://orion.huji.ac.il/",
+      "notes": "Online Dead Sea Scrolls bibliography with 21,000+ entries."
     }
   ],
   "candidates": [
@@ -963,6 +993,209 @@
       "language": "sign-languages",
       "sourceId": "digital-bible-library",
       "status": "artifact"
+    },
+    {
+      "slug": "find-a-bible-catalog-live",
+      "title": "Find-A-Bible global Scripture resource catalog",
+      "language": "multilingual",
+      "sourceId": "find-a-bible-live",
+      "status": "catalog"
+    },
+    {
+      "slug": "global-bible-language-catalog",
+      "title": "Global.Bible multilingual Scripture catalog",
+      "language": "multilingual",
+      "sourceId": "global-bible",
+      "status": "catalog"
+    },
+    {
+      "slug": "dead-sea-scrolls-archive",
+      "title": "Leon Levy Dead Sea Scrolls Digital Library archive",
+      "language": "he/ar/grc/la",
+      "sourceId": "dead-sea-scrolls-digital-library",
+      "status": "manuscript-artifact"
+    },
+    {
+      "slug": "qumranica-scholarly-editions",
+      "title": "Scripta Qumranica Electronica digital scholarly editions",
+      "language": "he/ar/grc",
+      "sourceId": "qumranica",
+      "status": "scholarly-edition"
+    },
+    {
+      "slug": "orion-dss-bibliography",
+      "title": "Orion Center Dead Sea Scrolls bibliography",
+      "language": "multilingual",
+      "sourceId": "orion-bibliography",
+      "status": "bibliography"
+    },
+    {
+      "slug": "csntm-nt-manuscripts",
+      "title": "CSNTM New Testament manuscript collection",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "scriptureearth-text",
+      "title": "ScriptureEarth text resources",
+      "language": "multilingual",
+      "sourceId": "scriptureearth",
+      "status": "text"
+    },
+    {
+      "slug": "scriptureearth-audio",
+      "title": "ScriptureEarth audio resources",
+      "language": "multilingual",
+      "sourceId": "scriptureearth",
+      "status": "audio"
+    },
+    {
+      "slug": "scriptureearth-video",
+      "title": "ScriptureEarth video resources",
+      "language": "multilingual",
+      "sourceId": "scriptureearth",
+      "status": "video"
+    },
+    {
+      "slug": "scriptureearth-maps",
+      "title": "ScriptureEarth map resources",
+      "language": "multilingual",
+      "sourceId": "scriptureearth",
+      "status": "map"
+    },
+    {
+      "slug": "open-bible-945",
+      "title": "Open.Bible openly licensed translation catalog",
+      "language": "multilingual",
+      "sourceId": "open-bible",
+      "status": "translation-catalog"
+    },
+    {
+      "slug": "otb-arabic-egyptian",
+      "title": "Open Translation Bible — Arabic Egyptian",
+      "language": "ar-EG",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-japanese",
+      "title": "Open Translation Bible — Japanese",
+      "language": "ja-JP",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-portuguese-brazilian",
+      "title": "Open Translation Bible — Brazilian Portuguese",
+      "language": "pt-BR",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-spanish-spain",
+      "title": "Open Translation Bible — Spanish Spain",
+      "language": "es-ES",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-simplified-chinese",
+      "title": "Open Translation Bible — Simplified Chinese",
+      "language": "zh-CN",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-indonesian",
+      "title": "Open Translation Bible — Indonesian",
+      "language": "id-ID",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-somali",
+      "title": "Open Translation Bible — Somali",
+      "language": "so-SO",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-hebrew",
+      "title": "Open Translation Bible — Hebrew",
+      "language": "he-IL",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-russian",
+      "title": "Open Translation Bible — Russian",
+      "language": "ru-RU",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-italian",
+      "title": "Open Translation Bible — Italian",
+      "language": "it-IT",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-korean",
+      "title": "Open Translation Bible — Korean",
+      "language": "ko-KR",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-malayalam",
+      "title": "Open Translation Bible — Malayalam",
+      "language": "ml-IN",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-danish",
+      "title": "Open Translation Bible — Danish",
+      "language": "da-DK",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-finnish",
+      "title": "Open Translation Bible — Finnish",
+      "language": "fi-FI",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-icelandic",
+      "title": "Open Translation Bible — Icelandic",
+      "language": "is-IS",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-dutch",
+      "title": "Open Translation Bible — Dutch",
+      "language": "nl-NL",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-swedish",
+      "title": "Open Translation Bible — Swedish",
+      "language": "sv-SE",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
+    },
+    {
+      "slug": "otb-swahili",
+      "title": "Open Translation Bible — Swahili",
+      "language": "sw-TZ",
+      "sourceId": "open-translation-bible",
+      "status": "translation"
     }
   ],
   "discoveryRun": {
@@ -977,7 +1210,11 @@
       "Open.Bible currently exposes 945 openly licensed Bible translations.",
       "DBL currently reports text, audio, signed, and Braille Scripture resources; media/artifact manifestations are tracked separately from text works.",
       "New manuscript and knowledge-artifact discovery paths include CSNTM, Open Dead Sea, Patristic Text Archive, scholarly editions, and digitized book/scanned-artifact catalogs.",
-      "Bible discovery now explicitly models books, translations, manuscripts, artifacts, audio, video, Braille, signed Scripture, maps, and scholarly/patristic knowledge resources."
+      "Bible discovery now explicitly models books, translations, manuscripts, artifacts, audio, video, Braille, signed Scripture, maps, and scholarly/patristic knowledge resources.",
+      "Current Find-A-Bible catalog reports 6,722 Bibles across 7,929 languages and 244 countries.",
+      "Current Open.Bible catalog reports 945 openly licensed Bible translations.",
+      "Dead Sea Scrolls Digital Library exposes fragment-level image and metadata browsing by site, language and content, including biblical and non-biblical compositions.",
+      "Current Open Translation Bible repository lists releases through Swahili and additional languages; each language is captured as a separate edition candidate."
     ]
   }
 }
