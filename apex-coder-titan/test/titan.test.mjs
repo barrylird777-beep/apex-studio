@@ -7,6 +7,7 @@ test("Titan defaults are bounded and explicit", () => {
   assert.equal(config.implementationRounds, 72);
   assert.equal(config.repairPasses, 7);
   assert.equal(config.repairTurns, 20);
+  assert.equal(config.model, "gpt-5.6-sol");
 });
 
 test("configuration reports missing API key without crashing", () => {
