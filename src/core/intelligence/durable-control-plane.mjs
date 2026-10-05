@@ -126,7 +126,7 @@ export async function updateExecutionNode(id, patch={}) {
   if (!enabled()) return false;
   const fields=[]; const values=[id]; let i=2;
   for (const [key,value] of Object.entries(patch)) {
-    if (!["status","worker_task_id","result","verification","last_error"].includes(key)) continue;
+    if (!["status","worker_task_id","worker_lease_token","result","verification","last_error"].includes(key)) continue;
     fields.push(key+"=$"+i+(["result","verification"].includes(key)?"::jsonb":"")); values.push(["result","verification"].includes(key)?json(value):value); i++;
   }
   if (!fields.length) return false;
