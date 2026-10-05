@@ -20,7 +20,7 @@ export async function registerDurableAgent(agent) {
     ON CONFLICT (id) DO UPDATE SET role=EXCLUDED.role,status=EXCLUDED.status,
       capabilities=EXCLUDED.capabilities,tools=EXCLUDED.tools,permissions=EXCLUDED.permissions,
       metadata=EXCLUDED.metadata,last_heartbeat_at=NOW(),updated_at=NOW()
-    RETURNING *`, [agent.id,agent.role||"general",agent.status||"ready",json(agent.capabilities),json(agent.tools),json(agent.permissions),json(agent.metadata)]);
+    RETURNING *`, [agent.id,agent.role||"general",agent.status||"ready",json(agent.capabilities),json(agent.tools),json(agent.permissions),json(agent.metadata),Math.max(1,Number(agent.maxConcurrency)||1)]);
   return { durable:true, agent:r.rows[0] };
 }
 
@@ -133,6 +133,12 @@ export async function updateExecutionNode(id, patch={}) {
   fields.push("updated_at=NOW()");
   const r=await db().query("UPDATE apex_execution_nodes SET "+fields.join(",")+" WHERE id=$1",values);
   return r.rowCount===1;
+}
+
+export async function recoverStaleIntelligenceNodes() {
+  if (!enabled()) return {nodes:0,plans:0};
+  const r=await db().query(`UPDATE apex_execution_nodes n SET status='pending',worker_task_id=NULL,worker_lease_token=NULL,last_error='Recovered after expired worker lease',updated_at=NOW() WHERE status IN ('queued','running') AND worker_task_id IN (SELECT id FROM durable_jobs WHERE status IN ('queued','running') AND lease_expires_at < NOW())`);
+  return {nodes:r.rowCount,plans:0};
 }
 
 export async function setPlanStatus(id,status,patch={}) {
