@@ -1,50 +1,208 @@
 import express from 'express';
+import pg from 'pg';
 import crypto from 'node:crypto';
-import sqlite3 from 'sqlite3';
-import path from 'node:path';
-import { mkdir } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { BIBLE_CHARACTER_SEEDS } from '../data/bible-characters.mjs';
-const router=express.Router();
-const dir=path.dirname(fileURLToPath(import.meta.url));
-const dbDir=process.env.APEX_BIBLE_DB_DIR||path.join(dir,'../../data');
-const dbFile=process.env.APEX_BIBLE_DB||path.join(dbDir,'apex-bible.sqlite');
-const ready=(async()=>{await mkdir(dbDir,{recursive:true});const db=new sqlite3.Database(dbFile);const run=(s,p=[])=>new Promise((a,b)=>db.run(s,p,function(e){e?b(e):a({id:this.lastID,changes:this.changes})}));const all=(s,p=[])=>new Promise((a,b)=>db.all(s,p,(e,r)=>e?b(e):a(r)));const get=(s,p=[])=>new Promise((a,b)=>db.get(s,p,(e,r)=>e?b(e):a(r)));await run('PRAGMA foreign_keys=ON');
-for(const s of [
- 'CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,description TEXT,primary_scripture TEXT,status TEXT DEFAULT \'development\',created_at TEXT DEFAULT CURRENT_TIMESTAMP,updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
- 'CREATE TABLE IF NOT EXISTS characters(id INTEGER PRIMARY KEY AUTOINCREMENT,canonical_name TEXT NOT NULL UNIQUE,aliases TEXT DEFAULT \'[]\',primary_stories TEXT DEFAULT \'[]\',relationships TEXT DEFAULT \'[]\',key_traits TEXT DEFAULT \'[]\',notes TEXT,scripture_references TEXT DEFAULT \'[]\')',
- 'CREATE TABLE IF NOT EXISTS scenes(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,scene_number INTEGER,title TEXT,scripture_ref TEXT NOT NULL,location TEXT,characters_present TEXT DEFAULT \'[]\',action_summary TEXT,emotional_beat TEXT,production_notes TEXT,estimated_pages REAL,day_or_night TEXT)',
- 'CREATE TABLE IF NOT EXISTS shoot_days(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,date TEXT NOT NULL,unit TEXT DEFAULT \'1st Unit\',notes TEXT)',
- 'CREATE TABLE IF NOT EXISTS scene_shoot_days(scene_id INTEGER NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,shoot_day_id INTEGER NOT NULL REFERENCES shoot_days(id) ON DELETE CASCADE,PRIMARY KEY(scene_id,shoot_day_id))',
- 'CREATE TABLE IF NOT EXISTS call_sheets(id INTEGER PRIMARY KEY AUTOINCREMENT,shoot_day_id INTEGER REFERENCES shoot_days(id) ON DELETE CASCADE,project_id INTEGER,shoot_date TEXT,general_call_time TEXT,weather_notes TEXT,special_requirements TEXT,crew TEXT DEFAULT \'[]\',cast TEXT DEFAULT \'[]\',locations TEXT DEFAULT \'[]\',characters TEXT DEFAULT \'[]\',call_times TEXT DEFAULT \'{}\',scene_ids TEXT DEFAULT \'[]\',created_at TEXT DEFAULT CURRENT_TIMESTAMP,updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
- 'CREATE TABLE IF NOT EXISTS budget_items(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,category TEXT NOT NULL,description TEXT NOT NULL,estimated REAL DEFAULT 0,actual REAL DEFAULT 0,notes TEXT)',
- 'CREATE TABLE IF NOT EXISTS script_notes(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,scene_id INTEGER REFERENCES scenes(id) ON DELETE SET NULL,scripture_ref TEXT NOT NULL,dialogue TEXT,version_notes TEXT)'
-] )await run(s);
-const n=await get('SELECT COUNT(*) n FROM characters');if(!Number(n.n))for(const c of BIBLE_CHARACTER_SEEDS)await run('INSERT OR IGNORE INTO characters(canonical_name,aliases,primary_stories,relationships,key_traits,notes,scripture_references) VALUES(?,?,?,?,?,?,?)',[c.canonicalName,JSON.stringify(c.aliases),JSON.stringify(c.primaryStories),JSON.stringify(c.relationships),JSON.stringify(c.keyTraits),c.notes,JSON.stringify(c.scriptureReferences)]);return{run,all,get}})();
-const arr=x=>Array.isArray(x)?x:[];const dec=x=>{try{return JSON.parse(x||'[]')}catch{return[]}};const chr=x=>({...x,aliases:dec(x.aliases),primaryStories:dec(x.primary_stories),relationships:dec(x.relationships),keyTraits:dec(x.key_traits),scriptureReferences:dec(x.scripture_references)});const scn=x=>({...x,charactersPresent:dec(x.characters_present)});const sheet=x=>({...x,crew:dec(x.crew),cast:dec(x.cast),locations:dec(x.locations),characters:dec(x.characters),callTimes:dec(x.call_times),sceneIds:dec(x.scene_ids)});const ref=x=>/^[1-3]?\s?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?$/.test(String(x||'').trim());const use=f=>ready.then(f);
-router.get('/projects',async(q,s)=>{try{s.json(await use(d=>d.all('SELECT p.*,COUNT(DISTINCT sc.id) scene_count,COUNT(DISTINCT sd.id) shoot_day_count FROM projects p LEFT JOIN scenes sc ON sc.project_id=p.id LEFT JOIN shoot_days sd ON sd.project_id=p.id GROUP BY p.id ORDER BY p.updated_at DESC')))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/projects',async(q,s)=>{try{if(!String(q.body.title||'').trim())return s.status(400).json({error:'title is required'});const r=await use(d=>d.run('INSERT INTO projects(title,description,primary_scripture,status) VALUES(?,?,?,?)',[String(q.body.title).trim(),String(q.body.description||''),String(q.body.primaryScripture||''),String(q.body.status||'development')]));s.status(201).json(await use(d=>d.get('SELECT * FROM projects WHERE id=?',[r.id])))}catch(e){s.status(400).json({error:e.message})}});
-router.put('/projects/:id',async(q,s)=>{try{const r=await use(d=>d.run('UPDATE projects SET title=?,description=?,primary_scripture=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',[String(q.body.title||'').trim(),String(q.body.description||''),String(q.body.primaryScripture||''),String(q.body.status||'development'),q.params.id]));if(!r.changes)return s.status(404).json({error:'Project not found'});s.json(await use(d=>d.get('SELECT * FROM projects WHERE id=?',[q.params.id])))}catch(e){s.status(400).json({error:e.message})}});
-router.delete('/projects/:id',async(q,s)=>{try{const r=await use(d=>d.run('DELETE FROM projects WHERE id=?',[q.params.id]));if(!r.changes)return s.status(404).json({error:'Project not found'});s.json({ok:true})}catch(e){s.status(500).json({error:e.message})}});
-router.get('/characters',async(q,s)=>{try{const x=String(q.query.q||'');const rows=await use(d=>d.all(x?'SELECT * FROM characters WHERE canonical_name LIKE ? OR aliases LIKE ? OR primary_stories LIKE ? ORDER BY canonical_name':'SELECT * FROM characters ORDER BY canonical_name',x?['%'+x+'%','%'+x+'%','%'+x+'%']:[]));s.json(rows.map(chr))}catch(e){s.status(500).json({error:e.message})}});
-router.get('/characters/:id',async(q,s)=>{try{const r=await use(d=>d.get('SELECT * FROM characters WHERE id=?',[q.params.id]));if(!r)return s.status(404).json({error:'Character not found'});s.json(chr(r))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/characters',async(q,s)=>{try{const b=q.body;if(!String(b.canonicalName||'').trim())return s.status(400).json({error:'canonicalName is required'});const r=await use(d=>d.run('INSERT INTO characters(canonical_name,aliases,primary_stories,relationships,key_traits,notes,scripture_references) VALUES(?,?,?,?,?,?,?)',[String(b.canonicalName).trim(),JSON.stringify(arr(b.aliases)),JSON.stringify(arr(b.primaryStories)),JSON.stringify(arr(b.relationships)),JSON.stringify(arr(b.keyTraits)),String(b.notes||''),JSON.stringify(arr(b.scriptureReferences))]));s.status(201).json(chr(await use(d=>d.get('SELECT * FROM characters WHERE id=?',[r.id]))))}catch(e){s.status(400).json({error:e.message})}});
-router.put('/characters/:id',async(q,s)=>{try{const b=q.body,r=await use(d=>d.run('UPDATE characters SET canonical_name=?,aliases=?,primary_stories=?,relationships=?,key_traits=?,notes=?,scripture_references=? WHERE id=?',[String(b.canonicalName||'').trim(),JSON.stringify(arr(b.aliases)),JSON.stringify(arr(b.primaryStories)),JSON.stringify(arr(b.relationships)),JSON.stringify(arr(b.keyTraits)),String(b.notes||''),JSON.stringify(arr(b.scriptureReferences)),q.params.id]));if(!r.changes)return s.status(404).json({error:'Character not found'});s.json(chr(await use(d=>d.get('SELECT * FROM characters WHERE id=?',[q.params.id]))))}catch(e){s.status(400).json({error:e.message})}});
-router.delete('/characters/:id',async(q,s)=>{try{const r=await use(d=>d.run('DELETE FROM characters WHERE id=?',[q.params.id]));if(!r.changes)return s.status(404).json({error:'Character not found'});s.json({ok:true})}catch(e){s.status(500).json({error:e.message})}});
-router.get('/scenes',async(q,s)=>{try{const rows=await use(d=>d.all(q.query.projectId?'SELECT * FROM scenes WHERE project_id=? ORDER BY scene_number,id':'SELECT * FROM scenes ORDER BY project_id,scene_number,id',q.query.projectId?[q.query.projectId]:[]));s.json(rows.map(scn))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/scenes',async(q,s)=>{try{const b=q.body;if(!b.projectId||!ref(b.scriptureRef))return s.status(400).json({error:'projectId and valid scriptureRef are required'});const r=await use(d=>d.run('INSERT INTO scenes(project_id,scene_number,title,scripture_ref,location,characters_present,action_summary,emotional_beat,production_notes,estimated_pages,day_or_night) VALUES(?,?,?,?,?,?,?,?,?,?,?)',[b.projectId,Number(b.sceneNumber)||null,String(b.title||''),b.scriptureRef,String(b.location||''),JSON.stringify(arr(b.charactersPresent)),String(b.actionSummary||''),String(b.emotionalBeat||''),String(b.productionNotes||''),Number(b.estimatedPages)||null,String(b.dayOrNight||'')]));s.status(201).json(scn(await use(d=>d.get('SELECT * FROM scenes WHERE id=?',[r.id]))))}catch(e){s.status(400).json({error:e.message})}});
-router.put('/scenes/:id',async(q,s)=>{try{const b=q.body,r=await use(d=>d.run('UPDATE scenes SET scene_number=?,title=?,scripture_ref=?,location=?,characters_present=?,action_summary=?,emotional_beat=?,production_notes=?,estimated_pages=?,day_or_night=? WHERE id=?',[Number(b.sceneNumber)||null,String(b.title||''),b.scriptureRef,String(b.location||''),JSON.stringify(arr(b.charactersPresent)),String(b.actionSummary||''),String(b.emotionalBeat||''),String(b.productionNotes||''),Number(b.estimatedPages)||null,String(b.dayOrNight||''),q.params.id]));if(!r.changes)return s.status(404).json({error:'Scene not found'});s.json(scn(await use(d=>d.get('SELECT * FROM scenes WHERE id=?',[q.params.id]))))}catch(e){s.status(400).json({error:e.message})}});
-router.delete('/scenes/:id',async(q,s)=>{try{const r=await use(d=>d.run('DELETE FROM scenes WHERE id=?',[q.params.id]));if(!r.changes)return s.status(404).json({error:'Scene not found'});s.json({ok:true})}catch(e){s.status(500).json({error:e.message})}});
-router.post('/scenes/generate',async(q,s)=>{try{const b=q.body;if(!b.projectId||!String(b.text||'').trim())return s.status(400).json({error:'projectId and scripture text are required'});const chars=await use(d=>d.all('SELECT * FROM characters'));const parts=String(b.text).split(/\n\s*\n|(?<=[.!?])\s+(?=[A-Z])/).map(x=>x.trim()).filter(Boolean);const n=(await use(d=>d.get('SELECT COALESCE(MAX(scene_number),0) n FROM scenes WHERE project_id=?',[b.projectId]))).n||0;s.json({method:'deterministic-fallback',scenes:parts.map((t,i)=>({projectId:b.projectId,sceneNumber:Number(n)+i+1,title:'Scene '+(Number(n)+i+1),scriptureRef:b.scriptureRef||'Genesis 1:1',location:'To be determined',charactersPresent:chars.filter(c=>(c.canonical_name+' '+dec(c.aliases).join(' ')).toLowerCase().split(/\s+/).some(k=>k.length>2&&t.toLowerCase().includes(k))).map(c=>c.id),actionSummary:t,emotionalBeat:'Refine from the passage without inventing events.',productionNotes:'Verify scripture reference, setting, costumes, props, continuity, and production requirements.'}))})}catch(e){s.status(500).json({error:e.message})}});
-router.get('/shoot-days',async(q,s)=>{try{s.json(await use(d=>d.all(q.query.projectId?'SELECT * FROM shoot_days WHERE project_id=? ORDER BY date,id':'SELECT * FROM shoot_days ORDER BY date,id',q.query.projectId?[q.query.projectId]:[])))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/shoot-days',async(q,s)=>{try{const b=q.body;if(!b.projectId||!/^\d{4}-\d{2}-\d{2}$/.test(String(b.date||'')))return s.status(400).json({error:'projectId and YYYY-MM-DD date are required'});const r=await use(d=>d.run('INSERT INTO shoot_days(project_id,date,unit,notes) VALUES(?,?,?,?)',[b.projectId,b.date,String(b.unit||'1st Unit'),String(b.notes||'')]));s.status(201).json(await use(d=>d.get('SELECT * FROM shoot_days WHERE id=?',[r.id])))}catch(e){s.status(400).json({error:e.message})}});
-router.post('/shoot-days/:id/scenes',async(q,s)=>{try{for(const id of arr(q.body.sceneIds).map(Number).filter(Boolean))await use(d=>d.run('INSERT OR IGNORE INTO scene_shoot_days(scene_id,shoot_day_id) VALUES(?,?)',[id,q.params.id]));s.json({ok:true})}catch(e){s.status(400).json({error:e.message})}});
-router.get('/shoot-days/:id/scenes',async(q,s)=>{try{s.json((await use(d=>d.all('SELECT s.* FROM scenes s JOIN scene_shoot_days m ON m.scene_id=s.id WHERE m.shoot_day_id=? ORDER BY s.scene_number,s.id',[q.params.id]))).map(scn))}catch(e){s.status(500).json({error:e.message})}});
-router.get('/call-sheets',async(q,s)=>{try{s.json((await use(d=>d.all('SELECT * FROM call_sheets ORDER BY id DESC'))).map(sheet))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/call-sheets/from-scenes',async(q,s)=>{try{const b=q.body,ids=arr(b.sceneIds);if(!ids.length)return s.status(400).json({error:'sceneIds is required'});const rows=await use(d=>d.all('SELECT * FROM scenes WHERE id IN ('+ids.map(()=>'?').join(',')+')',ids));if(!rows.length)return s.status(404).json({error:'No linked scenes found'});const ss=rows.map(scn),locations=[...new Set(ss.map(x=>x.location).filter(Boolean))],characters=[...new Set(ss.flatMap(x=>x.charactersPresent))],now=new Date().toISOString(),id=crypto.randomUUID();const crew=['Director','1st AD','Director of Photography','Sound','Art / Props','Wardrobe','Script Supervisor'],times=b.callTimes||{crew:'05:00',cast:'06:00'};await use(d=>d.run('INSERT INTO call_sheets(project_id,shoot_date,general_call_time,weather_notes,special_requirements,crew,cast,locations,characters,call_times,scene_ids,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[b.projectId||null,b.shootDate||new Date().toISOString().slice(0,10),b.generalCallTime||'05:00',String(b.weatherNotes||''),String(b.specialRequirements||''),JSON.stringify(crew),JSON.stringify(characters),JSON.stringify(locations),JSON.stringify(characters),JSON.stringify(times),JSON.stringify(ids),now,now]));s.status(201).json(sheet(await use(d=>d.get('SELECT * FROM call_sheets WHERE id=?',id))))}catch(e){s.status(400).json({error:e.message})}});
-router.get('/call-sheets/:id/pdf',async(q,s)=>{try{const x=await use(d=>d.get('SELECT * FROM call_sheets WHERE id=?',[q.params.id]));if(!x)return s.status(404).json({error:'Call sheet not found'});const c=sheet(x),lines=['APEX BIBLE STORY STUDIO — CALL SHEET','Shoot date: '+c.shoot_date,'Locations: '+c.locations.join(', '),'Characters: '+c.characters.join(', '),'Crew: '+c.crew.join(', '),'Call times: '+JSON.stringify(c.callTimes),'Weather: '+c.weather_notes,'Special requirements: '+c.special_requirements,'Linked scenes: '+c.sceneIds.join(', ')],esc=v=>String(v).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)'),body=['BT','/F1 18 Tf','50 760 Td',...lines.flatMap((v,i)=>(i?['0 -22 Td']:[]).concat(['('+esc(v).slice(0,110)+') Tj'])),'ET'].join('\n'),objs=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>','<< /Length '+body.length+' >>\nstream\n'+body+'\nendstream'];let pdf='%PDF-1.4\n',offs=[0];for(let i=0;i<objs.length;i++){offs[i+1]=Buffer.byteLength(pdf);pdf+=(i+1)+' 0 obj\n'+objs[i]+'\nendobj\n'}const xref=Buffer.byteLength(pdf);pdf+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';for(let i=1;i<offs.length;i++)pdf+=String(offs[i]).padStart(10,'0')+' 00000 n \n';pdf+='trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';const buf=Buffer.from(pdf);s.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="apex-call-sheet.pdf"','Content-Length':buf.length});s.send(buf)}catch(e){s.status(500).json({error:e.message})}});
-router.get('/budget',async(q,s)=>{try{s.json(await use(d=>d.all('SELECT * FROM budget_items WHERE project_id=? ORDER BY category,id',[q.query.projectId])))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/budget',async(q,s)=>{try{const b=q.body,r=await use(d=>d.run('INSERT INTO budget_items(project_id,category,description,estimated,actual,notes) VALUES(?,?,?,?,?,?)',[b.projectId,b.category,b.description,Number(b.estimated)||0,Number(b.actual)||0,String(b.notes||'')]));s.status(201).json(await use(d=>d.get('SELECT * FROM budget_items WHERE id=?',[r.id])))}catch(e){s.status(400).json({error:e.message})}});
-router.get('/script-notes',async(q,s)=>{try{s.json(await use(d=>d.all('SELECT * FROM script_notes WHERE project_id=? ORDER BY id DESC',[q.query.projectId])))}catch(e){s.status(500).json({error:e.message})}});
-router.post('/script-notes',async(q,s)=>{try{const b=q.body;if(!b.projectId||!ref(b.scriptureRef))return s.status(400).json({error:'projectId and valid scriptureRef are required'});const r=await use(d=>d.run('INSERT INTO script_notes(project_id,scene_id,scripture_ref,dialogue,version_notes) VALUES(?,?,?,?,?)',[b.projectId,b.sceneId||null,b.scriptureRef,String(b.dialogue||''),String(b.versionNotes||'')]));s.status(201).json(await use(d=>d.get('SELECT * FROM script_notes WHERE id=?',[r.id])))}catch(e){s.status(400).json({error:e.message})}});
+
+const { Pool } = pg;
+const router = express.Router();
+let pool;
+
+function db() {
+  if (!String(process.env.DATABASE_URL || '').trim()) throw new Error('DATABASE_URL is required');
+  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
+  return pool;
+}
+const json = (value, fallback = []) => {
+  if (Array.isArray(value) || (value && typeof value === 'object')) return value;
+  try { return JSON.parse(value || JSON.stringify(fallback)); } catch { return fallback; }
+};
+const arr = value => Array.isArray(value) ? value : [];
+const ref = value => /^[1-3]?\s?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?$/.test(String(value || '').trim());
+const project = r => r ? ({ ...r, primaryScripture: r.primary_scripture }) : r;
+const character = r => r && ({ ...r, aliases: json(r.aliases), primaryStories: json(r.primary_stories), relationships: json(r.relationships), keyTraits: json(r.key_traits), scriptureReferences: json(r.scripture_references) });
+const scene = r => r && ({ ...r, charactersPresent: json(r.characters_present) });
+const sheet = r => r && ({ ...r, crew: json(r.crew), cast: json(r.cast), locations: json(r.locations), characters: json(r.characters), callTimes: json(r.call_times, {}), sceneIds: json(r.scene_ids) });
+
+async function seedCharacters() {
+  const count = await db().query('SELECT COUNT(*)::int AS n FROM characters');
+  if (count.rows[0].n) return;
+  for (const c of BIBLE_CHARACTER_SEEDS) {
+    await db().query(`INSERT INTO characters(canonical_name,aliases,primary_stories,relationships,key_traits,notes,scripture_references)
+      VALUES($1,$2::jsonb,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7::jsonb)
+      ON CONFLICT (canonical_name) DO NOTHING`,
+      [c.canonicalName, JSON.stringify(c.aliases), JSON.stringify(c.primaryStories), JSON.stringify(c.relationships), JSON.stringify(c.keyTraits), c.notes || '', JSON.stringify(c.scriptureReferences)]);
+  }
+}
+
+router.use(async (_req, _res, next) => {
+  try { await seedCharacters(); next(); } catch (error) { next(error); }
+});
+
+router.get('/projects', async (_req, res) => {
+  const { rows } = await db().query(`SELECT p.*, COUNT(DISTINCT sc.id)::int scene_count, COUNT(DISTINCT sd.id)::int shoot_day_count
+    FROM projects p LEFT JOIN scenes sc ON sc.project_id=p.id LEFT JOIN shoot_days sd ON sd.project_id=p.id
+    GROUP BY p.id ORDER BY p.updated_at DESC`);
+  res.json(rows.map(project));
+});
+router.post('/projects', async (req, res) => {
+  const title = String(req.body.title || '').trim();
+  if (!title) return res.status(400).json({ error: 'title is required' });
+  const { rows } = await db().query('INSERT INTO projects(title,description,primary_scripture,status) VALUES($1,$2,$3,$4) RETURNING *',
+    [title, String(req.body.description || ''), String(req.body.primaryScripture || ''), String(req.body.status || 'development')]);
+  res.status(201).json(project(rows[0]));
+});
+router.put('/projects/:id', async (req, res) => {
+  const { rows } = await db().query('UPDATE projects SET title=$1,description=$2,primary_scripture=$3,status=$4,updated_at=NOW() WHERE id=$5 RETURNING *',
+    [String(req.body.title || '').trim(), String(req.body.description || ''), String(req.body.primaryScripture || ''), String(req.body.status || 'development'), req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Project not found' });
+  res.json(project(rows[0]));
+});
+router.delete('/projects/:id', async (req, res) => {
+  const r = await db().query('DELETE FROM projects WHERE id=$1', [req.params.id]);
+  if (!r.rowCount) return res.status(404).json({ error: 'Project not found' });
+  res.json({ ok: true });
+});
+
+router.get('/characters', async (req, res) => {
+  const q = String(req.query.q || '');
+  const { rows } = await db().query(q
+    ? 'SELECT * FROM characters WHERE canonical_name ILIKE $1 OR aliases::text ILIKE $1 OR primary_stories::text ILIKE $1 ORDER BY canonical_name'
+    : 'SELECT * FROM characters ORDER BY canonical_name', q ? [`%${q}%`] : []);
+  res.json(rows.map(character));
+});
+router.get('/characters/:id', async (req, res) => {
+  const { rows } = await db().query('SELECT * FROM characters WHERE id=$1', [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Character not found' });
+  res.json(character(rows[0]));
+});
+router.post('/characters', async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.canonicalName || '').trim()) return res.status(400).json({ error: 'canonicalName is required' });
+  const { rows } = await db().query(`INSERT INTO characters(canonical_name,aliases,primary_stories,relationships,key_traits,notes,scripture_references)
+    VALUES($1,$2::jsonb,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7::jsonb) RETURNING *`,
+    [String(b.canonicalName).trim(), JSON.stringify(arr(b.aliases)), JSON.stringify(arr(b.primaryStories)), JSON.stringify(arr(b.relationships)), JSON.stringify(arr(b.keyTraits)), String(b.notes || ''), JSON.stringify(arr(b.scriptureReferences))]);
+  res.status(201).json(character(rows[0]));
+});
+router.put('/characters/:id', async (req, res) => {
+  const b = req.body || {};
+  const { rows } = await db().query(`UPDATE characters SET canonical_name=$1,aliases=$2::jsonb,primary_stories=$3::jsonb,relationships=$4::jsonb,key_traits=$5::jsonb,notes=$6,scripture_references=$7::jsonb WHERE id=$8 RETURNING *`,
+    [String(b.canonicalName || '').trim(), JSON.stringify(arr(b.aliases)), JSON.stringify(arr(b.primaryStories)), JSON.stringify(arr(b.relationships)), JSON.stringify(arr(b.keyTraits)), String(b.notes || ''), JSON.stringify(arr(b.scriptureReferences)), req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Character not found' });
+  res.json(character(rows[0]));
+});
+router.delete('/characters/:id', async (req, res) => {
+  const r = await db().query('DELETE FROM characters WHERE id=$1', [req.params.id]);
+  if (!r.rowCount) return res.status(404).json({ error: 'Character not found' });
+  res.json({ ok: true });
+});
+
+router.get('/scenes', async (req, res) => {
+  const { rows } = await db().query(req.query.projectId
+    ? 'SELECT * FROM scenes WHERE project_id=$1 ORDER BY scene_number,id'
+    : 'SELECT * FROM scenes ORDER BY project_id,scene_number,id', req.query.projectId ? [req.query.projectId] : []);
+  res.json(rows.map(scene));
+});
+router.post('/scenes', async (req, res) => {
+  const b = req.body || {};
+  if (!b.projectId || !ref(b.scriptureRef)) return res.status(400).json({ error: 'projectId and valid scriptureRef are required' });
+  const { rows } = await db().query(`INSERT INTO scenes(project_id,scene_number,title,scripture_ref,location,characters_present,action_summary,emotional_beat,production_notes,estimated_pages,day_or_night)
+    VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) RETURNING *`,
+    [b.projectId, Number(b.sceneNumber) || null, String(b.title || ''), b.scriptureRef, String(b.location || ''), JSON.stringify(arr(b.charactersPresent)), String(b.actionSummary || ''), String(b.emotionalBeat || ''), String(b.productionNotes || ''), Number(b.estimatedPages) || null, String(b.dayOrNight || '')]);
+  res.status(201).json(scene(rows[0]));
+});
+router.put('/scenes/:id', async (req, res) => {
+  const b = req.body || {};
+  const { rows } = await db().query(`UPDATE scenes SET scene_number=$1,title=$2,scripture_ref=$3,location=$4,characters_present=$5::jsonb,action_summary=$6,emotional_beat=$7,production_notes=$8,estimated_pages=$9,day_or_night=$10 WHERE id=$11 RETURNING *`,
+    [Number(b.sceneNumber) || null, String(b.title || ''), b.scriptureRef, String(b.location || ''), JSON.stringify(arr(b.charactersPresent)), String(b.actionSummary || ''), String(b.emotionalBeat || ''), String(b.productionNotes || ''), Number(b.estimatedPages) || null, String(b.dayOrNight || ''), req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Scene not found' });
+  res.json(scene(rows[0]));
+});
+router.delete('/scenes/:id', async (req, res) => {
+  const r = await db().query('DELETE FROM scenes WHERE id=$1', [req.params.id]);
+  if (!r.rowCount) return res.status(404).json({ error: 'Scene not found' });
+  res.json({ ok: true });
+});
+router.post('/scenes/generate', async (req, res) => {
+  const b = req.body || {};
+  if (!b.projectId || !String(b.text || '').trim()) return res.status(400).json({ error: 'projectId and scripture text are required' });
+  const { rows: chars } = await db().query('SELECT * FROM characters');
+  const parts = String(b.text).split(/\n\s*\n|(?<=[.!?])\s+(?=[A-Z])/).map(x => x.trim()).filter(Boolean);
+  const { rows: maxRows } = await db().query('SELECT COALESCE(MAX(scene_number),0)::int n FROM scenes WHERE project_id=$1', [b.projectId]);
+  const n = maxRows[0]?.n || 0;
+  res.json({ method: 'deterministic-fallback', scenes: parts.map((t, i) => ({
+    projectId: b.projectId, sceneNumber: n + i + 1, title: 'Scene ' + (n + i + 1), scriptureRef: b.scriptureRef || 'Genesis 1:1',
+    location: 'To be determined',
+    charactersPresent: chars.filter(c => (c.canonical_name + ' ' + json(c.aliases).join(' ')).toLowerCase().split(/\s+/).some(k => k.length > 2 && t.toLowerCase().includes(k))).map(c => c.id),
+    actionSummary: t, emotionalBeat: 'Refine from the passage without inventing events.',
+    productionNotes: 'Verify scripture reference, setting, costumes, props, continuity, and production requirements.'
+  })) });
+});
+
+router.get('/shoot-days', async (req, res) => {
+  const { rows } = await db().query(req.query.projectId ? 'SELECT * FROM shoot_days WHERE project_id=$1 ORDER BY date,id' : 'SELECT * FROM shoot_days ORDER BY date,id', req.query.projectId ? [req.query.projectId] : []);
+  res.json(rows);
+});
+router.post('/shoot-days', async (req, res) => {
+  const b = req.body || {};
+  if (!b.projectId || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) return res.status(400).json({ error: 'projectId and YYYY-MM-DD date are required' });
+  const { rows } = await db().query('INSERT INTO shoot_days(project_id,date,unit,notes) VALUES($1,$2,$3,$4) RETURNING *', [b.projectId,b.date,String(b.unit || '1st Unit'),String(b.notes || '')]);
+  res.status(201).json(rows[0]);
+});
+router.post('/shoot-days/:id/scenes', async (req, res) => {
+  const ids = arr(req.body?.sceneIds).map(Number).filter(Boolean);
+  for (const id of ids) await db().query(`INSERT INTO shoot_day_scenes(scene_id,shoot_day_id,project_id,shoot_date,position)
+    SELECT s.id,sd.id,sd.project_id,sd.date,COALESCE((SELECT MAX(position)+1 FROM shoot_day_scenes WHERE shoot_day_id=sd.id),0)
+    FROM scenes s JOIN shoot_days sd ON sd.id=$2 WHERE s.id=$1 ON CONFLICT (scene_id) DO UPDATE SET shoot_day_id=EXCLUDED.shoot_day_id,project_id=EXCLUDED.project_id,shoot_date=EXCLUDED.shoot_date`, [id, req.params.id]);
+  res.json({ ok: true });
+});
+router.get('/shoot-days/:id/scenes', async (req, res) => {
+  const { rows } = await db().query('SELECT s.* FROM scenes s JOIN shoot_day_scenes m ON m.scene_id=s.id WHERE m.shoot_day_id=$1 ORDER BY m.position,s.scene_number,s.id', [req.params.id]);
+  res.json(rows.map(scene));
+});
+
+router.get('/call-sheets', async (_req, res) => {
+  const { rows } = await db().query('SELECT * FROM call_sheets ORDER BY id DESC');
+  res.json(rows.map(sheet));
+});
+router.post('/call-sheets/from-scenes', async (req, res) => {
+  const b = req.body || {};
+  const ids = arr(b.sceneIds).map(Number).filter(Boolean);
+  if (!ids.length) return res.status(400).json({ error: 'sceneIds is required' });
+  const { rows } = await db().query('SELECT * FROM scenes WHERE id=ANY($1::int[]) ORDER BY scene_number,id', [ids]);
+  if (!rows.length) return res.status(404).json({ error: 'No linked scenes found' });
+  const locations = [...new Set(rows.map(x => x.location).filter(Boolean))];
+  const characters = [...new Set(rows.flatMap(x => json(x.characters_present)))];
+  const crew = ['Director','1st AD','Director of Photography','Sound','Art / Props','Wardrobe','Script Supervisor'];
+  const times = b.callTimes || { crew: '05:00', cast: '06:00' };
+  const shootDate = String(b.shootDate || new Date().toISOString().slice(0,10));
+  const shootDay = b.shootDayId ? String(b.shootDayId) : null;
+  const { rows: created } = await db().query(`INSERT INTO call_sheets(shoot_day_id,general_call_time,weather_notes,special_requirements,crew,cast,locations,characters,call_times,scene_ids)
+    VALUES(COALESCE($1,(SELECT id FROM shoot_days WHERE project_id=$2 AND date=$3 LIMIT 1)), $4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb) RETURNING *`,
+    [shootDay,b.projectId || null,shootDate,b.generalCallTime || '05:00',String(b.weatherNotes || ''),String(b.specialRequirements || ''),JSON.stringify(crew),JSON.stringify(characters),JSON.stringify(locations),JSON.stringify(characters),JSON.stringify(times),JSON.stringify(ids)]);
+  if (!created[0]) return res.status(400).json({ error: 'A shoot day is required for a call sheet' });
+  res.status(201).json(sheet(created[0]));
+});
+router.get('/call-sheets/:id/pdf', async (req, res) => {
+  const { rows } = await db().query('SELECT * FROM call_sheets WHERE id=$1', [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Call sheet not found' });
+  const c = sheet(rows[0]);
+  const lines = ['APEX BIBLE STORY STUDIO — CALL SHEET','Shoot date: '+(rows[0].shoot_date || ''),'Locations: '+c.locations.join(', '),'Characters: '+c.characters.join(', '),'Crew: '+c.crew.join(', '),'Call times: '+JSON.stringify(c.callTimes),'Weather: '+(c.weather_notes || ''),'Special requirements: '+(c.special_requirements || ''),'Linked scenes: '+c.sceneIds.join(', ')];
+  const esc = v => String(v).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  const body = ['BT','/F1 18 Tf','50 760 Td',...lines.flatMap((v,i)=>(i?['0 -22 Td']:[]).concat(['('+esc(v).slice(0,110)+') Tj'])),'ET'].join('\n');
+  const objs=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>','<< /Length '+body.length+' >>\nstream\n'+body+'\nendstream'];
+  let pdf='%PDF-1.4\n',offs=[0];
+  for(let i=0;i<objs.length;i++){offs[i+1]=Buffer.byteLength(pdf);pdf+=(i+1)+' 0 obj\n'+objs[i]+'\nendobj\n';}
+  const xref=Buffer.byteLength(pdf);pdf+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';
+  for(let i=1;i<offs.length;i++)pdf+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+  pdf+='trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+  const buf=Buffer.from(pdf);
+  res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="apex-call-sheet.pdf"','Content-Length':buf.length});
+  res.send(buf);
+});
+
+router.get('/budget', async (req,res) => { const {rows}=await db().query('SELECT * FROM budget_items WHERE project_id=$1 ORDER BY category,id',[req.query.projectId]); res.json(rows); });
+router.post('/budget', async (req,res) => { const b=req.body||{}; const {rows}=await db().query('INSERT INTO budget_items(project_id,category,description,estimated,actual,notes) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[b.projectId,b.category,b.description,Number(b.estimated)||0,Number(b.actual)||0,String(b.notes||'')]); res.status(201).json(rows[0]); });
+router.get('/script-notes', async (req,res) => { const {rows}=await db().query('SELECT * FROM script_notes WHERE project_id=$1 ORDER BY id DESC',[req.query.projectId]); res.json(rows); });
+router.post('/script-notes', async (req,res) => { const b=req.body||{}; if(!b.projectId||!ref(b.scriptureRef)) return res.status(400).json({error:'projectId and valid scriptureRef are required'}); const {rows}=await db().query('INSERT INTO script_notes(project_id,scene_id,scripture_ref,dialogue,version_notes) VALUES($1,$2,$3,$4,$5) RETURNING *',[b.projectId,b.sceneId||null,b.scriptureRef,String(b.dialogue||''),String(b.versionNotes||'')]); res.status(201).json(rows[0]); });
+
 export default router;
