@@ -73,7 +73,7 @@ function normalize(ref, json) {
 
 export async function generateHookPlan({ gemini, ref, events, visualBible = {}, maxAttempts = 3 }) {
   if (!Array.isArray(events) || events.length === 0 || events.some((event) => !event?.sources?.length)) {
-    throw new Error('events must be a non-empty array and every event needs sources');
+    throw new Error('events must be a non-empty array and every event needs sources (need sources)');
   }
   const badEvents = events.flatMap((event) => {
     const errors = [];
