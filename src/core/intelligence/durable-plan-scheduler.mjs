@@ -49,7 +49,7 @@ export class DurablePlanScheduler {
       const result=await this.executor(task,{signal,runtime:this.runtime});
       return result;
     } catch(error) {
-      await updateExecutionNode(nodeId,{status:"failed",last_error:String(error?.message||error)});
+      await updateExecutionNodeForLease(nodeId, task.id, task.lease_token, {status:"failed",last_error:String(error?.message||error)});
       await appendAgentEvent({agentId:task.worker_id,planId,nodeId,eventType:"node_failed",payload:{error:String(error?.message||error)}});
       throw error;
     }
