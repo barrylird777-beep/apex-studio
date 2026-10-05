@@ -46,7 +46,7 @@ export class ApexIntelligencePlatform {
     return graph;
   }
 
-  async execute(graph, { context = {}, verify = true, signal } = {}) {
+  async execute(graph, { context = {}, verify = true, verifier, signal } = {}) {
     return graph.run(async (node, runContext) => {
       const capability = this.capabilities.get(node.capability);
       if (!capability) throw new Error("Capability disappeared: " + node.capability);
@@ -56,7 +56,7 @@ export class ApexIntelligencePlatform {
       return capability.execute(node.input, {
         ...context, ...runContext, provider: providerResult, evidence: this.evidence
       });
-    }, { verify, signal });
+    }, { verify, verifier, signal });
   }
 
   inspect() {
