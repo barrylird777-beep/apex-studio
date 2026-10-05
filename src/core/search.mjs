@@ -102,6 +102,7 @@ function rankIndex(index, query, limit, options = {}) {
   const max = Math.max(1, Math.min(1000, Number(limit) || 30));
   const filters = options.filters ?? {};
   const ids = candidateIds(index, q);
+  if (!ids.length) return [];
   const out = [];
 
   for (const id of ids) {
