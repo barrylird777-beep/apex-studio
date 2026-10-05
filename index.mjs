@@ -12,6 +12,7 @@ import {
 } from "./src/core/mesh/durable-worker-store.mjs";
 import { pool as dbPool } from "./src/db/index.ts";
 import { createEpisodeJobDispatcher } from "./src/core/mesh/episode-job-dispatcher.mjs";
+import { runWithTrace, log } from "./src/core/resilience/load-shedder.mjs";
 
 async function executePermanentHealthTask(payload = {}) {
   const role = String(payload?.role || "general");
@@ -70,7 +71,7 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const episodeResult = await dispatchEpisodeJob(task);
+      const episodeResult = await runWithTrace({ job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") }, () => dispatchEpisodeJob(task));
       const result = episodeResult ?? await executePermanentHealthTask(task.payload || {});
       if (result?.deferred) return;
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
@@ -78,7 +79,7 @@ if (!workerOnly) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
         return;
       }
-      console.log("[apex-worker] completed", task.id, task.role);
+      log("info", "worker task completed", { job_id: task.id, role: task.role });
     } catch (error) {
       await failWorkerTask(task.id, error, task.lease_token).then(ok => {
         if (!ok) console.warn("[apex-worker] failure update fenced out", task.id);
