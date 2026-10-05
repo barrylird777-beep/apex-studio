@@ -20,15 +20,17 @@ if(p[0]==="api"&&p[1]==="overseer"&&p[2]==="metrics"&&req.method==="GET"){
         WHERE status='running'
         ORDER BY lease_expires_at NULLS LAST`)
     ]);
+    const summary=Object.fromEntries(queueStats.rows.map((row:any)=>[row.status,row.count]));
     return send(res,200,{
       status:"operational",
       timestamp:new Date().toISOString(),
       queueSummary:queueStats.rows,
+      counts:{queued:summary.queued||0,running:summary.running||0,completed:summary.completed||0,failed:summary.failed||0,total:Object.values(summary).reduce((sum:any,n:any)=>sum+Number(n),0)},
       activeTasks:activeWorkers.rows
     });
   } catch (error) {
     console.error("overseer metrics failed",error);
-    return send(res,500,{error:"Overseer Metrics Error"});
+    return send(res,503,{status:"degraded",error:"Overseer metrics unavailable"});
   }
 }
 if(p[0]==="api"&&p[1]==="characters"){if(p.length===2&&req.method==="GET")return send(res,200,await listCharacters(u.searchParams.get("q")||""));if(p.length===2&&req.method==="POST")return send(res,201,await createCharacter(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid character id"});if(p.length===3&&req.method==="GET"){const c=await getCharacter(id);return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="PUT"){const c=await updateCharacter(id,await readBody(req));return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="DELETE"){return await deleteCharacter(id)?send(res,204,null):send(res,404,{error:"Character not found"})}}
