@@ -2147,6 +2147,174 @@
       "language": "la",
       "sourceId": "mlat",
       "status": "historical-corpus"
+    },
+    {
+      "slug": "stepbible-tahot",
+      "title": "TAHOT Hebrew OT tagged text",
+      "language": "he",
+      "sourceId": "stepbible",
+      "status": "tagged-text"
+    },
+    {
+      "slug": "stepbible-tagnt",
+      "title": "TAGNT Greek NT multi-edition word graph",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "textual-variant"
+    },
+    {
+      "slug": "stepbible-tbesh",
+      "title": "TBESH Hebrew extended lexicon",
+      "language": "he",
+      "sourceId": "stepbible",
+      "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-tbesg",
+      "title": "TBESG Greek extended lexicon",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-tflsj",
+      "title": "TFLSJ full LSJ Bible lexicon",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "lexicon"
+    },
+    {
+      "slug": "stepbible-tipnr",
+      "title": "TIPNR individualised proper names",
+      "language": "he/grc",
+      "sourceId": "stepbible",
+      "status": "entity-graph"
+    },
+    {
+      "slug": "stepbible-tvtms",
+      "title": "TVTMS versification traditions",
+      "language": "multilingual",
+      "sourceId": "stepbible",
+      "status": "alignment"
+    },
+    {
+      "slug": "stepbible-tehmc",
+      "title": "TEHMC Hebrew morphology codes",
+      "language": "he",
+      "sourceId": "stepbible",
+      "status": "morphology"
+    },
+    {
+      "slug": "stepbible-tegmc",
+      "title": "TEGMC Greek morphology codes",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "morphology"
+    },
+    {
+      "slug": "stepbible-totmm",
+      "title": "TOTMM OT manuscript variants and meanings",
+      "language": "he",
+      "sourceId": "stepbible",
+      "status": "textual-variant"
+    },
+    {
+      "slug": "stepbible-tntmm",
+      "title": "TNTMM NT manuscript variants and meanings",
+      "language": "grc",
+      "sourceId": "stepbible",
+      "status": "textual-variant"
+    },
+    {
+      "slug": "macula-hebrew-syntax",
+      "title": "MACULA Hebrew syntax trees",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "syntax"
+    },
+    {
+      "slug": "macula-hebrew-senses",
+      "title": "MACULA Hebrew word senses",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "semantic"
+    },
+    {
+      "slug": "macula-hebrew-roles",
+      "title": "MACULA Hebrew semantic roles",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "semantic"
+    },
+    {
+      "slug": "macula-hebrew-referents",
+      "title": "MACULA Hebrew participant referents",
+      "language": "he",
+      "sourceId": "clear-bible",
+      "status": "entity-graph"
+    },
+    {
+      "slug": "ntvmr-manuscript-records",
+      "title": "NTVMR manuscript records",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "manuscript"
+    },
+    {
+      "slug": "ntvmr-page-images",
+      "title": "NTVMR manuscript page images",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "image"
+    },
+    {
+      "slug": "ntvmr-transcriptions",
+      "title": "NTVMR manuscript transcriptions",
+      "language": "grc",
+      "sourceId": "ntvmr",
+      "status": "transcription"
+    },
+    {
+      "slug": "coptic-conllu",
+      "title": "Coptic SCRIPTORIUM CoNLL-U corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "linguistics"
+    },
+    {
+      "slug": "coptic-tei",
+      "title": "Coptic SCRIPTORIUM TEI corpus",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "scholarly-data"
+    },
+    {
+      "slug": "coptic-ann",
+      "title": "Coptic SCRIPTORIUM relANNIS/PAULA annotations",
+      "language": "cop",
+      "sourceId": "coptic-scriptorium",
+      "status": "annotation"
+    },
+    {
+      "slug": "srophe-manuscripts",
+      "title": "SROPHÉ Syriac manuscript resources",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "manuscript"
+    },
+    {
+      "slug": "srophe-corpus",
+      "title": "SROPHÉ Syriac text corpus",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "corpus"
+    },
+    {
+      "slug": "srophe-lexicon",
+      "title": "SROPHÉ Syriac lexical resources",
+      "language": "syr",
+      "sourceId": "srophe",
+      "status": "lexicon"
     }
   ],
   "discoveryRun": {
@@ -2173,7 +2341,8 @@
       "Open Dead Sea currently reports 53,568 transcribed source-text lines and 53,479 published English machine-draft reading-aid lines.",
       "Open Scriptorium combines scripture, deuterocanon, Talmud, historical Jewish literature and patristic/post-patristic voices with verse-level cross-referencing.",
       "Surface break: node-level knowledge objects now include scrolls, fragments, lines, words, verses, morphology, syntax, lexical data, parallels, manuscript metadata and scholarly encodings.",
-      "Surface break continued: added linguistic annotation corpora, Greek critical-text resources, Coptic/Syriac corpora, manuscript image/transcription infrastructure, historical Christian corpora, semantic metadata and cross-reference graphs."
+      "Surface break continued: added linguistic annotation corpora, Greek critical-text resources, Coptic/Syriac corpora, manuscript image/transcription infrastructure, historical Christian corpora, semantic metadata and cross-reference graphs.",
+      "Precision surface-break evidence: STEPBible exposes TAHOT, TAGNT, lexicons, proper-name entities, versification, morphology codes and manuscript-meaning variant datasets; MACULA Hebrew contains syntax trees, word senses, semantic roles and participant referents; NTVMR exposes a large Greek NT manuscript research environment; Coptic SCRIPTORIUM publishes multiple annotation formats."
     ]
   }
 }
