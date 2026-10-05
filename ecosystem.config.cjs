@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: "apex-av1-production",
+    name: "apex-autonomous-worker",
     script: "./index.mjs",
     interpreter: "node",
     autorestart: true,
@@ -9,7 +9,8 @@ module.exports = {
     time: true,
     kill_timeout: 10000,
     env: {
-      NODE_ENV: "production"
+      NODE_ENV: "production",
+      APEX_WORKER_ONLY: "true"
     }
   }]
 };
