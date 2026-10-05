@@ -7,13 +7,25 @@ import { assertRepo, assertClean, currentHead, discover, makeWorktree, removeWor
 import { discoverChecks, runChecks } from "./checks.mjs";
 
 const SPECIALISTS = [
-  ["security", "Audit trust boundaries, secrets, injection, path traversal, prototype pollution, unsafe execution, and authorization."],
-  ["data", "Audit persistence, migrations, PostgreSQL correctness, transactions, idempotency, leases, concurrency, and recovery."],
-  ["reliability", "Audit crash recovery, timeouts, retries, cancellation, resource exhaustion, race conditions, and deterministic behavior."],
-  ["testing", "Audit test coverage, acceptance criteria, negative cases, smoke checks, and evidence quality."],
-  ["performance", "Audit hot paths, worker concurrency, memory behavior, provider limits, batching, and unnecessary work."],
+  ["postgresql", "Audit PostgreSQL schema, migrations, connection pools, indexes, constraints, transaction boundaries, and failure behavior."],
+  ["durable-jobs", "Audit durable queue semantics, claim ordering, batching, idempotency, retries, dead-letter behavior, and duplicate execution."],
+  ["leases-fencing", "Audit lease ownership, fencing tokens, heartbeats, expiry races, stale workers, and crash recovery."],
+  ["worker-fleet", "Audit worker concurrency, capacity-aware claiming, shutdown/drain behavior, backoff, jitter, and multi-node coordination."],
+  ["ai-mesh", "Audit provider routing, model selection, timeouts, rate limits, fallback behavior, and durable AI work."],
+  ["providers", "Audit external provider contracts, authentication boundaries, error classification, quotas, and retry safety."],
+  ["security", "Audit trust boundaries, secrets, injection, path traversal, prototype pollution, unsafe execution, authorization, and fail-closed behavior."],
+  ["filesystem", "Audit file paths, atomic writes, temporary files, permissions, cleanup, storage durability, and traversal resistance."],
+  ["api", "Audit API contracts, validation, authentication, authorization, status codes, request limits, and concurrency behavior."],
+  ["media-render", "Audit FFmpeg/media execution, streaming, cancellation, output integrity, provenance, and render failure recovery."],
+  ["performance", "Audit hot paths, worker concurrency, memory behavior, provider limits, batching, resource leaks, and unnecessary work."],
+  ["integration", "Audit cross-module contracts, migration/runtime alignment, deployment assumptions, CI/release behavior, and architectural drift."],
   ["product", "Audit whether the implementation actually satisfies the stated Apex product goal and user workflow without cheap shortcuts."]
 ];
+
+const BREAKERS = SPECIALISTS.map(([name, remit]) => [
+  name,
+  `Attempt to disprove the ${name} workstream after implementation. ${remit} Construct adversarial races, malformed inputs, stale state, failure injection, and boundary cases. Treat every success claim as unproven until evidence supports it.`
+]);
 
 const TOOL_DEFS = [
   {
@@ -110,17 +122,20 @@ async function runToolLoop(ai, { input, previousResponseId = null, tools, execut
   }
 }
 
-async function specialistAudit(ai, snapshot, assignment, specialist, evidence, signal) {
+async function specialistAudit(ai, snapshot, assignment, specialist, evidence, signal, mode = "builder", diff = "") {
   const [name, remit] = specialist;
   assertNotAborted(signal);
   const response = await ai.turn({
     input: [
-      `You are Titan specialist: ${name}.`,
+      `You are Titan ${mode}: ${name}.`,
       remit,
-      "Do not claim production-ready. Produce concrete, testable findings.",
+      mode === "breaker"
+        ? "You are the adversarial counterpart. Try to disprove the implementation; do not praise it and do not claim production-ready."
+        : "You are the builder-side specialist. Produce concrete, testable findings and implementation requirements; do not claim production-ready.",
       "Assignment:", assignment,
       "Repository snapshot:", JSON.stringify(snapshot),
-      "Current evidence:", JSON.stringify(evidence.slice(-20))
+      "Current evidence:", JSON.stringify(evidence.slice(-20)),
+      diff ? "Current worktree diff:", diff : ""
     ].join("\n\n")
   });
   return { name, report: extractText(response), responseId: response.id };
@@ -186,11 +201,26 @@ export async function runTitan({ repoPath, assignment, signal, onEvent = () => {
     state.evidence.push(...initial);
     emit("checks.initial", { failed: initial.filter(x => !x.ok).length });
 
-    for (const specialist of SPECIALISTS) {
-      const report = await specialistAudit(ai, snapshot, assignment, specialist, state.evidence, signal);
-      state.specialists.push(report);
-      emit("audit.complete", { specialist: report.name });
-    }
+    const runParallel = async (items, worker) => {
+      const results = [];
+      let cursor = 0;
+      const workerCount = Math.min(config.auditConcurrency, items.length);
+      await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (true) {
+          const index = cursor++;
+          if (index >= items.length) return;
+          results[index] = await worker(items[index]);
+        }
+      }));
+      return results;
+    };
+
+    const specialistReports = await runParallel(
+      SPECIALISTS,
+      specialist => specialistAudit(ai, snapshot, assignment, specialist, state.evidence, signal, "builder")
+    );
+    state.specialists.push(...specialistReports);
+    for (const report of specialistReports) emit("audit.complete", { specialist: report.name, mode: "builder" });
 
     work = await makeWorktree(repo);
     emit("worktree.created", { isolated: true, baseHead: work.baseHead });
@@ -280,6 +310,14 @@ export async function runTitan({ repoPath, assignment, signal, onEvent = () => {
       throw new Error("Source HEAD changed while Titan was running; result rejected as a race.");
     }
 
+    const postImplementationDiff = (await git(work.worktree, ["diff", "--no-ext-diff", "--unified=0"])).stdout;
+    const breakerReports = await runParallel(
+      BREAKERS,
+      breaker => specialistAudit(ai, snapshot, assignment, breaker, state.evidence, signal, "breaker", postImplementationDiff)
+    );
+    state.breakers = breakerReports;
+    for (const report of breakerReports) emit("audit.complete", { specialist: report.name, mode: "breaker" });
+
     const finalEvidence = await runChecks(work.worktree, checks);
     state.evidence.push(...finalEvidence);
     const security = await finalSecurityScan(work.worktree);
@@ -292,12 +330,14 @@ export async function runTitan({ repoPath, assignment, signal, onEvent = () => {
     state.worktreeStatus = porcelain.stdout;
 
     const allGreen = finalEvidence.length > 0 && finalEvidence.every(item => item.ok) && security.ok;
-    if (allGreen) state.verdict = "GREEN";
-    else if (!checks.length) state.verdict = "YELLOW";
-    else state.verdict = "RED";
+    if (allGreen) state.evidenceVerdict = "PASS";
+    else if (!checks.length) state.evidenceVerdict = "INCONCLUSIVE";
+    else state.evidenceVerdict = "FAIL";
+    state.requiresFinalInspection = true;
 
-    emit("king-cob.verdict", {
-      verdict: state.verdict,
+    emit("titan.evidence.verdict", {
+      evidenceVerdict: state.evidenceVerdict,
+      requiresFinalInspection: true,
       evidenceCount: state.evidence.length,
       checks: finalEvidence.map(item => ({ name: item.name, ok: item.ok })),
       securityOk: security.ok
