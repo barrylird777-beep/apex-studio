@@ -14,7 +14,7 @@ import { ToolRegistry } from "../agents/tool-registry.mjs";
 import { SessionManager } from "./session.mjs";
 import { JsonStore } from "../core/persistence.mjs";
 import { CommandLog } from "../core/undo.mjs";
-import { universalSearch } from "../core/search.mjs";
+import { universalSearch, buildSearchIndex, searchIndex, SEARCH_CAPABILITIES } from "../core/search.mjs";
 import { Metrics } from "./observability.mjs";
 import { KnowledgeBase } from "../core/knowledge-base.mjs";
 import { RenderQueue } from "../core/render.mjs";
@@ -66,13 +66,18 @@ export function createStudio(options={}) {
   };
   studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
   void studio.omniStore.init();
-  studio.search=(query,limit=30)=>universalSearch(query,[
+  const searchCollections=()=>[
     {type:"projects",items:studio.projects.list()},
     {type:"memories",items:studio.memory.items},
     {type:"assets",items:[...studio.assets.assets.values()]},
     {type:"sources",items:studio.sources.list()},
     {type:"documents",items:studio.knowledgeBase.list()}
-  ],limit);
+  ];
+  studio.searchCapabilities=[...SEARCH_CAPABILITIES,"outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
+  studio.search=(query,limit=30,options={})=>universalSearch(query,searchCollections(),limit,options);
+  studio.searchIndex=()=>buildSearchIndex(searchCollections());
+  studio.searchIndexed=(index,query,limit=30)=>searchIndex(index,query,limit);
+  studio.searchFederated=async(query,options={})=>studio.sex.search(query,options);
   studio.omniRisk=(input={})=>buildRiskReport(input);
   studio.beginOmniReview=(input={})=>{const h=createRiskHandshake(studio.omniRisk(input));studio.omniHandshakes.set(h.id,h);return h};
   studio.confirmOmniReview=(id,approved)=>{const h=studio.omniHandshakes.get(id);if(!h)throw new Error("Risk review not found");h.state=approved===true?"approved":"cancelled";h.decidedAt=new Date().toISOString();return h};
