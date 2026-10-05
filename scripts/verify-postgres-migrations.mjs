@@ -48,11 +48,11 @@ export function verifyPostgresMigrations(dir = "drizzle-pg", expectPath = "scrip
   if (errors.length) {
     console.error("FAILED:", ...errors.map((x) => "\n - " + x));
     process.exitCode = 1;
-    return false;
+    return { ok: false, errors, migrationCount: entries.length };
   }
 
   console.log("OK: PostgreSQL migration journal and SQL checks passed:", entries.length, "migration(s)");
-  return true;
+  return { ok: true, errors: [], migrationCount: entries.length };
 }
 
 if (import.meta.url === new URL(process.argv[1], "file:").href) {
