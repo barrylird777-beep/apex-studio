@@ -1,4 +1,5 @@
 import { acquireAiRateLimit } from "./durable-worker-store.mjs";
+import { APEX_LIMITS } from "./apex-limits.mjs";
 
 export class GeminiMeshProvider {
   constructor() {
@@ -12,9 +13,9 @@ export class GeminiMeshProvider {
     const model = options.model || this.model;
     const rateLimit = await acquireAiRateLimit({
       key: 'gemini',
-      capacity: Number(process.env.GEMINI_RATE_LIMIT_CAPACITY || 10),
-      refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (10 / 60)),
-      maxWaitMs: Number(process.env.GEMINI_RATE_LIMIT_MAX_WAIT_MS || 10000)
+      capacity: Number(process.env.GEMINI_RATE_LIMIT_CAPACITY || APEX_LIMITS.GEMINI.RATE_BUCKET_CAPACITY),
+      refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (APEX_LIMITS.GEMINI.RATE_BUCKET_CAPACITY / APEX_LIMITS.GEMINI.REFILL_WINDOW_SECONDS)),
+      maxWaitMs: Number(process.env.GEMINI_RATE_LIMIT_MAX_WAIT_MS || APEX_LIMITS.GEMINI.MAX_RATE_LIMIT_WAIT_MS)
     });
     if (!rateLimit) throw new Error('Gemini shared rate limit reached; retry later');
     const body = {
@@ -25,7 +26,7 @@ export class GeminiMeshProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(Number(process.env.GEMINI_TIMEOUT_MS || 30000))
+      signal: AbortSignal.timeout(Number(process.env.GEMINI_TIMEOUT_MS || APEX_LIMITS.GEMINI.TIMEOUT_MS))
     });
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
