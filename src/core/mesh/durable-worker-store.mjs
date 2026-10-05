@@ -22,13 +22,15 @@ export async function ensureWorkerTaskSchema() {
 export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null }) {
   if (!durableWorkerEnabled()) return { durable: false, id };
   const db = getPool();
-  await db.query(`INSERT INTO apex_worker_tasks
+  const r = await db.query(`INSERT INTO apex_worker_tasks
     (id, worker_id, role, task, payload, max_attempts, dedupe_key)
     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
-    ON CONFLICT DO NOTHING`,
+    ON CONFLICT (dedupe_key)
+      WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')
+      DO UPDATE SET updated_at=apex_worker_tasks.updated_at
+    RETURNING id`,
     [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey]);
-  const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
-  return { durable: true, id: existing?.rows?.[0]?.id || id };
+  return { durable: true, id: r.rows[0].id };
 }
 
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000) {

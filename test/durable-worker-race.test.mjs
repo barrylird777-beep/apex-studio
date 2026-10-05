@@ -33,6 +33,35 @@ test("two workers race for one task and only one claim wins", { skip: !hasDataba
   assert.equal(await completeWorkerTask(id, { ok: true }, claimed[0].lease_token), true);
 });
 
+
+test("concurrent enqueue with the same dedupe key returns one durable task", { skip: !hasDatabase }, async () => {
+  const ids = [crypto.randomUUID(), crypto.randomUUID()];
+  const dedupeKey = "dedupe-race-" + crypto.randomUUID();
+  await ensureWorkerTaskSchema();
+  try {
+    const [a, b] = await Promise.all([
+      enqueueWorkerTask({ id: ids[0], workerId: "dedupe-a", role: "general", task: "dedupe", dedupeKey }),
+      enqueueWorkerTask({ id: ids[1], workerId: "dedupe-b", role: "general", task: "dedupe", dedupeKey })
+    ]);
+    assert.equal(a.id, b.id);
+    const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    try {
+      const rows = await db.query(
+        "SELECT id, status FROM apex_worker_tasks WHERE dedupe_key=$1",
+        [dedupeKey]
+      );
+      assert.equal(rows.rowCount, 1);
+      assert.equal(rows.rows[0].status, "queued");
+    } finally {
+      await db.end();
+    }
+  } finally {
+    const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    try { await db.query("DELETE FROM apex_worker_tasks WHERE id=ANY($1::uuid[])", [ids]); }
+    finally { await db.end(); await closeWorkerStore(); }
+  }
+});
+
 test("expired lease can be reclaimed but stale result is rejected", { skip: !hasDatabase }, async () => {
   const id = crypto.randomUUID();
   const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
