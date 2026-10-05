@@ -10,7 +10,7 @@ import { productionGate } from '../core/quality-gates.mjs';
 
 const sha256 = async (file) => createHash('sha256').update(await readFile(file)).digest('hex');
 
-async function acquireLock(dir, staleMs) {
+export async function acquireLock(dir, staleMs) {
   if (String(process.env.DATABASE_URL || '').trim()) {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
     const client = await pool.connect();
