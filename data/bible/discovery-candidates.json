@@ -96,6 +96,66 @@
       "kind": "repository",
       "url": "https://github.com/nigelmsipa/public-domain-bibles",
       "notes": "Plain-text public-domain/freely licensed Bible corpus; useful as a secondary manifestation source."
+    },
+    {
+      "id": "open-bible",
+      "kind": "catalog",
+      "url": "https://www.open.bible/bibles",
+      "notes": "Open.Bible open-license Bible catalog; current catalog exposes 945 Bible translations."
+    },
+    {
+      "id": "csntm",
+      "kind": "manuscript-catalog",
+      "url": "https://collections.csntm.org/",
+      "notes": "Center for the Study of New Testament Manuscripts digital manuscript collection."
+    },
+    {
+      "id": "open-dead-sea",
+      "kind": "manuscript-catalog",
+      "url": "https://opendeadsea.org/",
+      "notes": "Open reading room for Dead Sea Scrolls manuscripts, biblical and community texts."
+    },
+    {
+      "id": "patristic-text-archive",
+      "kind": "patristic-catalog",
+      "url": "https://pta.bbaw.de/",
+      "notes": "Open-access archive of ancient Christian texts and manuscripts."
+    },
+    {
+      "id": "scriptureearth",
+      "kind": "global-scripture-catalog",
+      "url": "https://www.scriptureearth.org/",
+      "notes": "Scripture resources by language/country, including text, audio, video and apps."
+    },
+    {
+      "id": "find-a-bible",
+      "kind": "global-scripture-catalog",
+      "url": "https://find.bible/",
+      "notes": "Global catalog for Bibles, New Testaments and Scripture portions."
+    },
+    {
+      "id": "open-library",
+      "kind": "book-catalog",
+      "url": "https://openlibrary.org/",
+      "notes": "Bibliographic catalog for editions and scans, including biblical/apocryphal works."
+    },
+    {
+      "id": "internet-archive",
+      "kind": "artifact-repository",
+      "url": "https://archive.org/",
+      "notes": "Digitized books, manuscripts, scans and media; rights must be validated per item."
+    },
+    {
+      "id": "brill",
+      "kind": "scholarly-editions",
+      "url": "https://scholarlyeditions.brill.com/",
+      "notes": "Scholarly editions of ancient works, fragments, papyri, inscriptions and Biblical/Ancient Jewish texts."
+    },
+    {
+      "id": "jw-org",
+      "kind": "translation-catalog",
+      "url": "https://www.jw.org/",
+      "notes": "Current New World Translation language catalog; discovery only, rights/terms validated separately."
     }
   ],
   "candidates": [
@@ -749,6 +809,160 @@
       "language": "es",
       "sourceId": "open-bibles",
       "status": "cc-by-sa-4.0"
+    },
+    {
+      "slug": "open-bible-945-catalog",
+      "title": "Open.Bible catalog — 945 openly licensed Bible translations",
+      "language": "multilingual",
+      "sourceId": "open-bible",
+      "status": "catalog"
+    },
+    {
+      "slug": "dbl-text-bibles",
+      "title": "Digital Bible Library — text Bible catalog",
+      "language": "multilingual",
+      "sourceId": "digital-bible-library",
+      "status": "catalog"
+    },
+    {
+      "slug": "dbl-audio-bibles",
+      "title": "Digital Bible Library — audio Bible catalog",
+      "language": "multilingual",
+      "sourceId": "digital-bible-library",
+      "status": "media"
+    },
+    {
+      "slug": "dbl-signed-bibles",
+      "title": "Digital Bible Library — signed Bible catalog",
+      "language": "sign-languages",
+      "sourceId": "digital-bible-library",
+      "status": "media"
+    },
+    {
+      "slug": "dbl-braille-bibles",
+      "title": "Digital Bible Library — Braille Bible catalog",
+      "language": "multilingual",
+      "sourceId": "digital-bible-library",
+      "status": "media"
+    },
+    {
+      "slug": "csntm-manuscript-collection",
+      "title": "CSNTM Digital New Testament Manuscript Collection",
+      "language": "grc",
+      "sourceId": "csntm",
+      "status": "manuscript"
+    },
+    {
+      "slug": "open-dead-sea-scrolls",
+      "title": "Open Dead Sea Scrolls reading room and manuscript corpus",
+      "language": "he/ar",
+      "sourceId": "open-dead-sea",
+      "status": "manuscript"
+    },
+    {
+      "slug": "patristic-text-archive",
+      "title": "Patristic Text Archive",
+      "language": "grc/la",
+      "sourceId": "patristic-text-archive",
+      "status": "patristic"
+    },
+    {
+      "slug": "getbible-book-inventory",
+      "title": "GetBible per-translation authoritative book inventories",
+      "language": "multilingual",
+      "sourceId": "getbible",
+      "status": "metadata"
+    },
+    {
+      "slug": "getbible-chapter-inventory",
+      "title": "GetBible per-translation chapter inventories",
+      "language": "multilingual",
+      "sourceId": "getbible",
+      "status": "metadata"
+    },
+    {
+      "slug": "new-world-translation-global-catalog",
+      "title": "New World Translation global language catalog",
+      "language": "multilingual",
+      "sourceId": "jw-org",
+      "status": "translation"
+    },
+    {
+      "slug": "scriptureearth-catalog",
+      "title": "ScriptureEarth multilingual Scripture resource catalog",
+      "language": "multilingual",
+      "sourceId": "scriptureearth",
+      "status": "catalog"
+    },
+    {
+      "slug": "find-a-bible-catalog",
+      "title": "Find-A-Bible global Scripture catalog",
+      "language": "multilingual",
+      "sourceId": "find-a-bible",
+      "status": "catalog"
+    },
+    {
+      "slug": "open-library-apocrypha-editions",
+      "title": "Open Library Apocrypha edition records",
+      "language": "multilingual",
+      "sourceId": "open-library",
+      "status": "book-catalog"
+    },
+    {
+      "slug": "internet-archive-bible-scans",
+      "title": "Internet Archive Bible scans and digitized editions",
+      "language": "multilingual",
+      "sourceId": "internet-archive",
+      "status": "artifact"
+    },
+    {
+      "slug": "brills-biblical-ancient-jewish-texts",
+      "title": "Brill Biblical and Ancient Jewish Texts scholarly editions",
+      "language": "multilingual",
+      "sourceId": "brill",
+      "status": "scholarly-edition"
+    },
+    {
+      "slug": "dead-sea-scrolls-electronic-library",
+      "title": "Dead Sea Scrolls Electronic Libraries",
+      "language": "he/ar",
+      "sourceId": "brill",
+      "status": "manuscript"
+    },
+    {
+      "slug": "bible-maps-open",
+      "title": "Open.Bible biblical maps",
+      "language": "multilingual",
+      "sourceId": "open-bible",
+      "status": "artifact"
+    },
+    {
+      "slug": "bible-audio-open",
+      "title": "Open.Bible openly licensed Bible audio",
+      "language": "multilingual",
+      "sourceId": "open-bible",
+      "status": "media"
+    },
+    {
+      "slug": "bible-video-open",
+      "title": "Open.Bible openly licensed Bible video",
+      "language": "multilingual",
+      "sourceId": "open-bible",
+      "status": "media"
+    },
+    {
+      "slug": "braille-scripture",
+      "title": "Braille Scripture resources",
+      "language": "multilingual",
+      "sourceId": "digital-bible-library",
+      "status": "artifact"
+    },
+    {
+      "slug": "sign-language-scripture",
+      "title": "Signed Scripture resources",
+      "language": "sign-languages",
+      "sourceId": "digital-bible-library",
+      "status": "artifact"
     }
   ],
   "discoveryRun": {
@@ -759,7 +973,11 @@
       "Open Bibles repository confirms public-domain/free-license status for its listed files.",
       "Current eBible.org translation metrics expose concrete minority-language resources including Auhelawa, Abau, Abureni, Achagua, Achi, Achuar-shiwiar, and Adioukrou.",
       "Open Translation Bible currently lists English, Hindi, Persian, French, and Norwegian Bokmål releases under CC BY-SA 4.0.",
-      "Additional open/public-domain repositories provide distinct translation manifestations and licensing metadata; repository mirrors are not counted as separate works."
+      "Additional open/public-domain repositories provide distinct translation manifestations and licensing metadata; repository mirrors are not counted as separate works.",
+      "Open.Bible currently exposes 945 openly licensed Bible translations.",
+      "DBL currently reports text, audio, signed, and Braille Scripture resources; media/artifact manifestations are tracked separately from text works.",
+      "New manuscript and knowledge-artifact discovery paths include CSNTM, Open Dead Sea, Patristic Text Archive, scholarly editions, and digitized book/scanned-artifact catalogs.",
+      "Bible discovery now explicitly models books, translations, manuscripts, artifacts, audio, video, Braille, signed Scripture, maps, and scholarly/patristic knowledge resources."
     ]
   }
 }
