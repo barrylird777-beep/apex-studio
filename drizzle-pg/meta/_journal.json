@@ -36,6 +36,13 @@
       "when": 1791142000000,
       "tag": "0004_worker_support_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791142500000,
+      "tag": "0005_projects_visual_dna",
+      "breakpoints": true
     }
   ]
 }
