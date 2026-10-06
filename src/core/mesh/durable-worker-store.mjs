@@ -62,7 +62,6 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = APEX_LIMITS.WOR
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
-        recovered_count=CASE WHEN status='running' AND lease_expires_at<NOW() THEN recovered_count+1 ELSE recovered_count END,
         lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$5,
         lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
@@ -83,6 +82,7 @@ export async function claimWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL
   const db = getPool();
   const r = await db.query(`UPDATE apex_worker_tasks
     SET status='running', attempts=attempts+1,
+        recovered_count=CASE WHEN status='running' AND lease_expires_at<NOW() THEN recovered_count+1 ELSE recovered_count END,
         lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$4, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
