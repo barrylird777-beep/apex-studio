@@ -112,7 +112,7 @@ export async function downloadUrlAssetToStorage(url, episodeId, assetName, optio
     if (error?.code === 'SOURCE_NO_RANGE_SUPPORT' || error?.message === 'SOURCE_NO_RANGE_SUPPORT') {
       const response = await fetch(url);
       if (!response.ok || !response.body) throw new Error(`download returned HTTP ${response.status}`);
-      return streamAssetToStorage(response.body, episode, asset, options);
+      return streamAssetToStorage(Readable.fromWeb(response.body), episode, asset, options);
     }
     throw error;
   }
