@@ -27,6 +27,7 @@ import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/p
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
+import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -284,6 +285,15 @@ app.use('/api/phone', createPhoneControlPlane({
       verified: { runtimeInterfacesObserved: true, clientWifiObserved: false, clientCellularObserved: false },
       checkedAt: new Date().toISOString()
     };
+  }
+}));
+
+app.use('/api/phone', createPhoneControlPlane({
+  getHealth: async () => ({ ok: true, uptime: process.uptime() }),
+  getNetwork: async () => {
+    const { selectNetworkPath } = await import('./src/network/path-selector.mjs');
+    const fabric = await selectNetworkPath();
+    return { status: fabric.selected ? 'connected' : 'offline', selected: fabric.selected, failover: fabric.failover, checkedAt: new Date().toISOString() };
   }
 }));
 
