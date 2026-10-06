@@ -32,3 +32,11 @@ test('bounded render pool never exceeds concurrency', async () => {
   assert.equal(peak, 2);
   assert.deepEqual(results, [0,1,2,3,4,5]);
 });
+
+test('hardware render profile increases bounded parallel capacity', async () => {
+  const { buildRenderProfile, shouldStreamCopy } = await import('../src/core/render-performance.mjs');
+  const p = buildRenderProfile({ availableEncoders: ['nvenc'], concurrency: 8 });
+  assert.equal(p.encoder.codec, 'h264_nvenc');
+  assert.equal(p.concurrency, 8);
+  assert.equal(shouldStreamCopy({ probe: { video: { width:3840,height:2160,fps:24,codec:'h264',pixFmt:'yuv420p' } } }), true);
+});
