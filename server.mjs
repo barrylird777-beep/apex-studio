@@ -121,8 +121,35 @@ const permanentWorkerSupervisor = new WorkerSupervisor({
 meshWorkerSupervisor.start();
 permanentWorkerSupervisor.start();
 
+const crewRoles = [
+  ['scripture-research', 'Produce one evidence-backed scripture research finding that can improve a Bible video episode.'],
+  ['story-architecture', 'Find one concrete narrative, pacing, or retention improvement for a Bible video episode.'],
+  ['visual-direction', 'Find one concrete cinematic visual-direction improvement for Apex Studio output.'],
+  ['audio-direction', 'Find one concrete narration, music, sound-design, or audio-mix improvement.'],
+  ['production-engineering', 'Find one concrete production-pipeline reliability or performance defect and propose the smallest robust fix.'],
+  ['network-engineering', 'Inspect network/runtime integration and identify one concrete reliability, failover, or observability improvement.'],
+  ['qa-review', 'Act as a hostile QA reviewer: identify one reproducible defect or missing acceptance test and state the evidence required.'],
+  ['architecture-review', 'Review the system architecture for one concrete correctness or durability risk; distinguish verified evidence from inference.']
+];
+
+const preferredCrewProviders = ['google', 'anthropic', 'xai', 'openai', 'groq', 'cerebras'];
+const configuredCrewProviders = preferredCrewProviders
+  .map(id => AI_PROVIDER_CATALOG.find(provider => provider.id === id))
+  .filter(provider => provider && process.env[provider.env]);
+
+const crewAssignments = crewRoles.map(([role, task], index) => {
+  const provider = configuredCrewProviders[index % Math.max(1, configuredCrewProviders.length)];
+  return {
+    role,
+    task,
+    provider: provider?.id || preferredCrewProviders[index % preferredCrewProviders.length],
+    model: provider ? (process.env[provider.modelEnv] || provider.defaultModel) : undefined
+  };
+});
+
 const aiCrew = createAiCrewEngine({
   concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 64))),
+  assignments: crewAssignments,
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
 
