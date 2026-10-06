@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 const DEFAULT_MAX_ATTEMPTS = Number(process.env.APEX_SOVEREIGN_MAX_ATTEMPTS || 8);
 const DEFAULT_ROLE = process.env.APEX_SOVEREIGN_ROLE || 'sovereign-mesh';
 const DEFAULT_TASK = process.env.APEX_SOVEREIGN_TASK || 'publish';
@@ -15,7 +17,7 @@ export function createSovereignDurableBridge({ engine, db, workerId }) {
 
   async function persist(record, options = {}) {
     const now = options.now ?? new Date();
-    const id = record.waveId;
+    const id = randomUUID();
     const dedupeKey = `sovereign:${record.waveId}`;
 
     const result = await db.query(
