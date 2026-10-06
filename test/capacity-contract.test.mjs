@@ -38,3 +38,8 @@ test("production uses the canonical durable worker store", () => {
   assert.equal(fs.existsSync(new URL("../src/database/pg-distributed-store.mjs", import.meta.url)), false);
 });
 
+
+test("durable worker lease defaults to the canonical lease TTL", () => {
+  const workerStore = fs.readFileSync(new URL("../src/core/mesh/durable-worker-store.mjs", import.meta.url), "utf8");
+  assert.match(workerStore, /leaseMs = APEX_LIMITS\.WORKER\.LEASE_TTL_SECONDS \* 1000/);
+});
