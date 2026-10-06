@@ -1,6 +1,7 @@
 import os from 'node:os';
 import pg from 'pg';
 import { createDurableJobsStore } from './durable-jobs-store.mjs';
+import { createRenderPool } from '../core/render-pool.mjs';
 
 const { Pool } = pg;
 const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${process.pid}`;
@@ -9,6 +10,7 @@ const heartbeatMs = Math.max(1000, Math.floor(leaseMs / 3));
 const pollMs = Number(process.env.APEX_WORKER_POLL_MS || 250);
 const concurrency = Math.max(1, Math.min(32, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
 const batchSize = Math.max(1, Math.min(20, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+const renderConcurrency = Math.max(1, Math.min(16, Number(process.env.APEX_RENDER_CONCURRENCY || 4)));
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 
@@ -22,6 +24,8 @@ const pool = new Pool({
 const store = createDurableJobsStore(pool);
 let stopping = false;
 const active = new Set();
+const renderPool = createRenderPool({ concurrency: renderConcurrency });
+const isRenderJob = (job) => /(^|[._-])(render|master|encode|transcode)([._-]|$)/i.test(String(job?.type || '')) || job?.payload?.render === true;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function handle(job) {
@@ -77,7 +81,9 @@ async function runJob(job) {
   }, heartbeatMs);
 
   try {
-    const result = await handle(job);
+    const result = isRenderJob(job)
+      ? await renderPool.run(() => handle(job))
+      : await handle(job);
     const ok = await store.complete({
       id: job.id,
       token: job.leaseToken,
