@@ -152,4 +152,6 @@ test("durable worker store keeps heartbeat and external-effect operations fencea
   assert.match(source, /unnest\(\$1::uuid\[\], \$2::text\[\]\)/);
   assert.match(source, /export async function releaseExternalEffect/);
   assert.match(source, /status='started'/);
+  assert.match(source, /lease_expires_at/);
+  assert.match(source, /apex_external_effects\.status='started'/);
 });
