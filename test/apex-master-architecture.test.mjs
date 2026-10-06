@@ -5,7 +5,8 @@ import {
   createCapability, createCapabilityRequest, createProductionPlan,
   createResearchFinding, createSocialCommand,
   assertOwner, assertStudioNetworkOwnership,
-  assertKornKnobModelOwnership, assertGardenKnowledgeOwnership
+  assertKornKnobModelOwnership, assertGardenKnowledgeOwnership,
+  assertStudioSearchOwnership, createStudioSearchRequest, createGardenKnowledgeRequest
 } from "../src/core/apex-architecture.mjs";
 
 test("master ownership boundaries are explicit", () => {
@@ -71,6 +72,15 @@ test("Studio owns the specialized search engine", () => {
   assert.throws(() => assertStudioSearchOwnership(SYSTEMS.KORN_KNOB), /Ownership violation/);
   const request = createStudioSearchRequest({query:"best video model for this scene"});
   assert.equal(request.owner, SYSTEMS.STUDIO);
+  assert.equal(request.optional, true);
   assert.ok(request.domains.includes("models"));
   assert.ok(request.domains.includes("providers"));
+});
+
+
+test("Studio can pull knowledge from Garden without using the search engine", () => {
+  const request = createGardenKnowledgeRequest({question:"What is known about this scene?"});
+  assert.equal(request.requester, SYSTEMS.STUDIO);
+  assert.equal(request.source, SYSTEMS.GARDEN);
+  assert.deepEqual(request.evidenceStates, ["KNOWN","OBSERVED","INFERRED","UNKNOWN"]);
 });
