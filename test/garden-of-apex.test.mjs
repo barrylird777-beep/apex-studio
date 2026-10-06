@@ -12,3 +12,8 @@ test('Kernet is a life stage, not a Freak kind or information unit', () => {
   assert.equal(GARDEN_OF_APEX.lifeStages.includes('kernet'), true);
   assert.throws(() => assertGardenFreakKind('kernet'), /Unknown Garden Freak kind/);
 });
+
+test('Garden domain vocabulary preserves the discovery lineage model', () => {
+  assert.deepEqual(GARDEN_OF_APEX.discoveryKinds, ['popcorn','protocob','insight','artifact']);
+  assert.equal(GARDEN_OF_APEX.freakKinds.includes('cornnut'), true);
+});
