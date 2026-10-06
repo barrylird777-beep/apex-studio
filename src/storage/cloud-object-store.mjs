@@ -2,27 +2,35 @@ import crypto from 'node:crypto';
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, HeadObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const endpoint = String(process.env.APEX_OBJECT_STORAGE_ENDPOINT || '').trim();
-const bucket = String(process.env.APEX_OBJECT_STORAGE_BUCKET || '').trim();
-const region = String(process.env.APEX_OBJECT_STORAGE_REGION || 'auto').trim();
-const accessKeyId = String(process.env.APEX_OBJECT_STORAGE_ACCESS_KEY_ID || '').trim();
-const secretAccessKey = String(process.env.APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY || '').trim();
+function storageConfig(prefix = 'apex-business') {
+  const phone = String(prefix) === 'phone-private';
+  const env = name => process.env[phone ? `APEX_PHONE_OBJECT_STORAGE_${name}` : `APEX_OBJECT_STORAGE_${name}`];
+  return {
+    endpoint: String(env('ENDPOINT') || '').trim(),
+    bucket: String(env('BUCKET') || '').trim(),
+    region: String(env('REGION') || 'auto').trim(),
+    accessKeyId: String(env('ACCESS_KEY_ID') || '').trim(),
+    secretAccessKey: String(env('SECRET_ACCESS_KEY') || '').trim()
+  };
+}
 
-function assertConfigured() {
-  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
-    const error = new Error('Apex cloud storage is not configured');
+function assertConfigured(prefix = 'apex-business') {
+  const config = storageConfig(prefix);
+  if (!config.endpoint || !config.bucket || !config.accessKeyId || !config.secretAccessKey) {
+    const error = new Error(`Cloud storage namespace "${prefix}" is not configured`);
     error.status = 503;
     throw error;
   }
+  return config;
 }
 
-function client() {
-  assertConfigured();
+function client(prefix = 'apex-business') {
+  const config = assertConfigured(prefix);
   return new S3Client({
-    endpoint,
-    region,
+    endpoint: config.endpoint,
+    region: config.region,
     forcePathStyle: false,
-    credentials: { accessKeyId, secretAccessKey }
+    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey }
   });
 }
 
@@ -57,13 +65,15 @@ const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024;
 const MULTIPART_PART_BYTES = Math.max(64 * 1024 * 1024, Math.min(512 * 1024 * 1024, Number(process.env.APEX_STORAGE_PART_BYTES || 512 * 1024 * 1024)));
 const MAX_SIGNED_URL_SECONDS = Math.min(3600, Math.max(60, Number(process.env.APEX_STORAGE_SIGNED_URL_SECONDS || 900)));
 
-export function cloudStorageStatus() {
+export function cloudStorageStatus(prefix = 'apex-business') {
+  const config = storageConfig(prefix);
   return {
-    configured: Boolean(endpoint && bucket && accessKeyId && secretAccessKey),
+    configured: Boolean(config.endpoint && config.bucket && config.accessKeyId && config.secretAccessKey),
     provider: 'railway-s3-compatible',
-    bucket: bucket || null,
-    region: region || null,
-    endpoint: endpoint || null,
+    bucket: config.bucket || null,
+    region: config.region || null,
+    endpoint: config.endpoint || null,
+    namespace: prefix,
     deviceMode: 'cloud-offload',
     localDeviceStorageRole: 'cache-and-working-set',
     maxObjectBytes: MAX_OBJECT_BYTES,
@@ -77,10 +87,10 @@ export function cloudStorageStatus() {
 }
 
 export async function listCloudObjects({ prefix = 'iphone', limit = 100, continuationToken = '' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const safePrefix = `mobile/${safeSegment(prefix, 'iphone')}/`;
   const result = await s3.send(new ListObjectsV2Command({
-    Bucket: bucket,
+    Bucket: storageConfig(prefix).bucket,
     Prefix: safePrefix,
     MaxKeys: Math.min(1000, Math.max(1, Number(limit) || 100)),
     ...(continuationToken ? { ContinuationToken: String(continuationToken) } : {})
@@ -91,11 +101,11 @@ export async function listCloudObjects({ prefix = 'iphone', limit = 100, continu
     modifiedAt: item.LastModified?.toISOString?.() || null,
     etag: item.ETag || null
   }));
-  return { ...cloudStorageStatus(), prefix: safePrefix, objects, total: objects.length, nextContinuationToken: result.NextContinuationToken || null, truncated: Boolean(result.IsTruncated) };
+  return { ...cloudStorageStatus(prefix), prefix: safePrefix, objects, total: objects.length, nextContinuationToken: result.NextContinuationToken || null, truncated: Boolean(result.IsTruncated) };
 }
 
 export async function createUploadUrl({ filename, contentType = 'application/octet-stream', size = 0, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const cleanName = safeSegment(filename, `upload-${crypto.randomUUID()}`);
   const key = scopedKey(`${Date.now()}-${crypto.randomUUID()}-${cleanName}`, prefix);
   const byteSize = Math.max(0, Number(size) || 0);
@@ -108,28 +118,28 @@ export async function createUploadUrl({ filename, contentType = 'application/oct
   const expiresIn = Math.min(3600, Math.max(60, Number(process.env.APEX_STORAGE_SIGNED_URL_SECONDS || 900)));
   const { PutObjectCommand } = await import('@aws-sdk/client-s3');
   const url = await getSignedUrl(s3, new PutObjectCommand({
-    Bucket: bucket,
+    Bucket: storageConfig(prefix).bucket,
     Key: key,
     ContentType: String(contentType || 'application/octet-stream').slice(0, 200)
   }), { expiresIn });
-  return { ...cloudStorageStatus(), key, url, expiresIn, maxBytes };
+  return { ...cloudStorageStatus(prefix), key, url, expiresIn, maxBytes };
 }
 
 export async function createDownloadUrl({ key, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
   const { GetObjectCommand } = await import('@aws-sdk/client-s3');
-  const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: scoped }), {
+  const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: storageConfig(prefix).bucket, Key: scoped }), {
     expiresIn: MAX_SIGNED_URL_SECONDS
   });
   return { key: scoped, url };
 }
 
 export async function inspectCloudObject({ key, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
   try {
-    const result = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: scoped }));
+    const result = await s3.send(new HeadObjectCommand({ Bucket: storageConfig(prefix).bucket, Key: scoped }));
     return {
       exists: true,
       key: scoped,
@@ -145,9 +155,9 @@ export async function inspectCloudObject({ key, prefix = 'iphone' } = {}) {
 }
 
 export async function deleteCloudObject({ key, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
-  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: scoped }));
+  await s3.send(new DeleteObjectCommand({ Bucket: storageConfig(prefix).bucket, Key: scoped }));
   return { deleted: true, key: scoped };
 }
 
@@ -165,22 +175,22 @@ export function multipartPlan({ size = 0 } = {}) {
 }
 
 export async function initiateMultipartUpload({ filename, contentType = 'application/octet-stream', size = 0, prefix = 'iphone', checksum = '' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const plan = multipartPlan({ size });
   const cleanName = safeSegment(filename, `upload-${crypto.randomUUID()}`);
   const key = scopedKey(`${Date.now()}-${crypto.randomUUID()}-${cleanName}`, prefix);
   const result = await s3.send(new CreateMultipartUploadCommand({
-    Bucket: bucket,
+    Bucket: storageConfig(prefix).bucket,
     Key: key,
     ContentType: String(contentType || 'application/octet-stream').slice(0, 200),
     Metadata: { apex: 'mobile-cloud-vault', ...(checksum ? { 'apex-sha256': String(checksum).slice(0, 128) } : {}) }
   }));
   if (!result.UploadId) throw new Error('Storage provider did not return an upload ID');
-  return { ...cloudStorageStatus(), key, uploadId: result.UploadId, ...plan };
+  return { ...cloudStorageStatus(prefix), key, uploadId: result.UploadId, ...plan };
 }
 
 export async function signMultipartPart({ key, uploadId, partNumber, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
   const part = Number(partNumber);
   if (!Number.isInteger(part) || part < 1 || part > 10000) {
@@ -189,20 +199,20 @@ export async function signMultipartPart({ key, uploadId, partNumber, prefix = 'i
     throw error;
   }
   const url = await getSignedUrl(s3, new UploadPartCommand({
-    Bucket: bucket, Key: scoped, UploadId: String(uploadId), PartNumber: part
+    Bucket: storageConfig(prefix).bucket, Key: scoped, UploadId: String(uploadId), PartNumber: part
   }), { expiresIn: MAX_SIGNED_URL_SECONDS });
   return { key: scoped, uploadId: String(uploadId), partNumber: part, url, expiresIn: MAX_SIGNED_URL_SECONDS };
 }
 
 export async function listMultipartParts({ key, uploadId, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
-  const result = await s3.send(new ListPartsCommand({ Bucket: bucket, Key: scoped, UploadId: String(uploadId), MaxParts: 1000 }));
+  const result = await s3.send(new ListPartsCommand({ Bucket: storageConfig(prefix).bucket, Key: scoped, UploadId: String(uploadId), MaxParts: 1000 }));
   return { key: scoped, uploadId: String(uploadId), parts: (result.Parts || []).map(p => ({ partNumber: p.PartNumber, etag: p.ETag, bytes: Number(p.Size || 0) })) };
 }
 
 export async function completeMultipartUpload({ key, uploadId, parts = [], prefix = 'iphone', checksum = '' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
   const normalized = parts.map(p => ({ PartNumber: Number(p.partNumber), ETag: String(p.etag) }))
     .filter(p => Number.isInteger(p.PartNumber) && p.PartNumber >= 1 && p.PartNumber <= 10000 && p.ETag)
@@ -212,14 +222,14 @@ export async function completeMultipartUpload({ key, uploadId, parts = [], prefi
     error.status = 400; throw error;
   }
   const result = await s3.send(new CompleteMultipartUploadCommand({
-    Bucket: bucket, Key: scoped, UploadId: String(uploadId), MultipartUpload: { Parts: normalized }
+    Bucket: storageConfig(prefix).bucket, Key: scoped, UploadId: String(uploadId), MultipartUpload: { Parts: normalized }
   }));
-  return { ...cloudStorageStatus(), key: scoped, etag: result.ETag || null, location: result.Location || null, checksum: checksum || null, completed: true };
+  return { ...cloudStorageStatus(prefix), key: scoped, etag: result.ETag || null, location: result.Location || null, checksum: checksum || null, completed: true };
 }
 
 export async function abortMultipartUpload({ key, uploadId, prefix = 'iphone' } = {}) {
-  const s3 = client();
+  const s3 = client(prefix);
   const scoped = scopedKey(key, prefix);
-  await s3.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: scoped, UploadId: String(uploadId) }));
+  await s3.send(new AbortMultipartUploadCommand({ Bucket: storageConfig(prefix).bucket, Key: scoped, UploadId: String(uploadId) }));
   return { key: scoped, uploadId: String(uploadId), aborted: true };
 }
