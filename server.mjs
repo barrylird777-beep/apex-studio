@@ -331,7 +331,7 @@ app.use('/api/mobile', createMobileControlPlane({
     return {status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),verified:{runtimeInterfacesObserved:true,clientWifiObserved:false,clientCellularObserved:false,starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},checkedAt:new Date().toISOString()};
   },
   generateAi: payload => generateUnifiedAi(payload),
-  produceEpisode: async (book, chapter, verses, requestId) => {
+  produceEpisode: async (book, chapter, verses, requestId, contentDomain = "bible") => {
     if (!durableWorkerEnabled()) throw new Error('Durable PostgreSQL worker fabric is unavailable');
     const id = crypto.randomUUID();
     const result = await enqueueWorkerTask({
@@ -339,7 +339,7 @@ app.use('/api/mobile', createMobileControlPlane({
       workerId: 'mobile-production-control',
       role: 'production',
       task: 'episode-production',
-      payload: { book, chapter, verses, requestId, requestedAt: new Date().toISOString() },
+      payload: { book, chapter, verses, requestId, contentDomain, requestedAt: new Date().toISOString() },
       maxAttempts: 5,
       dedupeKey: `mobile-episode:${book}:${chapter}:${verses}`,
       traceId: requestId
