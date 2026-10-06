@@ -26,6 +26,8 @@ export const ARCHITECTURAL_LAWS = Object.freeze({
   SPECIAL_SEARCH_IS_STUDIO_SURFACE: true,
   SPECIAL_SEARCH_IS_SEPARATE_SYSTEM: false,
   SPECIAL_SEARCH_IS_MANDATORY_GATEWAY: false,
+  AD_BLOCKING_OWNER: SYSTEMS.STUDIO,
+  AD_BLOCKING_IS_STUDIO_NETWORK_SURFACE: true,
   STUDIO_DIRECT_GARDEN_ACCESS: true,
   STUDIO_DIRECT_KORN_KNOB_ACCESS: true
 });
@@ -38,7 +40,7 @@ export const OWNERSHIP = Object.freeze({
   [SYSTEMS.STUDIO]: Object.freeze([
     "production","movie-direction","video-lab","imagery-lab","audio-lab",
     "ai-creation-lab","editing","rendering","quality-control",
-    "social-media-command","specialized-search-engine","network","infrastructure"
+    "social-media-command","specialized-search-engine","ad-blocking","network","infrastructure"
   ]),
   [SYSTEMS.KORN_KNOB]: Object.freeze([
     "ai-models","model-discovery","model-routing","model-evaluation",
@@ -58,7 +60,7 @@ export const STUDIO_SEARCH_DOMAINS = Object.freeze([
 ]);
 
 export const STUDIO_SURFACES = Object.freeze([
-  "specialized-search","video-lab","imagery-lab","audio-lab",
+  "specialized-search","ad-blocking","video-lab","imagery-lab","audio-lab",
   "ai-creation-lab","movie-direction","social-media-command"
 ]);
 
