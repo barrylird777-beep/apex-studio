@@ -35,8 +35,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-          cache: npm
-      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm install --no-audit --no-fund
       - run: npm run db:generate
       - name: Upload generated Drizzle migration
         uses: actions/upload-artifact@v4
