@@ -64,9 +64,9 @@ function scopedKey(key, prefix = 'iphone') {
 const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024;
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_MAX_OBJECT_BYTES = Math.max(1, Number(process.env.APEX_FREE_MAX_OBJECT_BYTES || 25 * 1024 * 1024 * 1024));
-const FREE_MAX_ACTIVE_UPLOADS = Math.max(1, Number(process.env.APEX_FREE_MAX_ACTIVE_UPLOADS || 2));
-const FREE_MAX_DAILY_UPLOAD_BYTES = Math.max(1, Number(process.env.APEX_FREE_MAX_DAILY_UPLOAD_BYTES || 25 * 1024 * 1024 * 1024));
-const FREE_MAX_DAILY_DOWNLOAD_BYTES = Math.max(1, Number(process.env.APEX_FREE_MAX_DAILY_DOWNLOAD_BYTES || 50 * 1024 * 1024 * 1024));
+const FREE_MAX_ACTIVE_UPLOADS = Math.max(1, Number(process.env.APEX_FREE_MAX_ACTIVE_UPLOADS || 8));
+const FREE_MAX_DAILY_UPLOAD_BYTES = 0;
+const FREE_MAX_DAILY_DOWNLOAD_BYTES = 0;
 const MULTIPART_PART_BYTES = Math.max(64 * 1024 * 1024, Math.min(512 * 1024 * 1024, Number(process.env.APEX_STORAGE_PART_BYTES || 512 * 1024 * 1024)));
 const MAX_SIGNED_URL_SECONDS = Math.min(3600, Math.max(60, Number(process.env.APEX_STORAGE_SIGNED_URL_SECONDS || 900)));
 
@@ -174,8 +174,9 @@ export function freeStoragePolicy() {
     enabled: FREE_MODE,
     maxObjectBytes: FREE_MODE ? FREE_MAX_OBJECT_BYTES : MAX_OBJECT_BYTES,
     maxActiveUploads: FREE_MAX_ACTIVE_UPLOADS,
-    maxDailyUploadBytes: FREE_MAX_DAILY_UPLOAD_BYTES,
-    maxDailyDownloadBytes: FREE_MAX_DAILY_DOWNLOAD_BYTES,
+    maxDailyUploadBytes: null,
+    maxDailyDownloadBytes: null,
+    enforcement: 'provider-quota-or-explicit-budget-only',
     billingSafety: 'hard-cap-before-new-storage-transfer'
   };
 }
