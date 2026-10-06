@@ -119,3 +119,18 @@ export function adaptiveLaneCount({ bandwidthMbps = 0, lossPct = 0, rttMs = 0, m
   if (bandwidth >= 250 && rtt <= 100 && loss < 1.5) return Math.min(ceiling, 4);
   return Math.min(ceiling, 2);
 }
+
+
+export function buildNetworkSchedulerPolicy({ paths = [], bandwidthMbps = 0, rttMs = 0, lossPct = 0 } = {}) {
+  const healthy = paths.filter(p => p?.healthy !== false);
+  const sorted = healthy.slice().sort((a,b) => Number(b.score||0) - Number(a.score||0));
+  const lanes = adaptiveLaneCount({ bandwidthMbps, rttMs, lossPct, maxLanes: 16 });
+  const selected = sorted.slice(0, Math.min(lanes, sorted.length || 1));
+  return Object.freeze({
+    lanes: Math.max(1, selected.length),
+    preconnect: true,
+    connectionReuse: true,
+    failover: sorted.slice(selected.length, selected.length + 4).map(p => p.device),
+    paths: selected
+  });
+}
