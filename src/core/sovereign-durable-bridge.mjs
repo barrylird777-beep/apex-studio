@@ -70,7 +70,12 @@ export function createSovereignDurableBridge({ engine, db, workerId }) {
   async function dispatch(payload, options = {}) {
     const record = await engine.dispatchAutonomousPayload(payload);
     const job = await persist(record, options);
-    return { record, job };
+    const acknowledged = await engine.acknowledge(record.waveId, {
+      database: 'accepted',
+      jobId: job.id,
+      status: job.status
+    });
+    return { record, job, acknowledged };
   }
 
   async function reconcile(options = {}) {
