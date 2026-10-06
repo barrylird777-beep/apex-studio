@@ -13,7 +13,7 @@ export async function probeHttpRange(url, { signal, timeoutMs = 30000 } = {}) {
   return Object.freeze({ supported: response.status === 206 && Boolean(range), totalBytes: range?.total || null, validator: response.headers.get("etag") || response.headers.get("last-modified") || null });
 }
 
-export async function downloadHttpAsset(url, destinationPath, { parallelStreams = 4, chunkMiB = 16, retryLimit = 4, signal, onProgress } = {}) {
+export async function downloadHttpAsset(url, destinationPath, { parallelStreams = 4, chunkMiB = 16, retryLimit = 4, signal, onProgress, transferController } = {}) {
   const probe = await probeHttpRange(url, { signal });
   if (!probe.supported || !probe.totalBytes) {
     const error = new Error("SOURCE_NO_RANGE_SUPPORT");
@@ -21,6 +21,7 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
     throw error;
   }
   const total = probe.totalBytes;
+  const started = performance.now();
   const size = Math.max(1, Math.min(64, Number(chunkMiB) || 16)) * 1024 * 1024;
   const ranges = [];
   for (let start = 0; start < total; start += size) ranges.push({ start, end: Math.min(total - 1, start + size - 1) });
@@ -29,6 +30,7 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
   await handle.truncate(total);
   let cursor = 0, completed = 0;
   const workers = Math.max(1, Math.min(16, Number(parallelStreams) || 4));
+  const controller = transferController || null;
   const getRange = async (range) => {
     let last;
     for (let attempt = 0; attempt <= retryLimit; attempt++) {
@@ -59,7 +61,10 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
       if (index >= ranges.length) return;
       await getRange(ranges[index]);
       completed++;
-      onProgress?.({ completed, totalRanges: ranges.length, totalBytes: total });
+      const elapsedSeconds = Math.max(0.001, (performance.now() - started) / 1000);
+      const observedMbps = (completed * size) * 8 / elapsedSeconds / 1e6;
+      const state = controller?.observe?.({ observedMbps, lossPct: 0, rttMs: 0 }) || null;
+      onProgress?.({ completed, totalRanges: ranges.length, totalBytes: total, observedMbps, controller: state });
     }
   };
   try {
