@@ -29,6 +29,7 @@ import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.m
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
+import { createAudioStationRouter } from './src/api/audio-station.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -267,6 +268,8 @@ app.get('/api/network/status', async (_req,res)=>{
     res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:'server-interface-observation'},clientDevice:{status:'telemetry-required',source:'browser-or-mobile-client',note:'Server cannot directly inspect iPhone Wi-Fi or cellular modem.'},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:true,clientWifiObserved:false,clientCellularObserved:false,starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Multiple server interfaces do not bond iPhone Wi-Fi and cellular.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
+app.use('/api/studio/audio', createAudioStationRouter());
+
 app.get('/api/studio/omni/events', async (req, res) => {
   const { omniEventsHandler } = await import('./src/api/omni-events.mjs');
   return omniEventsHandler(req, res);
