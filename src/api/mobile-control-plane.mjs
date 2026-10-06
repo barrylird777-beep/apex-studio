@@ -6,7 +6,13 @@ import {
   createUploadUrl,
   createDownloadUrl,
   inspectCloudObject,
-  deleteCloudObject
+  deleteCloudObject,
+  multipartPlan,
+  initiateMultipartUpload,
+  signMultipartPart,
+  listMultipartParts,
+  completeMultipartUpload,
+  abortMultipartUpload
 } from '../storage/cloud-object-store.mjs';
 
 function tokenMatches(expected, supplied) {
@@ -193,6 +199,67 @@ export function createMobileControlPlane({
       const key = String(req.query.key || '').trim();
       const prefix = String(req.query.prefix || 'iphone').trim();
       return res.json({ success: true, ...(await deleteCloudObject({ key, prefix })) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/multipart/initiate', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await initiateMultipartUpload(body)) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/multipart/part-url', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await signMultipartPart(body)) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/multipart/parts', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await listMultipartParts(body)) });
+    } catch (error) {
+      return res.status(503).json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/multipart/complete', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await completeMultipartUpload(body)) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/multipart/abort', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await abortMultipartUpload(body)) });
+    } catch (error) {
+      return res.status(503).json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/multipart/plan', (req, res) => {
+    try {
+      return res.json({ success: true, ...multipartPlan(req.body || {}) });
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
