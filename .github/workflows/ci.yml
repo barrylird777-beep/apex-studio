@@ -64,3 +64,14 @@ jobs:
         if: always()
         run: kill $(cat /tmp/apex-server.pid) 2>/dev/null || true
       - run: npx tsx test/spec001.smoke.ts
+
+  network-transfer:
+    name: Network transfer verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm install --no-audit --no-fund
+      - run: npm run test:network
