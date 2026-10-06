@@ -1,4 +1,5 @@
 name: Apex CI
+# CI trigger refresh: keep verification attached to the release branch.
 on:
   push:
     branches: ["**"]
