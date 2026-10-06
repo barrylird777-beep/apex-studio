@@ -22,6 +22,9 @@ import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from '
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Network transfer engine is available through src/core/storage.mjs for URL-backed media.
+// Provider responses remain stream-based unless a provider exposes a stable downloadable URL.
+
 if (durableWorkerEnabled()) {
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
   reclaimTimer.unref?.();
