@@ -64,7 +64,9 @@
     "@libp2p/noise": "^17.0.3",
     "@libp2p/tcp": "^11.0.28",
     "@libp2p/yamux": "^8.0.3",
-    "openai": "^6.15.0"
+    "openai": "^6.15.0",
+    "@aws-sdk/client-s3": "^3.879.0",
+    "@aws-sdk/s3-request-presigner": "^3.879.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
