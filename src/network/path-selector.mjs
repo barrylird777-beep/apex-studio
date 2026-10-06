@@ -61,13 +61,16 @@ export async function selectNetworkPath() {
   const devices = await interfaces();
   const results = await Promise.all(devices.map(async device => {
     const result = await probe(device);
-    return { device, network: classify(device), ...result, score: score(device, result) };
+    const network = classify(device);
+    return { device, network, ...result, score: score(device, result), source: 'server-interface' };
   }));
   const candidates = results;
   candidates.sort((a, b) => b.score - a.score);
   const selected = candidates[0] || null;
   const failover = candidates.slice(1, 4).map(({ device, network, score: pathScore, healthy }) => ({ device, network, score: pathScore, healthy }));
   return {
+    observedAt: new Date().toISOString(),
+    source: 'railway-runtime-interface-observation',
     selected,
     failover,
     candidates,
