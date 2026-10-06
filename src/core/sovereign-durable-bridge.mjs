@@ -81,7 +81,17 @@ export function createSovereignDurableBridge({ engine, db, workerId }) {
     for (const record of records) {
       try {
         const job = await persist(record, options);
-        results.push({ waveId: record.waveId, jobId: job.id, status: job.status });
+        const acknowledged = await engine.acknowledge(record.waveId, {
+          database: 'accepted',
+          jobId: job.id,
+          status: job.status
+        });
+        results.push({
+          waveId: record.waveId,
+          jobId: job.id,
+          status: job.status,
+          acknowledged: acknowledged.status === 'ACKNOWLEDGED'
+        });
       } catch (error) {
         errors.push({
           waveId: record.waveId,
