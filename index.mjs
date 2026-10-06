@@ -5,6 +5,7 @@ import {
   durableWorkerEnabled,
   claimNextWorkerTasks,
   heartbeatWorkerTask,
+  heartbeatWorkerTasks,
   completeWorkerTask,
   failWorkerTask,
   requeueExpiredWorkerTasks,
@@ -72,14 +73,11 @@ if (!workerOnly) {
   const inFlight = new Map();
   const claimed = new Map();
   const started = new Set();
+  const heartbeatInterval = Math.max(5000, Math.floor(leaseMs / 3));
+  const reclaimInterval = Math.max(5000, Number(process.env.APEX_WORKER_RECLAIM_MS || 15000));
+  let lastReclaimAt = 0;
 
   const executeTask = async (task) => {
-    const heartbeat = setInterval(() => {
-      void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
-        console.error("[apex-worker] heartbeat failed:", error?.message || error);
-      });
-    }, Math.max(5000, Math.floor(leaseMs / 3)));
-    heartbeat.unref?.();
     try {
       const result = await runWithTrace(
         { job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") },
@@ -106,8 +104,6 @@ if (!workerOnly) {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
       });
       console.error("[apex-worker] task failed:", task.id, error?.message || error);
-    } finally {
-      clearInterval(heartbeat);
     }
   };
 
@@ -145,10 +141,23 @@ if (!workerOnly) {
   process.once("SIGTERM", () => void shutdown("SIGTERM"));
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
+  const heartbeatLoop = (async () => {
+    while (!stopping) {
+      await sleep(heartbeatInterval);
+      if (stopping || !inFlight.size) continue;
+      await heartbeatWorkerTasks([...inFlight.values()], leaseMs).catch(error => {
+        console.error("[apex-worker] batch heartbeat failed:", error?.message || error);
+      });
+    }
+  })();
+
   while (!stopping) {
-    await requeueExpiredWorkerTasks().catch(error => {
-      console.error("[apex-worker] reclaim failed:", error?.message || error);
-    });
+    if (Date.now() - lastReclaimAt >= reclaimInterval) {
+      lastReclaimAt = Date.now();
+      await requeueExpiredWorkerTasks().catch(error => {
+        console.error("[apex-worker] reclaim failed:", error?.message || error);
+      });
+    }
 
     try {
       const available = Math.max(0, concurrency - inFlight.size);
