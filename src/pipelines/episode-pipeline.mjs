@@ -17,15 +17,9 @@ function verseRange(verses) {
 }
 
 const STAGES = [
-  ["episode-research", "research", 1],
-  ["episode-verification", "verification", 2],
+  ["graph-expansion", "theological", 1],
+  ["graph-expansion", "historical", 2],
   ["episode-script-generation", "script", 3],
-  ["episode-direction", "direction", 4],
-  ["episode-visual-direction", "visual", 5],
-  ["episode-audio-direction", "audio", 6],
-  ["episode-music-direction", "music", 7],
-  ["episode-qc", "qc", 8],
-  ["episode-render", "render", 9],
 ];
 
 export class EpisodePipeline {
@@ -64,7 +58,8 @@ export class EpisodePipeline {
               chapter: c,
               verses: v,
               stage,
-              order
+              order,
+              ...(role === "graph-expansion" ? { expansionType: stage, type: stage } : {})
             }),
             `episode:${episodeId}:${stage}`,
             traceId ? String(traceId).slice(0, 255) : null
