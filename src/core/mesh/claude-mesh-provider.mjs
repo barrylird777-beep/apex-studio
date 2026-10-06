@@ -11,7 +11,8 @@ export class ClaudeMeshProvider {
     const body = {
       model,
       max_tokens: Number(options.maxTokens || process.env.CLAUDE_MAX_OUTPUT_TOKENS || 64000),
-      ...(options.thinking === false ? {} : { thinking: { type: 'enabled', budget_tokens: Number(options.thinkingBudgetTokens || process.env.CLAUDE_THINKING_BUDGET || 32000) } }),
+      thinking: options.thinking === false ? { type: 'disabled' } : { type: 'adaptive' },
+      output_config: { effort: options.effort || process.env.CLAUDE_EFFORT || 'max' },
       messages: [{ role: 'user', content: String(prompt) }]
     };
     if (options.system) body.system = String(options.system);
