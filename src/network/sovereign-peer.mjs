@@ -39,6 +39,13 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
     }
   });
 
+  node.addEventListener('peer:discovery', (event) => {
+    const addresses = event.detail?.multiaddrs || [];
+    if (addresses.length) {
+      node.dial(addresses).catch(() => {});
+    }
+  });
+
   node.handle(PROTOCOL, async ({ stream }) => {
     try {
       const envelope = await readJson(stream);
