@@ -1,62 +1,66 @@
-# Apex Master Architecture
+# APEX ECOSYSTEM — MASTER ARCHITECTURE PAGE
 
-Version: `apex-master-architecture.v1`
+**STATUS: BLACK-PEN LOCKED**
 
-## Three-system boundary
+## 🧠 GardenOfApex — THE BRAIN
 
-| System | Role | Owns |
-|---|---|---|
-| GardenOfApex | **The Brain** | Bible research, knowledge, Korn World, studies, research conversations, AI Chat Lab |
-| Apex Studio | **The Eyes** | Direction, production, creative labs, editing, QC, rendering, social command, network/infrastructure |
-| KORN-KNOB | **The Ears** | All Apex AI models plus its own models, model/provider discovery, routing, evaluation, and media-AI capabilities |
+GardenOfApex owns:
+- Bible research and study
+- General research and knowledge
+- Korn World research
+- Korn World studies and analytics
+- Individual Korn histories, activities, relationships, states, and timelines
+- AI Chat Lab
+- Research conversations and knowledge investigation
+- Evidence-based answers about Garden and Korn World
 
-GardenOfApex and Apex Studio are separate systems.
+The AI Chat Lab must distinguish **KNOWN, OBSERVED, INFERRED, and UNKNOWN** information and must not invent missing facts.
 
-## GardenOfApex
+## 👁️ Apex Studio — THE EYES
 
-Garden researches and understands.
+Studio owns the user-facing creative interfaces:
+- Fully capable special search engine
+- Video Lab
+- Imagery Lab
+- Audio Lab
+- AI Creation Lab
 
-### AI Chat Lab
-The Chat Lab is model-agnostic. It can use any KORN-KNOB-available model/provider and supports model discovery/comparison, multi-model conversations, Bible study, Korn World research, general research, saved/exportable conversations, and handoff into research.
+These interfaces remain in Studio even when their underlying AI capabilities come from KORN-KNOB.
 
-World-state answers must distinguish:
-- **KNOWN**
-- **OBSERVED**
-- **INFERRED**
-- **UNKNOWN**
-
-Missing world facts are never silently invented.
-
-### Korn World Studies
-Dedicated studies cover profiles, histories, daily activity, relationships, locations, state trends, timelines, social dynamics, population/world statistics, events, continuity, anomalies, and historical comparisons.
-
-## Apex Studio
-
-Studio directs, creates, produces, operates, and manages distribution strategy.
-
-### Creative labs
-- **Video Lab** — shots, scenes, animation, compositing, VFX, previews
-- **Imagery Lab** — generation, characters, environments, storyboards, editing, continuity
-- **Audio Lab** — music, narration, dialogue, voices, SFX, ambience, sound design, mixing, mastering
-- **AI Creation Lab** — general multimodal experimentation and arbitrary creative workflows
-
-Interfaces live in Studio. Underlying AI/media capabilities come from KORN-KNOB.
-
-### Movie direction
-`IDEA → DIRECTORIAL PLAN → STORY → SCRIPT → SCENES → SHOT PLAN → VISUAL DIRECTION → AUDIO DIRECTION → ASSET CREATION → EDIT → QC → RENDER → RELEASE`
-
-Every production plan requires a compelling opening hook; the default target is a 30-second opening.
+### Production
+Studio owns:
+- movie/video direction
+- story and script implementation
+- scene/shot planning
+- visual production
+- audio production/editing
+- animation
+- VFX
+- compositing
+- editing
+- mixing/mastering
+- rendering
+- QC
+- release preparation
 
 ### Social Media Command
-`DATA → ANALYSIS → EVALUATION → OPPORTUNITIES → PLAN → PRODUCTION → RELEASE → MEASURE → LEARN`
+Studio is the:
+- social media manager
+- social analytics/research coordinator
+- performance evaluator
+- content planner
+- campaign planner
+- trend/opportunity researcher
 
-Studio owns planning, asset preparation, publishing workflow, performance analysis, audience behavior, retention, engagement, CTR, trends, opportunities, and learning.
+**DATA → ANALYSIS → EVALUATION → OPPORTUNITIES → PLAN → PRODUCTION → RELEASE → MEASURE → LEARN**
 
-### Specialized Search Engine
+### Studio Special Search Engine
 
-The **Specialized Search Engine belongs inside Apex Studio**.
+Studio has a fully capable specialized search engine that the user can use **when desired**.
 
-It is Studio's open-ended discovery system for finding whatever production needs, including:
+It is an optional Studio interface, not a mandatory gateway.
+
+It can search/discover:
 - AI models
 - providers
 - APIs
@@ -66,38 +70,97 @@ It is Studio's open-ended discovery system for finding whatever production needs
 - renderers
 - media capabilities
 - services
+- other production-relevant capabilities
 
-It searches broadly across the available capability ecosystem and returns candidates for evaluation. KORN-KNOB remains the owner/manager of Apex AI models and media-AI capabilities; the Studio search engine discovers and requests those capabilities for Studio work.
+It does not replace Garden research and does not replace KORN-KNOB's model/capability management.
 
-Its operating loop is:
+Studio can:
+1. pull knowledge/research directly from Garden when production needs it;
+2. pull AI/model/media capabilities directly from KORN-KNOB when production needs them;
+3. use the special search engine when the user wants broader capability discovery.
 
-**SEARCH → DISCOVER → EVALUATE → AUTHORIZE → REQUEST → EXECUTE → VERIFY → RECORD**
+### Network & Infrastructure
 
-It is not Garden's research engine and it is not KORN-KNOB's model registry. Studio owns the search experience and production-oriented discovery workflow.
+Network settings and infrastructure remain owned by Studio.
 
-### Network and infrastructure
-Network ownership remains exclusively in Studio. Server telemetry must not be represented as the physical network state of a user's device.
+Studio owns network operations, connectivity, routing, provider access, infrastructure configuration, failover, bandwidth/concurrency controls, and related production infrastructure.
 
-## KORN-KNOB
+## 👂 KORN-KNOB — THE EARS
 
-KORN-KNOB owns the model/capability layer for Apex overall.
+KORN-KNOB owns the AI model and media capability layer for Apex overall, plus its own specialized capabilities.
 
-Supported classes include LLM, vision, image, video, audio, music, voice, multimodal, embedding, reranking, tools, APIs, software, datasets, and renderers.
+It manages access to:
+- LLMs
+- image/vision models
+- video models
+- audio/music models
+- voice/speech models
+- multimodal models
+- embedding/reranking models
+- other useful AI models
+- external AI providers
+- local/open/commercial models
+- KORN-KNOB's own models
 
-KORN-KNOB handles discovery, registration, routing, fallback, health, versioning, evaluation/benchmarking, capability matching, and provider access.
+Responsibilities:
+- discovery
+- registration
+- routing
+- selection
+- fallback
+- health
+- versioning
+- evaluation/benchmarking
+- capability matching
+- configuration
+- provider access
 
-It does **not** own Studio projects, Garden research, final Studio assembly, Studio network operations, or application business logic.
+KORN-KNOB also owns/discovers capabilities involving music, audio, imagery, video, voice, and other useful media AI capabilities.
 
-## Capability fabric
+**KORN-KNOB does not own the actual Studio production process. Studio borrows its capabilities.**
 
-**DISCOVER → EVALUATE → AUTHORIZE → EXECUTE → VERIFY → RECORD**
+## 🎵 KORN-KNOB MUSIC CONCEPT
 
-"Unlimited" means open-ended extensibility, not bypassing authorization, licensing, provider controls, isolation, audit, or safety.
+KORN-KNOB gets a persistent AI music intelligence interface/concept that goes beyond ordinary chat.
 
-## Durable execution
+It supports:
+- music discovery
+- music analysis
+- musical ideas
+- scene-to-music reasoning
+- soundtrack development
+- taste intelligence
+- track comparison
+- musical experimentation
+- long-term musical context
+- music creation workflows
+
+The permanent name remains open until designed and approved.
+
+## MASTER RULE
+
+**Garden researches and understands.**
+
+**Studio directs, creates, produces, operates, and manages distribution strategy.**
+
+**KORN-KNOB supplies and manages the AI/model/media capabilities.**
+
+Interfaces belong to the app where the user actually needs them; underlying capabilities can be borrowed across the ecosystem.
+
+No system becomes a monolithic “do everything” application.
+
+### Cross-system relationship
+
+`Studio → Garden` for knowledge/research.
+
+`Studio → KORN-KNOB` for AI/model/media capabilities.
+
+`Studio → Special Search Engine` when the user wants specialized discovery.
+
+`Garden → KORN-KNOB` for AI models used by Garden's Chat Lab when needed.
+
+KORN-KNOB supplies capabilities; it does not become the owner of Garden research or Studio production.
+
+### Durable execution
 
 Durable workflow state belongs in PostgreSQL. Cross-system work uses versioned contracts, provenance, idempotency, leases/fencing, and durable jobs rather than SQLite or process-local persistence.
-
-## Canonical relationship
-
-**GardenOfApex is the Brain. Apex Studio is the Eyes. KORN-KNOB is the Ears.**
