@@ -19,13 +19,30 @@ export async function ensureWorkerTaskSchema() {
 export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null, traceId = null }) {
   if (!durableWorkerEnabled()) return { durable: false, id };
   const db = getPool();
-  await db.query(`INSERT INTO apex_worker_tasks
-    (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
-    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
-    ON CONFLICT DO NOTHING`,
-    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey, traceId ? String(traceId).slice(0,255) : null]);
-  const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
-  return { durable: true, id: existing?.rows?.[0]?.id || id };
+  const values = [
+    id, String(workerId), String(role || "general"), String(task || ""),
+    JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5),
+    dedupeKey, traceId ? String(traceId).slice(0,255) : null
+  ];
+  if (!dedupeKey) {
+    await db.query(`INSERT INTO apex_worker_tasks
+      (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
+      VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) ON CONFLICT DO NOTHING`, values);
+    return { durable: true, id };
+  }
+  const result = await db.query(`WITH inserted AS (
+      INSERT INTO apex_worker_tasks
+        (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
+      VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    )
+    SELECT id FROM inserted
+    UNION ALL
+    SELECT id FROM apex_worker_tasks
+     WHERE dedupe_key=$7 AND status IN ('queued','running')
+     LIMIT 1`, values);
+  return { durable: true, id: result.rows[0]?.id || id };
 }
 
 export async function claimNextWorkerTasks(limit = 20, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, role = null) {
