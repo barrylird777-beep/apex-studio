@@ -10,7 +10,7 @@ test("streamAssetToStorage writes without buffering and returns SHA-256", async 
   const previous = process.env.STORAGE_DIR;
   process.env.STORAGE_DIR = dir;
   try {
-    const { streamAssetToStorage } = await import("../src/core/storage.mjs?stream-test=" + Date.now());
+    const { streamAssetToStorage } = await import("../src/core/storage.mjs");
     const data = Buffer.from("Apex streaming transfer test");
     const result = await streamAssetToStorage(Readable.from([data.subarray(0, 8), data.subarray(8)]), "episode-1", "asset.bin");
     assert.equal(result.bytes, data.length);
