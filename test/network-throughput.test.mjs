@@ -51,3 +51,15 @@ test('transport tuning expands in-flight capacity on clean high-bandwidth paths'
   assert.equal(t.maxInFlightMiB, 512);
   assert.ok(calculateBandwidthDelayProduct({ bandwidthMbps: 1000, rttMs: 30 }) > 0);
 });
+
+
+test('adaptive transfer controller backs off and accelerates from measurements', async () => {
+  const { buildAdaptiveTransferController } = await import('../src/network/throughput-profile.mjs');
+  const controller = buildAdaptiveTransferController({ initial: { parallelStreams: 4, chunkMiB: 16 } });
+  const fast = controller.observe({ observedMbps: 1000, lossPct: 0.1, rttMs: 30 });
+  assert.equal(fast.parallelStreams, 6);
+  assert.equal(fast.chunkMiB, 32);
+  const congested = controller.observe({ observedMbps: 50, lossPct: 4, rttMs: 30 });
+  assert.equal(congested.parallelStreams, 3);
+  assert.equal(congested.chunkMiB, 16);
+});
