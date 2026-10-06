@@ -157,7 +157,7 @@ export function multipartPlan({ size = 0 } = {}) {
   return { partSize, partCount, maxObjectBytes: MAX_OBJECT_BYTES, maxParts: 10000 };
 }
 
-export async function initiateMultipartUpload({ filename, contentType = 'application/octet-stream', size = 0, prefix = 'iphone' } = {}) {
+export async function initiateMultipartUpload({ filename, contentType = 'application/octet-stream', size = 0, prefix = 'iphone', checksum = '' } = {}) {
   const s3 = client();
   const plan = multipartPlan({ size });
   const cleanName = safeSegment(filename, `upload-${crypto.randomUUID()}`);
@@ -166,7 +166,7 @@ export async function initiateMultipartUpload({ filename, contentType = 'applica
     Bucket: bucket,
     Key: key,
     ContentType: String(contentType || 'application/octet-stream').slice(0, 200),
-    Metadata: { apex: 'mobile-cloud-vault' }
+    Metadata: { apex: 'mobile-cloud-vault', ...(checksum ? { 'apex-sha256': String(checksum).slice(0, 128) } : {}) }
   }));
   if (!result.UploadId) throw new Error('Storage provider did not return an upload ID');
   return { ...cloudStorageStatus(), key, uploadId: result.UploadId, ...plan };
@@ -194,7 +194,7 @@ export async function listMultipartParts({ key, uploadId, prefix = 'iphone' } = 
   return { key: scoped, uploadId: String(uploadId), parts: (result.Parts || []).map(p => ({ partNumber: p.PartNumber, etag: p.ETag, bytes: Number(p.Size || 0) })) };
 }
 
-export async function completeMultipartUpload({ key, uploadId, parts = [], prefix = 'iphone' } = {}) {
+export async function completeMultipartUpload({ key, uploadId, parts = [], prefix = 'iphone', checksum = '' } = {}) {
   const s3 = client();
   const scoped = scopedKey(key, prefix);
   const normalized = parts.map(p => ({ PartNumber: Number(p.partNumber), ETag: String(p.etag) }))
@@ -207,7 +207,7 @@ export async function completeMultipartUpload({ key, uploadId, parts = [], prefi
   const result = await s3.send(new CompleteMultipartUploadCommand({
     Bucket: bucket, Key: scoped, UploadId: String(uploadId), MultipartUpload: { Parts: normalized }
   }));
-  return { ...cloudStorageStatus(), key: scoped, etag: result.ETag || null, location: result.Location || null, completed: true };
+  return { ...cloudStorageStatus(), key: scoped, etag: result.ETag || null, location: result.Location || null, checksum: checksum || null, completed: true };
 }
 
 export async function abortMultipartUpload({ key, uploadId, prefix = 'iphone' } = {}) {
