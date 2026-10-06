@@ -7,9 +7,10 @@ CREATE INDEX IF NOT EXISTS "garden_places_parent_idx" ON "garden_places" ("paren
 -- Canonical initial Garden places. These are world locations, not Studio rooms.
 INSERT INTO "garden_places" ("slug","name","kind","description") VALUES
 ('garden-heart','Garden Heart','realm','The central gathering place of THE Garden of Apex.'),
-('garden-grove','Knowledge Grove','realm','A place where Kernels develop specialized disciplines.'),
-('garden-meadow','Discovery Meadow','realm','A place where discoveries and Popcorns emerge.'),
-('garden-workshop','Freak Workshop','realm','A place for Freaks to develop ideas before production.')
+('freak-groves','Freak Groves','realm','Specialized groves where Jesus Freaks learn and work.'),
+('discovery-fields','Discovery Fields','realm','Fields where discoveries and Popcorns emerge.'),
+('kornworks','KornWorks','realm','A place for Freaks to develop ideas before production.'),
+('story-gardens','Story Gardens','realm','Places where discoveries grow into stories.')
 ON CONFLICT ("slug") DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS "garden_lineage" (
