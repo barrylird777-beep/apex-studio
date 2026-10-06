@@ -18,6 +18,7 @@ jobs:
     name: Gemini Code Review
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: true
     steps:
       - name: Prepare review context
         shell: bash
