@@ -199,6 +199,30 @@ export async function linkGardenDiscovery(discoveryId, freakId, relationship, me
   return result.rows[0];
 }
 
+export async function appendGardenLineage(input = {}) {
+  const discoveryId = Number(input.discoveryId);
+  const freakId = input.freakId == null ? null : Number(input.freakId);
+  const sequenceNo = Number(input.sequenceNo);
+  const stage = String(input.stage || '').trim();
+  if (!Number.isInteger(discoveryId) || (freakId !== null && !Number.isInteger(freakId)) || !Number.isInteger(sequenceNo) || sequenceNo < 0 || !stage || stage.length > 120) throw new TypeError('Invalid Garden lineage');
+  const result = await dbPool.query(
+    'INSERT INTO garden_lineage (discovery_id,freak_id,stage,sequence_no,source_ref,evidence) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (discovery_id,sequence_no) DO UPDATE SET freak_id=EXCLUDED.freak_id,stage=EXCLUDED.stage,source_ref=EXCLUDED.source_ref,evidence=EXCLUDED.evidence RETURNING *',
+    [discoveryId,freakId,stage,sequenceNo,input.sourceRef == null ? null : String(input.sourceRef),JSON.stringify(input.evidence && typeof input.evidence === 'object' ? input.evidence : {})]
+  );
+  await recordGardenEvent({ eventType: 'discovery.lineage.appended', discoveryId, freakId, payload: { stage, sequenceNo } });
+  return result.rows[0];
+}
+
+export async function listGardenLineage(discoveryId) {
+  const id = Number(discoveryId);
+  if (!Number.isInteger(id)) throw new TypeError('Invalid Garden discovery id');
+  const result = await dbPool.query(
+    'SELECT l.*,f.name AS freak_name FROM garden_lineage l LEFT JOIN garden_freaks f ON f.id=l.freak_id WHERE l.discovery_id=$1 ORDER BY l.sequence_no',
+    [id]
+  );
+  return result.rows;
+}
+
 export async function listGardenDiscoveryLinks(discoveryId) {
   const result = await dbPool.query(
     'SELECT l.id,l.discovery_id,l.freak_id,l.relationship,l.metadata,l.created_at,f.name AS freak_name FROM garden_discovery_links l LEFT JOIN garden_freaks f ON f.id=l.freak_id WHERE l.discovery_id=$1 ORDER BY l.id',
