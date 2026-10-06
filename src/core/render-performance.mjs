@@ -53,3 +53,18 @@ export function chooseRenderPath({ probe, availableEncoders = [], preferredEncod
   if (shouldStreamCopy({ probe, format })) return Object.freeze({ mode: 'copy', encoder: null });
   return Object.freeze({ mode: 'encode', encoder: selectEncoderFromList(availableEncoders, preferredEncoder) });
 }
+
+
+export function hardwareEncoderCandidates(platform = process.platform) {
+  if (platform === 'darwin') return ['videotoolbox', 'nvenc', 'vaapi', 'cpu'];
+  if (platform === 'linux') return ['nvenc', 'vaapi', 'videotoolbox', 'cpu'];
+  return ['nvenc', 'videotoolbox', 'vaapi', 'cpu'];
+}
+
+export function normalizeAvailableEncoders(encoders) {
+  return [...new Set((Array.isArray(encoders) ? encoders : []).filter(name => Boolean(ENCODERS[name])))]
+    .sort((a, b) => {
+      const rank = hardwareEncoderCandidates().indexOf(a) - hardwareEncoderCandidates().indexOf(b);
+      return rank || a.localeCompare(b);
+    });
+}
