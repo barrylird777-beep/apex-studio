@@ -1,5 +1,13 @@
 import express from 'express';
 import crypto from 'node:crypto';
+import {
+  cloudStorageStatus,
+  listCloudObjects,
+  createUploadUrl,
+  createDownloadUrl,
+  inspectCloudObject,
+  deleteCloudObject
+} from '../storage/cloud-object-store.mjs';
 
 function tokenMatches(expected, supplied) {
   if (!expected || !supplied) return false;
@@ -126,6 +134,74 @@ export function createMobileControlPlane({
     } catch (error) {
       return res.status(503).json({ success: false, error: String(error?.message || error) });
     }
+  });
+
+  router.get('/storage', async (req, res) => {
+    try {
+      const prefix = String(req.query.prefix || 'iphone').trim();
+      return res.json({ success: true, ...(await listCloudObjects({ prefix, limit: req.query.limit })) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/upload-url', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({
+        success: true,
+        ...(await createUploadUrl({
+          filename: body.filename,
+          contentType: body.contentType,
+          size: body.size,
+          prefix: body.prefix
+        }))
+      });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/download-url', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await createDownloadUrl({ key: body.key, prefix: body.prefix })) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.post('/storage/inspect', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.json({ success: true, ...(await inspectCloudObject({ key: body.key, prefix: body.prefix })) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.delete('/storage', async (req, res) => {
+    try {
+      const key = String(req.query.key || '').trim();
+      const prefix = String(req.query.prefix || 'iphone').trim();
+      return res.json({ success: true, ...(await deleteCloudObject({ key, prefix })) });
+    } catch (error) {
+      const status = Number(error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
+        .json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.get('/storage/status', (_req, res) => {
+    return res.json({ success: true, ...cloudStorageStatus() });
   });
 
   router.get('/production', async (_req, res) => {
