@@ -65,7 +65,7 @@ export function createDurableJobsStore(db) {
          UPDATE durable_jobs j
          SET status = 'running',
              lease_owner = $2,
-             lease_token = gen_random_uuid(),
+             lease_token = md5(random()::text || clock_timestamp()::text || j.id::text)::uuid,
              lease_fence = j.lease_fence + 1,
              lease_expires_at = $1 + ($3::double precision * INTERVAL '1 millisecond'),
              attempts = j.attempts + 1,
