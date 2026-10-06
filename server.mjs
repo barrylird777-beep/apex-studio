@@ -18,12 +18,21 @@ import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
+import { pool as dbPool } from './src/db/index.ts';
+import { createSearchRouter } from './src/api/routes/search.mjs';
+import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
+import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
+import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
+import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
+import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
+import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
+import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-
-// Network transfer engine is available through src/core/storage.mjs for URL-backed media.
-// Provider responses remain stream-based unless a provider exposes a stable downloadable URL.
+startLoadShedder({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) });
+app.use(loadShedderMiddleware({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) }));
+app.use((req,res,next) => runWithTrace({ trace_id: String(req.headers['x-request-id'] || crypto.randomUUID()) }, next));
 
 if (durableWorkerEnabled()) {
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
@@ -32,6 +41,7 @@ if (durableWorkerEnabled()) {
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
+
 const permanentWorkerFleet = createPermanentWorkerFleet();
 const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
 for (const worker of permanentWorkerFleet.workers) {
@@ -93,6 +103,31 @@ const permanentWorkerSupervisor = new WorkerSupervisor({
 
 meshWorkerSupervisor.start();
 permanentWorkerSupervisor.start();
+
+const aiCrew = createAiCrewEngine({
+  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 64))),
+  dispatch: payload => meshWorkerSupervisor.dispatch(payload)
+});
+
+const aiCrewAutoRun = String(process.env.APEX_AI_CREW_AUTORUN ?? 'true').toLowerCase() !== 'false';
+if (aiCrewAutoRun) {
+  const crewContext = {
+    mission: 'Continuously improve Apex Studio as a Bible intelligence and video-production system.',
+    rules: [
+      'Find root defects before proposing cosmetic work.',
+      'Prefer concrete implementation and tests.',
+      'Preserve provenance and distinguish verified facts from inference.',
+      'Do not claim files, tests, APIs, or capabilities that are not evidenced.',
+      'Surface blockers with a workaround path rather than stopping.'
+    ]
+  };
+  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 128))), crewContext);
+  const aiCrewPulse = setInterval(() => {
+    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 64))), crewContext);
+  }, Math.max(30000, Number(process.env.APEX_AI_CREW_PULSE_MS || 15000)));
+  aiCrewPulse.unref?.();
+}
+
 
 const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
@@ -157,6 +192,33 @@ const permanentWorkerHeartbeat = setInterval(() => {
 }, apexOverseer.intervalMs);
 permanentWorkerHeartbeat.unref?.();
 
+const episodePipeline = new EpisodePipeline(dbPool);
+
+const rogueApDetector = new RogueApDetector({
+  authorizedSsid: process.env.APEX_WIFI_AUTHORIZED_SSID || 'Apex_Industrial_Mesh',
+  trustedBssids: String(process.env.APEX_WIFI_TRUSTED_BSSIDS || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean),
+  rssiBaselines: (() => {
+    try {
+      const value = JSON.parse(process.env.APEX_WIFI_RSSI_BASELINES || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch {
+      return {};
+    }
+  })()
+});
+
+const webhookDaemon = durableWorkerEnabled()
+  ? setInterval(() => {
+      void dispatchCompletedWorkerEvents({ pool: dbPool }).catch(error => {
+        console.error("[webhook-dispatcher] dispatch failed:", error?.message || error);
+      });
+    }, Math.max(1000, Number(process.env.APEX_WEBHOOK_POLL_MS || 5000)))
+  : null;
+webhookDaemon?.unref?.();
+
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -184,6 +246,68 @@ app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:ove
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
+app.post('/api/network/rogue-ap/observations', async (req, res) => {
+  try {
+    const observations = validateObservationEnvelope(req.body);
+    const report = await rogueApDetector.auditAirspace(observations);
+    let remediationTaskId = null;
+
+    if (report.highConfidenceCount > 0 && durableWorkerEnabled()) {
+      remediationTaskId = crypto.randomUUID();
+      const traceId = String(req.headers['x-request-id'] || crypto.randomUUID());
+      await enqueueWorkerTask({
+        id: remediationTaskId,
+        workerId: 'security-observation',
+        role: 'security-observation',
+        task: 'Record high-confidence wireless behavioral anomaly and trigger configured alert workflow',
+        payload: {
+          type: 'security-observation',
+          classification: report.classification,
+          telemetryOnly: true,
+          report
+        },
+        maxAttempts: 5,
+        dedupeKey: `security-observation:${crypto.createHash('sha256').update(JSON.stringify(report)).digest('hex')}`,
+        traceId
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      ...report,
+      remediationQueued: Boolean(remediationTaskId),
+      remediationTaskId
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error?.message || 'Invalid wireless observation payload'
+    });
+  }
+});
+
+app.post('/api/episodes/produce', async (req, res) => {
+  try {
+    const book = String(req.body?.book || '').trim();
+    const chapter = Number(req.body?.chapter);
+    const verses = String(req.body?.verses || 'full').trim();
+    const traceId = String(req.headers['x-request-id'] || crypto.randomUUID());
+    if (!book || !Number.isInteger(chapter)) {
+      return res.status(400).json({ success: false, error: 'book and integer chapter are required' });
+    }
+    const result = await episodePipeline.igniteEpisode(book, chapter, verses, traceId);
+    return res.status(202).json({ success: true, ...result, traceId });
+  } catch (error) {
+    console.error('[episodes/produce] enqueue failed:', error?.message || error);
+    return res.status(400).json({
+      success: false,
+      error: error?.message || 'Episode pipeline enqueue failed'
+    });
+  }
+});
+
+app.use('/api/search', createSearchRouter(dbPool));
+// Titan-protected mutation surfaces are mounted explicitly at the route boundary.
 app.use('/api/bible-production', async (req, res, next) => {
   try {
     const { default: router } = await import('./src/api/bible-production.mjs');
@@ -225,39 +349,63 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 // 1. HIGH-AVAILABILITY INFERENCE MESH
 // ============================================================
 
+const aiCircuitBreakers = createAiCircuitBreakerRegistry({
+  failureThreshold: Number(process.env.APEX_AI_FAILURE_THRESHOLD || 5),
+  resetTimeoutMs: Number(process.env.APEX_AI_RESET_TIMEOUT_MS || 10000),
+  maxResetTimeoutMs: Number(process.env.APEX_AI_MAX_RESET_TIMEOUT_MS || 120000),
+  jitterMs: Number(process.env.APEX_AI_JITTER_MS || 2000),
+});
+
+function providerHttpError(provider, response, detail) {
+  const error = new Error(`${provider} ${response.status}${detail ? `: ${detail}` : ''}`);
+  error.status = response.status;
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) error.retryAfterMs = Math.max(0, seconds * 1000);
+    else {
+      const date = Date.parse(retryAfter);
+      if (Number.isFinite(date)) error.retryAfterMs = Math.max(0, date - Date.now());
+    }
+  }
+  return error;
+}
+
 const DEFAULT_SYSTEM =
   'You are Apex Studio production intelligence: research, analytics, scripting utility, audio, video, automation, publishing, experimentation, reliability, security, and operations. Do not invent sources or hidden capabilities.';
 
 async function callOpenAICompatible({ url, apiKey, model, prompt, system, provider, extraHeaders = {}, bodyExtras = {} }) {
   if (!apiKey) throw new Error(provider + ' not configured');
 
-  const response = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      ...extraHeaders,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
-        { role: 'user', content: String(prompt) },
-      ],
-      temperature: 0.8,
-      ...bodyExtras,
-    }),
-  }, 15000);
+  return aiCircuitBreakers.get(provider).execute(async () => {
+    const response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+          { role: 'user', content: String(prompt) },
+        ],
+        temperature: 0.8,
+        ...bodyExtras,
+      }),
+    }, 15000);
 
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
-    throw new Error(`${provider} ${response.status}${detail ? `: ${detail}` : ''}`);
-  }
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+      throw providerHttpError(provider, response, detail);
+    }
 
-  const data = await response.json();
-  const output = data?.choices?.[0]?.message?.content;
-  if (!output) throw new Error('Empty ' + provider + ' response');
-  return String(output).trim();
+    const data = await response.json();
+    const output = data?.choices?.[0]?.message?.content;
+    if (!output) throw new Error('Empty ' + provider + ' response');
+    return String(output).trim();
+  });
 }
 
 async function callMistral(prompt, system) {
@@ -317,29 +465,31 @@ async function callNvidia(prompt, system) {
 
 async function callCohere(prompt, system) {
   if (!process.env.COHERE_API_KEY) throw new Error('Cohere not configured');
-  const response = await fetchWithTimeout('https://api.cohere.com/v2/chat', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: process.env.COHERE_MODEL || 'command-a-03-2025',
-      messages: [
-        { role: 'system', content: String(system || DEFAULT_SYSTEM) },
-        { role: 'user', content: String(prompt) },
-      ],
-      temperature: 0.8,
-    }),
-  }, 15000);
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
-    throw new Error(`Cohere ${response.status}${detail ? `: ${detail}` : ''}`);
-  }
-  const data = await response.json();
-  const output = data?.message?.content?.map?.((part) => part?.text || '').join('').trim();
-  if (!output) throw new Error('Empty Cohere response');
-  return output;
+  return aiCircuitBreakers.get('Cohere').execute(async () => {
+    const response = await fetchWithTimeout('https://api.cohere.com/v2/chat', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.COHERE_MODEL || 'command-a-03-2025',
+        messages: [
+          { role: 'system', content: String(system || DEFAULT_SYSTEM) },
+          { role: 'user', content: String(prompt) },
+        ],
+        temperature: 0.8,
+      }),
+    }, 15000);
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240).replace(/\s+/g, ' ');
+      throw providerHttpError('Cohere', response, detail);
+    }
+    const data = await response.json();
+    const output = data?.message?.content?.map?.((part) => part?.text || '').join('').trim();
+    if (!output) throw new Error('Empty Cohere response');
+    return output;
+  });
 }
 
 async function callOllama(prompt, system) {
@@ -1254,6 +1404,32 @@ app.get('/api/mesh/workers', (_req, res) => {
   res.json({ success: true, ...meshWorkerSupervisor.status() });
 });
 
+app.get('/api/crew/status', (_req, res) => {
+  res.json({ success: true, crew: aiCrew.status(), fleet: fleetStatus(permanentWorkerFleet), overseer: overseerStatus(apexOverseer, permanentWorkerFleet) });
+});
+
+app.post('/api/crew/jobs', (req, res) => {
+  try {
+    const job = aiCrew.enqueue({
+      role: req.body?.role,
+      task: req.body?.task,
+      context: req.body?.context
+    });
+    res.status(202).json({ success: true, job });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/crew/burst', (req, res) => {
+  try {
+    const jobs = aiCrew.burst(req.body?.count ?? 32, req.body?.context ?? {});
+    res.status(202).json({ success: true, queued: jobs.length, jobs });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/mesh/status', (_req, res) => {
   res.json({
     success: true,
@@ -1304,6 +1480,15 @@ app.post('/api/voiceover/jobs', async (req,res) => {
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
     res.status(202).json({success:true,id,status:'queued'});
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
+});
+
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.type(prometheusContentType());
+    res.send(await scrapePrometheusMetrics());
+  } catch (error) {
+    res.status(503).type(prometheusContentType()).send('# HELP apex_metrics_scrape_error Metrics scrape failure.\\n# TYPE apex_metrics_scrape_error gauge\\napex_metrics_scrape_error 1\\n');
+  }
 });
 
 app.get(['/health', '/api/health'], (_req, res) => {
