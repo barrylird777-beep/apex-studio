@@ -30,16 +30,53 @@ export function createDurableJobsStore(db) {
   const changed = async (text, params) => (await query(text, params)).rowCount === 1;
 
   return {
-    enqueue: ({ id, type, payload, runAt, maxAttempts, dedupeKey, now }) => one(
-      `INSERT INTO durable_jobs
-        (id, type, payload, status, run_at, max_attempts, dedupe_key, created_at, updated_at)
-       VALUES ($1,$2,$3::jsonb,'queued',$4,$5,$6,$7,$7)
-       ON CONFLICT (dedupe_key)
-       WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')
-       DO NOTHING
-       RETURNING *`,
-      [id, type, JSON.stringify(payload), runAt, maxAttempts, dedupeKey, now]
-    ),
+    enqueue: async ({ id, type, payload, runAt, maxAttempts, dedupeKey, now }) => {
+      const inserted = await one(
+        `INSERT INTO durable_jobs
+          (id, type, payload, status, run_at, max_attempts, dedupe_key, created_at, updated_at)
+         VALUES ($1,$2,$3::jsonb,'queued',$4,$5,$6,$7,$7)
+         ON CONFLICT (dedupe_key)
+         WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')
+         DO NOTHING
+         RETURNING *`,
+        [id, type, JSON.stringify(payload), runAt, maxAttempts, dedupeKey, now]
+      );
+      if (inserted) return inserted;
+      return one(
+        `SELECT * FROM durable_jobs
+         WHERE dedupe_key = $1
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [dedupeKey]
+      );
+    },
+
+    claimBatch: async ({ workerId, now, leaseMs, batchSize = 20 }) => {
+      const size = Math.max(1, Math.min(20, Number(batchSize) || 1));
+      const result = await query(
+        `WITH next AS (
+           SELECT id
+           FROM durable_jobs
+           WHERE status = 'queued' AND run_at <= $1
+           ORDER BY run_at, created_at
+           LIMIT $4
+           FOR UPDATE SKIP LOCKED
+         )
+         UPDATE durable_jobs j
+         SET status = 'running',
+             lease_owner = $2,
+             lease_token = gen_random_uuid(),
+             lease_fence = j.lease_fence + 1,
+             lease_expires_at = $1 + ($3::double precision * INTERVAL '1 millisecond'),
+             attempts = j.attempts + 1,
+             updated_at = $1
+         FROM next
+         WHERE j.id = next.id
+         RETURNING j.*`,
+        [now, workerId, leaseMs, size]
+      );
+      return result.rows.map(row);
+    },
 
     claimOne: async ({ workerId, now, leaseMs }) => {
       const token = randomUUID();
@@ -97,8 +134,14 @@ export function createDurableJobsStore(db) {
 
     fail: ({ id, token, fence, error, now, retryAt }) => changed(
       `UPDATE durable_jobs
-       SET status = CASE WHEN $5::timestamptz IS NULL THEN 'dead' ELSE 'queued' END,
-           run_at = COALESCE($5::timestamptz, run_at),
+       SET status = CASE
+           WHEN attempts >= max_attempts OR $5::timestamptz IS NULL THEN 'dead'
+           ELSE 'queued'
+         END,
+           run_at = CASE
+             WHEN attempts >= max_attempts THEN run_at
+             ELSE COALESCE($5::timestamptz, run_at)
+           END,
            last_error = $4,
            lease_owner = NULL,
            lease_token = NULL,
