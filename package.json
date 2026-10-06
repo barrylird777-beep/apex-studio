@@ -32,7 +32,8 @@
     "durable:worker": "node src/jobs/durable-worker-daemon.mjs",
     "network:select": "node src/network/path-selector.mjs",
     "network:verify": "node scripts/verify-network-fabric.mjs",
-    "sovereign:smoke": "node scripts/sovereign-smoke.mjs"
+    "sovereign:smoke": "node scripts/sovereign-smoke.mjs",
+    "edge:node": "node src/network/apex-edge-node.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
