@@ -1,0 +1,40 @@
+name: iOS Ad Blocker Build
+
+on:
+  push:
+    paths:
+      - "ios/ApexAdBlocker/**"
+      - ".github/workflows/ios-adblocker.yml"
+  pull_request:
+    paths:
+      - "ios/ApexAdBlocker/**"
+      - ".github/workflows/ios-adblocker.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-adblocker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Apex Studio Ad Blocker
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build for iOS Simulator (unsigned)
+        run: |
+          set -euo pipefail
+          xcodebuild             -project ios/ApexAdBlocker/ApexAdBlocker.xcodeproj             -scheme ApexAdBlocker             -configuration Release             -sdk iphonesimulator             -destination 'generic/platform=iOS Simulator'             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
+
+      - name: Build archive target (unsigned validation)
+        run: |
+          set -euo pipefail
+          xcodebuild             -project ios/ApexAdBlocker/ApexAdBlocker.xcodeproj             -scheme ApexAdBlocker             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
