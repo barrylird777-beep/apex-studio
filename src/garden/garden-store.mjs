@@ -21,6 +21,27 @@ export async function createGardenPlace(input = {}) {
   return result.rows[0];
 }
 
+export async function recordGardenEvent(input = {}) {
+  const eventType = String(input.eventType || '').trim();
+  if (!eventType || eventType.length > 120) throw new TypeError('Invalid Garden event type');
+  const ids = ['placeId','freakId','discoveryId','activityId'].map(k => input[k] == null ? null : Number(input[k]));
+  if (ids.some(v => v !== null && !Number.isInteger(v))) throw new TypeError('Invalid Garden event reference');
+  const result = await dbPool.query(
+    'INSERT INTO garden_events (event_type,place_id,freak_id,discovery_id,activity_id,payload) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *',
+    [eventType,...ids,JSON.stringify(input.payload && typeof input.payload === 'object' ? input.payload : {})]
+  );
+  return result.rows[0];
+}
+
+export async function listGardenEvents(limit = 100) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const result = await dbPool.query(
+    'SELECT e.*,p.name AS place_name,f.name AS freak_name,d.title AS discovery_title FROM garden_events e LEFT JOIN garden_places p ON p.id=e.place_id LEFT JOIN garden_freaks f ON f.id=e.freak_id LEFT JOIN garden_discoveries d ON d.id=e.discovery_id ORDER BY e.occurred_at DESC LIMIT $1',
+    [safeLimit]
+  );
+  return result.rows;
+}
+
 export async function listGardenActivities(state = null) {
   const result = await dbPool.query(
     'SELECT a.id,a.place_id,a.freak_id,a.activity,a.state,a.details,a.started_at,a.ended_at,p.name AS place_name,f.name AS freak_name FROM garden_activities a LEFT JOIN garden_places p ON p.id=a.place_id LEFT JOIN garden_freaks f ON f.id=a.freak_id WHERE ($1::text IS NULL OR a.state=$1) ORDER BY a.id DESC',
