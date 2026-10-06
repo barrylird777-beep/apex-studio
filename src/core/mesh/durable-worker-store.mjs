@@ -248,7 +248,7 @@ export async function claimExternalEffect(idempotencyKey, leaseMs = 300000) {
      ON CONFLICT (idempotency_key) DO UPDATE
        SET status='started', lease_expires_at=NOW()+($2::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
        WHERE apex_external_effects.status='started'
-         AND apex_external_effects.lease_expires_at < NOW()
+         AND (apex_external_effects.lease_expires_at IS NULL OR apex_external_effects.lease_expires_at < NOW())
      RETURNING idempotency_key`, [key, safeLease]);
   return r.rowCount === 1;
 }
