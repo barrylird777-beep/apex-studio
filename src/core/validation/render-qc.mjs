@@ -18,7 +18,7 @@ export async function inspectMedia(path) {
   return JSON.parse(raw);
 }
 
-export async function runRenderQC({ mediaPath, expectedWidth=1920, expectedHeight=1080, expectedAspect=16/9, expectedDurationSeconds=null, toleranceSeconds=0.25 }) {
+export async function runRenderQC({ mediaPath, expectedWidth=null, expectedHeight=null, expectedAspect=null, expectedDurationSeconds=null, toleranceSeconds=0.25 }) {
   const probe = await inspectMedia(mediaPath);
   const video = probe.streams?.find(s => s.codec_type === "video");
   const audio = probe.streams?.find(s => s.codec_type === "audio");
@@ -26,8 +26,8 @@ export async function runRenderQC({ mediaPath, expectedWidth=1920, expectedHeigh
   const checks = {
     hasVideo: Boolean(video),
     hasAudio: Boolean(audio),
-    dimensions: Boolean(video && Number(video.width) === expectedWidth && Number(video.height) === expectedHeight),
-    aspectRatio: Boolean(video && Math.abs((Number(video.width)/Number(video.height)) - expectedAspect) < 0.01),
+    dimensions: expectedWidth == null && expectedHeight == null || Boolean(video && Number(video.width) === Number(expectedWidth) && Number(video.height) === Number(expectedHeight)),
+    aspectRatio: expectedAspect == null || Boolean(video && Math.abs((Number(video.width)/Number(video.height)) - Number(expectedAspect)) < 0.01),
     duration: expectedDurationSeconds == null || Math.abs(duration - Number(expectedDurationSeconds)) <= toleranceSeconds,
     playable: Boolean(probe.format?.format_name)
   };
