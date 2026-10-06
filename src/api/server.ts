@@ -3,7 +3,7 @@ import http from "node:http";import {createReadStream,existsSync} from "node:fs"
 import {generateBreakdown,BreakdownError} from "../scripture/breakdown.js";
 import {getCalendar,createShootDay,deleteShootDay,assignScenes,reorderDay,unassignScene,runAutoSchedule} from "./schedule";
 // @ts-ignore Garden domain is runtime-loaded from the ESM store.
-import {getGarden,createGardenFreak,createGardenDiscovery,relateGardenFreaks,listGardenRelationships,linkGardenDiscovery,listGardenDiscoveryLinks} from "../garden/garden-store.mjs";
+import {getGarden,createGardenFreak,createGardenDiscovery,relateGardenFreaks,listGardenRelationships,linkGardenDiscovery,listGardenDiscoveryLinks,listGardenPlaces,createGardenPlace,listGardenActivities,createGardenActivity} from "../garden/garden-store.mjs";
 // @ts-ignore JavaScript provider adapter is runtime-loaded.
 import {generateWithGemini} from "../ai/gemini.js";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
@@ -37,6 +37,10 @@ if(p[0]==="api"&&p[1]==="overseer"&&p[2]==="metrics"&&req.method==="GET"){
 }
 if(p[0]==="api"&&p[1]==="garden"&&p.length===2&&req.method==="GET") return send(res,200,await getGarden());
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenFreak(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden Freak"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="places"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenPlaces());
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="places"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenPlace(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden place"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="activities"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenActivities(typeof url.searchParams.get==="function"?url.searchParams.get("state"):null));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="activities"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenActivity(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden activity"})}}
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="relationships"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenRelationships());
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="relationships"&&p.length===3&&req.method==="POST"){try{const b=await readBody(req);return send(res,201,await relateGardenFreaks(b.fromFreakId,b.toFreakId,b.relationship,b.metadata))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden relationship"})}}
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p.length===4&&req.method==="GET") return send(res,200,await listGardenDiscoveryLinks(p[3]));
