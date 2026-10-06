@@ -15,7 +15,8 @@ const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',')
 async function readJson(stream) {
   let text = '';
   for await (const chunk of stream.source) {
-    text += decoder.decode(chunk, { stream: true });
+    const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+    text += decoder.decode(bytes, { stream: true });
     if (text.includes('\n')) break;
   }
   const line = text.split('\n')[0];
