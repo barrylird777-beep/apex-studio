@@ -247,6 +247,17 @@ export async function claimExternalEffect(idempotencyKey) {
   return r.rowCount === 1;
 }
 
+export async function releaseExternalEffect(idempotencyKey) {
+  if (!durableWorkerEnabled()) return true;
+  const key = String(idempotencyKey || "").trim();
+  if (!key) throw new Error("External side effects require an idempotency key");
+  const r = await getPool().query(
+    "DELETE FROM apex_external_effects WHERE idempotency_key=$1 AND status='started'",
+    [key]
+  );
+  return r.rowCount === 1;
+}
+
 export async function completeExternalEffect(idempotencyKey, result = null) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
