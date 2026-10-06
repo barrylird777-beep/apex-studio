@@ -4,7 +4,7 @@ export class GeminiMeshProvider {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
     this.endpoint = (process.env.GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com/v1beta/models').replace(/\/$/, '');
-    this.model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+    this.model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   }
 
   async generate(prompt, options = {}) {
