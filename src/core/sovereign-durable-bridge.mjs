@@ -21,7 +21,7 @@ function serializePayload(record) {
   });
 }
 
-export function createSovereignDurableBridge({ engine, db, workerId }) {
+export function createSovereignDurableBridge({ engine, db, workerId, peerNode, peerAddress, sendPeer }) {
   if (!engine) throw new TypeError('engine is required');
   if (!workerId) throw new Error('workerId is required');
   requireDb(db);
@@ -70,10 +70,22 @@ export function createSovereignDurableBridge({ engine, db, workerId }) {
   async function dispatch(payload, options = {}) {
     const record = await engine.dispatchAutonomousPayload(payload);
     const job = await persist(record, options);
+    let peerAcceptance = null;
+    if (peerNode && peerAddress && sendPeer) {
+      peerAcceptance = await sendPeer(peerNode, peerAddress, {
+        type: 'durable.accept',
+        waveId: record.waveId,
+        jobId: job.id,
+        checksum: record.checksum,
+        fence: Number(job.lease_fence ?? 0)
+      });
+    }
+
     const acknowledged = await engine.acknowledge(record.waveId, {
       database: 'accepted',
       jobId: job.id,
-      status: job.status
+      status: job.status,
+      peer: peerAcceptance
     });
     return { record, job, acknowledged };
   }
@@ -86,10 +98,22 @@ export function createSovereignDurableBridge({ engine, db, workerId }) {
     for (const record of records) {
       try {
         const job = await persist(record, options);
+        let peerAcceptance = null;
+        if (peerNode && peerAddress && sendPeer) {
+          peerAcceptance = await sendPeer(peerNode, peerAddress, {
+            type: 'durable.accept',
+            waveId: record.waveId,
+            jobId: job.id,
+            checksum: record.checksum,
+            fence: Number(job.lease_fence ?? 0)
+          });
+        }
+
         const acknowledged = await engine.acknowledge(record.waveId, {
           database: 'accepted',
           jobId: job.id,
-          status: job.status
+          status: job.status,
+          peer: peerAcceptance
         });
         results.push({
           waveId: record.waveId,
