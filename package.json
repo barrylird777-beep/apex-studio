@@ -20,7 +20,8 @@
     "db:migrate:postgres": "node scripts/migrate-postgres.mjs",
     "verify:official-runtime": "bash scripts/official-release-runtime.sh",
     "verify:speed": "bash scripts/official-cellular-speed-mptcp.sh",
-    "verify:mptcp": "bash scripts/mptcp-multipath-observe.sh"
+    "verify:mptcp": "bash scripts/mptcp-multipath-observe.sh",
+    "mptcp:lab": "bash scripts/mptcp-multipath-lab.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
