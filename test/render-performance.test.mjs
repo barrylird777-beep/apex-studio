@@ -18,3 +18,17 @@ test('fast master decision can select stream-copy for compliant 4K video', async
   const d = buildFastMasterDecision({ video: { width:3840,height:2160,fps:24,codec:'h264',pixFmt:'yuv420p' } });
   assert.equal(d.mode, 'stream-copy-video');
 });
+
+test('bounded render pool never exceeds concurrency', async () => {
+  const { buildRenderPool } = await import('../src/core/render-performance.mjs');
+  const pool = buildRenderPool({ concurrency: 2 });
+  let peak = 0, active = 0;
+  const work = Array.from({ length: 6 }, (_, i) => pool.run(async () => {
+    active++; peak = Math.max(peak, active);
+    await new Promise(r => setTimeout(r, 2));
+    active--; return i;
+  }));
+  const results = await Promise.all(work);
+  assert.equal(peak, 2);
+  assert.deepEqual(results, [0,1,2,3,4,5]);
+});
