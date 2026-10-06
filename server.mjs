@@ -194,6 +194,28 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+app.get('/api/network/throughput', async (req, res) => {
+  const requestedMiB = Number(req.query?.mib ?? 32);
+  const mib = Math.min(64, Math.max(1, Number.isFinite(requestedMiB) ? Math.floor(requestedMiB) : 32));
+  const totalBytes = mib * 1024 * 1024;
+  const chunk = Buffer.alloc(1024 * 1024);
+  let sent = 0;
+  res.status(200).set({
+    'Content-Type': 'application/octet-stream',
+    'Content-Length': String(totalBytes),
+    'Cache-Control': 'no-store',
+    'X-Apex-Network-Benchmark': 'ingress-throughput',
+    'X-Apex-Benchmark-Bytes': String(totalBytes)
+  });
+  while (sent < totalBytes) {
+    const remaining = totalBytes - sent;
+    const part = remaining >= chunk.length ? chunk : chunk.subarray(0, remaining);
+    if (!res.write(part)) await new Promise(resolve => res.once('drain', resolve));
+    sent += part.length;
+  }
+  res.end();
+});
+
 app.get('/api/network/status', async (_req,res)=>{
   try {
     const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
