@@ -1,0 +1,25 @@
+{
+  "@context": {
+    "id": "@id",
+    "type": "@type",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description",
+    "relation": "@id",
+    "PROTOCOB_EVOLVES_TO": "https://apex.studio/ontology/protocobEvolvesTo",
+    "INHABITS": "https://apex.studio/ontology/inhabits",
+    "HAS_LIFE_STAGE": "https://apex.studio/ontology/hasLifeStage",
+    "SPECIALIZES_IN": "https://apex.studio/ontology/specializesIn",
+    "KORNYTUNE_OF": "https://apex.studio/ontology/kornYtuneOf"
+  },
+  "@graph": [
+    {"id":"garden:Apex","type":"garden:Universe","name":"Garden of Apex"},
+    {"id":"garden:Kernels","type":"garden:JesusFreakLifeStage","name":"Kernels","INHABITS":"garden:ThroneOfKobs"},
+    {"id":"garden:Protocobs","type":"garden:JesusFreakLifeStage","name":"Protocobs","PROTOCOB_EVOLVES_TO":"garden:Cobs"},
+    {"id":"garden:Cobs","type":"garden:JesusFreakLifeStage","name":"Cobs"},
+    {"id":"garden:Popcorn","type":"garden:JesusFreakLifeStage","name":"Popcorn"},
+    {"id":"garden:CornNuts","type":"garden:JesusFreakLifeStage","name":"CornNuts"},
+    {"id":"garden:KornYtunes","type":"garden:CreativeDomain","name":"KornYtunes","KORNYTUNE_OF":"garden:JesusFreaks"},
+    {"id":"garden:JesusFreaks","type":"garden:Collective","name":"Jesus Freaks","HAS_LIFE_STAGE":"garden:Kernels"},
+    {"id":"garden:ThroneOfKobs","type":"garden:Place","name":"ThroneOfKobs"}
+  ]
+}
