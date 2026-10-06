@@ -1,5 +1,48 @@
 import { pool as dbPool } from '../db/index.ts';
 
+export async function listGardenPlaces() {
+  const result = await dbPool.query(
+    'SELECT id,parent_id,slug,name,kind,description,metadata,created_at FROM garden_places ORDER BY id'
+  );
+  return result.rows;
+}
+
+export async function createGardenPlace(input = {}) {
+  const name = String(input.name || '').trim();
+  const slug = String(input.slug || name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const kind = String(input.kind || 'place').trim();
+  if (!name || name.length > 200 || !slug || slug.length > 200 || !kind || kind.length > 80) throw new TypeError('Invalid Garden place');
+  const parentId = input.parentId == null ? null : Number(input.parentId);
+  if (parentId !== null && !Number.isInteger(parentId)) throw new TypeError('Invalid Garden parent');
+  const result = await dbPool.query(
+    'INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *',
+    [parentId,slug,name,kind,String(input.description || '').trim(),JSON.stringify(input.metadata && typeof input.metadata === 'object' ? input.metadata : {})]
+  );
+  return result.rows[0];
+}
+
+export async function listGardenActivities(state = null) {
+  const result = await dbPool.query(
+    'SELECT a.id,a.place_id,a.freak_id,a.activity,a.state,a.details,a.started_at,a.ended_at,p.name AS place_name,f.name AS freak_name FROM garden_activities a LEFT JOIN garden_places p ON p.id=a.place_id LEFT JOIN garden_freaks f ON f.id=a.freak_id WHERE ($1::text IS NULL OR a.state=$1) ORDER BY a.id DESC',
+    [state ? String(state) : null]
+  );
+  return result.rows;
+}
+
+export async function createGardenActivity(input = {}) {
+  const activity = String(input.activity || '').trim();
+  const state = String(input.state || 'active').trim();
+  if (!activity || activity.length > 200 || !['active','completed','paused','cancelled'].includes(state)) throw new TypeError('Invalid Garden activity');
+  const placeId = input.placeId == null ? null : Number(input.placeId);
+  const freakId = input.freakId == null ? null : Number(input.freakId);
+  if ((placeId !== null && !Number.isInteger(placeId)) || (freakId !== null && !Number.isInteger(freakId))) throw new TypeError('Invalid Garden activity reference');
+  const result = await dbPool.query(
+    'INSERT INTO garden_activities (place_id,freak_id,activity,state,details) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING *',
+    [placeId,freakId,activity,state,JSON.stringify(input.details && typeof input.details === 'object' ? input.details : {})]
+  );
+  return result.rows[0];
+}
+
 export async function getGarden() {
   const [place, freaks, discoveries] = await Promise.all([
     dbPool.query('SELECT id, slug, name, kind, description, metadata, created_at, updated_at FROM garden_places WHERE slug=$1', ['the-garden-of-apex']),
