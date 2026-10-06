@@ -25,11 +25,32 @@ const active = new Set();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function handle(job) {
-  if (job.type === 'sovereign.publish' || job.type === 'render.dispatch') {
-    return { accepted: true, waveId: job.payload?.waveId ?? null };
+  if (job.type === 'sovereign.publish') {
+    return {
+      durable: true,
+      accepted: true,
+      waveId: job.payload?.waveId ?? null,
+      executedAt: new Date().toISOString()
+    };
   }
-  if (job.type === 'sovereign.peer.accept') return { accepted: true };
-  throw new Error(`No handler registered for durable job type: ${job.type}`);
+
+  const modulePath = process.env.APEX_JOB_HANDLER_MODULE;
+  if (!modulePath) {
+    throw new Error(`No production handler configured for durable job type: ${job.type}`);
+  }
+
+  const module = await import(modulePath);
+  const handler =
+    module.handlers?.[job.type] ??
+    module.default?.[job.type] ??
+    module.handleJob ??
+    module.default;
+
+  if (typeof handler !== 'function') {
+    throw new Error(`No production handler registered for durable job type: ${job.type}`);
+  }
+
+  return handler(job);
 }
 
 async function runJob(job) {
