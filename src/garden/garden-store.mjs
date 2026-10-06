@@ -26,6 +26,24 @@ export async function createGardenFreak(input = {}) {
   return result.rows[0] ?? null;
 }
 
+export async function relateGardenFreaks(fromFreakId, toFreakId, relationship, metadata = {}) {
+  const from = Number(fromFreakId), to = Number(toFreakId);
+  const rel = String(relationship || '').trim();
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from === to || !rel || rel.length > 100) throw new TypeError('Invalid Garden relationship');
+  const result = await dbPool.query(
+    'INSERT INTO garden_relationships (from_freak_id,to_freak_id,relationship,metadata) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (from_freak_id,to_freak_id,relationship) DO UPDATE SET metadata=EXCLUDED.metadata RETURNING *',
+    [from,to,rel,JSON.stringify(metadata && typeof metadata === 'object' ? metadata : {})]
+  );
+  return result.rows[0];
+}
+
+export async function listGardenRelationships() {
+  const result = await dbPool.query(
+    'SELECT r.id,r.from_freak_id,r.to_freak_id,r.relationship,r.metadata,r.created_at,ff.name AS from_name,tf.name AS to_name FROM garden_relationships r JOIN garden_freaks ff ON ff.id=r.from_freak_id JOIN garden_freaks tf ON tf.id=r.to_freak_id ORDER BY r.id'
+  );
+  return result.rows;
+}
+
 export async function createGardenDiscovery(input = {}) {
   const title = String(input.title || '').trim();
   const description = String(input.description || '').trim();
