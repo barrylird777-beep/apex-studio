@@ -42,3 +42,12 @@ test('network lane policy scales toward measured capacity', async () => {
   assert.equal(p.lanes, 2);
   assert.ok(p.paths[1].weight > p.paths[0].weight);
 });
+
+
+test('transport tuning expands in-flight capacity on clean high-bandwidth paths', async () => {
+  const { buildTransportTuning, calculateBandwidthDelayProduct } = await import('../src/network/throughput-profile.mjs');
+  const t = buildTransportTuning({ bandwidthMbps: 1000, rttMs: 30, lossPct: 0.1 });
+  assert.equal(t.parallelStreams, 16);
+  assert.equal(t.maxInFlightMiB, 512);
+  assert.ok(calculateBandwidthDelayProduct({ bandwidthMbps: 1000, rttMs: 30 }) > 0);
+});
