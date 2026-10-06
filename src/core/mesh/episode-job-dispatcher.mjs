@@ -42,12 +42,12 @@ async function graphExpansion({ pool, task }) {
   const passages = r.rows;
   const context = {
     episodeId: p.episodeId,
-    expansionType: String(p.type || "general"),
+    expansionType: String(p.expansionType || p.type || "general"),
     source: "bible_passages",
     passageCount: passages.length,
     passages
   };
-  await saveContext(pool, p.episodeId, `graph-${String(p.type || "general")}`, context);
+  await saveContext(pool, p.episodeId, `graph-${String(p.expansionType || p.type || "general")}`, context);
   return context;
 }
 
