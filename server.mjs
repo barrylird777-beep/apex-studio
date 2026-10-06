@@ -26,6 +26,8 @@ import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
+import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
+import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -267,6 +269,34 @@ app.get('/api/studio/omni/events', async (req, res) => {
   const { omniEventsHandler } = await import('./src/api/omni-events.mjs');
   return omniEventsHandler(req, res);
 });
+app.use('/api/phone', createPhoneControlPlane({
+  getHealth: async () => ({ ok: true, uptime: process.uptime() }),
+  getNetwork: async () => {
+    const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
+    const fabric = await selectNetworkPath();
+    const healthy = fabric.candidates.filter(path => path.healthy);
+    return {
+      status: fabric.selected ? 'connected' : 'offline',
+      selected: fabric.selected,
+      failover: fabric.failover,
+      candidates: fabric.candidates,
+      speed: buildNetworkSpeedPolicy(healthy),
+      policy: buildConnectionPolicy(),
+      verified: { runtimeInterfacesObserved: true, clientWifiObserved: false, clientCellularObserved: false },
+      checkedAt: new Date().toISOString()
+    };
+  }
+}));
+
+app.use('/api/phone', createPhoneControlPlane({
+  getHealth: async () => ({ ok: true, uptime: process.uptime() }),
+  getNetwork: async () => {
+    const { selectNetworkPath } = await import('./src/network/path-selector.mjs');
+    const fabric = await selectNetworkPath();
+    return { status: fabric.selected ? 'connected' : 'offline', selected: fabric.selected, failover: fabric.failover, checkedAt: new Date().toISOString() };
+  }
+}));
+
 app.use('/api/mobile', createMobileControlPlane({
   getHealth: async () => ({ ok: true, uptime: process.uptime() }),
   getAiStatus: async () => ({ ...unifiedAiStatus(), openai: openAiMaxStatus(), grok: grokStatus() }),
