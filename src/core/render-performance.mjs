@@ -41,3 +41,15 @@ export function shouldStreamCopy({ probe, format = '4k' } = {}) {
     : {};
   return is4kMasterCompliant(probe, preset);
 }
+
+
+export function getRenderConcurrency({ cpuCount = 1, gpuAvailable = false, configured = 8 } = {}) {
+  const cpu = Math.max(1, Number(cpuCount) || 1);
+  const requested = Math.max(1, Math.min(16, Math.floor(Number(configured) || 8)));
+  return gpuAvailable ? requested : Math.min(requested, Math.max(1, Math.floor(cpu / 2)));
+}
+
+export function chooseRenderPath({ probe, availableEncoders = [], preferredEncoder = 'auto', format = '4k' } = {}) {
+  if (shouldStreamCopy({ probe, format })) return Object.freeze({ mode: 'copy', encoder: null });
+  return Object.freeze({ mode: 'encode', encoder: selectEncoderFromList(availableEncoders, preferredEncoder) });
+}
