@@ -53,34 +53,60 @@ async function handle(job) {
   return handler(job);
 }
 
+function retryDelayMs(attempts) {
+  const exponent = Math.max(0, Number(attempts) - 1);
+  const base = Math.min(60000, 1000 * 2 ** exponent);
+  const jitter = Math.floor(Math.random() * Math.max(250, Math.floor(base * 0.25)));
+  return Math.min(60000, base + jitter);
+}
+
 async function runJob(job) {
   const heartbeat = setInterval(async () => {
     try {
-      const ok = await store.heartbeat({ id: job.id, token: job.leaseToken, fence: job.leaseFence, now: new Date(), leaseMs });
+      const ok = await store.heartbeat({
+        id: job.id,
+        token: job.leaseToken,
+        fence: job.leaseFence,
+        now: new Date(),
+        leaseMs
+      });
       if (!ok) console.error('[WORKER] lease lost', job.id);
-    } catch (error) { console.error('[WORKER] heartbeat failed', error); }
+    } catch (error) {
+      console.error('[WORKER] heartbeat failed', error);
+    }
   }, heartbeatMs);
 
   try {
     const result = await handle(job);
-    const ok = await store.complete({ id: job.id, token: job.leaseToken, fence: job.leaseFence, result, now: new Date() });
+    const ok = await store.complete({
+      id: job.id,
+      token: job.leaseToken,
+      fence: job.leaseFence,
+      result,
+      now: new Date()
+    });
     if (!ok) throw new Error(`stale worker completion rejected for ${job.id}`);
   } catch (error) {
     const retry = job.attempts < job.maxAttempts;
-    const delay = Math.min(60000, 1000 * 2 ** Math.max(0, job.attempts - 1));
-    const retryAt = retry ? new Date(Date.now() + delay) : null;
+    const retryAt = retry ? new Date(Date.now() + retryDelayMs(job.attempts)) : null;
     const ok = await store.fail({
-      id: job.id, token: job.leaseToken, fence: job.leaseFence,
+      id: job.id,
+      token: job.leaseToken,
+      fence: job.leaseFence,
       error: error instanceof Error ? error.message : String(error),
-      now: new Date(), retryAt
+      now: new Date(),
+      retryAt
     });
     if (!ok && !stopping) console.error('[WORKER] stale failure rejected', job.id);
-  } finally { clearInterval(heartbeat); }
+  } finally {
+    clearInterval(heartbeat);
+  }
 }
 
 async function recover() {
   const rows = await store.recoverExpired({
-    now: new Date(), runAt: new Date(Date.now() + 1000),
+    now: new Date(),
+    runAt: new Date(Date.now() + 1000),
     errorFor: 'worker lease expired; task recovered'
   });
   if (rows.length) console.log('[WORKER] recovered', rows.length);
@@ -96,21 +122,25 @@ async function main() {
       await sleep(pollMs);
       continue;
     }
+
     const jobs = await store.claimBatch({
       workerId,
       now: new Date(),
       leaseMs,
       batchSize: Math.min(batchSize, capacity)
     });
+
     if (!jobs.length) {
       await sleep(pollMs);
       continue;
     }
+
     for (const job of jobs) {
       const task = runJob(job);
       active.add(task);
       task.finally(() => active.delete(task)).catch(() => {});
     }
+
     await Promise.race([...active]);
   }
 }
