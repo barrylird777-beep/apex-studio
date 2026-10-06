@@ -117,8 +117,9 @@ export function buildAdaptiveTransferController({ initial = null, minStreams = 1
       const rtt = Math.max(0, Number(rttMs) || 0);
       state = { ...state, lastMbps: mbps, lastLossPct: loss, lastRttMs: rtt };
       const now = Date.now();
-      if (now - lastAdjustmentAt < Math.max(0, Number(cooldownMs) || 0)) return Object.freeze({ ...state });
-      if (loss > 2 || rtt > 150) {
+      const emergency = loss > 2 || rtt > 150;
+      if (!emergency && now - lastAdjustmentAt < Math.max(0, Number(cooldownMs) || 0)) return Object.freeze({ ...state });
+      if (emergency) {
         state.parallelStreams = Math.max(minStreams, Math.ceil(state.parallelStreams / 2));
         state.chunkMiB = Math.max(4, Math.ceil(state.chunkMiB / 2));
         lastAdjustmentAt = now;
