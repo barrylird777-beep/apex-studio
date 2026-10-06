@@ -69,7 +69,8 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
     }
   };
   try {
-    await Promise.all(Array.from({ length: Math.min(workers, ranges.length) }, worker));
+    const activeWorkers = Math.min(workers, ranges.length);
+    await Promise.all(Array.from({ length: activeWorkers }, worker));
     await handle.sync();
   } finally {
     await handle.close();
