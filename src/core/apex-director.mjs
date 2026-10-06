@@ -12,7 +12,7 @@ const ACTIONS={
  scenes:"Turn story beats into purposeful scenes; remove filler and repetitive exposition.",
  storyboard:"Create varied cinematic coverage with purposeful camera language and continuity references.",
  visuals:"Lock character/location continuity before generation; reject inconsistent designs.",
- audio:"Plan voice, music, ambience, silence, impacts, and recurring sonic motifs.",
+ audio:"Request verified audio packages from Music Radar: narration, dialogue, music, ambience, SFX, sound design, mix, and master.",
  timeline:"Assemble the edit and verify pacing, scene transitions, and payoff timing.",
  review:"Run Scripture, entertainment, continuity, and production gates.",
  release:"Build the release package and publish-ready assets."
