@@ -1385,6 +1385,10 @@ app.get('/api/ai/generate-grok/status', (_req, res) => {
   res.json({ success: true, ...grokStatus() });
 });
 
+app.get('/api/ai/catalog', (_req, res) => {
+  res.json({ success: true, generatedAt: new Date().toISOString(), providers: getAiCatalog(), categories: getAiCategories() });
+});
+
 app.get('/api/ai/providers', (_req, res) => {
   res.json({ success: true, providers: AI_PROVIDER_CATALOG, ...unifiedAiStatus() });
 });
