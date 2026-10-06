@@ -54,7 +54,7 @@ function scopedKey(key, prefix = 'iphone') {
 }
 
 const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024;
-const MULTIPART_PART_BYTES = Math.max(64 * 1024 * 1024, Math.min(512 * 1024 * 1024, Number(process.env.APEX_STORAGE_PART_BYTES || 128 * 1024 * 1024)));
+const MULTIPART_PART_BYTES = Math.max(64 * 1024 * 1024, Math.min(512 * 1024 * 1024, Number(process.env.APEX_STORAGE_PART_BYTES || 512 * 1024 * 1024)));
 const MAX_SIGNED_URL_SECONDS = Math.min(3600, Math.max(60, Number(process.env.APEX_STORAGE_SIGNED_URL_SECONDS || 900)));
 
 export function cloudStorageStatus() {
