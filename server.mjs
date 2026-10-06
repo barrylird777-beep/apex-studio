@@ -1359,6 +1359,30 @@ app.get('/api/ai/generate-max/status', (_req, res) => {
   res.json({ success: true, ...openAiMaxStatus() });
 });
 
+app.post('/api/ai/generate-grok', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await generateGrok({
+      prompt: body.prompt, messages: body.messages, system: body.system,
+      model: body.model, previousResponseId: body.previous_response_id || body.previousResponseId,
+      schema: body.schema, schemaName: body.schema_name || body.schemaName,
+      schemaDescription: body.schema_description || body.schemaDescription,
+      reasoningEffort: body.reasoning_effort || body.reasoningEffort,
+      webSearch: body.web_search ?? body.webSearch, xSearch: body.x_search ?? body.xSearch
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    const message = String(error?.message || error);
+    const status = /not configured|required|too many|invalid|exceeds|schema/i.test(message) ? 400 : 502;
+    console.error('[ai-generate-grok]', message);
+    return res.status(status).json({ success: false, error: status === 502 ? 'Grok generation failed' : message });
+  }
+});
+
+app.get('/api/ai/generate-grok/status', (_req, res) => {
+  res.json({ success: true, ...grokStatus() });
+});
+
 app.post('/api/ai/generate', async (req, res) => {
   const prompt = String(req.body?.prompt || '').trim();
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
