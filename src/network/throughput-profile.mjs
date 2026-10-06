@@ -42,3 +42,36 @@ export function scoreNetworkPath({ downloadMbps = 0, uploadMbps = 0, rttMs = Inf
   const networkBonus = network === '6g' ? 35 : network === 'starlink' ? 25 : network === 'wifi' ? 10 : 5;
   return Math.max(0, d * 0.5 + u * 0.8 + networkBonus - Math.min(100, r * 0.2) - loss * 10);
 }
+
+
+export function buildMultipathPlan({ paths = [], targetMbps = 250 } = {}) {
+  const healthy = paths.filter(p => p?.healthy !== false).sort((a,b) => Number(b.score||0) - Number(a.score||0));
+  if (!healthy.length) return Object.freeze({ mode: 'offline', lanes: [], targetMbps });
+  const lanes = healthy.slice(0, 4).map((p, index) => Object.freeze({
+    device: p.device,
+    network: p.network,
+    lane: index + 1,
+    weight: Math.max(1, Math.round(Number(p.score || 1))),
+    chunkMiB: index === 0 ? 32 : 16,
+    verifySha256: true
+  }));
+  return Object.freeze({
+    mode: lanes.length > 1 ? 'multipath' : 'single-path',
+    targetMbps: Math.max(1, Number(targetMbps) || 250),
+    lanes
+  });
+}
+
+export function adaptTransferProfile({ previous, observedMbps = 0, lossPct = 0, rttMs = 0 } = {}) {
+  const base = previous || chooseTransferProfile({});
+  const throughput = Math.max(0, Number(observedMbps) || 0);
+  const loss = Math.max(0, Number(lossPct) || 0);
+  const rtt = Math.max(0, Number(rttMs) || 0);
+  if (loss > 2 || rtt > 150) {
+    return Object.freeze({ ...base, mode: 'conservative', parallelStreams: Math.max(1, Math.floor(base.parallelStreams / 2)), chunkMiB: Math.max(2, Math.floor(base.chunkMiB / 2)) });
+  }
+  if (throughput >= 250 && loss < 0.5 && rtt <= 50) {
+    return Object.freeze({ ...base, mode: 'maximum', parallelStreams: Math.min(16, base.parallelStreams + 2), chunkMiB: Math.min(64, base.chunkMiB * 2) });
+  }
+  return base;
+}
