@@ -56,7 +56,7 @@ export function getRenderConcurrency({ cpuCount = 1, gpuAvailable = false, confi
 
 export function chooseRenderPath({ probe, availableEncoders = [], preferredEncoder = 'auto', format = '4k' } = {}) {
   if (shouldStreamCopy({ probe, format })) return Object.freeze({ mode: 'copy', encoder: null });
-  return Object.freeze({ mode: 'encode', encoder: selectEncoderFromList(availableEncoders, preferredEncoder) });
+  return Object.freeze({ mode: 'encode', encoder: selectEncoderFromList(normalizeAvailableEncoders(availableEncoders), preferredEncoder) });
 }
 
 
