@@ -78,3 +78,15 @@ CREATE TABLE IF NOT EXISTS "garden_lineage" (
 );
 CREATE INDEX IF NOT EXISTS "garden_lineage_discovery_idx" ON "garden_lineage" ("discovery_id","sequence_no");
 CREATE INDEX IF NOT EXISTS "garden_lineage_freak_idx" ON "garden_lineage" ("freak_id");
+
+CREATE TABLE IF NOT EXISTS "garden_discovery_links" (
+  "id" bigserial PRIMARY KEY,
+  "discovery_id" bigint NOT NULL REFERENCES "garden_discoveries"("id") ON DELETE CASCADE,
+  "freak_id" bigint REFERENCES "garden_freaks"("id") ON DELETE SET NULL,
+  "relationship" text NOT NULL,
+  "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "garden_discovery_links_unique" UNIQUE ("discovery_id", "freak_id", "relationship")
+);
+CREATE INDEX IF NOT EXISTS "garden_discovery_links_discovery_idx" ON "garden_discovery_links" ("discovery_id");
+CREATE INDEX IF NOT EXISTS "garden_discovery_links_freak_idx" ON "garden_discovery_links" ("freak_id");
