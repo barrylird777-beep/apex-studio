@@ -66,8 +66,10 @@ export async function selectNetworkPath() {
   const candidates = results;
   candidates.sort((a, b) => b.score - a.score);
   const selected = candidates[0] || null;
+  const failover = candidates.slice(1, 4).map(({ device, network, score: pathScore, healthy }) => ({ device, network, score: pathScore, healthy }));
   return {
     selected,
+    failover,
     candidates,
     route: selected ? await applyPriority(selected.device) : { applied: false },
     policy: {
