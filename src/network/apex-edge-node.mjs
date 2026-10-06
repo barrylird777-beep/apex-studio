@@ -35,12 +35,14 @@ export async function inspectEdgeNode() {
 
 export async function createApexEdgeNode({
   peerAddress = process.env.APEX_EDGE_PEER_ADDRESS || process.env.APEX_SOVEREIGN_PEER_ADDRESS || '',
+  peerNode: existingPeerNode = null,
   onState = () => {}
 } = {}) {
   const intervalMs = Math.max(1000, Number(process.env.APEX_EDGE_INTERVAL_MS || DEFAULT_INTERVAL_MS));
   const state = { online: false, last: null, peerId: null };
-  const peerNode = await createSovereignPeer({ onEnvelope: async (envelope) => envelope?.type === 'edge.heartbeat' });
-  await peerNode.start();
+  const ownsPeerNode = !existingPeerNode;
+  const peerNode = existingPeerNode || await createSovereignPeer({ onEnvelope: async (envelope) => envelope?.type === 'edge.heartbeat' });
+  if (ownsPeerNode) await peerNode.start();
   state.peerId = peerNode.peerId.toString();
   state.online = true;
   let stopped = false;
@@ -80,7 +82,7 @@ export async function createApexEdgeNode({
       if (stopped) return;
       stopped = true;
       if (timer) clearInterval(timer);
-      await peerNode.stop().catch(() => {});
+      if (ownsPeerNode) await peerNode.stop().catch(() => {});
       state.online = false;
     }
   };
