@@ -46,31 +46,50 @@ async function groq(prompt, system) {
   return { text, provider: "groq-free" };
 }
 
-export async function executeCrewInference(prompt, system = DEFAULT_SYSTEM) {
+const CREW_ROLES = Object.freeze({
+  researcher: "Researcher: extract evidence, identify gaps, and preserve source provenance.",
+  verifier: "Verifier: challenge claims, detect unsupported assertions, and separate fact from inference.",
+  scriptwriter: "Scriptwriter: turn verified material into an engaging production script with a compelling opening.",
+  story_editor: "Story Editor: improve structure, pacing, clarity, and retention without corrupting source claims.",
+  visual_director: "Visual Director: translate scenes into cinematic visual direction, composition, motion, and style.",
+  cinematographer: "Cinematographer: specify shots, lenses, framing, lighting, camera movement, and continuity.",
+  voice_director: "Voice Director: specify narration performance, delivery, pacing, emphasis, and character voice direction.",
+  audio_director: "Audio Director: design dialogue, ambience, transitions, mixing intent, and audio cues.",
+  composer: "Composer: design musical identity, themes, instrumentation, dynamics, and cue structure.",
+  sfx_designer: "SFX Designer: design sound effects, textures, impacts, transitions, and sync points.",
+  editor: "Editor: assemble the production plan with timing, continuity, transitions, and retention beats.",
+  qc: "QC Inspector: identify factual, continuity, technical, provenance, and production defects before release.",
+  general: "Production intelligence: solve the assigned Apex Studio task precisely and report uncertainty."
+});
+
+function roleSystem(role, system) {
+  const key = String(role || "general").trim().toLowerCase().replace(/[- ]+/g, "_");
+  return [system, CREW_ROLES[key] || CREW_ROLES.general, `Assigned crew role: ${key}`].join("\n\n");
+}
+
+export async function executeCrewInference(prompt, system = DEFAULT_SYSTEM, options = {}) {
   const input = String(prompt || "").trim();
   if (!input) throw new Error("Crew inference prompt is required");
+  const role = options?.role || "general";
+  const crewSystem = roleSystem(role, system);
   const failures = [];
-
   const gemini = new GeminiMeshProvider();
   const claude = new ClaudeMeshProvider();
-
   const providers = [
-    ["gemini", () => gemini.generate(input, { system })],
-    ["claude", () => claude.generate(input, { system, model: claude.model })],
-    ["groq-free", () => groq(input, system)],
-    ["pollinations", () => pollinations(input, system)]
+    ["gemini", () => gemini.generate(input, { system: crewSystem })],
+    ["claude", () => claude.generate(input, { system: crewSystem, model: claude.model })],
+    ["groq-free", () => groq(input, crewSystem)],
+    ["pollinations", () => pollinations(input, crewSystem)]
   ];
-
   for (const [name, call] of providers) {
     try {
       const result = await call();
       return typeof result === "string"
-        ? { text: result, provider: name, failures }
-        : { ...result, failures };
+        ? { text: result, provider: name, role, failures }
+        : { ...result, provider: result.provider || name, role, failures };
     } catch (error) {
       failures.push(`${name}: ${String(error?.message || error)}`);
     }
   }
-
-  throw new Error(`AI crew inference exhausted: ${failures.join(" | ")}`);
+  throw new Error(`AI crew inference exhausted for role ${role}: ${failures.join(" | ")}`);
 }
