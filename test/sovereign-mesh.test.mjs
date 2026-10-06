@@ -34,13 +34,12 @@ test('sovereign WAL persists, deduplicates, and recovers', async () => {
     assert.equal(recovered.size, 1);
     assert.equal(recovered.get('wave-1').checksum, first.checksum);
 
-    await assert.rejects(
-      recovered.dispatchAutonomousPayload({
-        waveId: 'wave-2',
-        action: 'test'
-      }),
-      /WAL recovery|No sovereign/
-    );
+    const second = await recovered.dispatchAutonomousPayload({
+      waveId: 'wave-2',
+      action: 'test'
+    });
+    assert.equal(second.seq, first.seq + 1);
+    assert.equal(recovered.size, 2);
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
     else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
