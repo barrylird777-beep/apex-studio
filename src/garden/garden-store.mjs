@@ -64,6 +64,33 @@ export async function createGardenActivity(input = {}) {
   return result.rows[0];
 }
 
+export async function getGardenWorld() {
+  const [garden, places, freaks, specialties, states, discoveries, relationships, discoveryLinks, activities, events] = await Promise.all([
+    dbPool.query('SELECT * FROM garden_places WHERE slug=$1', ['the-garden-of-apex']),
+    dbPool.query('SELECT * FROM garden_places ORDER BY id'),
+    dbPool.query('SELECT * FROM garden_freaks ORDER BY id'),
+    dbPool.query('SELECT * FROM garden_freak_specialties ORDER BY freak_id,specialty'),
+    dbPool.query('SELECT * FROM garden_freak_state ORDER BY freak_id'),
+    dbPool.query('SELECT * FROM garden_discoveries ORDER BY created_at DESC'),
+    dbPool.query('SELECT * FROM garden_relationships ORDER BY id'),
+    dbPool.query('SELECT * FROM garden_discovery_links ORDER BY id'),
+    dbPool.query('SELECT * FROM garden_activities ORDER BY id DESC LIMIT 500'),
+    dbPool.query('SELECT * FROM garden_events ORDER BY occurred_at DESC LIMIT 500')
+  ]);
+  return {
+    garden: garden.rows[0] ?? null,
+    places: places.rows,
+    freaks: freaks.rows,
+    specialties: specialties.rows,
+    states: states.rows,
+    discoveries: discoveries.rows,
+    relationships: relationships.rows,
+    discoveryLinks: discoveryLinks.rows,
+    activities: activities.rows,
+    events: events.rows
+  };
+}
+
 export async function getGarden() {
   const [place, freaks, discoveries] = await Promise.all([
     dbPool.query('SELECT id, slug, name, kind, description, metadata, created_at, updated_at FROM garden_places WHERE slug=$1', ['the-garden-of-apex']),
