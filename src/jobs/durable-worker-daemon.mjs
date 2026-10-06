@@ -7,6 +7,8 @@ const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${proces
 const leaseMs = Number(process.env.APEX_WORKER_LEASE_MS || 30000);
 const heartbeatMs = Math.max(1000, Math.floor(leaseMs / 3));
 const pollMs = Number(process.env.APEX_WORKER_POLL_MS || 250);
+const concurrency = Math.max(1, Math.min(32, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
+const batchSize = Math.max(1, Math.min(20, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 
@@ -68,11 +70,27 @@ async function main() {
   console.log('[WORKER] online', workerId);
   while (!stopping) {
     await recover();
-    const job = await store.claimOne({ workerId, now: new Date(), leaseMs });
-    if (!job) { await sleep(pollMs); continue; }
-    const task = runJob(job);
-    active.add(task);
-    try { await task; } finally { active.delete(task); }
+    const capacity = concurrency - active.size;
+    if (capacity <= 0) {
+      await sleep(pollMs);
+      continue;
+    }
+    const jobs = await store.claimBatch({
+      workerId,
+      now: new Date(),
+      leaseMs,
+      batchSize: Math.min(batchSize, capacity)
+    });
+    if (!jobs.length) {
+      await sleep(pollMs);
+      continue;
+    }
+    for (const job of jobs) {
+      const task = runJob(job);
+      active.add(task);
+      task.finally(() => active.delete(task)).catch(() => {});
+    }
+    await Promise.race([...active]);
   }
 }
 
