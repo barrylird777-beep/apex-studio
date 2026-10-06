@@ -61,6 +61,7 @@ export async function createGardenActivity(input = {}) {
     'INSERT INTO garden_activities (place_id,freak_id,activity,state,details) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING *',
     [placeId,freakId,activity,state,JSON.stringify(input.details && typeof input.details === 'object' ? input.details : {})]
   );
+  await recordGardenEvent({ eventType: 'activity.created', activityId: result.rows[0]?.id ?? null, placeId, freakId, payload: { activity, state } });
   return result.rows[0];
 }
 
@@ -123,6 +124,7 @@ export async function setGardenFreakState(freakId, input = {}) {
     'INSERT INTO garden_freak_state (freak_id,status,energy,focus,experience,state) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (freak_id) DO UPDATE SET status=EXCLUDED.status,energy=EXCLUDED.energy,focus=EXCLUDED.focus,experience=EXCLUDED.experience,state=EXCLUDED.state,updated_at=now() RETURNING *',
     [id,status,energy,focus,experience,JSON.stringify(input.state && typeof input.state === 'object' ? input.state : {})]
   );
+  await recordGardenEvent({ eventType: 'freak.state.changed', freakId: id, payload: { status, energy, focus, experience } });
   return result.rows[0];
 }
 
@@ -145,6 +147,7 @@ export async function setGardenFreakSpecialty(freakId, input = {}) {
     'INSERT INTO garden_freak_specialties (freak_id,specialty,level,metadata) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (freak_id,specialty) DO UPDATE SET level=EXCLUDED.level,metadata=EXCLUDED.metadata,updated_at=now() RETURNING *',
     [id,specialty,level,JSON.stringify(input.metadata && typeof input.metadata === 'object' ? input.metadata : {})]
   );
+  await recordGardenEvent({ eventType: 'freak.specialty.changed', freakId: id, payload: { specialty, level } });
   return result.rows[0];
 }
 
@@ -162,6 +165,7 @@ export async function createGardenFreak(input = {}) {
     'INSERT INTO garden_freaks (slug,name,kind,life_stage,specialties,description,metadata,place_id) SELECT $1,$2,$3,$4,$5::jsonb,$6,$7::jsonb,id FROM garden_places WHERE slug=$8 RETURNING *',
     [slug,name,kind,lifeStage,JSON.stringify(specialties),input.description ? String(input.description) : null,JSON.stringify(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),'the-garden-of-apex']
   );
+  await recordGardenEvent({ eventType: 'freak.created', freakId: result.rows[0]?.id ?? null, payload: { kind: result.rows[0]?.kind, lifeStage: result.rows[0]?.life_stage } });
   return result.rows[0] ?? null;
 }
 
@@ -213,5 +217,6 @@ export async function createGardenDiscovery(input = {}) {
   const rating = input.rating == null ? null : Number(input.rating);
   if (rating !== null && (!Number.isInteger(rating) || rating < 0 || rating > 100)) throw new TypeError('rating must be an integer from 0 to 100');
   const result = await dbPool.query('INSERT INTO garden_discoveries (slug,title,kind,description,source_ref,provenance,status,rating,created_by_freak_id) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9) RETURNING *', [slug,title,kind,description,input.sourceRef ? String(input.sourceRef) : null,JSON.stringify(input.provenance && typeof input.provenance === 'object' ? input.provenance : {}),String(input.status || 'discovered'),rating,input.createdByFreakId == null ? null : Number(input.createdByFreakId)]);
+  await recordGardenEvent({ eventType: 'discovery.created', discoveryId: result.rows[0]?.id ?? null, freakId: result.rows[0]?.created_by_freak_id ?? null, payload: { kind: result.rows[0]?.kind, rating: result.rows[0]?.rating } });
   return result.rows[0];
 }
