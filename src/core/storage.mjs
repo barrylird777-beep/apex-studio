@@ -75,7 +75,7 @@ function queueManifestWrite(task) {
   return run;
 }
 export async function initStorage() {
-  if (STORAGE_BACKEND === "s3") return;
+  // Object storage holds media; the small local manifest remains the local compatibility index.
   await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
   try { await fs.access(PROJECT_FILE); }
   catch (error) {
