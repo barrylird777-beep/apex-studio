@@ -1,6 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'node:path';
-import { is4kMasterCompliant, selectEncoderFromList } from './render-performance.mjs';
+import { is4kMasterCompliant, selectEncoderFromList, probeFfmpegEncoders } from './render-performance.mjs';
 
 export const PROD_SETTINGS = {
   audio: { bitrate: '320k', frequency: 48000, channels: 2, masterLoudness: 'loudnorm=I=-16:LRA=11:TP=-1.5' },
@@ -145,4 +145,15 @@ export function buildFfmpegPlan({ media = [], audio = [], format = 'master', out
   } else out.push('-an');
   out.push('-r', String(preset.fps), '-c:v', preset.videoCodec, '-profile:v', preset.profile, '-level', preset.level, '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output);
   return { command: 'ffmpeg', args: [...args, ...out], preset, inputCount: video.length + audioInputs.length, ready: true };
+}
+
+
+export async function createMasterRenderPlan({ probe, format = '4k', preferredEncoder = 'auto', availableEncoders } = {}) {
+  const encoders = availableEncoders || await probeFfmpegEncoders();
+  const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS['4k'];
+  if (is4kMasterCompliant(probe, preset)) {
+    return Object.freeze({ mode: 'stream-copy-video', encoder: null, preset, availableEncoders: encoders });
+  }
+  const encoder = selectEncoderFromList(encoders, preferredEncoder);
+  return Object.freeze({ mode: 'encode', encoder, preset, availableEncoders: encoders });
 }
