@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { pool as dbPool } from "../db/index.ts";
-import { claimExternalEffect, completeExternalEffect } from "../core/mesh/durable-worker-store.mjs";
+import { claimExternalEffect, completeExternalEffect, releaseExternalEffect } from "../core/mesh/durable-worker-store.mjs";
 
 function eventIdFor(taskId) {
   return `worker.completed:${crypto.createHash("sha256").update(String(taskId)).digest("hex").slice(0, 32)}`;
@@ -98,6 +98,7 @@ export async function dispatchCompletedWorkerEvents({
         );
         dispatched++;
       } catch (error) {
+        await releaseExternalEffect(eventId).catch(() => {});
         failed++;
         const delay = backoffMs(attempt);
         const message = error instanceof Error ? error.message : String(error);
