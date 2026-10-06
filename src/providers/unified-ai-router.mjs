@@ -2,7 +2,7 @@ const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_ME
 const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_AI_DAILY_REQUESTS = Math.max(1, Number(process.env.APEX_FREE_AI_DAILY_REQUESTS || 5000));
-const FREE_AI_PROVIDERS = new Set(['pollinations', 'openrouter']);
+const FREE_AI_PROVIDERS = new Set(['openrouter']);
 
 export const AI_PROVIDER_CATALOG = [
   { id: 'openai', category: 'frontier-text-reasoning', env: 'OPENAI_API_KEY', modelEnv: 'OPENAI_MAX_MODEL', defaultModel: 'gpt-6-astra', protocol: 'responses' },
@@ -135,7 +135,7 @@ async function openAiCompatible({ p, model, messages, temperature, maxTokens }) 
 
 export async function generateUnifiedAi({ provider, prompt, messages, system, model, temperature, max_tokens, maxTokens } = {}) {
   const requested = String(provider || '').trim().toLowerCase();
-  const effectiveProvider = FREE_MODE ? (FREE_AI_PROVIDERS.has(requested) ? requested : 'pollinations') : requested;
+  const effectiveProvider = FREE_MODE ? (FREE_AI_PROVIDERS.has(requested) ? requested : 'openrouter') : requested;
   enforceFreeAiBudget(effectiveProvider);
   const p = providerOf(effectiveProvider);
   if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
