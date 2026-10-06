@@ -238,12 +238,18 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   return false;
 }
 
-export async function claimExternalEffect(idempotencyKey) {
+export async function claimExternalEffect(idempotencyKey, leaseMs = 300000) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(`INSERT INTO apex_external_effects (idempotency_key, status)
-     VALUES ($1, 'started') ON CONFLICT (idempotency_key) DO NOTHING RETURNING idempotency_key`, [key]);
+  const safeLease = Math.max(5000, Math.min(3600000, Number(leaseMs) || 300000));
+  const r = await getPool().query(`INSERT INTO apex_external_effects (idempotency_key, status, lease_expires_at)
+     VALUES ($1, 'started', NOW()+($2::double precision * INTERVAL '1 millisecond'))
+     ON CONFLICT (idempotency_key) DO UPDATE
+       SET status='started', lease_expires_at=NOW()+($2::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
+       WHERE apex_external_effects.status='started'
+         AND apex_external_effects.lease_expires_at < NOW()
+     RETURNING idempotency_key`, [key, safeLease]);
   return r.rowCount === 1;
 }
 
@@ -252,7 +258,7 @@ export async function releaseExternalEffect(idempotencyKey) {
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
   const r = await getPool().query(
-    "DELETE FROM apex_external_effects WHERE idempotency_key=$1 AND status='started'",
+    "UPDATE apex_external_effects SET lease_expires_at=NOW(), updated_at=NOW() WHERE idempotency_key=$1 AND status='started'",
     [key]
   );
   return r.rowCount === 1;
@@ -262,7 +268,7 @@ export async function completeExternalEffect(idempotencyKey, result = null) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(`UPDATE apex_external_effects SET status='completed', result=$2::jsonb, updated_at=NOW()
+  const r = await getPool().query(`UPDATE apex_external_effects SET status='completed', lease_expires_at=NULL, result=$2::jsonb, updated_at=NOW()
      WHERE idempotency_key=$1 AND status='started'`, [key, JSON.stringify(result)]);
   return r.rowCount === 1;
 }
