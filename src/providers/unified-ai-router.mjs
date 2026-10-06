@@ -1,5 +1,8 @@
 const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_MESSAGES || 50)));
 const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
+const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
+const FREE_AI_DAILY_REQUESTS = Math.max(1, Number(process.env.APEX_FREE_AI_DAILY_REQUESTS || 5000));
+const FREE_AI_PROVIDERS = new Set(['pollinations', 'openrouter']);
 
 export const AI_PROVIDER_CATALOG = [
   { id: 'openai', category: 'frontier-text-reasoning', env: 'OPENAI_API_KEY', modelEnv: 'OPENAI_MAX_MODEL', defaultModel: 'gpt-6-astra', protocol: 'responses' },
@@ -16,7 +19,8 @@ export const AI_PROVIDER_CATALOG = [
   { id: 'cerebras', category: 'ultra-fast-inference', env: 'CEREBRAS_API_KEY', modelEnv: 'CEREBRAS_MODEL', defaultModel: 'llama-3.3-70b', protocol: 'openai-compatible' },
   { id: 'sambanova', category: 'ultra-fast-inference', env: 'SAMBANOVA_API_KEY', modelEnv: 'SAMBANOVA_MODEL', defaultModel: 'Meta-Llama-3.3-70B-Instruct', protocol: 'openai-compatible' },
   { id: 'groq', category: 'ultra-fast-inference', env: 'GROQ_API_KEY', modelEnv: 'GROQ_MODEL', defaultModel: 'llama-3.3-70b-versatile', protocol: 'openai-compatible' },
-  { id: 'openrouter', category: 'multi-provider-routing', env: 'OPENROUTER_API_KEY', modelEnv: 'OPENROUTER_MODEL', defaultModel: 'openrouter/free', protocol: 'openai-compatible' }
+  { id: 'openrouter', category: 'multi-provider-routing', env: 'OPENROUTER_API_KEY', modelEnv: 'OPENROUTER_MODEL', defaultModel: 'openrouter/free', protocol: 'openai-compatible' },
+  { id: 'pollinations', category: 'free-fallback', env: null, modelEnv: 'POLLINATIONS_MODEL', defaultModel: 'openai', protocol: 'pollinations' }
 ];
 
 const ALIASES = new Map(AI_PROVIDER_CATALOG.flatMap(p => [p.id, ...(p.aliases || [])].map(a => [a, p])));
@@ -41,6 +45,27 @@ function messagesOf({ prompt, messages, system }) {
   if (!text) throw new Error('prompt is required');
   if (text.length > MAX_CHARS) throw new Error('prompt exceeds configured maximum');
   return [{ role: 'system', content: String(system || '').trim() }, { role: 'user', content: text }].filter(x => x.content);
+}
+
+const freeUsage = { day: '', requests: 0 };
+function enforceFreeAiBudget(provider) {
+  if (!FREE_MODE) return;
+  if (!FREE_AI_PROVIDERS.has(provider)) throw new Error(`Free mode blocks paid/non-free AI provider: ${provider}`);
+  const day = new Date().toISOString().slice(0, 10);
+  if (freeUsage.day !== day) { freeUsage.day = day; freeUsage.requests = 0; }
+  if (freeUsage.requests >= FREE_AI_DAILY_REQUESTS) throw new Error('Free AI daily safety budget reached');
+  freeUsage.requests += 1;
+}
+
+async function pollinations({ model, messages }) {
+  const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+  const r = await fetch('https://text.pollinations.ai/', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ messages, model: model || 'openai' })
+  });
+  if (!r.ok) throw new Error(`Pollinations HTTP ${r.status}`);
+  return { id: null, model: model || 'openai', text: await r.text(), usage: null };
 }
 
 async function post(url, headers, body, timeoutMs = 120000) {
@@ -109,12 +134,16 @@ async function openAiCompatible({ p, model, messages, temperature, maxTokens }) 
 }
 
 export async function generateUnifiedAi({ provider, prompt, messages, system, model, temperature, max_tokens, maxTokens } = {}) {
-  const p = providerOf(provider);
-  if (!process.env[p.env] && !['openai','xai'].includes(p.id)) throw new Error(`${p.env} is not configured`);
+  const requested = String(provider || '').trim().toLowerCase();
+  const effectiveProvider = FREE_MODE ? (FREE_AI_PROVIDERS.has(requested) ? requested : 'pollinations') : requested;
+  enforceFreeAiBudget(effectiveProvider);
+  const p = providerOf(effectiveProvider);
+  if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
   const normalized = messagesOf({ prompt, messages, system });
   const selectedModel = String(model || process.env[p.modelEnv] || p.defaultModel).trim();
   let result;
-  if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
+  if (p.id === 'pollinations') result = await pollinations({ model: selectedModel, messages: normalized });
+  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
   else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
   else if (p.id === 'cohere') result = await cohere({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
   else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });

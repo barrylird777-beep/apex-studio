@@ -49,6 +49,7 @@ export async function generateMax({
   schemaDescription,
   verbosity = 'high', reasoningEffort = 'max'
 } = {}) {
+  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: OpenAI');
   const client = getClient();
   const input = normalizeInput({ prompt, messages });
   const normalizedSchema = normalizeSchema(schema);

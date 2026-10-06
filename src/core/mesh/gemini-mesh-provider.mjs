@@ -8,6 +8,7 @@ export class GeminiMeshProvider {
   }
 
   async generate(prompt, options = {}) {
+  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Gemini');
     if (!this.apiKey) throw new Error('Gemini not configured');
     const model = options.model || this.model;
     const rateLimit = await acquireAiRateLimit({
