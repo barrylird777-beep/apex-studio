@@ -27,7 +27,6 @@ import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
-import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
 import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
 
@@ -192,7 +191,6 @@ const permanentWorkerHeartbeat = setInterval(() => {
 }, apexOverseer.intervalMs);
 permanentWorkerHeartbeat.unref?.();
 
-const episodePipeline = new EpisodePipeline(dbPool);
 
 const rogueApDetector = new RogueApDetector({
   authorizedSsid: process.env.APEX_WIFI_AUTHORIZED_SSID || 'Apex_Industrial_Mesh',
@@ -262,7 +260,7 @@ app.use('/api/mobile', createMobileControlPlane({
     };
   },
   generateAi: payload => generateUnifiedAi(payload),
-  produceEpisode: (book, chapter, verses, traceId) => episodePipeline.igniteEpisode(book, chapter, verses, traceId)
+  produceEpisode: async () => { throw new Error('Episode pipeline is unavailable in this deployment'); }
 }));
 
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
@@ -315,24 +313,8 @@ app.post('/api/network/rogue-ap/observations', async (req, res) => {
   }
 });
 
-app.post('/api/episodes/produce', async (req, res) => {
-  try {
-    const book = String(req.body?.book || '').trim();
-    const chapter = Number(req.body?.chapter);
-    const verses = String(req.body?.verses || 'full').trim();
-    const traceId = String(req.headers['x-request-id'] || crypto.randomUUID());
-    if (!book || !Number.isInteger(chapter)) {
-      return res.status(400).json({ success: false, error: 'book and integer chapter are required' });
-    }
-    const result = await episodePipeline.igniteEpisode(book, chapter, verses, traceId);
-    return res.status(202).json({ success: true, ...result, traceId });
-  } catch (error) {
-    console.error('[episodes/produce] enqueue failed:', error?.message || error);
-    return res.status(400).json({
-      success: false,
-      error: error?.message || 'Episode pipeline enqueue failed'
-    });
-  }
+app.post('/api/episodes/produce', (_req, res) => {
+  return res.status(503).json({ success: false, error: 'Episode pipeline is unavailable in this deployment' });
 });
 
 app.use('/api/search', createSearchRouter(dbPool));
