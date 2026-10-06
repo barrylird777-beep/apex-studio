@@ -102,10 +102,21 @@ export async function streamAssetToStorage(readableStream, episodeId, assetName)
   const tempPath = path.join(dir, '.' + asset + '.part-' + process.pid + '-' + Date.now());
   const hash = crypto.createHash('sha256');
   let bytes = 0;
+  const startedAt = performance.now();
+  let lastSampleAt = startedAt;
+  let lastSampleBytes = 0;
+  let peakMbps = 0;
   const digest = new (await import('node:stream')).Transform({
     transform(chunk, encoding, callback) {
       const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
       bytes += data.length;
+      const now = performance.now();
+      if (now - lastSampleAt >= 250) {
+        const mbps = ((bytes - lastSampleBytes) * 8) / ((now - lastSampleAt) / 1000) / 1e6;
+        peakMbps = Math.max(peakMbps, mbps);
+        lastSampleAt = now;
+        lastSampleBytes = bytes;
+      }
       hash.update(data);
       callback(null, data);
     }
@@ -113,7 +124,10 @@ export async function streamAssetToStorage(readableStream, episodeId, assetName)
   try {
     await pipeline(readableStream, digest, createWriteStream(tempPath, { flags: 'wx', mode: 0o600 }));
     await fs.rename(tempPath, finalPath);
-    return Object.freeze({ episodeId: episode, assetName: asset, path: finalPath, bytes, sha256: hash.digest('hex') });
+    const elapsedMs = Math.max(0.001, performance.now() - startedAt);
+    const averageMbps = (bytes * 8) / (elapsedMs / 1000) / 1e6;
+    peakMbps = Math.max(peakMbps, averageMbps);
+    return Object.freeze({ episodeId: episode, assetName: asset, path: finalPath, bytes, sha256: hash.digest('hex'), elapsedMs, averageMbps, peakMbps });
   } catch (error) {
     await fs.rm(tempPath, { force: true }).catch(() => {});
     throw error;
