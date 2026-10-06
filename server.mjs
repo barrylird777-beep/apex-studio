@@ -27,7 +27,6 @@ import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
-import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -207,15 +206,6 @@ const rogueApDetector = new RogueApDetector({
     }
   })()
 });
-
-const webhookDaemon = durableWorkerEnabled()
-  ? setInterval(() => {
-      void dispatchCompletedWorkerEvents({ pool: dbPool }).catch(error => {
-        console.error("[webhook-dispatcher] dispatch failed:", error?.message || error);
-      });
-    }, Math.max(1000, Number(process.env.APEX_WEBHOOK_POLL_MS || 5000)))
-  : null;
-webhookDaemon?.unref?.();
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
