@@ -31,6 +31,12 @@ export function assertProductionHandoff(value) {
   return productionHandoffSchema.parse(value);
 }
 
+export function validateScriptGardenReferences(references, verifiedIds) {
+  if (!Array.isArray(references)) throw new Error("Script Garden references must be an array");
+  for (const reference of references) rejectUnverifiedGardenReference(reference, verifiedIds);
+  return true;
+}
+
 export function rejectUnverifiedGardenReference(reference, verifiedIds) {
   const id = String(reference?.id || "");
   if (!verifiedIds.has(id)) throw new Error(`Unverified Garden reference rejected: ${id || "missing id"}`);
