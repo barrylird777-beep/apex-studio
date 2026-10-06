@@ -62,21 +62,31 @@ export function buildFastMasterDecision({ video, availableEncoders = [], preferr
   return { mode: 'encode', encoder, preset };
 }
 
-export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, outputPath, format = '4k') {
+export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, outputPath, format = '4k', options = {}) {
   if (!stitchedVideoPath || !masteredAudioPath || !outputPath) throw new Error('Video, mastered audio, and output paths are required');
   const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS['4k'];
+  const decision = options.decision || null;
+  const copyVideo = decision?.mode === 'stream-copy-video';
   return new Promise((resolve, reject) => {
-    ffmpeg().input(stitchedVideoPath).input(masteredAudioPath)
-      .videoCodec(preset.videoCodec).audioCodec(preset.audioCodec)
+    const command = ffmpeg().input(stitchedVideoPath).input(masteredAudioPath)
+      .audioCodec(preset.audioCodec)
       .audioBitrate(PROD_SETTINGS.audio.bitrate).audioFrequency(PROD_SETTINGS.audio.frequency)
-      .audioChannels(PROD_SETTINGS.audio.channels)
-      .outputOptions([
+      .audioChannels(PROD_SETTINGS.audio.channels);
+
+    if (copyVideo) {
+      command.outputOptions([
+        '-c:v', 'copy', '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-movflags', '+faststart'
+      ]);
+    } else {
+      command.videoCodec(decision?.encoder?.codec || preset.videoCodec).outputOptions([
         '-preset', preset.encodePreset || PROD_SETTINGS.video.preset, '-crf', String(PROD_SETTINGS.video.crf),
         '-r', String(preset.fps), '-vf', PROD_SETTINGS.video.colorGrade,
         '-pix_fmt', 'yuv420p', '-profile:v', preset.profile, '-level', preset.level,
         '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-movflags', '+faststart'
-      ])
-      .save(outputPath).on('end', () => resolve(outputPath)).on('error', reject);
+      ]);
+    }
+
+    command.save(outputPath).on('end', () => resolve(outputPath)).on('error', reject);
   });
 }
 
