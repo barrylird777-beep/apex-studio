@@ -2,7 +2,7 @@ import sqlite3 from "sqlite3";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { uid } from "../core/id.mjs";
+import crypto from "node:crypto";
 import { synthesizeSpeech, listVoiceOptions } from "../core/audio-station.mjs";
 
 const DB_FILE=process.env.APEX_VOICEOVER_DB_FILE||process.env.APEX_PRODUCTION_DB_FILE||"./apex-production.sqlite";
@@ -21,7 +21,7 @@ speed REAL DEFAULT 1,pitch REAL DEFAULT 0,format TEXT DEFAULT 'wav',status TEXT 
 attempts INTEGER DEFAULT 0,priority INTEGER DEFAULT 0,available_at INTEGER DEFAULT (unixepoch()),
 created_at INTEGER DEFAULT (unixepoch()),started_at INTEGER,finished_at INTEGER,output_path TEXT,
 bytes INTEGER,error TEXT,result_json TEXT)`);await run("CREATE INDEX IF NOT EXISTS idx_voiceover_pick ON voiceover_jobs(status,available_at,priority DESC,created_at)")}
-export async function enqueueVoiceoverJob(input={},options={}){await initSchema();const id=options.id||input.id||uid("voice");await run("INSERT INTO voiceover_jobs(id,text,provider,voice,language,speed,pitch,format,priority) VALUES(?,?,?,?,?,?,?,?,?)",[id,String(input.text||""),String(input.provider||"auto"),input.voice||"",input.language||"en-US",Number(input.speed||1),Number(input.pitch||0),String(input.format||"wav"),Number(options.priority||input.priority||0)]);return id}
+export async function enqueueVoiceoverJob(input={},options={}){await initSchema();const id=options.id||input.id||crypto.randomUUID();await run("INSERT INTO voiceover_jobs(id,text,provider,voice,language,speed,pitch,format,priority) VALUES(?,?,?,?,?,?,?,?,?)",[id,String(input.text||""),String(input.provider||"auto"),input.voice||"",input.language||"en-US",Number(input.speed||1),Number(input.pitch||0),String(input.format||"wav"),Number(options.priority||input.priority||0)]);return id}
 
 async function eleven(text,p){if(!process.env.ELEVENLABS_API_KEY)throw new Error("ElevenLabs not configured");const voice=p.voice||process.env.ELEVENLABS_VOICE_ID;if(!voice)throw new Error("ElevenLabs voice_id required");const model=p.model||process.env.ELEVENLABS_MODEL||"eleven_multilingual_v2";const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=${p.format==="wav"?"pcm_44100":"mp3_44100_192"}`,{method:"POST",headers:{"xi-api-key":process.env.ELEVENLABS_API_KEY,"content-type":"application/json"},body:JSON.stringify({text,model_id:model,voice_settings:{speed:Number(p.speed||1)}})});if(!r.ok)throw new Error("ElevenLabs "+r.status);return Buffer.from(await r.arrayBuffer())}
 async function google(text,p){if(!process.env.GOOGLE_TTS_API_KEY)throw new Error("Google TTS not configured");const voice=p.voice||process.env.GOOGLE_TTS_VOICE||"en-US-Neural2-D";const language=p.language||voice.split("-").slice(0,2).join("-");const r=await fetch("https://texttospeech.googleapis.com/v1/text:synthesize?key="+encodeURIComponent(process.env.GOOGLE_TTS_API_KEY),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({input:{text},voice:{languageCode:language,name:voice},audioConfig:{audioEncoding:p.format==="wav"?"LINEAR16":"MP3",speakingRate:Number(p.speed||1),pitch:Number(p.pitch||0)}})});if(!r.ok)throw new Error("Google TTS "+r.status);const d=await r.json();return Buffer.from(d.audioContent||"","base64")}
