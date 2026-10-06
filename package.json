@@ -26,7 +26,8 @@
     "backhaul:mesh": "bash scripts/apex-decentralized-backhaul.sh",
     "backhaul:fabric": "bash scripts/apex-backhaul-fabric.sh",
     "backhaul:max": "bash scripts/apex-network-max.sh",
-    "sovereign:runtime": "node src/core/sovereign-runtime-daemon.mjs"
+    "sovereign:runtime": "node src/core/sovereign-runtime-daemon.mjs",
+    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
