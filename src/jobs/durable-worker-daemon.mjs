@@ -125,8 +125,7 @@ async function main() {
   console.log('[WORKER] online', workerId);
   while (!stopping) {
     await recover();
-    const renderSlots = Math.max(0, renderConcurrency - renderActive());
-    const capacity = Math.min(concurrency - active.size, renderSlots + Math.max(0, concurrency - active.size));
+    const capacity = concurrency - active.size;
     if (capacity <= 0) {
       await sleep(active.size ? 10 : idlePollMs);
       continue;
