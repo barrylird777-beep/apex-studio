@@ -65,7 +65,7 @@ export function buildFastMasterDecision({ video, availableEncoders = [], preferr
 export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, outputPath, format = '4k', options = {}) {
   if (!stitchedVideoPath || !masteredAudioPath || !outputPath) throw new Error('Video, mastered audio, and output paths are required');
   const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS['4k'];
-  const decision = options.decision || null;
+  const decision = options.decision || await createMasterRenderPlan({ probe: options.probe, format, preferredEncoder: options.preferredEncoder, availableEncoders: options.availableEncoders });
   const copyVideo = decision?.mode === 'stream-copy-video';
   return new Promise((resolve, reject) => {
     const command = ffmpeg().input(stitchedVideoPath).input(masteredAudioPath)
