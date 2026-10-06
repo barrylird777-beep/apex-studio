@@ -1,25 +1,29 @@
-# Music Radar ↔ Garden of Apex ↔ Apex Studio
+# Music Radar ↔ GardenOfApex ↔ Apex Studio
 
-Music Radar remains a standalone music product. It owns music and audio creation; Apex Studio consumes verified audio packages instead of reimplementing the music app.
+> This document supersedes the older boundary that treated Music Radar as an independent final-audio authority.
 
-## Ownership
+## Current ownership
 
-Music Radar owns songwriting, composition, genre fusion, recording, vocals, narration, dialogue, music, score, ambience, SFX, sound design, editing, mixing, mastering, WAV/MP3 export, local projects, and musical taste/profile intelligence.
+- **KORN-KNOB** owns the AI/model/provider capability layer for music, audio, voice, imagery, video, and other media AI.
+- **Apex Studio** owns the Audio Lab and final audio/audiovisual production: direction, editing, arrangement, synchronization, mixing, mastering, QC, render, and release packaging.
+- **GardenOfApex** owns research/world truth when a production depends on Garden knowledge.
+- Existing Music Radar code is an integration/client surface; it must not become a second production authority over Studio.
 
-Apex Studio owns film/video story production, visual generation and continuity, timeline/edit assembly, render and media QC, provenance, release packaging, and durable worker orchestration.
+## Existing handoff
 
-Garden of Apex owns the fictional world, Jesus Freaks, relationships, places, rules, and world-state, delivered as versioned packages when a production depends on Garden state.
+The existing contract is `music-radar-studio-handoff.v1`.
 
-## Handoff
+A handoff may carry:
+- content domain (`bible`, `korn`, or `original`)
+- musical intent
+- audio/media assets
+- checksums and provenance
+- an optional verified Garden package
 
-The integration contract is `music-radar-studio-handoff.v1`.
-
-Music Radar sends a content domain (`bible`, `korn`, or `original`), musical intent, exported audio assets with checksums/provenance, and an optional Garden package.
-
-Bible productions do not require Garden references. Korn productions can carry verified Garden references. Original productions can remain independent.
+Studio decides where assets belong in a production and performs final assembly.
 
 ## Boundary rule
 
-**Music Radar creates the sound. Apex Studio directs where that sound belongs in the film. Garden of Apex supplies world truth only when the production uses Garden content.**
+**KORN-KNOB supplies capabilities. Garden supplies knowledge. Studio directs and produces the final work.**
 
-The Studio must never silently replace a Music Radar asset with an unverified audio asset.
+Legacy code that says Music Radar independently owns final songwriting, recording, mixing, mastering, or production authority is no longer the target architecture and must be refactored toward this boundary.
