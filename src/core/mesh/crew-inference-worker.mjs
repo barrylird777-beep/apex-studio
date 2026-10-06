@@ -62,28 +62,82 @@ const CREW_ROLES = Object.freeze({
   general: "Production intelligence: solve the assigned Apex Studio task precisely and report uncertainty."
 });
 
+const ROLE_ALIASES = Object.freeze({
+  "knowledge-research": "researcher", genealogy: "researcher", "textual-traditions": "verifier",
+  "world-knowledge": "researcher", chronology: "verifier", "visual-direction": "visual_director",
+  "audio-reference": "voice_director", publishing: "editor", automation: "infrastructure",
+  qa: "qc", infrastructure: "infrastructure", "editor-core": "editor", "video-engine": "editor",
+  "audio-engine": "audio_director", captions: "editor", export: "editor", "editor-ux": "editor",
+  "editor-qa": "qc", voiceover: "voice_director", "media-ingest": "editor",
+  "project-storage": "infrastructure", "render-cache": "editor", performance: "infrastructure",
+  observability: "qc", accessibility: "qc", "release-qa": "qc"
+});
+
+const PROVIDER_ORDER = Object.freeze({
+  researcher: ["gemini", "groq-free", "claude", "pollinations"],
+  verifier: ["claude", "gemini", "groq-free", "pollinations"],
+  scriptwriter: ["gemini", "claude", "groq-free", "pollinations"],
+  visual_director: ["gemini", "claude", "pollinations", "groq-free"],
+  cinematographer: ["gemini", "claude", "groq-free", "pollinations"],
+  voice_director: ["claude", "gemini", "groq-free", "pollinations"],
+  audio_director: ["gemini", "claude", "groq-free", "pollinations"],
+  composer: ["gemini", "claude", "groq-free", "pollinations"],
+  sfx_designer: ["gemini", "groq-free", "claude", "pollinations"],
+  editor: ["claude", "gemini", "groq-free", "pollinations"],
+  qc: ["claude", "gemini", "groq-free", "pollinations"],
+  infrastructure: ["claude", "gemini", "groq-free", "pollinations"],
+  general: ["gemini", "claude", "groq-free", "pollinations"]
+});
+
+function normalizeRole(role) {
+  const raw = String(role || "general").trim().toLowerCase().replace(/[- ]+/g, "_");
+  return ROLE_ALIASES[raw] || raw;
+}
+
 function roleSystem(role, system) {
-  const key = String(role || "general").trim().toLowerCase().replace(/[- ]+/g, "_");
+  const key = normalizeRole(role);
   return [system, CREW_ROLES[key] || CREW_ROLES.general, `Assigned crew role: ${key}`].join("\n\n");
+}
+
+function providerCalls(input, crewSystem) {
+  const gemini = new GeminiMeshProvider();
+  const claude = new ClaudeMeshProvider();
+  return {
+    gemini: () => gemini.generate(input, { system: crewSystem }),
+    claude: () => claude.generate(input, { system: crewSystem, model: claude.model }),
+    "groq-free": () => groq(input, crewSystem),
+    pollinations: () => pollinations(input, crewSystem)
+  };
+}
+
+async function raceProviders(names, calls, failures) {
+  const pending = names.map(name => Promise.resolve().then(calls[name]).then(result => ({ name, result })).catch(error => {
+    failures.push(`${name}: ${String(error?.message || error)}`);
+    throw error;
+  }));
+  return Promise.any(pending);
 }
 
 export async function executeCrewInference(prompt, system = DEFAULT_SYSTEM, options = {}) {
   const input = String(prompt || "").trim();
   if (!input) throw new Error("Crew inference prompt is required");
-  const role = options?.role || "general";
+  const role = normalizeRole(options?.role);
   const crewSystem = roleSystem(role, system);
   const failures = [];
-  const gemini = new GeminiMeshProvider();
-  const claude = new ClaudeMeshProvider();
-  const providers = [
-    ["gemini", () => gemini.generate(input, { system: crewSystem })],
-    ["claude", () => claude.generate(input, { system: crewSystem, model: claude.model })],
-    ["groq-free", () => groq(input, crewSystem)],
-    ["pollinations", () => pollinations(input, crewSystem)]
-  ];
-  for (const [name, call] of providers) {
+  const calls = providerCalls(input, crewSystem);
+  const order = PROVIDER_ORDER[role] || PROVIDER_ORDER.general;
+
+  try {
+    const winner = await raceProviders(order.slice(0, 2), calls, failures);
+    const result = winner.result;
+    return typeof result === "string"
+      ? { text: result, provider: winner.name, role, failures }
+      : { ...result, provider: result.provider || winner.name, role, failures };
+  } catch (_) {}
+
+  for (const name of order.slice(2)) {
     try {
-      const result = await call();
+      const result = await calls[name]();
       return typeof result === "string"
         ? { text: result, provider: name, role, failures }
         : { ...result, provider: result.provider || name, role, failures };
