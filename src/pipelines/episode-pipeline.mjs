@@ -42,30 +42,37 @@ export class EpisodePipeline {
         [episodeId, b, c, v]
       );
 
-      for (const [role, stage, order] of STAGES) {
-        await client.query(
-          `INSERT INTO apex_worker_tasks
-            (id,worker_id,role,task,payload,max_attempts,dedupe_key,trace_id)
-           VALUES ($1,'episode-pipeline',$2,$2,$3::jsonb,5,$4,$5)
-           ON CONFLICT DO NOTHING`,
-          [
-            crypto.randomUUID(),
-            role,
-            JSON.stringify({
-              type: "episode-stage",
-              episodeId,
-              book: b,
-              chapter: c,
-              verses: v,
-              stage,
-              order,
-              ...(role === "graph-expansion" ? { expansionType: stage, type: stage } : {})
-            }),
-            `episode:${episodeId}:${stage}`,
-            traceId ? String(traceId).slice(0, 255) : null
-          ]
-        );
-      }
+      const stageRows = STAGES.map(([role, stage, order]) => [
+        crypto.randomUUID(),
+        role,
+        JSON.stringify({
+          type: "episode-stage",
+          episodeId,
+          book: b,
+          chapter: c,
+          verses: v,
+          stage,
+          order,
+          ...(role === "graph-expansion" ? { expansionType: stage, type: stage } : {})
+        }),
+        `episode:${episodeId}:${stage}`,
+        traceId ? String(traceId).slice(0, 255) : null
+      ]);
+      await client.query(
+        `INSERT INTO apex_worker_tasks
+          (id,worker_id,role,task,payload,max_attempts,dedupe_key,trace_id)
+         SELECT x.id, 'episode-pipeline', x.role, x.role, x.payload::jsonb, 5, x.dedupe_key, x.trace_id
+           FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[], $5::text[])
+             AS x(id, role, payload, dedupe_key, trace_id)
+         ON CONFLICT DO NOTHING`,
+        [
+          stageRows.map(row => row[0]),
+          stageRows.map(row => row[1]),
+          stageRows.map(row => row[2]),
+          stageRows.map(row => row[3]),
+          stageRows.map(row => row[4])
+        ]
+      );
 
       await client.query("COMMIT");
       return { episodeId, stages: STAGES.map(([role, stage, order]) => ({ role, stage, order })) };
