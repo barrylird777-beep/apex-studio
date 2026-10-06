@@ -34,7 +34,8 @@
     "network:verify": "node scripts/verify-network-fabric.mjs",
     "sovereign:smoke": "node scripts/sovereign-smoke.mjs",
     "edge:node": "node src/network/apex-edge-node.mjs",
-    "test:render-performance": "node --test test/render-performance.test.mjs"
+    "test:render-performance": "node --test test/render-performance.test.mjs",
+    "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
