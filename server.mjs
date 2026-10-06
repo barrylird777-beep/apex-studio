@@ -811,7 +811,7 @@ function triggerSwarmFallback(error) {
 global.checkInferenceSwarmHealth = checkInferenceSwarmHealth;
 global.triggerSwarmFallback = triggerSwarmFallback;
 
-const SUPERVISOR_INTERVAL = 1000;
+const SUPERVISOR_INTERVAL = Math.max(5000, Number(process.env.APEX_SUPERVISOR_INTERVAL_MS || 15000));
 const SUPERVISOR_TIMEOUT = 2500;
 global.isSupervisorBusy = false;
 
@@ -872,12 +872,9 @@ async function executeInference(prompt, system = DEFAULT_SYSTEM) {
     }
   }
 
-  // Guaranteed Last-Resort Echo so the pipeline never throws an uncaught 500
-  return {
-    text: input,
-    provider: 'fallback-passthrough',
-    failures
-  };
+  const error = new Error(`Inference swarm exhausted: ${failures.join(' | ')}`);
+  error.failures = failures;
+  throw error;
 }
 
 // ============================================================
