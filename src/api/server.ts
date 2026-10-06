@@ -8,7 +8,7 @@ import {selectNetworkPath} from "../network/path-selector.mjs";
 import {swarmPeers} from "../network/ipfs-swarm.mjs";
 // @ts-ignore
 import {describeNetworkSettings} from "../core/network-status.mjs";
-import {initializeStudioAdBlock,handleStudioAdBlockDoH,studioAdBlockStatus} from "../network/studio-adblock-doh.mjs";
+import {initializeStudioAdBlock,handleStudioAdBlockDoH,studioAdBlockStatus} from "../network/studio-adblock-doh.mjs";import {studioAdBlockMobileConfig} from "../network/studio-adblock-profile.mjs";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
 const send=(res:http.ServerResponse,status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json"});res.end(status===204?"":JSON.stringify(data))};
 const readBody=(req:http.IncomingMessage)=>new Promise<any>((resolve,reject)=>{let s="";req.on("data",c=>s+=c);req.on("end",()=>{try{resolve(s?JSON.parse(s):{})}catch{reject(Error("Invalid JSON"))}});req.on("error",reject)});
@@ -41,6 +41,10 @@ if(p[0]==="api"&&p[1]==="scenes"&&p[2]&&p[3]==="assignment"&&req.method==="DELET
 }
 if(p[0]==="api"&&p[1]==="scenes"&&p[2]){const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid scene id"});if(p.length===3&&req.method==="PUT"){const s=await updateScene(id,await readBody(req));return s?send(res,200,s):send(res,404,{error:"Scene not found"})}if(p.length===3&&req.method==="DELETE")return await deleteScene(id)?send(res,204,null):send(res,404,{error:"Scene not found"})}
 if(p[0]==="api"&&p[1]==="scripture"&&p[2]==="breakdown"&&req.method==="POST"){const body=await readBody(req),reference=typeof body.reference==="string"?body.reference.trim():"",text=body.text;if(!reference)return send(res,400,{error:"reference is required"});if(text!==undefined&&(typeof text!=="string"||text.length>20000))return send(res,400,{error:"text must be a string up to 20000 characters"});try{const result=await generateBreakdown({reference,text,generate:generateWithGemini,refine:body.refine?{provider:"claude",model:"claude-sonnet-5-5"}:null});return send(res,200,result)}catch(e){const err=e as any;if(err?.name==="BreakdownError")return send(res,502,{error:err.message,stage:err.stage,details:err.errors});console.error("scripture breakdown failed",e);return send(res,500,{error:e instanceof Error?e.message:"breakdown failed"})}}
+if(p[0]==="api"&&p[1]==="network"&&p[2]==="adblock"&&p[3]==="profile"&&req.method==="GET"){
+  try { const body=studioAdBlockMobileConfig(); res.writeHead(200,{"content-type":"application/x-apple-aspen-config","content-disposition:"attachment; filename="Apex-Studio-Ad-Blocker.mobileconfig"","cache-control":"no-store"}); res.end(body); } catch(e) { return send(res,500,{error:e instanceof Error?e.message:"profile generation failed"}); }
+  return;
+}
 if(p[0]==="api"&&p[1]==="network"&&p[2]==="adblock"&&p[3]==="status"&&req.method==="GET"){
   return send(res,200,studioAdBlockStatus());
 }
