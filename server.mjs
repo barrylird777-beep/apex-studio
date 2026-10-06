@@ -87,6 +87,18 @@ const meshWorkerSupervisor = new WorkerSupervisor({
     if (type === 'inference') {
       const prompt = String(payload?.prompt || '').trim();
       if (!prompt) throw new Error('Worker inference requires prompt');
+
+      // AI crew jobs with an explicit provider/model must execute that exact
+      // selection. They never silently fall through to another provider.
+      if (payload?.provider) {
+        return generateUnifiedAi({
+          provider: String(payload.provider),
+          model: payload.model ? String(payload.model) : undefined,
+          prompt,
+          system: String(payload?.system || DEFAULT_SYSTEM)
+        });
+      }
+
       return executeInference(prompt, String(payload?.system || DEFAULT_SYSTEM));
     }
     if (type === 'tile-plan') {
