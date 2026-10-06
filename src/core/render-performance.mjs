@@ -23,3 +23,21 @@ export function buildRenderPool({ concurrency = 1 } = {}) {
     }
   };
 }
+
+
+export function buildRenderProfile({ availableEncoders = [], preferredEncoder = 'auto', concurrency = 4 } = {}) {
+  const encoder = selectEncoderFromList(availableEncoders, preferredEncoder);
+  const limit = Math.max(1, Math.min(16, Math.floor(Number(concurrency) || 4)));
+  return Object.freeze({
+    encoder,
+    concurrency: encoder.hardware ? limit : Math.min(limit, 4),
+    hardware: encoder.hardware
+  });
+}
+
+export function shouldStreamCopy({ probe, format = '4k' } = {}) {
+  const preset = format === '4k' || format === 'master' || format === 'youtube-4k'
+    ? { width: 3840, height: 2160, fps: 24, codecs: ['h264', 'hevc', 'av1'] }
+    : {};
+  return is4kMasterCompliant(probe, preset);
+}
