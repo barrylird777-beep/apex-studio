@@ -33,18 +33,20 @@ export function createAiCrewEngine({ concurrency = 64, dispatch }) {
 
   const enqueue = ({ role = 'general', task = '', context = {} } = {}) => {
     if (typeof dispatch !== 'function') throw new Error('AI crew dispatch is required');
+    const prompt = String(task).trim();
+    if (!prompt) throw new Error('AI crew task is required');
 
     const id = 'crew_' + Date.now().toString(36) + '_' + (++sequence);
     const job = {
       id,
       role: String(role),
-      task: String(task),
+      task: prompt,
       context,
       status: 'queued',
       createdAt: new Date().toISOString(),
       payload: {
         type: 'inference',
-        prompt: String(task),
+        prompt,
         system: typeof context === 'string' ? context : undefined
       }
     };
@@ -79,7 +81,7 @@ export function createAiCrewEngine({ concurrency = 64, dispatch }) {
         total: all.length,
         completed: all.filter(job => job.status === 'completed').length,
         failed: all.filter(job => job.status === 'failed').length,
-        jobs: all.slice(-100).map(({ payload, ...job }) => job)
+        jobs: all.slice(-100).map(({ payload, result, ...job }) => job)
       };
     }
   };
