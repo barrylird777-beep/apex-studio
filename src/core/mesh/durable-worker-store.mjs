@@ -28,7 +28,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
   return { durable: true, id: existing?.rows?.[0]?.id || id };
 }
 
-export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null) {
+export async function claimNextWorkerTasks(limit = 20, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, role = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
   const safeLimit = Math.max(1, Math.min(APEX_LIMITS.WORKER.MAX_BATCH_SIZE, Number(limit) || APEX_LIMITS.WORKER.BATCH_SIZE));
