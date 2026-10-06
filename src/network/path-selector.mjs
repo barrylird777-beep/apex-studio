@@ -30,7 +30,7 @@ async function probe(dev) {
     const { stdout } = await exec('curl', [
       '-4', '-L', '--silent', '--show-error', '--fail',
       '--interface', dev, '--connect-timeout', '2',
-      '--max-time', process.env.APEX_PATH_PROBE_TIMEOUT || '5',
+      '--max-time', process.env.APEX_PATH_PROBE_TIMEOUT || '2',
       '-o', '/dev/null', '-w', '%{http_code}',
       process.env.APEX_PATH_PROBE_URL || 'https://www.starlink.com/'
     ]);
@@ -58,11 +58,12 @@ async function applyPriority(dev) {
 }
 
 export async function selectNetworkPath() {
-  const candidates = [];
-  for (const dev of await interfaces()) {
-    const result = await probe(dev);
-    candidates.push({ device: dev, network: classify(dev), ...result, score: score(dev, result) });
-  }
+  const devices = await interfaces();
+  const results = await Promise.all(devices.map(async device => {
+    const result = await probe(device);
+    return { device, network: classify(device), ...result, score: score(device, result) };
+  }));
+  const candidates = results;
   candidates.sort((a, b) => b.score - a.score);
   const selected = candidates[0] || null;
   return {
