@@ -13,10 +13,13 @@
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:migrate:workers": "node scripts/migrate-postgres.mjs",
+    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs test/search.test.mjs test/ai-crew-engine.test.mjs test/sovereign-mesh.test.mjs test/sovereign-durable-runtime.test.mjs test/durable-runtime-production.test.mjs test/render-performance.test.mjs test/sovereign-durable-runtime.test.mjs test/durable-runtime-production.test.mjs test/render-performance.test.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs --dir drizzle --expect scripts/spec005-expectations.json",
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "db:migrate:postgres": "node scripts/migrate-postgres.mjs",
+    "test:search:planner": "node scripts/adversarial-bible-trigram-planner.mjs",
+    "test:warp": "node src/tests/load/warp_swarm_benchmark.mjs",
     "verify:official-runtime": "bash scripts/official-release-runtime.sh",
     "verify:speed": "bash scripts/official-cellular-speed-mptcp.sh",
     "verify:mptcp": "bash scripts/mptcp-multipath-observe.sh",
@@ -27,7 +30,6 @@
     "backhaul:fabric": "bash scripts/apex-backhaul-fabric.sh",
     "backhaul:max": "bash scripts/apex-network-max.sh",
     "sovereign:runtime": "node src/core/sovereign-runtime-daemon.mjs",
-    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs test/sovereign-mesh.test.mjs test/sovereign-durable-runtime.test.mjs test/durable-runtime-production.test.mjs test/render-performance.test.mjs",
     "sovereign:peer": "node src/network/sovereign-peer.mjs",
     "durable:worker": "node src/jobs/durable-worker-daemon.mjs",
     "network:select": "node src/network/path-selector.mjs",
@@ -71,11 +73,11 @@
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.1",
     "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
-    "@types/pg": "^8.15.5",
-    "tailwindcss": "^3.4.17"
+    "@types/pg": "^8.15.5"
   },
   "engines": {
     "node": ">=22"
