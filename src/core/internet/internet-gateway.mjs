@@ -122,10 +122,11 @@ async function searchBrave(query, limit) {
 async function searchTavily(query, limit) {
   const key = process.env.TAVILY_API_KEY;
   if (!key) throw new Error("Tavily Search not configured");
-  const response = await fetchPublic("https://api.tavily.com/search", {
-    timeoutMs: SEARCH_TIMEOUT_MS,
-    maxBytes: 2 * 1024 * 1024,
-    headers: { "content-type": "application/json" }
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": `Bearer ${key}` },
+    body: JSON.stringify({ api_key: key, query, max_results: limit, search_depth: "basic" }),
+    signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS)
   });
   if (!response.ok) throw new Error(`Tavily Search HTTP ${response.status}`);
   const data = JSON.parse(response.text);
