@@ -145,7 +145,7 @@ export function createMobileControlPlane({
   router.get('/storage', async (req, res) => {
     try {
       const prefix = String(req.query.prefix || 'iphone').trim();
-      return res.json({ success: true, ...(await listCloudObjects({ prefix, limit: req.query.limit })) });
+      return res.json({ success: true, ...(await listCloudObjects({ prefix, limit: req.query.limit, continuationToken: req.query.cursor })) });
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)

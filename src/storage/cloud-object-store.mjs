@@ -66,17 +66,24 @@ export function cloudStorageStatus() {
     endpoint: endpoint || null,
     deviceMode: 'cloud-offload',
     localDeviceStorageRole: 'cache-and-working-set',
+    maxObjectBytes: MAX_OBJECT_BYTES,
+    multipartPartBytes: MULTIPART_PART_BYTES,
+    maxMultipartParts: 10000,
+    resumableUploads: true,
+    directToObjectStorage: true,
+    serverMemoryForLargeUploads: 'not required',
     note: 'Large media stays in cloud object storage; the iPhone receives streams or signed transfers.'
   };
 }
 
-export async function listCloudObjects({ prefix = 'iphone', limit = 100 } = {}) {
+export async function listCloudObjects({ prefix = 'iphone', limit = 100, continuationToken = '' } = {}) {
   const s3 = client();
   const safePrefix = `mobile/${safeSegment(prefix, 'iphone')}/`;
   const result = await s3.send(new ListObjectsV2Command({
     Bucket: bucket,
     Prefix: safePrefix,
-    MaxKeys: Math.min(1000, Math.max(1, Number(limit) || 100))
+    MaxKeys: Math.min(1000, Math.max(1, Number(limit) || 100)),
+    ...(continuationToken ? { ContinuationToken: String(continuationToken) } : {})
   }));
   const objects = (result.Contents || []).map(item => ({
     key: item.Key,
@@ -84,7 +91,7 @@ export async function listCloudObjects({ prefix = 'iphone', limit = 100 } = {}) 
     modifiedAt: item.LastModified?.toISOString?.() || null,
     etag: item.ETag || null
   }));
-  return { ...cloudStorageStatus(), prefix: safePrefix, objects, total: objects.length };
+  return { ...cloudStorageStatus(), prefix: safePrefix, objects, total: objects.length, nextContinuationToken: result.NextContinuationToken || null, truncated: Boolean(result.IsTruncated) };
 }
 
 export async function createUploadUrl({ filename, contentType = 'application/octet-stream', size = 0, prefix = 'iphone' } = {}) {
