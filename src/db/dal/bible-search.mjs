@@ -19,11 +19,18 @@ export class BibleSearch {
     if (!query) return [];
     const client = await this.pool.connect();
     try {
-      await client.query("BEGIN");
-      await client.query("SET LOCAL pg_trgm.similarity_threshold = $1", [Number(similarityThreshold)]);
+      const threshold = Number(similarityThreshold);
+      if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+        throw new RangeError("similarityThreshold must be between 0 and 1");
+      }
+      await client.query("SELECT set_config('pg_trgm.similarity_threshold', $1, true)", [String(threshold)]);
       const params = [query, safeLimit(limit)];
-      const scope = collectionId == null ? "" : " AND p.collection_id = $3";
-      if (collectionId != null) params.push(Number(collectionId));
+      const collection = collectionId == null ? null : Number(collectionId);
+      if (collection !== null && !Number.isSafeInteger(collection)) {
+        throw new TypeError("collectionId must be an integer");
+      }
+      const scope = collection === null ? "" : " AND p.collection_id = $3";
+      if (collection !== null) params.push(collection);
       const { rows } = await client.query(
         `SELECT p.id, p.collection_id, p.source_id, p.reference, p.book, p.chapter,
                 p.verse_start, p.verse_end, p.text,
@@ -34,11 +41,7 @@ export class BibleSearch {
           LIMIT $2`,
         params
       );
-      await client.query("COMMIT");
       return rows;
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
-      throw error;
     } finally {
       client.release();
     }
