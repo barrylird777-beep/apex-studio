@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-const DEFAULT_MODEL = process.env.OPENAI_MAX_MODEL || 'gpt-6-astra';
+const DEFAULT_MODEL = process.env.OPENAI_MAX_MODEL || 'gpt-5.6-sol';
 const MAX_PROMPT_CHARS = Math.max(1000, Number(process.env.OPENAI_MAX_PROMPT_CHARS || 50000));
 const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.OPENAI_MAX_MESSAGES || 50)));
 
@@ -47,7 +47,7 @@ export async function generateMax({
   schema,
   schemaName = 'apex_response',
   schemaDescription,
-  verbosity = 'high'
+  verbosity = 'high', reasoningEffort = 'max'
 } = {}) {
   const client = getClient();
   const input = normalizeInput({ prompt, messages });
@@ -57,6 +57,7 @@ export async function generateMax({
     instructions: String(system || '').trim() || undefined,
     input,
     previous_response_id: previousResponseId ? String(previousResponseId) : undefined,
+    reasoning: { effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'].includes(reasoningEffort) ? reasoningEffort : 'max' },
     text: {
       verbosity: ['low', 'medium', 'high'].includes(verbosity) ? verbosity : 'high',
       ...(normalizedSchema ? {
