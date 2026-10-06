@@ -23,7 +23,7 @@ export const OWNERSHIP = Object.freeze({
   [SYSTEMS.STUDIO]: Object.freeze([
     "production","movie-direction","video-lab","imagery-lab","audio-lab",
     "ai-creation-lab","editing","rendering","quality-control",
-    "social-media-command","network","infrastructure"
+    "social-media-command","specialized-search-engine","network","infrastructure"
   ]),
   [SYSTEMS.KORN_KNOB]: Object.freeze([
     "ai-models","model-discovery","model-routing","model-evaluation",
@@ -37,13 +37,13 @@ export const CAPABILITY_KINDS = Object.freeze([
   "embedding","reranker","tool","api","software","dataset","renderer"
 ]);
 
-export const STUDIO_SURFACES = Object.freeze([
+export const STUDIO_SEARCH_DOMAINS = Object.freeze(["capabilities","models","providers","apis","tools","services","software","datasets","renderers","media"]);\n\nexport const STUDIO_SURFACES = Object.freeze([
   "video-lab","imagery-lab","audio-lab","ai-creation-lab",
   "movie-direction","social-media-command"
 ]);
 
-export const JOB_TYPES = Object.freeze([
-  "capability-discovery","capability-health","ai-execution",
+export function assertStudioSearchOwnership(actor) {\n  return assertOwner(actor, "specialized-search-engine");\n}\n\nexport function createStudioSearchRequest(input = {}) {\n  const query = String(input.query || "").trim();\n  if (!query) throw new Error("Studio specialized search requires a query");\n  return Object.freeze({\n    schemaVersion: "studio-specialized-search.v1",\n    requestId: String(input.requestId || randomId()),\n    owner: SYSTEMS.STUDIO,\n    query,\n    domains: Array.isArray(input.domains) && input.domains.length\n      ? input.domains.map(String)\n      : [...STUDIO_SEARCH_DOMAINS],\n    requirements: input.requirements ?? {},\n    constraints: input.constraints ?? {},\n    requester: String(input.requester || SYSTEMS.STUDIO),\n    createdAt: input.createdAt || new Date().toISOString()\n  });\n}\n\nexport const JOB_TYPES = Object.freeze([
+  "specialized-search","capability-discovery","capability-health","ai-execution",
   "garden-research","garden-chat","korn-world-study","movie-direction",
   "video-production","image-production","audio-production","media-qc",
   "social-research","social-analysis","social-plan","release-preparation"
