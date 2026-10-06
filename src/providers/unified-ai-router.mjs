@@ -3,6 +3,15 @@ const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_AI_DAILY_REQUESTS = Math.max(1, Number(process.env.APEX_FREE_AI_DAILY_REQUESTS || 5000));
 const FREE_AI_PROVIDERS = new Set(['openrouter']);
+const FREE_AI_MAX_CONCURRENCY = Math.max(1, Number(process.env.APEX_FREE_AI_MAX_CONCURRENCY || 64));
+let freeAiInFlight = 0;
+const freeAiWaiters = [];
+async function acquireFreeAiSlot() {
+  if (!FREE_MODE || freeAiInFlight < FREE_AI_MAX_CONCURRENCY) { freeAiInFlight += 1; return; }
+  await new Promise(resolve => freeAiWaiters.push(resolve));
+  freeAiInFlight += 1;
+}
+function releaseFreeAiSlot() { freeAiInFlight = Math.max(0, freeAiInFlight - 1); freeAiWaiters.shift()?.(); }
 
 export const AI_PROVIDER_CATALOG = [
   { id: 'openai', category: 'frontier-text-reasoning', env: 'OPENAI_API_KEY', modelEnv: 'OPENAI_MAX_MODEL', defaultModel: 'gpt-6-astra', protocol: 'responses' },
@@ -137,6 +146,8 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
   const requested = String(provider || '').trim().toLowerCase();
   const effectiveProvider = FREE_MODE ? (FREE_AI_PROVIDERS.has(requested) ? requested : 'openrouter') : requested;
   enforceFreeAiBudget(effectiveProvider);
+  await acquireFreeAiSlot();
+  try {
   const p = providerOf(effectiveProvider);
   if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
   const normalized = messagesOf({ prompt, messages, system });
@@ -154,7 +165,8 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
     const { generateGrok } = await import('./grok-router.mjs');
     result = await generateGrok({ prompt, messages, system, model: selectedModel });
   } else throw new Error('provider protocol not implemented');
-  return { provider: p.id, category: p.category, ...result };
+  return { provider: p.id, category: p.category, freeMode: FREE_MODE, ...result };
+  } finally { releaseFreeAiSlot(); }
 }
 
 export function unifiedAiStatus() {
