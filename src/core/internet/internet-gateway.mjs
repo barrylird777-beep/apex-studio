@@ -15,8 +15,13 @@ function isPrivateIpv4(ip) {
 
 function isPrivateIpv6(ip) {
   const value = ip.toLowerCase().split("%")[0];
+  if (value.startsWith("::ffff:")) {
+    const mapped = value.slice(7);
+    if (net.isIP(mapped) === 4) return isPrivateIpv4(mapped);
+  }
   return value === "::1" || value === "::" || value.startsWith("fc") || value.startsWith("fd") ||
-    value.startsWith("fe8") || value.startsWith("fe9") || value.startsWith("fea") || value.startsWith("feb");
+    value.startsWith("fe8") || value.startsWith("fe9") || value.startsWith("fea") || value.startsWith("feb") ||
+    value.startsWith("ff");
 }
 
 function assertPublicAddress(address) {
@@ -68,7 +73,8 @@ async function readBodyLimited(response, maxBytes) {
   return new TextDecoder().decode(bytes);
 }
 
-async function fetchPublic(url, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = MAX_BYTES, headers = {} } = {}) {
+async function fetchPublic(url, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = MAX_BYTES, headers = {}, redirects = 0 } = {}) {
+  if (redirects > 5) throw new Error("Remote redirect limit exceeded");
   const parsed = new URL(url);
   if (parsed.protocol !== "https:") throw new Error("Only HTTPS internet access is permitted");
   await assertPublicHostname(parsed.hostname);
@@ -86,7 +92,7 @@ async function fetchPublic(url, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = MAX
       const redirected = new URL(location, parsed);
       await assertPublicHostname(redirected.hostname);
       if (redirected.protocol !== "https:") throw new Error("Blocked non-HTTPS redirect");
-      const next = await fetchPublic(redirected.href, { timeoutMs, maxBytes, headers });
+      const next = await fetchPublic(redirected.href, { timeoutMs, maxBytes, headers, redirects: redirects + 1 });
       return { ...next, redirects: [parsed.href, ...(next.redirects || [])] };
     }
     const text = await readBodyLimited(response, maxBytes);
