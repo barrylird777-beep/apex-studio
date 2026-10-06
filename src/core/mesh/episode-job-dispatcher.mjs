@@ -28,15 +28,25 @@ async function saveContext(pool, episodeId, contextType, rawData) {
 
 async function graphExpansion({ pool, task }) {
   const p = episodePayload(task);
+  const verseSpec = String(p.verses || "full").trim().toLowerCase();
+  let verseStart = null;
+  let verseEnd = null;
+  if (verseSpec !== "full") {
+    const parts = verseSpec.split("-").map(Number);
+    verseStart = parts[0];
+    verseEnd = parts.length === 2 ? parts[1] : parts[0];
+    if (!Number.isInteger(verseStart) || !Number.isInteger(verseEnd) || verseStart < 1 || verseEnd < verseStart || verseEnd > 300) {
+      throw new Error("Invalid episode verse range");
+    }
+  }
   const r = await pool.query(
     `SELECT id, reference, book, chapter, verse_start, verse_end, text, canonical, metadata
        FROM bible_passages
       WHERE book=$1 AND chapter=$2
-        AND ($3='full' OR (verse_start <= split_part($3,'-',1)::int AND verse_end >= split_part($3,'-',1)::int)
-          OR ($3 LIKE '%-%' AND verse_start <= split_part($3,'-',2)::int AND verse_end >= split_part($3,'-',1)::int))
+        AND ($3::int IS NULL OR (verse_start <= $4::int AND verse_end >= $3::int))
       ORDER BY verse_start
       LIMIT 250`,
-    [String(p.book), Number(p.chapter), String(p.verses || "full")]
+    [String(p.book), Number(p.chapter), verseStart, verseEnd]
   );
 
   const passages = r.rows;
