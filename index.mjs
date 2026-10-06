@@ -10,6 +10,8 @@ import {
   requeueExpiredWorkerTasks,
   releaseWorkerTasks
 } from "./src/core/mesh/durable-worker-store.mjs";
+import { generateUnifiedAi } from "./src/providers/unified-ai-router.mjs";
+import { startLockedContinuousAiLoop } from "./src/core/autonomy/locked-continuous-loop.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
   const book = String(payload?.book || "").trim();
@@ -28,6 +30,20 @@ async function executeEpisodeProductionTask(payload = {}) {
     render: { ffmpegAvailable },
     queuedAt: new Date().toISOString()
   };
+}
+
+async function executeAiInferenceTask(payload = {}) {
+  const provider = String(payload?.provider || "").trim();
+  const model = String(payload?.model || "").trim();
+  const prompt = String(payload?.prompt || "").trim();
+  if (!provider || !prompt) throw new Error("AI inference requires explicit provider and prompt");
+
+  return generateUnifiedAi({
+    provider,
+    model: model || undefined,
+    prompt,
+    system: String(payload?.system || "Apex Studio autonomous worker. Return one concrete, evidence-based result.")
+  });
 }
 
 async function executePermanentHealthTask(payload = {}) {
@@ -74,6 +90,9 @@ if (!workerOnly) {
 
   console.log("[apex-worker] durable worker online");
 
+  // Locked continuous path: seed only zero-cost AI work. If no provider is
+  // provably zero-cost, the feeder stays idle rather than risking a charge.
+  const autonomousAiLoop = await startLockedContinuousAiLoop();
   const inFlight = new Map();
   const claimed = new Map();
 
@@ -85,9 +104,12 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const result = String(task.task || "") === "episode-production"
+      const taskType = String(task.task || "");
+      const result = taskType === "episode-production"
         ? await executeEpisodeProductionTask(task.payload || {})
-        : await executePermanentHealthTask(task.payload || {});
+        : taskType === "ai-inference"
+          ? await executeAiInferenceTask(task.payload || {})
+          : await executePermanentHealthTask(task.payload || {});
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
@@ -132,6 +154,7 @@ if (!workerOnly) {
         console.error("[apex-worker] release failed:", error?.message || error);
       });
     }
+    autonomousAiLoop.stop();
     process.exit(0);
   };
 
