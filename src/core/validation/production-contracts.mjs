@@ -9,6 +9,7 @@ export const gardenReferenceSchema = z.object({
 export const productionHandoffSchema = z.object({
   contractVersion: z.literal("apex-production-handoff.v1"),
   projectId: z.union([z.string(), z.number()]),
+  contentDomain: z.enum(["bible", "korn", "original"]),
   episodeId: z.string().min(1),
   gardenPackage: z.object({
     graphVersion: z.string().min(1),
