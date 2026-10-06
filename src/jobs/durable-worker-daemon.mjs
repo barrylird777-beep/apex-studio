@@ -8,6 +8,7 @@ const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${proces
 const leaseMs = Number(process.env.APEX_WORKER_LEASE_MS || 30000);
 const heartbeatMs = Math.max(1000, Math.floor(leaseMs / 3));
 const pollMs = Number(process.env.APEX_WORKER_POLL_MS || 250);
+const claimJitterMs = Math.max(0, Number(process.env.APEX_WORKER_CLAIM_JITTER_MS || 0));
 const concurrency = Math.max(1, Math.min(32, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
 const batchSize = Math.max(1, Math.min(20, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
 const renderConcurrency = Math.max(1, Math.min(16, Number(process.env.APEX_RENDER_CONCURRENCY || 8)));
@@ -131,6 +132,7 @@ async function main() {
       continue;
     }
 
+    if (claimJitterMs > 0) await sleep(Math.floor(Math.random() * claimJitterMs));
     const jobs = await store.claimBatch({
       workerId,
       now: new Date(),
