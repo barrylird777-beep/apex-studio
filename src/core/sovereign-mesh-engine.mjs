@@ -136,6 +136,37 @@ export class SovereignMeshEngine {
     return { ...record };
   }
 
+  async acknowledge(waveId, acceptance = {}) {
+    await this.ready();
+    const current = this.state.get(waveId);
+    if (!current) throw new Error(`Unknown sovereign wave: ${waveId}`);
+    if (current.status === 'ACKNOWLEDGED') return { ...current };
+
+    const record = {
+      seq: this.nextSeq++,
+      waveId,
+      peerId: current.peerId,
+      action: current.action,
+      timestamp: new Date().toISOString(),
+      status: 'ACKNOWLEDGED',
+      payload: {
+        ...current.payload,
+        acceptance
+      }
+    };
+    record.checksum = checksum(record);
+
+    const write = this._writeTail.catch(() => {}).then(() => this._appendDurably(record));
+    this._writeTail = write.catch((error) => {
+      this._writeError = error;
+      throw error;
+    });
+    await this._writeTail;
+    this._writeError = null;
+    this.state.set(waveId, record);
+    return { ...record };
+  }
+
   async _appendDurably(record) {
     const handle = await fs.open(this.walFilePath, 'a', 0o600);
     try {
