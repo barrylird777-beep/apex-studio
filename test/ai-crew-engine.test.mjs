@@ -45,3 +45,12 @@ test("AI crew maps engine roles to specialized production roles and hedges prima
   assert.match(source, /Promise\.any\(pending\)/);
   assert.match(source, /order\.slice\(0, 2\)/);
 });
+
+test("AI crew role aliases match normalized role keys", () => {
+  const source = fs.readFileSync(new URL("../src/core/mesh/crew-inference-worker.mjs", import.meta.url), "utf8");
+  assert.match(source, /visual_direction: "visual_director"/);
+  assert.match(source, /knowledge_research: "researcher"/);
+  assert.match(source, /release_qa: "qc"/);
+  assert.match(source, /infrastructure: "infrastructure"/);
+  assert.match(source, /infrastructure: "Infrastructure Engineer/);
+});
