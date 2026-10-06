@@ -16,12 +16,12 @@ function safePart(value, label) {
 }
 
 function s3Config() {
-  const endpoint = String(process.env.S3_ENDPOINT || "").replace(/\/$/, "");
-  const bucket = String(process.env.S3_BUCKET || "").trim();
-  const accessKey = String(process.env.S3_ACCESS_KEY_ID || "");
-  const secretKey = String(process.env.S3_SECRET_ACCESS_KEY || "");
+  const endpoint = String(process.env.APEX_OBJECT_STORE_ENDPOINT || process.env.S3_ENDPOINT || "").replace(/\/$/, "");
+  const bucket = String(process.env.APEX_OBJECT_STORE_BUCKET || process.env.S3_BUCKET || "").trim();
+  const accessKey = String(process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID || "");
+  const secretKey = String(process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY || "");
   if (!endpoint || !bucket || !accessKey || !secretKey) throw new Error("S3 storage requires S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY");
-  return { endpoint, bucket, accessKey, secretKey, region: process.env.S3_REGION || "us-east-1" };
+  return { endpoint, bucket, accessKey, secretKey, region: process.env.AWS_REGION || process.env.S3_REGION || "us-east-1" };
 }
 function hmac(key, value) { return crypto.createHmac("sha256", key).update(value).digest(); }
 function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
