@@ -1,0 +1,40 @@
+name: Harvest 50K Bible Discovery
+
+on:
+  push:
+    paths:
+      - "scripts/harvest-bible-discovery.mjs"
+      - ".github/workflows/harvest-bible-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/rf-mesh-anomaly-pipeline
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Harvest source-backed discovery records
+        run: node scripts/harvest-bible-discovery.mjs
+        env:
+          APEX_DISCOVERY_MIN: 50000
+          APEX_DISCOVERY_CONCURRENCY: 12
+      - name: Verify generated inventory
+        run: |
+          node --input-type=module -e "const d=JSON.parse(require('fs').readFileSync('data/bible/discovery-50000.generated.json')); if(d.counts.total < 50000) throw new Error('below 50,000'); console.log('DISCOVERY_TOTAL='+d.counts.total)"
+      - name: Commit generated inventory
+        run: |
+          git config user.name "Apex Discovery Worker"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/bible/discovery-50000.generated.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: harvest 50k source-backed bible discovery records"
+          git push origin HEAD:feat/rf-mesh-anomaly-pipeline
