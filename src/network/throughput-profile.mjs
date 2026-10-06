@@ -5,7 +5,7 @@ export const APEX_THROUGHPUT_TARGETS = Object.freeze({
   uploadMbpsStretch: 40,
   rttMsMin: 25,
   rttMsMax: 50,
-  videoResolutions: [720, 1080, 1440],
+  videoResolutions: [720, 1080, 1440, 2160],
   storageRoot: process.env.APEX_MEDIA_ROOT || '/srv/apex/se-x/projects'
 });
 
