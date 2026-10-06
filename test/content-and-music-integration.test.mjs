@@ -11,7 +11,7 @@ test("content domains allow independent Bible films and Korn productions", () =>
   assert.equal(contentDomainPolicy("original").canProduceFilm, true);
 });
 
-test("Music Radar handoff stays standalone while carrying production context", () => {
+test("Music capability handoff stays an integration surface under Studio production", () => {
   const handoff = createMusicRadarHandoff({
     projectId: "music:film-score-1",
     contentDomain: "bible",
