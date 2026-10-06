@@ -16,6 +16,7 @@ export class GeminiMeshProvider {
     });
     if (!rateLimit) throw new Error('Gemini shared rate limit reached; retry later');
     const body = {
+      generationConfig: { thinkingConfig: { thinkingLevel: options.thinkingLevel || process.env.GEMINI_THINKING_LEVEL || 'high' }, maxOutputTokens: Number(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS || 65536) },
       contents: [{ role: 'user', parts: [{ text: String(prompt) }] }]
     };
     if (options.system) body.systemInstruction = { parts: [{ text: String(options.system) }] };
