@@ -27,7 +27,6 @@ import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
-import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -191,22 +190,6 @@ const permanentWorkerHeartbeat = setInterval(() => {
 permanentWorkerHeartbeat.unref?.();
 
 
-const rogueApDetector = new RogueApDetector({
-  authorizedSsid: process.env.APEX_WIFI_AUTHORIZED_SSID || 'Apex_Industrial_Mesh',
-  trustedBssids: String(process.env.APEX_WIFI_TRUSTED_BSSIDS || '')
-    .split(',')
-    .map(value => value.trim())
-    .filter(Boolean),
-  rssiBaselines: (() => {
-    try {
-      const value = JSON.parse(process.env.APEX_WIFI_RSSI_BASELINES || '{}');
-      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    } catch {
-      return {};
-    }
-  })()
-});
-
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -263,44 +246,8 @@ app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:ove
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.use(express.json({ limit: CAPACITY.jsonBody }));
-app.post('/api/network/rogue-ap/observations', async (req, res) => {
-  try {
-    const observations = validateObservationEnvelope(req.body);
-    const report = await rogueApDetector.auditAirspace(observations);
-    let remediationTaskId = null;
-
-    if (report.highConfidenceCount > 0 && durableWorkerEnabled()) {
-      remediationTaskId = crypto.randomUUID();
-      const traceId = String(req.headers['x-request-id'] || crypto.randomUUID());
-      await enqueueWorkerTask({
-        id: remediationTaskId,
-        workerId: 'security-observation',
-        role: 'security-observation',
-        task: 'Record high-confidence wireless behavioral anomaly and trigger configured alert workflow',
-        payload: {
-          type: 'security-observation',
-          classification: report.classification,
-          telemetryOnly: true,
-          report
-        },
-        maxAttempts: 5,
-        dedupeKey: `security-observation:${crypto.createHash('sha256').update(JSON.stringify(report)).digest('hex')}`,
-        traceId
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      ...report,
-      remediationQueued: Boolean(remediationTaskId),
-      remediationTaskId
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      error: error?.message || 'Invalid wireless observation payload'
-    });
-  }
+app.post('/api/network/rogue-ap/observations', (_req, res) => {
+  return res.status(503).json({ success: false, error: 'Wireless rogue-AP detector is unavailable in this deployment' });
 });
 
 app.post('/api/episodes/produce', (_req, res) => {
