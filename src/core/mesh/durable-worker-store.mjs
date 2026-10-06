@@ -141,7 +141,7 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
   await db.query(
     `INSERT INTO rate_limits (key, tokens, updated_at)
-     VALUES ($1, $2 - 1, NOW())
+     VALUES ($1, $2, NOW())
      ON CONFLICT (key) DO NOTHING`,
     [key, cap]
   );
