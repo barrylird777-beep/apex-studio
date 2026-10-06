@@ -40,3 +40,10 @@ test('hardware render profile increases bounded parallel capacity', async () => 
   assert.equal(p.concurrency, 8);
   assert.equal(shouldStreamCopy({ probe: { video: { width:3840,height:2160,fps:24,codec:'h264',pixFmt:'yuv420p' } } }), true);
 });
+
+test('capacity-aware render concurrency scales CPU-only work', async () => {
+  const { getRenderConcurrency, chooseRenderPath } = await import('../src/core/render-performance.mjs');
+  assert.equal(getRenderConcurrency({ cpuCount: 8, gpuAvailable: false, configured: 16 }), 4);
+  assert.equal(getRenderConcurrency({ cpuCount: 8, gpuAvailable: true, configured: 16 }), 16);
+  assert.equal(chooseRenderPath({ probe: { video: { width:3840,height:2160,fps:24,codec:'h264',pixFmt:'yuv420p' } } }).mode, 'copy');
+});
