@@ -128,6 +128,60 @@ export function createMobileControlPlane({
     }
   });
 
+  router.post('/network/report', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const network = String(body.network || 'unknown').trim().toLowerCase();
+      const transport = String(body.transport || network).trim().toLowerCase();
+      const reachable = body.reachable !== false;
+      const rttMs = Number.isFinite(Number(body.rttMs)) ? Math.max(0, Number(body.rttMs)) : null;
+      const downMbps = Number.isFinite(Number(body.downMbps)) ? Math.max(0, Number(body.downMbps)) : null;
+      const upMbps = Number.isFinite(Number(body.upMbps)) ? Math.max(0, Number(body.upMbps)) : null;
+      const networks = new Set(['wifi', 'cellular', 'ethernet', 'vpn', 'unknown']);
+      if (!networks.has(network)) return res.status(400).json({ success: false, error: 'invalid network' });
+      return res.json({
+        success: true,
+        report: {
+          source: 'iphone-shortcut',
+          network,
+          transport,
+          reachable,
+          rttMs,
+          downMbps,
+          upMbps,
+          reportedAt: new Date().toISOString(),
+          requestId: String(req.get('x-request-id') || crypto.randomUUID())
+        },
+        policy: {
+          automaticFailover: true,
+          adaptiveSpeed: true,
+          preferWifiWhenHealthy: true,
+          preferCellularWhenWifiUnavailable: true
+        }
+      });
+    } catch (error) {
+      return res.status(400).json({ success: false, error: String(error?.message || error) });
+    }
+  });
+
+  router.get('/shortcut-manifest', (_req, res) => res.json({
+    success: true,
+    version: 1,
+    platform: 'iPhone',
+    transport: 'Shortcuts -> HTTPS',
+    auth: { type: 'Bearer', header: 'Authorization' },
+    actions: [
+      { name: 'Status', method: 'GET', path: '/api/mobile/status' },
+      { name: 'Health', method: 'GET', path: '/api/mobile/health' },
+      { name: 'AI', method: 'GET', path: '/api/mobile/ai' },
+      { name: 'Workers', method: 'GET', path: '/api/mobile/workers' },
+      { name: 'Network', method: 'GET', path: '/api/mobile/network' },
+      { name: 'Network Report', method: 'POST', path: '/api/mobile/network/report' },
+      { name: 'Production', method: 'GET', path: '/api/mobile/production' },
+      { name: 'Episode', method: 'POST', path: '/api/mobile/production/episode' }
+    ]
+  }));
+
   router.get('/production', async (_req, res) => {
     try {
       const [workers, overseer] = await Promise.all([
