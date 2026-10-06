@@ -158,7 +158,7 @@ async function aiCrewEvaluate({ task }) {
   const prompt = String(payload.prompt || "").trim();
   const system = String(payload.system || "").trim();
   if (!prompt) throw new Error("AI crew task requires a prompt");
-  const result = await executeCrewInference(prompt, system || undefined);
+  const result = await executeCrewInference(prompt, system || undefined, { role: payload.crewRole || "general" });
   return {
     type: "ai-crew-result",
     crewJobId: payload.crewJobId || task.id,
