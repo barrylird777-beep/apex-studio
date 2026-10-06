@@ -289,10 +289,11 @@ export function createMobileControlPlane({
       const book = String(body.book || '').trim();
       const chapter = Number(body.chapter);
       const verses = String(body.verses || 'full').trim();
+      const contentDomain = String(body.contentDomain || 'bible').trim().toLowerCase();
       if (!book || !Number.isInteger(chapter)) {
         return res.status(400).json({ success: false, error: 'book and integer chapter are required' });
       }
-      const result = await produceEpisode(book, chapter, verses, String(req.get('x-request-id') || crypto.randomUUID()));
+      const result = await produceEpisode(book, chapter, verses, String(req.get('x-request-id') || crypto.randomUUID()), contentDomain);
       return res.status(202).json({ success: true, ...result });
     } catch (error) {
       return res.status(400).json({ success: false, error: String(error?.message || error) });
