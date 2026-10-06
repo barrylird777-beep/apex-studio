@@ -35,3 +35,13 @@ test("AI crew exposes specialized production roles", () => {
   }
   assert.match(source, /roleSystem\(role, system\)/);
 });
+
+test("AI crew maps engine roles to specialized production roles and hedges primaries", () => {
+  const source = fs.readFileSync(new URL("../src/core/mesh/crew-inference-worker.mjs", import.meta.url), "utf8");
+  assert.match(source, /function normalizeRole\(role\)/);
+  assert.match(source, /"knowledge-research": "researcher"/);
+  assert.match(source, /"visual-direction": "visual_director"/);
+  assert.match(source, /"release-qa": "qc"/);
+  assert.match(source, /Promise\.any\(pending\)/);
+  assert.match(source, /order\.slice\(0, 2\)/);
+});
