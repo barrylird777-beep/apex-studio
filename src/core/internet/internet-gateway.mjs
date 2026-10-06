@@ -125,6 +125,20 @@ async function searchBrave(query, limit) {
   return normalizeSearchResults(data.web?.results || [], "brave");
 }
 
+async function searchSerper(query, limit) {
+  const key = process.env.SERPER_API_KEY;
+  if (!key) throw new Error("Serper Search not configured");
+  const response = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: { "X-API-KEY": key, "content-type": "application/json" },
+    body: JSON.stringify({ q: query, num: limit }),
+    signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS)
+  });
+  if (!response.ok) throw new Error(`Serper Search HTTP ${response.status}`);
+  const data = await response.json();
+  return normalizeSearchResults(data.organic || [], "serper");
+}
+
 async function searchTavily(query, limit) {
   const key = process.env.TAVILY_API_KEY;
   if (!key) throw new Error("Tavily Search not configured");
@@ -149,7 +163,8 @@ export async function internetSearch(query, { limit = 10 } = {}) {
   const safeLimit = parseLimit(limit, 10, 20);
   const providers = [
     ["brave", searchBrave],
-    ["tavily", searchTavily]
+    ["tavily", searchTavily],
+    ["serper", searchSerper]
   ];
   const failures = [];
   for (const [name, fn] of providers) {
@@ -170,7 +185,8 @@ export async function internetCapabilities() {
     ssrfPrivateAddressProtection: true,
     searchProviders: {
       brave: Boolean(process.env.BRAVE_SEARCH_API_KEY),
-      tavily: Boolean(process.env.TAVILY_API_KEY)
+      tavily: Boolean(process.env.TAVILY_API_KEY),
+      serper: Boolean(process.env.SERPER_API_KEY)
     },
     maxFetchBytes: MAX_BYTES,
     maxSearchResults: 20
