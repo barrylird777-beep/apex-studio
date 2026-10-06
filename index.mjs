@@ -65,6 +65,25 @@ async function executeEpisodeProductionTask(payload = {}) {
   };
 }
 
+async function executeMusicAudioHandoffTask(payload = {}) {
+  const handoff = payload?.handoff;
+  if (!handoff || handoff.contractVersion !== "music-radar-studio-handoff.v1") {
+    throw new Error("Invalid Music Radar audio handoff");
+  }
+  return {
+    ok: true,
+    type: "music-audio-handoff",
+    projectId: handoff.projectId,
+    contentDomain: handoff.contentDomain,
+    assetCount: Array.isArray(handoff.assets) ? handoff.assets.length : 0,
+    audioRoles: [...new Set((handoff.assets || []).map(asset => asset.kind))],
+    worldPackage: handoff.worldPackage,
+    provenance: handoff.provenance,
+    stage: "audio-handoff-validated",
+    validatedAt: new Date().toISOString()
+  };
+}
+
 async function executeAiInferenceTask(payload = {}) {
   const provider = String(payload?.provider || "").trim();
   const model = String(payload?.model || "").trim();
@@ -140,7 +159,9 @@ if (!workerOnly) {
       const taskType = String(task.task || "");
       const result = taskType === "episode-production"
         ? await executeEpisodeProductionTask(task.payload || {})
-        : taskType === "ai-inference"
+        : taskType === "music-audio-handoff"
+          ? await executeMusicAudioHandoffTask(task.payload || {})
+          : taskType === "ai-inference"
           ? await executeAiInferenceTask(task.payload || {})
           : await executePermanentHealthTask(task.payload || {});
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
