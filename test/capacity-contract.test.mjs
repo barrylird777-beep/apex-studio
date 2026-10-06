@@ -27,3 +27,14 @@ test("capacity has no SQLite durable fallback", () => {
   assert.equal("omniDatabase" in CAPACITY, false);
   assert.equal(CAPACITY.storageBackend, "object-store");
 });
+
+test("production uses the canonical durable worker store", () => {
+  const workerStore = fs.readFileSync(new URL("../src/core/mesh/durable-worker-store.mjs", import.meta.url), "utf8");
+  const webhook = fs.readFileSync(new URL("../src/workers/webhook-dispatcher.mjs", import.meta.url), "utf8");
+  assert.match(workerStore, /from ["']\.\.\/\.\.\/db\/index\.ts["']/);
+  assert.doesNotMatch(workerStore, /new Pool\s*\(/);
+  assert.match(webhook, /from ["']\.\.\/db\/index\.ts["']/);
+  assert.doesNotMatch(webhook, /new Pool\s*\(/);
+  assert.equal(fs.existsSync(new URL("../src/database/pg-distributed-store.mjs", import.meta.url)), false);
+});
+
