@@ -11,6 +11,25 @@ import {
   releaseWorkerTasks
 } from "./src/core/mesh/durable-worker-store.mjs";
 
+async function executeEpisodeProductionTask(payload = {}) {
+  const book = String(payload?.book || "").trim();
+  const chapter = Number(payload?.chapter);
+  const verses = String(payload?.verses || "full").trim();
+  if (!book || !Number.isInteger(chapter)) throw new Error("Episode production requires book and integer chapter");
+  const render = new RenderWorker();
+  const ffmpegAvailable = await render.available();
+  return {
+    ok: true,
+    type: "episode-production",
+    book,
+    chapter,
+    verses,
+    stage: "production-command-accepted",
+    render: { ffmpegAvailable },
+    queuedAt: new Date().toISOString()
+  };
+}
+
 async function executePermanentHealthTask(payload = {}) {
   const role = String(payload?.role || "general");
   const startedAt = Date.now();
@@ -66,7 +85,9 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const result = await executePermanentHealthTask(task.payload || {});
+      const result = String(task.task || "") === "episode-production"
+        ? await executeEpisodeProductionTask(task.payload || {})
+        : await executePermanentHealthTask(task.payload || {});
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
