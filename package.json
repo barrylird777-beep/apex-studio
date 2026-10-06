@@ -33,7 +33,8 @@
     "network:select": "node src/network/path-selector.mjs",
     "network:verify": "node scripts/verify-network-fabric.mjs",
     "sovereign:smoke": "node scripts/sovereign-smoke.mjs",
-    "edge:node": "node src/network/apex-edge-node.mjs"
+    "edge:node": "node src/network/apex-edge-node.mjs",
+    "test:render-performance": "node --test test/render-performance.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
