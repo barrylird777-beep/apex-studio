@@ -103,7 +103,8 @@ export async function downloadUrlAssetToStorage(url, episodeId, assetName, optio
   const finalPath = path.join(dir, asset);
   const tempPath = finalPath + '.part-' + process.pid + '-' + Date.now();
   try {
-    const result = await downloadHttpAsset(url, tempPath, options);
+    const transferController = options.transferController || buildAdaptiveTransferController({ initial: Math.max(1, Number(options.parallelStreams) || 4) });
+    const result = await downloadHttpAsset(url, tempPath, { ...options, transferController });
     await fs.rename(tempPath, finalPath);
     return Object.freeze({ ...result, episodeId: episode, assetName: asset, path: finalPath });
   } catch (error) {
