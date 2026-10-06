@@ -73,6 +73,54 @@ export async function getGarden() {
   return { garden: place.rows[0] ?? null, freaks: freaks.rows, discoveries: discoveries.rows };
 }
 
+export async function listGardenFreakState(freakId = null) {
+  const id = freakId == null ? null : Number(freakId);
+  if (id !== null && !Number.isInteger(id)) throw new TypeError('Invalid Garden Freak id');
+  const result = await dbPool.query(
+    'SELECT s.*,f.name,f.kind,f.life_stage FROM garden_freak_state s JOIN garden_freaks f ON f.id=s.freak_id WHERE ($1::bigint IS NULL OR s.freak_id=$1) ORDER BY s.freak_id',
+    [id]
+  );
+  return result.rows;
+}
+
+export async function setGardenFreakState(freakId, input = {}) {
+  const id = Number(freakId);
+  if (!Number.isInteger(id)) throw new TypeError('Invalid Garden Freak id');
+  const status = String(input.status || 'active').trim();
+  if (!['active','resting','learning','creating','exploring','inactive'].includes(status)) throw new TypeError('Invalid Garden Freak status');
+  const energy = input.energy == null ? 100 : Number(input.energy);
+  const focus = input.focus == null ? 100 : Number(input.focus);
+  const experience = input.experience == null ? 0 : Number(input.experience);
+  if (![energy,focus].every(Number.isInteger) || energy < 0 || energy > 100 || focus < 0 || focus > 100 || !Number.isInteger(experience) || experience < 0) throw new TypeError('Invalid Garden Freak state');
+  const result = await dbPool.query(
+    'INSERT INTO garden_freak_state (freak_id,status,energy,focus,experience,state) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (freak_id) DO UPDATE SET status=EXCLUDED.status,energy=EXCLUDED.energy,focus=EXCLUDED.focus,experience=EXCLUDED.experience,state=EXCLUDED.state,updated_at=now() RETURNING *',
+    [id,status,energy,focus,experience,JSON.stringify(input.state && typeof input.state === 'object' ? input.state : {})]
+  );
+  return result.rows[0];
+}
+
+export async function listGardenFreakSpecialties(freakId = null) {
+  const id = freakId == null ? null : Number(freakId);
+  if (id !== null && !Number.isInteger(id)) throw new TypeError('Invalid Garden Freak id');
+  const result = await dbPool.query(
+    'SELECT s.*,f.name FROM garden_freak_specialties s JOIN garden_freaks f ON f.id=s.freak_id WHERE ($1::bigint IS NULL OR s.freak_id=$1) ORDER BY s.freak_id,s.specialty',
+    [id]
+  );
+  return result.rows;
+}
+
+export async function setGardenFreakSpecialty(freakId, input = {}) {
+  const id = Number(freakId);
+  const specialty = String(input.specialty || '').trim();
+  const level = input.level == null ? 1 : Number(input.level);
+  if (!Number.isInteger(id) || !specialty || specialty.length > 120 || !Number.isInteger(level) || level < 1 || level > 100) throw new TypeError('Invalid Garden Freak specialty');
+  const result = await dbPool.query(
+    'INSERT INTO garden_freak_specialties (freak_id,specialty,level,metadata) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (freak_id,specialty) DO UPDATE SET level=EXCLUDED.level,metadata=EXCLUDED.metadata,updated_at=now() RETURNING *',
+    [id,specialty,level,JSON.stringify(input.metadata && typeof input.metadata === 'object' ? input.metadata : {})]
+  );
+  return result.rows[0];
+}
+
 export async function createGardenFreak(input = {}) {
   const kind = String(input.kind || '').toLowerCase();
   if (!['kernel','popcorn','cornnut','cob','protocob'].includes(kind)) throw new TypeError('Invalid Garden Freak kind');
