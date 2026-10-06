@@ -17,7 +17,8 @@
     "verify:migrations": "node scripts/verify-migrations.mjs --dir drizzle --expect scripts/spec005-expectations.json",
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
-    "db:migrate:postgres": "node scripts/migrate-postgres.mjs"
+    "db:migrate:postgres": "node scripts/migrate-postgres.mjs",
+    "verify:official-runtime": "bash scripts/official-release-runtime.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
