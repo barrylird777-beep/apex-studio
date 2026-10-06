@@ -3,6 +3,7 @@ import pg from 'pg';
 import SovereignMeshEngine from './sovereign-mesh-engine.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
 import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
+import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 
 const { Pool } = pg;
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
@@ -22,11 +23,13 @@ const pool = new Pool({
 
 const engine = new SovereignMeshEngine(storageDir);
 let peerNode;
+let edgeNode;
 let stopping = false;
 let timer;
 
 async function acceptPeerEnvelope(envelope) {
-  if (!envelope || envelope.type !== 'durable.accept') throw new Error('unsupported sovereign envelope');
+  if (!envelope || !['durable.accept', 'edge.heartbeat'].includes(envelope.type)) throw new Error('unsupported sovereign envelope');
+  if (envelope.type === 'edge.heartbeat') return true;
   if (!envelope.waveId || !envelope.jobId || !envelope.checksum) throw new Error('incomplete sovereign envelope');
   if (!/^[0-9a-f]{64}$/i.test(envelope.checksum)) throw new Error('invalid sovereign checksum');
   if (!/^[0-9a-f-]{36}$/i.test(envelope.jobId)) throw new Error('invalid sovereign job id');
@@ -52,6 +55,8 @@ async function main() {
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   await peerNode.start();
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+
+  edgeNode = await createApexEdgeNode({ peerNode, onState: (state) => console.log('[EDGE STATE]', JSON.stringify({ selected: state.network?.selected, mptcp: state.mptcp, error: state.error })) });
 
   const bridge = createSovereignDurableBridge({
     engine,
@@ -105,6 +110,7 @@ async function shutdown(signal) {
     console.error('[SOVEREIGN] final reconcile failed:', error);
     process.exitCode = 1;
   } finally {
+    await edgeNode?.stop().catch(() => {});
     await peerNode?.stop().catch(() => {});
     await pool.end().catch(() => {});
   }
@@ -115,6 +121,7 @@ process.once('SIGINT', () => void shutdown('SIGINT'));
 
 main().catch(async (error) => {
   console.error('[FATAL] Sovereign runtime failed:', error);
+  await edgeNode?.stop().catch(() => {});
   await peerNode?.stop().catch(() => {});
   await pool.end().catch(() => {});
   process.exitCode = 1;
