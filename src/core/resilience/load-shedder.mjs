@@ -26,13 +26,15 @@ let lastElu = performance.eventLoopUtilization();
 let pressureSamples = 0;
 let recoverySamples = 0;
 
-export function startLoadShedder({ intervalMs = 1000, threshold = 0.9 } = {}) {
+export function startLoadShedder({ intervalMs = 1000, threshold = 0.9, recoveryThreshold = 0.75 } = {}) {
+  const pressureThreshold = Math.max(0.5, Math.min(0.99, Number(threshold) || 0.9));
+  const recovery = Math.max(0.1, Math.min(pressureThreshold, Number(recoveryThreshold) || 0.75));
   const timer = setInterval(() => {
     const now = performance.eventLoopUtilization();
     const sample = performance.eventLoopUtilization(now, lastElu).utilization;
     lastElu = now;
-    if (sample >= 0.9) { pressureSamples++; recoverySamples = 0; }
-    else if (sample <= 0.75) { recoverySamples++; pressureSamples = 0; }
+    if (sample >= pressureThreshold) { pressureSamples++; recoverySamples = 0; }
+    else if (sample <= recovery) { recoverySamples++; pressureSamples = 0; }
     else { pressureSamples = Math.max(0, pressureSamples - 1); recoverySamples = 0; }
     if (pressureSamples >= 2) currentElu = sample;
     else if (recoverySamples >= 2) currentElu = sample;
