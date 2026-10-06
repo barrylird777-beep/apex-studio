@@ -1,5 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'node:path';
+import { is4kMasterCompliant, selectEncoderFromList } from './render-performance.mjs';
 
 export const PROD_SETTINGS = {
   audio: { bitrate: '320k', frequency: 48000, channels: 2, masterLoudness: 'loudnorm=I=-16:LRA=11:TP=-1.5' },
@@ -50,6 +51,15 @@ export async function masterSoundtrack(timelineAudioItems = [], bgmPath, outputP
       .outputOptions(['-movflags', '+faststart']).save(outputPath)
       .on('end', () => resolve(outputPath)).on('error', reject);
   });
+}
+
+export function buildFastMasterDecision({ video, availableEncoders = [], preferredEncoder = 'auto', format = '4k' } = {}) {
+  const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS['4k'];
+  if (is4kMasterCompliant({ video }, preset)) {
+    return { mode: 'stream-copy-video', encoder: null, preset };
+  }
+  const encoder = selectEncoderFromList(availableEncoders, preferredEncoder);
+  return { mode: 'encode', encoder, preset };
 }
 
 export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, outputPath, format = '4k') {
