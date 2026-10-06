@@ -28,3 +28,17 @@ test('adaptive profile backs off under loss and expands on clean high throughput
   assert.ok(safe.parallelStreams < base.parallelStreams);
   assert.ok(max.parallelStreams > base.parallelStreams);
 });
+
+
+test('network lane policy scales toward measured capacity', async () => {
+  const { adaptiveLaneCount, buildNetworkSpeedPolicy } = await import('../src/network/path-selector.mjs');
+  assert.equal(adaptiveLaneCount({ bandwidthMbps: 1000, lossPct: 0.1, rttMs: 30 }), 16);
+  assert.equal(adaptiveLaneCount({ bandwidthMbps: 100, lossPct: 4, rttMs: 30 }), 1);
+  const p = buildNetworkSpeedPolicy([
+    { device:'a', network:'wifi', healthy:true, score:20, rttMs:30 },
+    { device:'b', network:'starlink', healthy:true, score:40, rttMs:50 }
+  ]);
+  assert.equal(p.mode, 'multipath');
+  assert.equal(p.lanes, 2);
+  assert.ok(p.paths[1].weight > p.paths[0].weight);
+});
