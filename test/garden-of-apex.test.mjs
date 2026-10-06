@@ -25,6 +25,10 @@ test('Garden world migration is self-contained and preserves migration immutabil
   assert.match(migration, /ADD COLUMN IF NOT EXISTS "parent_id"/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_events"/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_freak_state"/);
+  assert.match(migration, /\('freak-groves','Freak Groves'/);
+  assert.match(migration, /\('discovery-fields','Discovery Fields'/);
+  assert.match(migration, /\('kornworks','KornWorks'/);
+  assert.match(migration, /\('story-gardens','Story Gardens'/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_freak_specialties"/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_discovery_links"/);
 });
