@@ -75,7 +75,7 @@ public struct ApexPhoneVaultClient: Sendable {
                 let length = Int(min(UInt64(upload.partSize), remaining))
                 try handle.seek(toOffset: offset)
 
-                let temp = FileManager.default.temporaryDirectory.appendingPathComponent("apex-phone-part-(UUID().uuidString)")
+                let temp = FileManager.default.temporaryDirectory.appendingPathComponent("apex-phone-part-\(UUID().uuidString)")
                 try copyChunk(from: handle, to: temp, length: length)
                 defer { try? FileManager.default.removeItem(at: temp) }
 
