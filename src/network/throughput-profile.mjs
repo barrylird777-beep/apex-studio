@@ -75,3 +75,27 @@ export function adaptTransferProfile({ previous, observedMbps = 0, lossPct = 0, 
   }
   return base;
 }
+
+
+export function buildTransportTuning({ bandwidthMbps = 0, rttMs = 0, lossPct = 0 } = {}) {
+  const bw = Math.max(0, Number(bandwidthMbps) || 0);
+  const rtt = Math.max(0, Number(rttMs) || 0);
+  const loss = Math.max(0, Number(lossPct) || 0);
+  const clean = loss < 0.5 && rtt <= 50;
+  return Object.freeze({
+    connectionReuse: true,
+    keepAlive: true,
+    compression: false,
+    parallelStreams: clean && bw >= 1000 ? 16 : clean && bw >= 250 ? 8 : loss > 2 || rtt > 150 ? 1 : 4,
+    chunkMiB: clean && bw >= 1000 ? 64 : clean && bw >= 250 ? 32 : 8,
+    maxInFlightMiB: clean && bw >= 1000 ? 512 : clean && bw >= 250 ? 256 : 64,
+    retryBackoffMs: loss > 2 || rtt > 150 ? 250 : 50,
+    checksum: 'sha256'
+  });
+}
+
+export function calculateBandwidthDelayProduct({ bandwidthMbps = 0, rttMs = 0 } = {}) {
+  const bw = Math.max(0, Number(bandwidthMbps) || 0);
+  const rtt = Math.max(0, Number(rttMs) || 0);
+  return (bw * 1_000_000 / 8) * (rtt / 1000);
+}
