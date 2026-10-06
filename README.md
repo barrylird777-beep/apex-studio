@@ -1,45 +1,69 @@
-# Apex Bible Story Studio
+# Apex Ecosystem — Master Architecture
 
-Apex Studio is focused on one job: turning Bible stories into source-aware cinematic videos.
+**STATUS: BLACK-PEN LOCKED — ARCHITECTURAL LAW**
 
-## Workflow
+Apex consists of exactly three primary systems:
 
-Scripture → research → story → characters/world → scenes/shots → visuals → narration/audio → timeline → render → release
+- **GardenOfApex — THE BRAIN:** research, knowledge, Bible, Korn World, studies, analytics, and AI Chat Lab.
+- **Apex Studio — THE EYES:** creative production, operations, distribution strategy, network/infrastructure, and its native creative interfaces.
+- **KORN-KNOB — THE EARS:** AI models, providers, routing, evaluation, and media-AI capabilities.
 
-## Core systems
+## Apex Studio
 
-- Biblical Story Engine — ordered biblical events with source references and dramatization labels.
-- Bible Catalog — Bible families and editions without bundling copyrighted translations.
-- Research & Sources — provenance, edition/translation, locators, and interpretation boundaries.
-- Characters & World — visual identity, relationships, locations, and continuity.
-- Oracle — cinematic script generation from Bible-story inputs.
-- Forge — cinematic visual generation.
-- Bard — narration/audio generation.
-- Scenes & Timelines — editable cinematic sequences.
-- Production & Render — dependencies, render jobs, assets, and releases.
-- Realism — consistent visual style and shot continuity.
+The **Special Search Engine is part of Apex Studio**. It is a native Studio interface, not a separate system or product.
 
-## Source discipline
+Studio owns:
+- Special Search Engine
+- Video Lab
+- Imagery Lab
+- Audio Lab
+- AI Creation Lab
+- Movie/video direction
+- Story/script/scene/shot planning
+- Visual and audio production
+- Animation, VFX, compositing, editing
+- Mixing/mastering
+- Rendering and QC
+- Release preparation
+- Social Media Command
+- Network and infrastructure
 
-Keep Scripture, tradition, historical/scholarly evidence, dramatization, and original fiction explicitly distinct. Generated scenes should retain their source provenance.
+The Special Search Engine is **optional and user-invoked**. It can discover models, providers, APIs, tools, software, datasets, renderers, media capabilities, services, and other production-relevant capabilities.
 
-## Running
+It is **not**:
+- a fourth Apex system
+- an external subsystem
+- a mandatory gateway
+- a replacement for Garden research
+- a replacement for KORN-KNOB capability management
+
+Studio can communicate directly with Garden for knowledge/research and directly with KORN-KNOB for AI/model/media capabilities.
+
+## GardenOfApex
+
+Garden owns research and knowledge, including Bible research, Korn World research, world studies, individual histories/states/timelines, research conversations, and the AI Chat Lab.
+
+Garden evidence must distinguish **KNOWN, OBSERVED, INFERRED, and UNKNOWN** and must not invent missing facts.
+
+## KORN-KNOB
+
+KORN-KNOB owns the AI/model/media capability layer for Apex overall and its own models/capabilities, including LLM, image, video, audio/music, voice, multimodal, embedding/reranking, provider access, routing, evaluation, health, versioning, and fallback.
+
+KORN-KNOB supplies capabilities; **Studio owns final production and assembly**.
+
+## Production law
+
+**Garden researches and understands.**
+
+**Studio directs, creates, produces, operates, and manages distribution strategy.**
+
+**KORN-KNOB supplies and manages AI/model/media capabilities.**
+
+Durable workflow state belongs in PostgreSQL rather than SQLite or process-local persistence.
+
+## Development
 
 ```bash
 npm install
 npm start
 ```
-
-Then open http://localhost:3010 on the host, or `http://<LAN-IP>:3010` from an authorized device on the same private network. By default the server binds to `0.0.0.0` but rejects non-private inbound addresses.
-
-## API
-
-The main creative API is under /api/studio. Production routes are /api/oracle, /api/forge, and /api/bard.
-
-## APEX OMNI-STUDIO
-
-The OMNI workspace adds the SE-X retrieval pipeline, local result storage, live search events, narrative branch mapping, prosody parsing, and production/render monitoring.
-
-SE-X outbound retrieval is deny-by-default. Configure explicit destinations with `APEX_SEX_ALLOWED_HOSTS`. The application never forwards stored credentials to retrieved sources, and telemetry remains disabled.
-
-OMNI storage is local application storage. The repository does not claim persistent AES-256-GCM encryption for OMNI data unless a separately verified persistent encryption implementation is deployed.
