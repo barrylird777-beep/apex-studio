@@ -55,12 +55,12 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = APEX_LIMITS.WOR
   return r.rows;
 }
 
-export async function claimNextWorkerTask(leaseMs = 45000) {
+export async function claimNextWorkerTask(leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000) {
   const tasks = await claimNextWorkerTasks(1, leaseMs);
   return tasks[0] || null;
 }
 
-export async function claimWorkerTask(id, leaseMs = 45000) {
+export async function claimWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000) {
   if (!durableWorkerEnabled()) return null;
   const db = getPool();
   const r = await db.query(`UPDATE apex_worker_tasks
@@ -73,7 +73,7 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
   return r.rows[0] || null;
 }
 
-export async function heartbeatWorkerTask(id, leaseMs = 45000, leaseToken) {
+export async function heartbeatWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, leaseToken) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
     SET lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
