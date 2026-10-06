@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { GeminiMeshProvider } from "./gemini-mesh-provider.mjs";
 import { ClaudeMeshProvider } from "./claude-mesh-provider.mjs";
 import { enqueueWorkerTask, deferWorkerTask } from "./durable-worker-store.mjs";
+import { executeCrewInference } from "./crew-inference-worker.mjs";
+import MediaRenderHandler from "../../workers/handlers/media-render-handler.mjs";
 
 function json(value) {
   return JSON.stringify(value ?? {});
@@ -26,26 +28,36 @@ async function saveContext(pool, episodeId, contextType, rawData) {
 
 async function graphExpansion({ pool, task }) {
   const p = episodePayload(task);
+  const verseSpec = String(p.verses || "full").trim().toLowerCase();
+  let verseStart = null;
+  let verseEnd = null;
+  if (verseSpec !== "full") {
+    const parts = verseSpec.split("-").map(Number);
+    verseStart = parts[0];
+    verseEnd = parts.length === 2 ? parts[1] : parts[0];
+    if (!Number.isInteger(verseStart) || !Number.isInteger(verseEnd) || verseStart < 1 || verseEnd < verseStart || verseEnd > 300) {
+      throw new Error("Invalid episode verse range");
+    }
+  }
   const r = await pool.query(
     `SELECT id, reference, book, chapter, verse_start, verse_end, text, canonical, metadata
        FROM bible_passages
       WHERE book=$1 AND chapter=$2
-        AND ($3='full' OR (verse_start <= split_part($3,'-',1)::int AND verse_end >= split_part($3,'-',1)::int)
-          OR ($3 LIKE '%-%' AND verse_start <= split_part($3,'-',2)::int AND verse_end >= split_part($3,'-',1)::int))
+        AND ($3::int IS NULL OR (verse_start <= $4::int AND verse_end >= $3::int))
       ORDER BY verse_start
       LIMIT 250`,
-    [String(p.book), Number(p.chapter), String(p.verses || "full")]
+    [String(p.book), Number(p.chapter), verseStart, verseEnd]
   );
 
   const passages = r.rows;
   const context = {
     episodeId: p.episodeId,
-    expansionType: String(p.type || "general"),
+    expansionType: String(p.expansionType || p.type || "general"),
     source: "bible_passages",
     passageCount: passages.length,
     passages
   };
-  await saveContext(pool, p.episodeId, `graph-${String(p.type || "general")}`, context);
+  await saveContext(pool, p.episodeId, `graph-${String(p.expansionType || p.type || "general")}`, context);
   return context;
 }
 
@@ -111,7 +123,7 @@ async function generateScript({ pool, task }) {
     workerId: "episode-pipeline",
     role: "episode-render",
     task: "episode-render",
-    payload: { episodeId: p.episodeId, stage: 3, dependsOn: task.id, traceId: task.trace_id || p.traceId || null },
+    payload: { episodeId: p.episodeId, book: p.book, chapter: Number(p.chapter), verses: p.verses || "full", stage: 3, dependsOn: task.id, traceId: task.trace_id || p.traceId || null },
     maxAttempts: 5,
     dedupeKey: renderKey,
     traceId: task.trace_id || p.traceId || null
@@ -123,7 +135,7 @@ async function generateScript({ pool, task }) {
   return { episodeId: p.episodeId, scriptLength: String(script).length, renderJobId: renderId };
 }
 
-async function renderPlan({ pool, task }) {
+async function renderPlan({ pool, task, mediaRenderHandler }) {
   const p = episodePayload(task);
   const r = await pool.query(
     "SELECT raw_data FROM apex_episode_context WHERE episode_id=$1 AND context_type='script'",
@@ -143,15 +155,51 @@ async function renderPlan({ pool, task }) {
     plannedAt: new Date().toISOString()
   };
   await saveContext(pool, p.episodeId, "render-plan", plan);
+  const media = await mediaRenderHandler.process({ episodeId: p.episodeId, book: p.book, chapter: Number(p.chapter), durationSeconds: Number(p.durationSeconds) || undefined });
   await pool.query(
-    "UPDATE apex_episode_pipelines SET status='render-planned', updated_at=NOW() WHERE id=$1",
+    "UPDATE apex_episode_pipelines SET status='rendered', updated_at=NOW() WHERE id=$1",
     [p.episodeId]
   );
-  return plan;
+  return { ...plan, media };
+}
+
+async function aiCrewEvaluate({ task }) {
+  const payload = task?.payload && typeof task.payload === "object" ? task.payload : {};
+  const prompt = String(payload.prompt || "").trim();
+  const system = String(payload.system || "").trim();
+  if (!prompt) throw new Error("AI crew task requires a prompt");
+  const result = await executeCrewInference(prompt, system || undefined, { role: payload.crewRole || "general" });
+  return {
+    type: "ai-crew-result",
+    crewJobId: payload.crewJobId || task.id,
+    role: payload.crewRole || "general",
+    provider: result.provider,
+    text: result.text,
+    failures: result.failures || [],
+    completedAt: new Date().toISOString()
+  };
+}
+
+async function rfAnomalyEvaluate({ task }) {
+  const payload = task?.payload && typeof task.payload === "object" ? task.payload : {};
+  const bssid = String(payload.bssid || "").trim();
+  const embedding = payload.embedding;
+
+  if (!bssid) throw new Error("RF anomaly task requires bssid");
+  if (!Array.isArray(embedding) || embedding.length !== 1536) {
+    throw new Error("RF anomaly task requires a 1536-dimensional embedding");
+  }
+  if (!embedding.every((value) => typeof value === "number" && Number.isFinite(value))) {
+    throw new Error("RF anomaly task embedding contains invalid values");
+  }
+
+  const { processRfAnomalyTrigger } = await import("../../rf-ai-bridge.mjs");
+  return processRfAnomalyTrigger(bssid, embedding);
 }
 
 export function createEpisodeJobDispatcher({ pool }) {
   if (!pool) throw new TypeError("Episode dispatcher requires PostgreSQL");
+  const mediaRenderHandler = new MediaRenderHandler(pool);
   return async function dispatchEpisodeJob(task) {
     switch (String(task?.role || task?.task || "")) {
       case "graph-expansion":
@@ -159,7 +207,11 @@ export function createEpisodeJobDispatcher({ pool }) {
       case "episode-script-generation":
         return generateScript({ pool, task });
       case "episode-render":
-        return renderPlan({ pool, task });
+        return renderPlan({ pool, task, mediaRenderHandler });
+      case "rf-anomaly-evaluate":
+        return rfAnomalyEvaluate({ task });
+      case "ai-crew":
+        return aiCrewEvaluate({ task });
       default:
         return null;
     }

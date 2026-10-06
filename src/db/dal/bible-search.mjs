@@ -1,20 +1,14 @@
-import pg from "pg";
-
-const { Pool } = pg;
-
-function createDefaultPool() {
-  const connectionString = String(process.env.DATABASE_URL || "").trim();
-  if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL Bible search.");
-  return new Pool({
-    connectionString,
-    max: Math.max(2, Math.min(20, Number(process.env.APEX_DB_POOL_MAX || 20))),
-    idleTimeoutMillis: Number(process.env.APEX_DB_IDLE_TIMEOUT_MS || 30000),
-    connectionTimeoutMillis: Number(process.env.APEX_DB_CONNECTION_TIMEOUT_MS || 10000)
-  });
-}
+import { pool as dbPool } from "../index.ts";
 
 function safeLimit(value, fallback = 50) {
   return Math.max(1, Math.min(500, Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : fallback));
+}
+
+function safeCollectionId(value) {
+  if (value == null) return null;
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) throw new TypeError("collectionId must be a non-negative integer");
+  return n;
 }
 
 function cleanQuery(value) {
@@ -22,8 +16,9 @@ function cleanQuery(value) {
 }
 
 export class BibleSearch {
-  constructor(pool = null) {
-    this.pool = pool ?? createDefaultPool();
+  constructor(pool = dbPool) {
+    if (!pool) throw new TypeError("BibleSearch requires the canonical PostgreSQL pool.");
+    this.pool = pool;
   }
 
   async search(queryText, { limit = 50, collectionId = null, similarityThreshold = 0.3 } = {}) {
@@ -31,11 +26,18 @@ export class BibleSearch {
     if (!query) return [];
     const client = await this.pool.connect();
     try {
-      await client.query("BEGIN");
-      await client.query("SET LOCAL pg_trgm.similarity_threshold = $1", [Number(similarityThreshold)]);
+      const threshold = Number(similarityThreshold);
+      if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+        throw new RangeError("similarityThreshold must be between 0 and 1");
+      }
+      await client.query("SELECT set_config('pg_trgm.similarity_threshold', $1, true)", [String(threshold)]);
       const params = [query, safeLimit(limit)];
-      const scope = collectionId == null ? "" : " AND p.collection_id = $3";
-      if (collectionId != null) params.push(Number(collectionId));
+      const collection = safeCollectionId(collectionId);
+      if (collection !== null && !Number.isSafeInteger(collection)) {
+        throw new TypeError("collectionId must be an integer");
+      }
+      const scope = collection === null ? "" : " AND p.collection_id = $3";
+      if (collection !== null) params.push(collection);
       const { rows } = await client.query(
         `SELECT p.id, p.collection_id, p.source_id, p.reference, p.book, p.chapter,
                 p.verse_start, p.verse_end, p.text,
@@ -46,11 +48,7 @@ export class BibleSearch {
           LIMIT $2`,
         params
       );
-      await client.query("COMMIT");
       return rows;
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
-      throw error;
     } finally {
       client.release();
     }
@@ -61,7 +59,7 @@ export class BibleSearch {
     if (!query) return [];
     const params = [query, safeLimit(limit)];
     const scope = collectionId == null ? "" : " AND p.collection_id = $3";
-    if (collectionId != null) params.push(Number(collectionId));
+    if (collectionId != null) params.push(safeCollectionId(collectionId));
     const { rows } = await this.pool.query(
       `SELECT p.id, p.collection_id, p.source_id, p.reference, p.book, p.chapter,
               p.verse_start, p.verse_end, p.text,

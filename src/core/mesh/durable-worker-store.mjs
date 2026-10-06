@@ -1,7 +1,5 @@
-import pg from "pg";
-
-const { Pool } = pg;
-let pool;
+import { APEX_LIMITS } from "./apex-limits.mjs";
+import { pool as dbPool } from "../../db/index.ts";
 
 export function durableWorkerEnabled() {
   return Boolean(String(process.env.DATABASE_URL || "").trim());
@@ -9,8 +7,7 @@ export function durableWorkerEnabled() {
 
 function getPool() {
   if (!durableWorkerEnabled()) return null;
-  if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Math.max(5, Math.min(10, Number(process.env.APEX_WORKER_DB_POOL_MAX || 8))) });
-  return pool;
+  return dbPool;
 }
 
 export async function ensureWorkerTaskSchema() {
@@ -22,20 +19,38 @@ export async function ensureWorkerTaskSchema() {
 export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}, maxAttempts = 5, dedupeKey = null, traceId = null }) {
   if (!durableWorkerEnabled()) return { durable: false, id };
   const db = getPool();
-  await db.query(`INSERT INTO apex_worker_tasks
-    (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
-    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
-    ON CONFLICT DO NOTHING`,
-    [id, String(workerId), String(role || "general"), String(task || ""), JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5), dedupeKey, traceId ? String(traceId).slice(0,255) : null]);
-  const existing = dedupeKey ? await db.query("SELECT id FROM apex_worker_tasks WHERE dedupe_key=$1 AND status IN ('queued','running') LIMIT 1", [dedupeKey]) : null;
-  return { durable: true, id: existing?.rows?.[0]?.id || id };
+  const values = [
+    id, String(workerId), String(role || "general"), String(task || ""),
+    JSON.stringify(payload), Math.max(1, Number(maxAttempts) || 5),
+    dedupeKey, traceId ? String(traceId).slice(0,255) : null
+  ];
+  if (!dedupeKey) {
+    await db.query(`INSERT INTO apex_worker_tasks
+      (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
+      VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) ON CONFLICT DO NOTHING`, values);
+    return { durable: true, id };
+  }
+  const result = await db.query(`WITH inserted AS (
+      INSERT INTO apex_worker_tasks
+        (id, worker_id, role, task, payload, max_attempts, dedupe_key, trace_id)
+      VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    )
+    SELECT id FROM inserted
+    UNION ALL
+    SELECT id FROM apex_worker_tasks
+     WHERE dedupe_key=$7 AND status IN ('queued','running')
+     LIMIT 1`, values);
+  return { durable: true, id: result.rows[0]?.id || id };
 }
 
-export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null) {
+export async function claimNextWorkerTasks(limit = 20, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, role = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
-  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const safeLimit = Math.max(1, Math.min(Math.min(APEX_LIMITS.WORKER.MAX_BATCH_SIZE, APEX_LIMITS.WORKER.CONCURRENCY), Number(limit) || APEX_LIMITS.WORKER.BATCH_SIZE));
   const safeRole = role == null ? null : String(role).slice(0, 255);
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
   const r = await db.query(`WITH candidate AS (
     SELECT id FROM apex_worker_tasks
     WHERE status='queued'
@@ -47,25 +62,27 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = n
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
-        lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$5, lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),
+        lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$5,
+        lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     FROM candidate
     WHERE t.id=candidate.id
     RETURNING t.*`,
-    [safeLimit, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", safeRole, leaseMs, process.pid]);
+    [safeLimit, owner, safeRole, leaseMs, process.pid]);
   return r.rows;
 }
 
-export async function claimNextWorkerTask(leaseMs = 45000) {
+export async function claimNextWorkerTask(leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000) {
   const tasks = await claimNextWorkerTasks(1, leaseMs);
   return tasks[0] || null;
 }
 
-export async function claimWorkerTask(id, leaseMs = 45000) {
+export async function claimWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000) {
   if (!durableWorkerEnabled()) return null;
   const db = getPool();
   const r = await db.query(`UPDATE apex_worker_tasks
     SET status='running', attempts=attempts+1,
+        recovered_count=CASE WHEN status='running' AND lease_expires_at<NOW() THEN recovered_count+1 ELSE recovered_count END,
         lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$4, lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'),
         updated_at=NOW()
     WHERE id=$1 AND (status='queued' OR (status='running' AND lease_expires_at<NOW()))
@@ -74,7 +91,27 @@ export async function claimWorkerTask(id, leaseMs = 45000) {
   return r.rows[0] || null;
 }
 
-export async function heartbeatWorkerTask(id, leaseMs = 45000, leaseToken) {
+export async function heartbeatWorkerTasks(tasks = [], leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000) {
+  if (!durableWorkerEnabled() || !tasks.length) return 0;
+  const safeLease = Math.max(15000, Number(leaseMs) || APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000);
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const ids = [];
+  const tokens = [];
+  for (const task of tasks) {
+    if (!task?.id || !task?.lease_token) continue;
+    ids.push(String(task.id));
+    tokens.push(String(task.lease_token));
+  }
+  if (!ids.length) return 0;
+  const r = await getPool().query(`UPDATE apex_worker_tasks t
+    SET lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
+    FROM unnest($1::uuid[], $2::text[]) AS heartbeat(id, token)
+    WHERE t.id=heartbeat.id AND t.lease_owner=$4 AND t.lease_token=heartbeat.token AND t.status='running'`,
+    [ids, tokens, safeLease, owner]);
+  return r.rowCount;
+}
+
+export async function heartbeatWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, leaseToken) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
     SET lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
@@ -166,25 +203,65 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const wait = Math.max(50, Number(retryMs) || 300);
   const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
   await db.query(`INSERT INTO rate_limits (key, tokens, updated_at)
-     VALUES ($1, $2, NOW()) ON CONFLICT (key) DO NOTHING`, [key, cap]);
-  for (;;) {
-    const r = await db.query(`UPDATE rate_limits SET
-        tokens = LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) - 1,
-        updated_at = NOW()
-       WHERE key = $1
-         AND LEAST($2, tokens + EXTRACT(EPOCH FROM (NOW() - updated_at)) * $3) >= 1`, [key, cap, refill]);
-    if (r.rowCount === 1) return true;
-    if (Date.now() >= deadline) return false;
-    await new Promise(resolve => setTimeout(resolve, wait + Math.random() * wait));
+    VALUES ($1, $2, NOW()) ON CONFLICT (key) DO NOTHING`, [key, cap]);
+
+  while (Date.now() < deadline) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const row = await client.query(
+        "SELECT tokens, updated_at FROM rate_limits WHERE key=$1 FOR UPDATE",
+        [key]
+      );
+      const current = row.rows[0];
+      if (!current) throw new Error(`Rate-limit bucket missing: ${key}`);
+      const elapsed = Math.max(0, (Date.now() - new Date(current.updated_at).getTime()) / 1000);
+      const available = Math.min(cap, Number(current.tokens) + elapsed * refill);
+      if (available >= 1) {
+        await client.query(
+          "UPDATE rate_limits SET tokens=$2, updated_at=NOW() WHERE key=$1",
+          [key, available - 1]
+        );
+        await client.query("COMMIT");
+        return true;
+      }
+      await client.query("ROLLBACK");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+    const remaining = Math.max(0, deadline - Date.now());
+    if (!remaining) break;
+    await new Promise(resolve => setTimeout(resolve, Math.min(wait + Math.floor(Math.random() * wait), remaining)));
   }
+  return false;
 }
 
-export async function claimExternalEffect(idempotencyKey) {
+export async function claimExternalEffect(idempotencyKey, leaseMs = 300000) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(`INSERT INTO apex_external_effects (idempotency_key, status)
-     VALUES ($1, 'started') ON CONFLICT (idempotency_key) DO NOTHING RETURNING idempotency_key`, [key]);
+  const safeLease = Math.max(5000, Math.min(3600000, Number(leaseMs) || 300000));
+  const r = await getPool().query(`INSERT INTO apex_external_effects (idempotency_key, status, lease_expires_at)
+     VALUES ($1, 'started', NOW()+($2::double precision * INTERVAL '1 millisecond'))
+     ON CONFLICT (idempotency_key) DO UPDATE
+       SET status='started', lease_expires_at=NOW()+($2::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
+       WHERE apex_external_effects.status='started'
+         AND (apex_external_effects.lease_expires_at IS NULL OR apex_external_effects.lease_expires_at < NOW())
+     RETURNING idempotency_key`, [key, safeLease]);
+  return r.rowCount === 1;
+}
+
+export async function releaseExternalEffect(idempotencyKey) {
+  if (!durableWorkerEnabled()) return true;
+  const key = String(idempotencyKey || "").trim();
+  if (!key) throw new Error("External side effects require an idempotency key");
+  const r = await getPool().query(
+    "UPDATE apex_external_effects SET lease_expires_at=NOW(), updated_at=NOW() WHERE idempotency_key=$1 AND status='started'",
+    [key]
+  );
   return r.rowCount === 1;
 }
 
@@ -192,7 +269,7 @@ export async function completeExternalEffect(idempotencyKey, result = null) {
   if (!durableWorkerEnabled()) return true;
   const key = String(idempotencyKey || "").trim();
   if (!key) throw new Error("External side effects require an idempotency key");
-  const r = await getPool().query(`UPDATE apex_external_effects SET status='completed', result=$2::jsonb, updated_at=NOW()
+  const r = await getPool().query(`UPDATE apex_external_effects SET status='completed', lease_expires_at=NULL, result=$2::jsonb, updated_at=NOW()
      WHERE idempotency_key=$1 AND status='started'`, [key, JSON.stringify(result)]);
   return r.rowCount === 1;
 }
@@ -208,6 +285,6 @@ export async function queueStats() {
 }
 
 export async function closeWorkerStore() {
-  if (pool) await pool.end();
-  pool = null;
+  // The durable worker store shares the canonical application PostgreSQL pool.
+  // Pool lifecycle is owned by src/db/index.ts, not by this store.
 }

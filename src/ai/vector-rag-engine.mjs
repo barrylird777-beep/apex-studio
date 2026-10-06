@@ -18,11 +18,11 @@ export class VectorRagEngine {
 
   async searchContext(queryEmbedding, limit = 5) {
     const vectorLiteral = validateEmbedding(queryEmbedding);
-    const safeLimit = Math.max(1, Math.min(50, Number(limit) || 5));
-    const client = await this.pool.connect();
+    const parsedLimit = Number(limit);
+    const safeLimit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(50, Math.trunc(parsedLimit))) : 5;
 
     try {
-      const result = await client.query(
+      const result = await this.pool.query(
         `SELECT
            c.id AS chunk_id,
            c.source_id,
@@ -53,8 +53,6 @@ export class VectorRagEngine {
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;
-    } finally {
-      client.release();
     }
   }
 }

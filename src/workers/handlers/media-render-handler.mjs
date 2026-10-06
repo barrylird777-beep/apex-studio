@@ -1,5 +1,6 @@
 import { stat, rm } from "node:fs/promises";
-import { createHash, createReadStream } from "node:crypto";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { log } from "../../core/resilience/load-shedder.mjs";
 import { AudioWaveformSynthesizer } from "../../media/audio-waveform-synthesizer.mjs";
 import { MultiGenreMusicGenerator } from "../../media/multi-genre-music-generator.mjs";

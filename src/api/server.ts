@@ -1,12 +1,60 @@
+import { pool as dbPool } from "../db/index";
 import http from "node:http";import {createReadStream,existsSync} from "node:fs";import {extname,join} from "node:path";import {fileURLToPath} from "node:url";import {spawn} from "node:child_process";import {createProject,deleteProject,getProjectOverview,listProjects,updateProject} from "./projects";import {createCharacter,deleteCharacter,getCharacter,listCharacters,updateCharacter} from "./characters";import {listScenes,createScene,updateScene,deleteScene} from "./scenes";// @ts-ignore JavaScript pipeline modules are runtime-tested by Node.
 import {generateBreakdown,BreakdownError} from "../scripture/breakdown.js";
 import {getCalendar,createShootDay,deleteShootDay,assignScenes,reorderDay,unassignScene,runAutoSchedule} from "./schedule";
+// @ts-ignore Garden domain is runtime-loaded from the ESM store.
+import {getGarden,getGardenWorld,createGardenFreak,createGardenDiscovery,relateGardenFreaks,listGardenRelationships,linkGardenDiscovery,listGardenDiscoveryLinks,appendGardenLineage,listGardenLineage,listGardenPlaces,createGardenPlace,listGardenActivities,createGardenActivity,recordGardenEvent,listGardenEvents,listGardenFreakState,setGardenFreakState,listGardenFreakSpecialties,setGardenFreakSpecialty} from "../garden/garden-store.mjs";
 // @ts-ignore JavaScript provider adapter is runtime-loaded.
 import {generateWithGemini} from "../ai/gemini.js";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
 const send=(res:http.ServerResponse,status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json"});res.end(status===204?"":JSON.stringify(data))};
 const readBody=(req:http.IncomingMessage)=>new Promise<any>((resolve,reject)=>{let s="";req.on("data",c=>s+=c);req.on("end",()=>{try{resolve(s?JSON.parse(s):{})}catch{reject(Error("Invalid JSON"))}});req.on("error",reject)});
 const server=http.createServer(async(req,res)=>{try{const u=new URL(req.url||"/","http://localhost"),p=u.pathname.split("/").filter(Boolean);
+if(p[0]==="api"&&p[1]==="overseer"&&p[2]==="metrics"&&req.method==="GET"){
+  try {
+    const [queueStats, activeWorkers] = await Promise.all([
+      dbPool.query(`SELECT status, COUNT(*)::int AS count
+        FROM apex_worker_tasks
+        GROUP BY status
+        ORDER BY status`),
+      dbPool.query(`SELECT id, worker_id, role, task, lease_expires_at, attempts
+        FROM apex_worker_tasks
+        WHERE status='running'
+        ORDER BY lease_expires_at NULLS LAST`)
+    ]);
+    const summary=Object.fromEntries(queueStats.rows.map((row:any)=>[row.status,row.count]));
+    return send(res,200,{
+      status:"operational",
+      timestamp:new Date().toISOString(),
+      queueSummary:queueStats.rows,
+      counts:{queued:summary.queued||0,running:summary.running||0,completed:summary.completed||0,failed:summary.failed||0,total:Object.values(summary).reduce((sum:any,n:any)=>sum+Number(n),0)},
+      activeTasks:activeWorkers.rows
+    });
+  } catch (error) {
+    console.error("overseer metrics failed",error);
+    return send(res,503,{status:"degraded",error:"Overseer metrics unavailable"});
+  }
+}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="world"&&p.length===3&&req.method==="GET") return send(res,200,await getGardenWorld());
+if(p[0]==="api"&&p[1]==="garden"&&p.length===2&&req.method==="GET") return send(res,200,await getGarden());
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenFreak(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden Freak"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="events"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenEvents(u.searchParams.get("limit")));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="events"&&p.length===3&&req.method==="POST"){try{return send(res,201,await recordGardenEvent(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden event"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="state"&&p.length===5&&req.method==="GET") return send(res,200,await listGardenFreakState(p[3]));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="state"&&p.length===5&&req.method==="PUT"){try{return send(res,200,await setGardenFreakState(p[3],await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden Freak state"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="specialties"&&p.length===5&&req.method==="GET") return send(res,200,await listGardenFreakSpecialties(p[3]));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="specialties"&&p.length===5&&req.method==="POST"){try{return send(res,201,await setGardenFreakSpecialty(p[3],await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden Freak specialty"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p[4]==="lineage"&&p.length===5&&req.method==="GET") return send(res,200,await listGardenLineage(p[3]));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p[4]==="lineage"&&p.length===5&&req.method==="POST"){try{return send(res,201,await appendGardenLineage({...await readBody(req),discoveryId:p[3]}))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden lineage"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="places"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenPlaces());
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="places"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenPlace(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden place"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="activities"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenActivities(typeof u.searchParams.get==="function"?u.searchParams.get("state"):null));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="activities"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenActivity(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden activity"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="relationships"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenRelationships());
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="relationships"&&p.length===3&&req.method==="POST"){try{const b=await readBody(req);return send(res,201,await relateGardenFreaks(b.fromFreakId,b.toFreakId,b.relationship,b.metadata))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden relationship"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p.length===4&&req.method==="GET") return send(res,200,await listGardenDiscoveryLinks(p[3]));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p[4]==="links"&&p.length===5&&req.method==="POST"){try{const b=await readBody(req);return send(res,201,await linkGardenDiscovery(p[3],b.freakId,b.relationship,b.metadata))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden discovery link"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenDiscovery(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden discovery"})}}
 if(p[0]==="api"&&p[1]==="characters"){if(p.length===2&&req.method==="GET")return send(res,200,await listCharacters(u.searchParams.get("q")||""));if(p.length===2&&req.method==="POST")return send(res,201,await createCharacter(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid character id"});if(p.length===3&&req.method==="GET"){const c=await getCharacter(id);return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="PUT"){const c=await updateCharacter(id,await readBody(req));return c?send(res,200,c):send(res,404,{error:"Character not found"})}if(p.length===3&&req.method==="DELETE"){return await deleteCharacter(id)?send(res,204,null):send(res,404,{error:"Character not found"})}}
 if(p[0]==="api"&&p[1]==="projects"){if(p.length===2&&req.method==="GET")return send(res,200,await listProjects());if(p.length===2&&req.method==="POST")return send(res,201,await createProject(await readBody(req)));const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid project id"});if(p[3]==="overview"&&req.method==="GET"){const o=await getProjectOverview(id);return o?send(res,200,o):send(res,404,{error:"Project not found"})}if(p.length===3&&req.method==="PUT"){const o=await updateProject(id,await readBody(req));return o?send(res,200,o):send(res,404,{error:"Project not found"})}if(p.length===3&&req.method==="DELETE"){await deleteProject(id);return send(res,204,null)}if(p[3]==="scenes"&&req.method==="GET")return send(res,200,await listScenes(id));if(p[3]==="scenes"&&req.method==="POST"){const s=await createScene({...await readBody(req),projectId:id});return s?send(res,201,s):send(res,404,{error:"Project not found"})}}
 if(p[0]==="api"&&p[1]==="projects"&&p[3]==="calendar"&&req.method==="GET"){

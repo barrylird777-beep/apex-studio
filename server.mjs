@@ -13,7 +13,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, enqueueWorkerTask, queueStats } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -27,6 +27,8 @@ import { scrapePrometheusMetrics, prometheusContentType } from './src/observabil
 import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
 import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
+import { requireTitanAuth } from './src/security/require-titan-auth.mjs';
+import { internetFetch, internetSearch, internetCapabilities } from './src/core/internet/internet-gateway.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -34,10 +36,6 @@ startLoadShedder({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD |
 app.use(loadShedderMiddleware({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) }));
 app.use((req,res,next) => runWithTrace({ trace_id: String(req.headers['x-request-id'] || crypto.randomUUID()) }, next));
 
-if (durableWorkerEnabled()) {
-  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
-  reclaimTimer.unref?.();
-}
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
@@ -61,6 +59,7 @@ const permanentHealthHandler = async (payload) => {
   } else if (['video-engine', 'export', 'render-cache', 'visual-direction'].includes(role)) {
     await new RenderWorker().available();
   } else if (['voiceover', 'audio-reference'].includes(role)) {
+    const { voiceoverWorkerStatus } = await import('./src/workers/voiceover-worker.mjs');
     await voiceoverWorkerStatus();
   } else {
     capacitySnapshot();
@@ -224,6 +223,35 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+app.get('/api/internet/capabilities', requireTitanAuth, async (_req, res) => {
+  res.json({ success: true, ...(await internetCapabilities()) });
+});
+
+app.post('/api/internet/search', express.json({ limit: '64kb' }), requireTitanAuth, async (req, res) => {
+  try {
+    const query = String(req.body?.query || '').normalize('NFKC').trim();
+    if (!query || query.length > 1000) return res.status(400).json({ success: false, error: 'query is required and must be <= 1000 characters' });
+    const result = await internetSearch(query, { limit: req.body?.limit });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(503).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.post('/api/internet/fetch', express.json({ limit: '64kb' }), requireTitanAuth, async (req, res) => {
+  try {
+    const url = String(req.body?.url || '').trim();
+    if (!url || url.length > 4096) return res.status(400).json({ success: false, error: 'url is required and must be <= 4096 characters' });
+    const result = await internetFetch(url, {
+      timeoutMs: req.body?.timeoutMs,
+      maxBytes: req.body?.maxBytes
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
   success:true,
@@ -783,7 +811,7 @@ function triggerSwarmFallback(error) {
 global.checkInferenceSwarmHealth = checkInferenceSwarmHealth;
 global.triggerSwarmFallback = triggerSwarmFallback;
 
-const SUPERVISOR_INTERVAL = 1000;
+const SUPERVISOR_INTERVAL = Math.max(5000, Number(process.env.APEX_SUPERVISOR_INTERVAL_MS || 15000));
 const SUPERVISOR_TIMEOUT = 2500;
 global.isSupervisorBusy = false;
 
@@ -844,12 +872,9 @@ async function executeInference(prompt, system = DEFAULT_SYSTEM) {
     }
   }
 
-  // Guaranteed Last-Resort Echo so the pipeline never throws an uncaught 500
-  return {
-    text: input,
-    provider: 'fallback-passthrough',
-    failures
-  };
+  const error = new Error(`Inference swarm exhausted: ${failures.join(' | ')}`);
+  error.failures = failures;
+  throw error;
 }
 
 // ============================================================
@@ -1390,6 +1415,47 @@ app.post('/api/mesh/jobs', async (req, res) => {
 
 app.get('/api/mesh/workers', (_req, res) => {
   res.json({ success: true, ...meshWorkerSupervisor.status() });
+});
+
+app.post('/api/rf/evaluate', requireTitanAuth, async (req, res) => {
+  try {
+    const bssid = String(req.body?.bssid || '').trim().toLowerCase();
+    const embedding = req.body?.embedding;
+
+    if (!/^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$/.test(bssid)) {
+      return res.status(400).json({ success: false, error: 'Invalid RF BSSID' });
+    }
+    if (!Array.isArray(embedding) || embedding.length !== 1536) {
+      return res.status(400).json({ success: false, error: 'embedding must contain exactly 1536 dimensions' });
+    }
+    if (!embedding.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+      return res.status(400).json({ success: false, error: 'embedding contains invalid numeric values' });
+    }
+    if (!durableWorkerEnabled()) {
+      return res.status(503).json({ success: false, error: 'Durable worker queue is unavailable' });
+    }
+
+    const taskId = crypto.randomUUID();
+    const result = await enqueueWorkerTask({
+      id: taskId,
+      workerId: 'rf-api',
+      role: 'rf-anomaly-evaluate',
+      task: 'rf-anomaly-evaluate',
+      payload: { bssid, embedding },
+      maxAttempts: 3,
+      dedupeKey: `rf-anomaly:${bssid}:${crypto.createHash('sha256').update(JSON.stringify(embedding)).digest('hex').slice(0, 32)}`,
+      traceId: String(req.headers['x-request-id'] || '')
+    });
+
+    return res.status(202).json({
+      success: true,
+      status: 'queued',
+      taskId: result.id,
+      durable: result.durable
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message });
+  }
 });
 
 app.get('/api/crew/status', (_req, res) => {
