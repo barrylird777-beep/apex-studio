@@ -133,6 +133,121 @@ public struct ApexControlClient: Sendable {
         _ = try await request(url: url, method: "DELETE")
     }
 
+    public func uploadLargeFile(
+        at fileURL: URL,
+        filename: String? = nil,
+        contentType: String = "application/octet-stream",
+        prefix: String = "iphone"
+    ) async throws -> ApexStorageObject {
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let size = Int64((attributes[.size] as? NSNumber)?.int64Value ?? 0)
+        let initData = try await postJSON(
+            path: "api/mobile/storage/multipart/initiate",
+            body: [
+                "filename": filename ?? fileURL.lastPathComponent,
+                "contentType": contentType,
+                "size": size,
+                "prefix": prefix
+            ]
+        )
+        let session = try JSONDecoder().decode(MultipartSession.self, from: initData)
+        let existingData = try await postJSON(
+            path: "api/mobile/storage/multipart/parts",
+            body: ["key": session.key, "uploadId": session.uploadId, "prefix": prefix]
+        )
+        let existing = try JSONDecoder().decode(MultipartPartsEnvelope.self, from: existingData)
+        var completed = Dictionary(uniqueKeysWithValues: existing.parts.map { ($0.partNumber, $0.etag) })
+
+        do {
+            let handle = try FileHandle(forReadingFrom: fileURL)
+            defer { try? handle.close() }
+            var partNumber = 1
+            while Int64((partNumber - 1) * session.partSize) < size {
+                if completed[partNumber] == nil {
+                    let offset = UInt64((partNumber - 1) * session.partSize)
+                    let remaining = UInt64(max(0, size - Int64(offset)))
+                    let length = Int(min(UInt64(session.partSize), remaining))
+                    try handle.seek(toOffset: offset)
+                    let temp = FileManager.default.temporaryDirectory.appendingPathComponent("apex-part-\(UUID().uuidString)")
+                    try copyChunk(from: handle, to: temp, length: length)
+                    defer { try? FileManager.default.removeItem(at: temp) }
+
+                    let ticketData = try await postJSON(
+                        path: "api/mobile/storage/multipart/part-url",
+                        body: [
+                            "key": session.key,
+                            "uploadId": session.uploadId,
+                            "partNumber": partNumber,
+                            "prefix": prefix
+                        ]
+                    )
+                    let ticket = try JSONDecoder().decode(MultipartPartTicket.self, from: ticketData)
+                    var request = URLRequest(url: ticket.url)
+                    request.httpMethod = "PUT"
+                    request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+                    let (_, response) = try await URLSession.shared.upload(for: request, fromFile: temp)
+                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                          let etag = http.value(forHTTPHeaderField: "ETag") else {
+                        throw ApexControlError.server((response as? HTTPURLResponse)?.statusCode ?? 0)
+                    }
+                    completed[partNumber] = etag
+                }
+                partNumber += 1
+            }
+            let parts = completed.keys.sorted().map { ["partNumber": $0, "etag": completed[$0] ?? ""] }
+            let completeData = try await postJSON(
+                path: "api/mobile/storage/multipart/complete",
+                body: ["key": session.key, "uploadId": session.uploadId, "parts": parts, "prefix": prefix]
+            )
+            _ = try JSONSerialization.jsonObject(with: completeData)
+            return ApexStorageObject(key: session.key, bytes: Int(min(size, Int64(Int.max))), modifiedAt: nil, etag: nil)
+        } catch {
+            _ = try? await postJSON(
+                path: "api/mobile/storage/multipart/abort",
+                body: ["key": session.key, "uploadId": session.uploadId, "prefix": prefix]
+            )
+            throw error
+        }
+    }
+
+    private func copyChunk(from source: FileHandle, to destination: URL, length: Int) throws {
+        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        let output = try FileHandle(forWritingTo: destination)
+        defer { try? output.close() }
+        var remaining = length
+        while remaining > 0 {
+            let data = try source.read(upToCount: min(8 * 1024 * 1024, remaining)) ?? Data()
+            if data.isEmpty { throw ApexControlError.invalidResponse }
+            try output.write(contentsOf: data)
+            remaining -= data.count
+        }
+    }
+
+    private struct MultipartSession: Codable {
+        let key: String
+        let uploadId: String
+        let partSize: Int
+        let partCount: Int
+    }
+
+    private struct MultipartPartTicket: Codable {
+        let key: String
+        let uploadId: String
+        let partNumber: Int
+        let url: URL
+        let expiresIn: Int
+    }
+
+    private struct MultipartPartsEnvelope: Codable {
+        let parts: [MultipartPart]
+    }
+
+    private struct MultipartPart: Codable {
+        let partNumber: Int
+        let etag: String
+        let bytes: Int
+    }
+
     public func produceEpisode(
         book: String,
         chapter: Int,
