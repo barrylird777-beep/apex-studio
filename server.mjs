@@ -21,7 +21,8 @@ import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWor
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
-import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';\nimport { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.mjs';
+import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
+import { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.mjs';
 import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
