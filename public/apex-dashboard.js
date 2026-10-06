@@ -225,3 +225,62 @@
     return original(name);
   })(window.view);
 })();
+/* Network navigation/runtime repair: legacy index has a syntax error in loadNetwork.
+   Define a clean view router and visible throughput test independently of that broken script. */
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  window.loadNetwork = async function(){
+    const msg=$("networkMsg"); if(msg) msg.textContent="";
+    try{
+      const x=await fetch("/api/network/status",{cache:"no-store"}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||"Network status failed");return d});
+      const candidates=Array.isArray(x.candidates)?x.candidates:[];
+      const healthy=candidates.filter(p=>p&&p.healthy);
+      if($("networkState")) $("networkState").textContent=x.status||x.state||"—";
+      if($("networkSelected")) $("networkSelected").textContent=x.selected?.device||x.selected?.interface||"—";
+      if($("networkHealthy")) $("networkHealthy").textContent=healthy.length;
+      if($("networkLanes")) $("networkLanes").textContent=x.speed?.lanes??"—";
+      if($("networkActive")) $("networkActive").textContent=x.selected?JSON.stringify(x.selected,null,2):"No selected network path";
+      if($("networkFailover")) $("networkFailover").textContent=JSON.stringify(x.failover||[],null,2);
+      if($("networkPolicy")) $("networkPolicy").textContent=JSON.stringify(x.policy||{},null,2);
+      if($("networkSpeed")) $("networkSpeed").textContent=JSON.stringify(x.speed||{},null,2);
+      if($("networkCandidates")) $("networkCandidates").innerHTML=candidates.map(p=>"<div class='row'><div><b>"+esc(p.device||"Unknown path")+"</b><span class='muted'>"+esc(p.network||"network")+" · score "+esc(String(p.score??"—"))+"</span></div><span class='pill'>"+(p.healthy?"HEALTHY":"OFFLINE")+"</span></div>").join("")||"<div class='empty'>No candidates reported.</div>";
+    }catch(e){if(msg)msg.textContent=e.message||"Network status failed";if($("networkState"))$("networkState").textContent="ERROR"}
+  };
+  window.runNetworkBenchmark = async function(mib=32){
+    const panel=$("networkBenchmark");
+    if(!panel)return;
+    panel.innerHTML="<div class='notice'>Downloading "+mib+" MiB… <b id='networkBenchmarkProgress'>0%</b></div>";
+    const started=performance.now();
+    try{
+      const r=await fetch("/api/network/throughput?mib="+mib,{cache:"no-store"});
+      if(!r.ok||!r.body)throw Error("Throughput test unavailable (HTTP "+r.status+")");
+      const total=Number(r.headers.get("x-apex-benchmark-bytes")||mib*1024*1024);
+      const reader=r.body.getReader();let bytes=0;
+      for(;;){const q=await reader.read();if(q.done)break;bytes+=q.value?.byteLength||0;const pct=Math.min(100,bytes/total*100);const p=$("networkBenchmarkProgress");if(p)p.textContent=pct.toFixed(0)+"%";}
+      const elapsed=Math.max(1,performance.now()-started);
+      const mbps=bytes*8/(elapsed/1000)/1e6;
+      panel.innerHTML="<div class='cards'><div class='card'><div class='num'>"+mbps.toFixed(2)+" Mbps</div><div class='label'>Measured throughput</div></div><div class='card'><div class='num'>"+(bytes/1048576).toFixed(1)+" MiB</div><div class='label'>Downloaded</div></div><div class='card'><div class='num'>"+(elapsed/1000).toFixed(2)+" s</div><div class='label'>Elapsed</div></div><div class='card'><div class='num'>PASS</div><div class='label'>Benchmark</div></div></div>";
+    }catch(e){panel.innerHTML="<div class='error'>"+esc(e.message||"Throughput test failed")+"</div>"}
+  };
+  const originalView=window.view;
+  window.view=function(name){
+    if(typeof originalView==="function"){try{originalView(name)}catch(_){}}
+    else{document.querySelectorAll(".view").forEach(x=>x.classList.add("hidden"));const el=$(name);if(el)el.classList.remove("hidden");}
+    if(name==="network"){
+      const n=$("network");
+      if(n){
+        n.classList.remove("hidden");
+        if(!$("networkBenchmark")){
+          const box=document.createElement("section");box.className="panel";box.style.marginTop="14px";
+          box.innerHTML="<h2>Real throughput test</h2><p class='muted'>Measures the actual client → Apex transfer from this device.</p><div class='actions'><button class='primary' id='networkTest32'>Test 32 MiB</button><button id='networkTest64'>Test 64 MiB</button></div><div id='networkBenchmark' style='margin-top:14px'></div>";
+          n.appendChild(box);
+          $("networkTest32").onclick=()=>runNetworkBenchmark(32);
+          $("networkTest64").onclick=()=>runNetworkBenchmark(64);
+        }
+      }
+      loadNetwork();
+    }
+  };
+  document.addEventListener("DOMContentLoaded",()=>{const b=document.querySelector('.nav button[data-view="network"]');if(b){b.onclick=()=>window.view("network")}});
+})();
