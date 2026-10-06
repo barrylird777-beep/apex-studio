@@ -21,7 +21,7 @@ import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWor
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
-import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
+import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';\nimport { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
 import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
@@ -1330,6 +1330,33 @@ app.post('/api/render/export', async (req, res) => {
       if (file) await unlink(file).catch(() => {});
     }
   }
+});
+
+app.post('/api/ai/generate-max', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await generateMax({
+      prompt: body.prompt,
+      messages: body.messages,
+      system: body.system,
+      model: body.model,
+      previousResponseId: body.previous_response_id || body.previousResponseId,
+      schema: body.schema,
+      schemaName: body.schema_name || body.schemaName,
+      schemaDescription: body.schema_description || body.schemaDescription,
+      verbosity: body.verbosity
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    const message = String(error?.message || error);
+    const status = /not configured|required|too many|invalid|exceeds|schema/i.test(message) ? 400 : 502;
+    console.error('[ai-generate-max]', message);
+    return res.status(status).json({ success: false, error: status === 502 ? 'OpenAI generation failed' : message });
+  }
+});
+
+app.get('/api/ai/generate-max/status', (_req, res) => {
+  res.json({ success: true, ...openAiMaxStatus() });
 });
 
 app.post('/api/ai/generate', async (req, res) => {
