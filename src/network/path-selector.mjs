@@ -134,3 +134,19 @@ export function buildNetworkSchedulerPolicy({ paths = [], bandwidthMbps = 0, rtt
     paths: selected
   });
 }
+
+
+export function buildConnectionPolicy({ speed = 'maximum', multipleConnections = true, failover = true, adaptive = true } = {}) {
+  const maximum = speed === 'maximum';
+  return Object.freeze({
+    mode: maximum && multipleConnections ? 'multipath' : maximum ? 'single-path-maximum' : 'adaptive',
+    preconnect: true,
+    keepAlive: true,
+    reuseConnections: true,
+    multipleConnections: Boolean(multipleConnections),
+    automaticFailover: Boolean(failover),
+    adaptiveSpeed: Boolean(adaptive),
+    artificialSpeedLimitMbps: null,
+    maxLanes: maximum && multipleConnections ? 16 : 1
+  });
+}
