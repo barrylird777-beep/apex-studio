@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'node:crypto';
 import {
-  cloudStorageStatus, listCloudObjects, createUploadUrl, createDownloadUrl,
+  cloudStorageStatus, freeStoragePolicy, listCloudObjects, createUploadUrl, createDownloadUrl,
   inspectCloudObject, deleteCloudObject, multipartPlan,
   initiateMultipartUpload, signMultipartPart, listMultipartParts,
   completeMultipartUpload, abortMultipartUpload
@@ -101,6 +101,8 @@ export function createPhoneControlPlane({ getHealth, getNetwork } = {}) {
     try { return res.json({ success: true, ...multipartPlan(req.body || {}) }); }
     catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
   });
+
+  router.get('/storage/policy', (_req, res) => res.json({ success: true, namespace: PHONE_PREFIX, ...freeStoragePolicy() }));
 
   router.get('/storage/status', (_req, res) => res.json({
     success: true, ...cloudStorageStatus(), namespace: PHONE_PREFIX, isolation: 'personal-device-only'

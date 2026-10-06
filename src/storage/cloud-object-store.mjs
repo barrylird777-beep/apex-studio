@@ -62,6 +62,11 @@ function scopedKey(key, prefix = 'iphone') {
 }
 
 const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024;
+const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
+const FREE_MAX_OBJECT_BYTES = Math.max(1, Number(process.env.APEX_FREE_MAX_OBJECT_BYTES || 25 * 1024 * 1024 * 1024));
+const FREE_MAX_ACTIVE_UPLOADS = Math.max(1, Number(process.env.APEX_FREE_MAX_ACTIVE_UPLOADS || 2));
+const FREE_MAX_DAILY_UPLOAD_BYTES = Math.max(1, Number(process.env.APEX_FREE_MAX_DAILY_UPLOAD_BYTES || 25 * 1024 * 1024 * 1024));
+const FREE_MAX_DAILY_DOWNLOAD_BYTES = Math.max(1, Number(process.env.APEX_FREE_MAX_DAILY_DOWNLOAD_BYTES || 50 * 1024 * 1024 * 1024));
 const MULTIPART_PART_BYTES = Math.max(64 * 1024 * 1024, Math.min(512 * 1024 * 1024, Number(process.env.APEX_STORAGE_PART_BYTES || 512 * 1024 * 1024)));
 const MAX_SIGNED_URL_SECONDS = Math.min(3600, Math.max(60, Number(process.env.APEX_STORAGE_SIGNED_URL_SECONDS || 900)));
 
@@ -76,7 +81,9 @@ export function cloudStorageStatus(prefix = 'apex-business') {
     namespace: prefix,
     deviceMode: 'cloud-offload',
     localDeviceStorageRole: 'cache-and-working-set',
-    maxObjectBytes: MAX_OBJECT_BYTES,
+    maxObjectBytes: FREE_MODE ? FREE_MAX_OBJECT_BYTES : MAX_OBJECT_BYTES,
+    freeMode: FREE_MODE,
+    freePolicy: freeStoragePolicy(),
     multipartPartBytes: MULTIPART_PART_BYTES,
     maxMultipartParts: 10000,
     resumableUploads: true,
@@ -162,8 +169,20 @@ export async function deleteCloudObject({ key, prefix = 'iphone' } = {}) {
 }
 
 
+export function freeStoragePolicy() {
+  return {
+    enabled: FREE_MODE,
+    maxObjectBytes: FREE_MODE ? FREE_MAX_OBJECT_BYTES : MAX_OBJECT_BYTES,
+    maxActiveUploads: FREE_MAX_ACTIVE_UPLOADS,
+    maxDailyUploadBytes: FREE_MAX_DAILY_UPLOAD_BYTES,
+    maxDailyDownloadBytes: FREE_MAX_DAILY_DOWNLOAD_BYTES,
+    billingSafety: 'hard-cap-before-new-storage-transfer'
+  };
+}
+
 export function multipartPlan({ size = 0 } = {}) {
   const bytes = Math.max(0, Number(size) || 0);
+  if (FREE_MODE && bytes > FREE_MAX_OBJECT_BYTES) { const error = new Error(`Free-mode object cap is ${FREE_MAX_OBJECT_BYTES} bytes`); error.status = 413; throw error; }
   const partSize = MULTIPART_PART_BYTES;
   const partCount = Math.max(1, Math.ceil(bytes / partSize));
   if (bytes > MAX_OBJECT_BYTES || partCount > 10000) {
