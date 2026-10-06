@@ -28,6 +28,8 @@ let timer;
 async function acceptPeerEnvelope(envelope) {
   if (!envelope || envelope.type !== 'durable.accept') throw new Error('unsupported sovereign envelope');
   if (!envelope.waveId || !envelope.jobId || !envelope.checksum) throw new Error('incomplete sovereign envelope');
+  if (!/^[0-9a-f]{64}$/i.test(envelope.checksum)) throw new Error('invalid sovereign checksum');
+  if (!/^[0-9a-f-]{36}$/i.test(envelope.jobId)) throw new Error('invalid sovereign job id');
 
   const result = await pool.query(
     `INSERT INTO durable_job_receipts
