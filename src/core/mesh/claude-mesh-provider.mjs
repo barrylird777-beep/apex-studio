@@ -10,7 +10,8 @@ export class ClaudeMeshProvider {
     const model = options.model || this.model;
     const body = {
       model,
-      max_tokens: Number(options.maxTokens || 4096),
+      max_tokens: Number(options.maxTokens || process.env.CLAUDE_MAX_OUTPUT_TOKENS || 64000),
+      ...(options.thinking === false ? {} : { thinking: { type: 'enabled', budget_tokens: Number(options.thinkingBudgetTokens || process.env.CLAUDE_THINKING_BUDGET || 32000) } }),
       messages: [{ role: 'user', content: String(prompt) }]
     };
     if (options.system) body.system = String(options.system);
