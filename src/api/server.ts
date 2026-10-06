@@ -3,7 +3,7 @@ import http from "node:http";import {createReadStream,existsSync} from "node:fs"
 import {generateBreakdown,BreakdownError} from "../scripture/breakdown.js";
 import {getCalendar,createShootDay,deleteShootDay,assignScenes,reorderDay,unassignScene,runAutoSchedule} from "./schedule";
 // @ts-ignore Garden domain is runtime-loaded from the ESM store.
-import {getGarden,getGardenWorld,createGardenFreak,createGardenDiscovery,relateGardenFreaks,listGardenRelationships,linkGardenDiscovery,listGardenDiscoveryLinks,listGardenPlaces,createGardenPlace,listGardenActivities,createGardenActivity,recordGardenEvent,listGardenEvents,listGardenFreakState,setGardenFreakState,listGardenFreakSpecialties,setGardenFreakSpecialty} from "../garden/garden-store.mjs";
+import {getGarden,getGardenWorld,createGardenFreak,createGardenDiscovery,relateGardenFreaks,listGardenRelationships,linkGardenDiscovery,listGardenDiscoveryLinks,appendGardenLineage,listGardenLineage,listGardenPlaces,createGardenPlace,listGardenActivities,createGardenActivity,recordGardenEvent,listGardenEvents,listGardenFreakState,setGardenFreakState,listGardenFreakSpecialties,setGardenFreakSpecialty} from "../garden/garden-store.mjs";
 // @ts-ignore JavaScript provider adapter is runtime-loaded.
 import {generateWithGemini} from "../ai/gemini.js";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
@@ -44,6 +44,8 @@ if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="state"&&p.lengt
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="state"&&p.length===5&&req.method==="PUT"){try{return send(res,200,await setGardenFreakState(p[3],await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden Freak state"})}}
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="specialties"&&p.length===5&&req.method==="GET") return send(res,200,await listGardenFreakSpecialties(p[3]));
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="freaks"&&p[3]&&p[4]==="specialties"&&p.length===5&&req.method==="POST"){try{return send(res,201,await setGardenFreakSpecialty(p[3],await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden Freak specialty"})}}
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p[4]==="lineage"&&p.length===5&&req.method==="GET") return send(res,200,await listGardenLineage(p[3]));
+if(p[0]==="api"&&p[1]==="garden"&&p[2]==="discoveries"&&p[3]&&p[4]==="lineage"&&p.length===5&&req.method==="POST"){try{return send(res,201,await appendGardenLineage({...await readBody(req),discoveryId:p[3]}))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden lineage"})}}
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="places"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenPlaces());
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="places"&&p.length===3&&req.method==="POST"){try{return send(res,201,await createGardenPlace(await readBody(req)))}catch(e){return send(res,400,{error:e instanceof Error?e.message:"Invalid Garden place"})}}
 if(p[0]==="api"&&p[1]==="garden"&&p[2]==="activities"&&p.length===3&&req.method==="GET") return send(res,200,await listGardenActivities(typeof u.searchParams.get==="function"?u.searchParams.get("state"):null));
