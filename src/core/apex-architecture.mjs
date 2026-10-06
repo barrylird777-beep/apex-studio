@@ -15,6 +15,21 @@ export const SYSTEMS = Object.freeze({
   KORN_KNOB: "korn-knob"
 });
 
+/**
+ * ARCHITECTURAL LAWS — implementation must conform to these.
+ * The Studio Special Search Engine is a native Studio surface, never a
+ * fourth system, external subsystem, gateway, or intermediary.
+ */
+export const ARCHITECTURAL_LAWS = Object.freeze({
+  PRIMARY_SYSTEM_COUNT: 3,
+  SPECIAL_SEARCH_OWNER: SYSTEMS.STUDIO,
+  SPECIAL_SEARCH_IS_STUDIO_SURFACE: true,
+  SPECIAL_SEARCH_IS_SEPARATE_SYSTEM: false,
+  SPECIAL_SEARCH_IS_MANDATORY_GATEWAY: false,
+  STUDIO_DIRECT_GARDEN_ACCESS: true,
+  STUDIO_DIRECT_KORN_KNOB_ACCESS: true
+});
+
 export const OWNERSHIP = Object.freeze({
   [SYSTEMS.GARDEN]: Object.freeze([
     "knowledge","research","bible-research","korn-world",
