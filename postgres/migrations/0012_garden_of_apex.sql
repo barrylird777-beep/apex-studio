@@ -105,3 +105,37 @@ CREATE TABLE IF NOT EXISTS "garden_activities" (
 );
 CREATE INDEX IF NOT EXISTS "garden_activities_place_idx" ON "garden_activities" ("place_id","state");
 CREATE INDEX IF NOT EXISTS "garden_activities_freak_idx" ON "garden_activities" ("freak_id","state");
+
+CREATE TABLE IF NOT EXISTS "garden_events" (
+  "id" bigserial PRIMARY KEY,
+  "event_type" text NOT NULL,
+  "place_id" bigint REFERENCES "garden_places"("id") ON DELETE SET NULL,
+  "freak_id" bigint REFERENCES "garden_freaks"("id") ON DELETE SET NULL,
+  "discovery_id" bigint REFERENCES "garden_discoveries"("id") ON DELETE SET NULL,
+  "activity_id" bigint REFERENCES "garden_activities"("id") ON DELETE SET NULL,
+  "payload" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "occurred_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS "garden_events_time_idx" ON "garden_events" ("occurred_at" DESC);
+CREATE INDEX IF NOT EXISTS "garden_events_place_idx" ON "garden_events" ("place_id","occurred_at" DESC);
+CREATE INDEX IF NOT EXISTS "garden_events_freak_idx" ON "garden_events" ("freak_id","occurred_at" DESC);
+
+INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata)
+SELECT NULL,'garden-heart','Garden Heart','sanctuary','The central gathering place of THE Garden of Apex.','{"canonical":true}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='garden-heart');
+
+INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata)
+SELECT (SELECT id FROM garden_places WHERE slug='garden-heart'),'freak-groves','Freak Groves','habitat','Spaces where Jesus Freaks grow, specialize, study, and develop.','{"canonical":true}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='freak-groves');
+
+INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata)
+SELECT (SELECT id FROM garden_places WHERE slug='garden-heart'),'discovery-fields','Discovery Fields','research','Open areas for Popcorn discoveries, investigation, and evidence gathering.','{"canonical":true}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='discovery-fields');
+
+INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata)
+SELECT (SELECT id FROM garden_places WHERE slug='garden-heart'),'kornworks','KornWorks','workshop','Creative transformation spaces where discoveries become new creative work.','{"canonical":true}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='kornworks');
+
+INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata)
+SELECT (SELECT id FROM garden_places WHERE slug='garden-heart'),'story-gardens','Story Gardens','story','Spaces for developing narrative ideas, Scripture connections, and story concepts.','{"canonical":true}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='story-gardens');
