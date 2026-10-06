@@ -90,3 +90,18 @@ CREATE TABLE IF NOT EXISTS "garden_discovery_links" (
 );
 CREATE INDEX IF NOT EXISTS "garden_discovery_links_discovery_idx" ON "garden_discovery_links" ("discovery_id");
 CREATE INDEX IF NOT EXISTS "garden_discovery_links_freak_idx" ON "garden_discovery_links" ("freak_id");
+
+CREATE TABLE IF NOT EXISTS "garden_activities" (
+  "id" bigserial PRIMARY KEY,
+  "place_id" bigint REFERENCES "garden_places"("id") ON DELETE SET NULL,
+  "freak_id" bigint REFERENCES "garden_freaks"("id") ON DELETE SET NULL,
+  "activity" text NOT NULL,
+  "state" text NOT NULL DEFAULT 'active',
+  "details" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "started_at" timestamptz NOT NULL DEFAULT now(),
+  "ended_at" timestamptz,
+  CONSTRAINT "garden_activities_state_check" CHECK ("state" IN ('active','completed','paused','cancelled')),
+  CONSTRAINT "garden_activities_time_check" CHECK ("ended_at" IS NULL OR "ended_at" >= "started_at")
+);
+CREATE INDEX IF NOT EXISTS "garden_activities_place_idx" ON "garden_activities" ("place_id","state");
+CREATE INDEX IF NOT EXISTS "garden_activities_freak_idx" ON "garden_activities" ("freak_id","state");
