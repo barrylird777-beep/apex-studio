@@ -95,3 +95,9 @@ test("Black-Pen architecture laws keep Special Search inside Studio", () => {
   assert.equal(ARCHITECTURAL_LAWS.STUDIO_DIRECT_GARDEN_ACCESS, true);
   assert.equal(ARCHITECTURAL_LAWS.STUDIO_DIRECT_KORN_KNOB_ACCESS, true);
 });
+
+
+test("Black-Pen architecture keeps ad blocking inside Studio Network", () => {
+  assert.equal(ARCHITECTURAL_LAWS.AD_BLOCKING_OWNER, SYSTEMS.STUDIO);
+  assert.equal(ARCHITECTURAL_LAWS.AD_BLOCKING_IS_STUDIO_NETWORK_SURFACE, true);
+});
