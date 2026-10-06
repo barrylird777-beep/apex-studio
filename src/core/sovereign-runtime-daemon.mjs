@@ -29,22 +29,18 @@ async function acceptPeerEnvelope(envelope) {
   if (!envelope || envelope.type !== 'durable.accept') throw new Error('unsupported sovereign envelope');
   if (!envelope.waveId || !envelope.jobId || !envelope.checksum) throw new Error('incomplete sovereign envelope');
 
-  await pool.query(
-    `INSERT INTO durable_jobs
-      (id, type, payload, status, run_at, max_attempts, dedupe_key, created_at, updated_at)
-     VALUES ($1, 'sovereign.peer.accept', $2::jsonb, 'queued', NOW(), 1, $3, NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [
-      envelope.jobId,
-      JSON.stringify({
-        source: 'sovereign-peer',
-        waveId: envelope.waveId,
-        checksum: envelope.checksum,
-        fence: envelope.fence
-      }),
-      `peer:${envelope.waveId}`
-    ]
+  const result = await pool.query(
+    `INSERT INTO durable_job_receipts
+      (wave_id, origin_job_id, checksum, origin_fence)
+     VALUES ($1, $2::uuid, $3, $4)
+     ON CONFLICT (wave_id) DO UPDATE
+       SET checksum = EXCLUDED.checksum,
+           origin_job_id = EXCLUDED.origin_job_id,
+           origin_fence = GREATEST(durable_job_receipts.origin_fence, EXCLUDED.origin_fence)
+     RETURNING wave_id`,
+    [envelope.waveId, envelope.jobId, envelope.checksum, Number(envelope.fence || 0)]
   );
+  if (result.rowCount !== 1) throw new Error('peer receipt was not durable');
   return true;
 }
 
