@@ -22,7 +22,8 @@
     "verify:mptcp": "bash scripts/mptcp-multipath-observe.sh",
     "mptcp:lab": "bash scripts/mptcp-multipath-lab.sh",
     "verify:starlink": "bash scripts/starlink-priority-backhaul.sh",
-    "backhaul:score": "bash scripts/apex-backhaul-score.sh"
+    "backhaul:score": "bash scripts/apex-backhaul-score.sh",
+    "backhaul:mesh": "bash scripts/apex-decentralized-backhaul.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
