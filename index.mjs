@@ -25,16 +25,17 @@ async function executeEpisodeProductionTask(payload = {}) {
   const chapter = Number(payload?.chapter);
   const verses = String(payload?.verses || "full").trim();
   if (!book || !Number.isInteger(chapter)) throw new Error("Episode production requires book and integer chapter");
-  const { graph } = await gardenSnapshot();
-  const graphVersion = "garden-lore-v1";
-  const packageHash = crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex");
-  const references = contentDomain === "korn"
-    ? [
-        { id: "garden:Apex", type: "garden:Universe", graphVersion },
-        { id: "garden:JesusFreaks", type: "garden:Collective", graphVersion }
-      ]
-    : [];
-  if (references.length) {
+  let graphVersion = "none";
+  let packageHash = "none";
+  const references = [];
+  if (contentDomain === "korn") {
+    const { graph } = await gardenSnapshot();
+    graphVersion = "garden-lore-v1";
+    packageHash = crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex");
+    references.push(
+      { id: "garden:Apex", type: "garden:Universe", graphVersion },
+      { id: "garden:JesusFreaks", type: "garden:Collective", graphVersion }
+    );
     const verifiedIds = await verifiedGardenIds();
     validateScriptGardenReferences(references, verifiedIds);
   }
