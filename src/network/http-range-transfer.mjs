@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 function parseRange(value) {
-  const m = /^bytes (\\d+)-(\\d+)\\/(\\d+)$/.exec(String(value || ""));
+  const m = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(String(value || ""));
   return m ? { start: Number(m[1]), end: Number(m[2]), total: Number(m[3]) } : null;
 }
 
