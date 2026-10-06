@@ -13,7 +13,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, enqueueWorkerTask, queueStats } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -35,10 +35,6 @@ startLoadShedder({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD |
 app.use(loadShedderMiddleware({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) }));
 app.use((req,res,next) => runWithTrace({ trace_id: String(req.headers['x-request-id'] || crypto.randomUUID()) }, next));
 
-if (durableWorkerEnabled()) {
-  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
-  reclaimTimer.unref?.();
-}
 const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
 const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
@@ -62,6 +58,7 @@ const permanentHealthHandler = async (payload) => {
   } else if (['video-engine', 'export', 'render-cache', 'visual-direction'].includes(role)) {
     await new RenderWorker().available();
   } else if (['voiceover', 'audio-reference'].includes(role)) {
+    const { voiceoverWorkerStatus } = await import('./src/workers/voiceover-worker.mjs');
     await voiceoverWorkerStatus();
   } else {
     capacitySnapshot();
