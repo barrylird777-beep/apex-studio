@@ -44,6 +44,26 @@ export async function listGardenRelationships() {
   return result.rows;
 }
 
+export async function linkGardenDiscovery(discoveryId, freakId, relationship, metadata = {}) {
+  const discovery = Number(discoveryId);
+  const freak = freakId == null ? null : Number(freakId);
+  const rel = String(relationship || '').trim();
+  if (!Number.isInteger(discovery) || (freak !== null && !Number.isInteger(freak)) || !rel || rel.length > 100) throw new TypeError('Invalid Garden discovery link');
+  const result = await dbPool.query(
+    'INSERT INTO garden_discovery_links (discovery_id,freak_id,relationship,metadata) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (discovery_id,freak_id,relationship) DO UPDATE SET metadata=EXCLUDED.metadata RETURNING *',
+    [discovery,freak,rel,JSON.stringify(metadata && typeof metadata === 'object' ? metadata : {})]
+  );
+  return result.rows[0];
+}
+
+export async function listGardenDiscoveryLinks(discoveryId) {
+  const result = await dbPool.query(
+    'SELECT l.id,l.discovery_id,l.freak_id,l.relationship,l.metadata,l.created_at,f.name AS freak_name FROM garden_discovery_links l LEFT JOIN garden_freaks f ON f.id=l.freak_id WHERE l.discovery_id=$1 ORDER BY l.id',
+    [Number(discoveryId)]
+  );
+  return result.rows;
+}
+
 export async function createGardenDiscovery(input = {}) {
   const title = String(input.title || '').trim();
   const description = String(input.description || '').trim();
