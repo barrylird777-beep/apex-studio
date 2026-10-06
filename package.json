@@ -24,7 +24,8 @@
     "verify:starlink": "bash scripts/starlink-priority-backhaul.sh",
     "backhaul:score": "bash scripts/apex-backhaul-score.sh",
     "backhaul:mesh": "bash scripts/apex-decentralized-backhaul.sh",
-    "backhaul:fabric": "bash scripts/apex-backhaul-fabric.sh"
+    "backhaul:fabric": "bash scripts/apex-backhaul-fabric.sh",
+    "backhaul:max": "bash scripts/apex-network-max.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
