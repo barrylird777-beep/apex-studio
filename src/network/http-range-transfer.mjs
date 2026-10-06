@@ -7,7 +7,7 @@ function parseRange(value) {
 }
 
 export async function probeHttpRange(url, { signal, timeoutMs = 30000 } = {}) {
-  const response = await fetch(url, { headers: { Range: "bytes=0-0", "Accept-Encoding": "identity" }, signal });
+  const response = await fetch(url, { headers: { Range: "bytes=0-0", "Accept-Encoding": "identity" }, signal: transferAbort.signal });
   const range = parseRange(response.headers.get("content-range"));
   await response.body?.cancel();
   return Object.freeze({ supported: response.status === 206 && Boolean(range), totalBytes: range?.total || null, validator: response.headers.get("etag") || response.headers.get("last-modified") || null });
@@ -30,6 +30,8 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
   await handle.truncate(total);
   let cursor = 0, completed = 0;
   const workers = Math.max(1, Math.min(16, Number(parallelStreams) || 4));
+  const transferAbort = new AbortController();
+  signal?.addEventListener('abort', () => transferAbort.abort(signal.reason), { once: true });
   const controller = transferController || null;
   const getRange = async (range) => {
     let last;
