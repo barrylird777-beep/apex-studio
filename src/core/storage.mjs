@@ -93,6 +93,30 @@ export async function getProjectState() {
 export { STORAGE_DIR, PROJECT_FILE };
 
 
+export async function downloadUrlAssetToStorage(url, episodeId, assetName, options = {}) {
+  const { downloadHttpAsset } = await import('../network/http-range-transfer.mjs');
+  const episode = safePart(episodeId, 'episodeId');
+  const asset = safePart(assetName, 'assetName');
+  await initStorage();
+  const dir = path.join(STORAGE_DIR, 'episodes', episode);
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  const finalPath = path.join(dir, asset);
+  const tempPath = finalPath + '.part-' + process.pid + '-' + Date.now();
+  try {
+    const result = await downloadHttpAsset(url, tempPath, options);
+    await fs.rename(tempPath, finalPath);
+    return Object.freeze({ ...result, episodeId: episode, assetName: asset, path: finalPath });
+  } catch (error) {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    if (error?.code === 'SOURCE_NO_RANGE_SUPPORT' || error?.message === 'SOURCE_NO_RANGE_SUPPORT') {
+      const response = await fetch(url);
+      if (!response.ok || !response.body) throw new Error(`download returned HTTP ${response.status}`);
+      return streamAssetToStorage(response.body, episode, asset, options);
+    }
+    throw error;
+  }
+}
+
 export async function streamAssetToStorage(readableStream, episodeId, assetName, options = {}) {
   if (!readableStream || typeof readableStream.pipe !== 'function') throw new TypeError('readableStream must be a readable stream');
   const episode = safePart(episodeId, 'episodeId');
