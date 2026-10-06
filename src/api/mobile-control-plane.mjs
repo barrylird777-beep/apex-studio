@@ -32,6 +32,9 @@ export function createMobileControlPlane({
 }) {
   const router = express.Router();
 
+  // This router is mounted before the server's global JSON parser. Parse its
+  // own authenticated Shortcut requests so POST bodies are available.
+  router.use(express.json({ limit: '1mb' }));
   router.use(requireShortcutAuth);
 
   router.get('/status', async (_req, res) => {
@@ -127,7 +130,11 @@ export function createMobileControlPlane({
 
   router.get('/production', async (_req, res) => {
     try {
-      return res.json({ success: true, ...(await getWorkers()) });
+      const [workers, overseer] = await Promise.all([
+        getWorkers?.(),
+        getOverseer?.()
+      ]);
+      return res.json({ success: true, workers, overseer });
     } catch (error) {
       return res.status(503).json({ success: false, error: String(error?.message || error) });
     }
