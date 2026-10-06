@@ -19,3 +19,5 @@ export const db = drizzle(pool, { schema });
 export async function closeDb() {
   await pool.end();
 }
+
+// Railway deployment marker: PostgreSQL runtime schema import is intentionally kept explicit.
