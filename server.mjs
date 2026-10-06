@@ -1121,6 +1121,7 @@ function pollinationsMediaKey() {
 }
 
 function buildPollinationsMediaRequest(kind, prompt, params = {}) {
+  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks metered media generation; no charge path is permitted');
   const key = pollinationsMediaKey();
   if (!key) throw new Error('POLLINATIONS_API_KEY is not configured');
   const encoded = encodeURIComponent(String(prompt || '').trim());
