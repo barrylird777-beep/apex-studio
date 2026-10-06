@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
@@ -86,3 +89,33 @@ export async function getProjectState() {
 }
 
 export { STORAGE_DIR, PROJECT_FILE };
+
+
+export async function streamAssetToStorage(readableStream, episodeId, assetName) {
+  if (!readableStream || typeof readableStream.pipe !== 'function') throw new TypeError('readableStream must be a readable stream');
+  const episode = safePart(episodeId, 'episodeId');
+  const asset = safePart(assetName, 'assetName');
+  await initStorage();
+  const dir = path.join(STORAGE_DIR, 'episodes', episode);
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  const finalPath = path.join(dir, asset);
+  const tempPath = path.join(dir, '.' + asset + '.part-' + process.pid + '-' + Date.now());
+  const hash = crypto.createHash('sha256');
+  let bytes = 0;
+  const digest = new (await import('node:stream')).Transform({
+    transform(chunk, encoding, callback) {
+      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
+      bytes += data.length;
+      hash.update(data);
+      callback(null, data);
+    }
+  });
+  try {
+    await pipeline(readableStream, digest, createWriteStream(tempPath, { flags: 'wx', mode: 0o600 }));
+    await fs.rename(tempPath, finalPath);
+    return Object.freeze({ episodeId: episode, assetName: asset, path: finalPath, bytes, sha256: hash.digest('hex') });
+  } catch (error) {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
