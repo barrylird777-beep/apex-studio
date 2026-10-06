@@ -138,3 +138,4 @@ const payload = {
 await fs.mkdir(path.dirname(OUT), { recursive: true });
 await fs.writeFile(OUT, JSON.stringify(payload, null, 2) + "\n");
 console.log(JSON.stringify(payload.counts, null, 2));
+// trigger harvest workflow after workflow installation
