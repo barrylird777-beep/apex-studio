@@ -69,3 +69,21 @@ export async function sendToPeer(node, multiaddr, envelope) {
 }
 
 export { PROTOCOL };
+
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const node = await startSovereignPeer({
+    onEnvelope: async (envelope) => envelope?.type === 'durable.accept'
+  });
+  console.log('[SOVEREIGN PEER] ONLINE', JSON.stringify({
+    peerId: node.peerId.toString(),
+    listenAddresses: node.getMultiaddrs().map(String),
+    protocol: PROTOCOL
+  }));
+  const stop = async (signal) => {
+    console.log(`[SOVEREIGN PEER] stopping on ${signal}`);
+    await node.stop();
+  };
+  process.once('SIGTERM', () => void stop('SIGTERM'));
+  process.once('SIGINT', () => void stop('SIGINT'));
+}
