@@ -12,7 +12,7 @@ const ACTIONS={
  scenes:"Turn story beats into purposeful scenes; remove filler and repetitive exposition.",
  storyboard:"Create varied cinematic coverage with purposeful camera language and continuity references.",
  visuals:"Lock character/location continuity before generation; reject inconsistent designs.",
- audio:"Request verified audio packages from Music Radar: narration, dialogue, music, ambience, SFX, sound design, mix, and master.",
+ audio:"Use Studio Audio Lab for narration, dialogue, music, ambience, SFX, sound design, synchronization, mixing, and mastering; request underlying AI capabilities from KORN-KNOB as needed.",
  timeline:"Assemble the edit and verify pacing, scene transitions, and payoff timing.",
  review:"Run Scripture, entertainment, continuity, and production gates.",
  release:"Build the release package and publish-ready assets."

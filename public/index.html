@@ -105,7 +105,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <aside><nav class="nav">
 <button data-view="overview" class="active" onclick="view('overview')">Overview</button>
 <button data-view="stories" onclick="view('stories')">Stories</button>
-<button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="audio-station" onclick="view('audio-station')">Music + Audio</button><button data-view="music-radar" onclick="view('music-radar')">Music Radar</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
+<button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="audio-station" onclick="view('audio-station')">Music + Audio</button><button data-view="audio" onclick="view('audio')">Audio Lab</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
 <button data-view="timeline" onclick="view('timeline')">Timeline</button><button data-view="production" onclick="view('production')">Production</button><button data-view="network" onclick="view('network')">Network</button><button data-view="storyboard" onclick="view('storyboard')">Storyboard</button><button data-view="visuals" onclick="view('visuals')">Visual Bible</button><button onclick="location.href='/production.html'">Production Desk</button><button data-view="bible" onclick="view('bible')">Bible Library</button><button data-view="retention" onclick="view('retention')">Retention Hook</button>
 </nav></aside>
 <main>
@@ -138,8 +138,8 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <label>Genres</label><input id="musicGenre" placeholder="cinematic, dark-fantasy, orchestral">
 <label>Mood</label><input id="musicMood" placeholder="ominous, heroic, reverent">
 <label>Purpose</label><select id="musicPurpose"><option value="film-score">Film score</option><option value="song">Song</option><option value="narration">Narration</option><option value="dialogue">Dialogue</option><option value="ambience">Ambience</option><option value="sfx">SFX</option><option value="full-audio">Full audio</option></select>
-<label>Music Radar token</label><input id="musicToken" type="password" placeholder="APEX_SHORTCUT_TOKEN">
-<button class="primary" onclick="musicRadarHandoff()">Send to Studio</button>
+<label>Studio integration token</label><input id="musicToken" type="password" placeholder="APEX_SHORTCUT_TOKEN">
+<button class="primary" onclick="musicRadarHandoff()">Use Studio Audio Lab</button>
 <div id="musicRadarOut" class="notice">—</div></section>
 <section class="panel"><h2>Audio domain</h2><div class="notice">Garden of Apex supplies verified world state for Korn-domain music. Apex Studio owns the production plan, durable queue, rendering, mixing, mastering and QC. Bible and original audio can proceed without a Garden package.</div><button onclick="musicRadarStatus()">Check bridge</button><pre id="musicRadarStatusOut" class="notice">—</pre></section>
 </div>

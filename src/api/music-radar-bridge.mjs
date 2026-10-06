@@ -5,9 +5,10 @@ export function createMusicRadarBridge({ enqueueWorkerTask, getGardenPackage } =
     async status() {
       return {
         ok: true,
-        app: "Music Radar",
+        app: "Apex Studio Music Integration",
         contractVersion: "music-radar-studio-handoff.v1",
-        standalone: true,
+        standalone: false,
+        role: "legacy-integration-surface",
         integrations: {
           gardenOfApex: Boolean(getGardenPackage),
           apexStudio: Boolean(enqueueWorkerTask)
