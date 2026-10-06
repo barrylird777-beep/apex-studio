@@ -1,7 +1,6 @@
 const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_MESSAGES || 50)));
 const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
-const FREE_AI_DAILY_REQUESTS = Math.max(1, Number(process.env.APEX_FREE_AI_DAILY_REQUESTS || 5000));
 const FREE_AI_PROVIDERS = new Set(['openrouter']);
 const FREE_AI_MAX_CONCURRENCY = Math.max(1, Number(process.env.APEX_FREE_AI_MAX_CONCURRENCY || 64));
 let freeAiInFlight = 0;
@@ -56,14 +55,9 @@ function messagesOf({ prompt, messages, system }) {
   return [{ role: 'system', content: String(system || '').trim() }, { role: 'user', content: text }].filter(x => x.content);
 }
 
-const freeUsage = { day: '', requests: 0 };
 function enforceFreeAiBudget(provider) {
   if (!FREE_MODE) return;
   if (!FREE_AI_PROVIDERS.has(provider)) throw new Error(`Free mode blocks paid/non-free AI provider: ${provider}`);
-  const day = new Date().toISOString().slice(0, 10);
-  if (freeUsage.day !== day) { freeUsage.day = day; freeUsage.requests = 0; }
-  if (freeUsage.requests >= FREE_AI_DAILY_REQUESTS) throw new Error('Free AI daily safety budget reached');
-  freeUsage.requests += 1;
 }
 
 async function pollinations({ model, messages }) {
