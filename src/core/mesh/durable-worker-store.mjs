@@ -31,7 +31,7 @@ export async function enqueueWorkerTask({ id, workerId, role, task, payload = {}
 export async function claimNextWorkerTasks(limit = 20, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, role = null) {
   if (!durableWorkerEnabled()) return [];
   const db = getPool();
-  const safeLimit = Math.max(1, Math.min(APEX_LIMITS.WORKER.MAX_BATCH_SIZE, Number(limit) || APEX_LIMITS.WORKER.BATCH_SIZE));
+  const safeLimit = Math.max(1, Math.min(Math.min(APEX_LIMITS.WORKER.MAX_BATCH_SIZE, APEX_LIMITS.WORKER.CONCURRENCY), Number(limit) || APEX_LIMITS.WORKER.BATCH_SIZE));
   const safeRole = role == null ? null : String(role).slice(0, 255);
   const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
   const r = await db.query(`WITH candidate AS (
