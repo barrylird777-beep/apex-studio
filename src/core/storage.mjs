@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
-import { Transform } from "node:stream";
+import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
 
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
