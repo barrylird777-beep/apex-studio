@@ -4,7 +4,6 @@ import { getProjectState } from "./src/services/projectManager.mjs";
 import {
   durableWorkerEnabled,
   claimNextWorkerTasks,
-  heartbeatWorkerTask,
   heartbeatWorkerTasks,
   completeWorkerTask,
   failWorkerTask,
