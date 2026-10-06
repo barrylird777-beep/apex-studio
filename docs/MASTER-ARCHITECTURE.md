@@ -52,6 +52,29 @@ Every production plan requires a compelling opening hook; the default target is 
 
 Studio owns planning, asset preparation, publishing workflow, performance analysis, audience behavior, retention, engagement, CTR, trends, opportunities, and learning.
 
+### Specialized Search Engine
+
+The **Specialized Search Engine belongs inside Apex Studio**.
+
+It is Studio's open-ended discovery system for finding whatever production needs, including:
+- AI models
+- providers
+- APIs
+- tools
+- software
+- datasets
+- renderers
+- media capabilities
+- services
+
+It searches broadly across the available capability ecosystem and returns candidates for evaluation. KORN-KNOB remains the owner/manager of Apex AI models and media-AI capabilities; the Studio search engine discovers and requests those capabilities for Studio work.
+
+Its operating loop is:
+
+**SEARCH → DISCOVER → EVALUATE → AUTHORIZE → REQUEST → EXECUTE → VERIFY → RECORD**
+
+It is not Garden's research engine and it is not KORN-KNOB's model registry. Studio owns the search experience and production-oriented discovery workflow.
+
 ### Network and infrastructure
 Network ownership remains exclusively in Studio. Server telemetry must not be represented as the physical network state of a user's device.
 
