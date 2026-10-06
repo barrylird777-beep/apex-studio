@@ -42,6 +42,7 @@ export async function generateGrok({
   schema, schemaName = 'apex_grok_response', schemaDescription,
   reasoningEffort = 'xhigh', webSearch = false, xSearch = false
 } = {}) {
+  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Grok');
   const client = getClient();
   const input = normalizeInput({ prompt, messages });
   const normalizedSchema = normalizeSchema(schema);
