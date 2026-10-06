@@ -227,7 +227,7 @@ app.get('/api/internet/capabilities', requireTitanAuth, async (_req, res) => {
   res.json({ success: true, ...(await internetCapabilities()) });
 });
 
-app.post('/api/internet/search', requireTitanAuth, async (req, res) => {
+app.post('/api/internet/search', express.json({ limit: '64kb' }), requireTitanAuth, async (req, res) => {
   try {
     const query = String(req.body?.query || '').normalize('NFKC').trim();
     if (!query || query.length > 1000) return res.status(400).json({ success: false, error: 'query is required and must be <= 1000 characters' });
@@ -238,7 +238,7 @@ app.post('/api/internet/search', requireTitanAuth, async (req, res) => {
   }
 });
 
-app.post('/api/internet/fetch', requireTitanAuth, async (req, res) => {
+app.post('/api/internet/fetch', express.json({ limit: '64kb' }), requireTitanAuth, async (req, res) => {
   try {
     const url = String(req.body?.url || '').trim();
     if (!url || url.length > 4096) return res.status(400).json({ success: false, error: 'url is required and must be <= 4096 characters' });
