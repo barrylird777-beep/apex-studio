@@ -13,7 +13,6 @@
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:migrate:workers": "node scripts/migrate-postgres.mjs",
-    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs --dir drizzle --expect scripts/spec005-expectations.json",
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
@@ -22,7 +21,8 @@
     "verify:speed": "bash scripts/official-cellular-speed-mptcp.sh",
     "verify:mptcp": "bash scripts/mptcp-multipath-observe.sh",
     "mptcp:lab": "bash scripts/mptcp-multipath-lab.sh",
-    "verify:starlink": "bash scripts/starlink-priority-backhaul.sh"
+    "verify:starlink": "bash scripts/starlink-priority-backhaul.sh",
+    "backhaul:score": "bash scripts/apex-backhaul-score.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
@@ -48,9 +48,8 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
     "drizzle-kit": "^0.30.1",
+    "postcss": "^8.4.49",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
