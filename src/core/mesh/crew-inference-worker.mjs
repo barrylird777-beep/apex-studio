@@ -59,18 +59,37 @@ const CREW_ROLES = Object.freeze({
   sfx_designer: "SFX Designer: design sound effects, textures, impacts, transitions, and sync points.",
   editor: "Editor: assemble the production plan with timing, continuity, transitions, and retention beats.",
   qc: "QC Inspector: identify factual, continuity, technical, provenance, and production defects before release.",
+  infrastructure: "Infrastructure Engineer: protect queue integrity, capacity, retries, leases, idempotency, and production reliability.",
   general: "Production intelligence: solve the assigned Apex Studio task precisely and report uncertainty."
 });
 
 const ROLE_ALIASES = Object.freeze({
-  "knowledge-research": "researcher", genealogy: "researcher", "textual-traditions": "verifier",
-  "world-knowledge": "researcher", chronology: "verifier", "visual-direction": "visual_director",
-  "audio-reference": "voice_director", publishing: "editor", automation: "infrastructure",
-  qa: "qc", infrastructure: "infrastructure", "editor-core": "editor", "video-engine": "editor",
-  "audio-engine": "audio_director", captions: "editor", export: "editor", "editor-ux": "editor",
-  "editor-qa": "qc", voiceover: "voice_director", "media-ingest": "editor",
-  "project-storage": "infrastructure", "render-cache": "editor", performance: "infrastructure",
-  observability: "qc", accessibility: "qc", "release-qa": "qc"
+  knowledge_research: "researcher",
+  genealogy: "researcher",
+  textual_traditions: "verifier",
+  world_knowledge: "researcher",
+  chronology: "verifier",
+  visual_direction: "visual_director",
+  audio_reference: "voice_director",
+  publishing: "editor",
+  automation: "infrastructure",
+  qa: "qc",
+  infrastructure: "infrastructure",
+  editor_core: "editor",
+  video_engine: "editor",
+  audio_engine: "audio_director",
+  captions: "editor",
+  export: "editor",
+  editor_ux: "editor",
+  editor_qa: "qc",
+  voiceover: "voice_director",
+  media_ingest: "editor",
+  project_storage: "infrastructure",
+  render_cache: "editor",
+  performance: "infrastructure",
+  observability: "qc",
+  accessibility: "qc",
+  release_qa: "qc"
 });
 
 const PROVIDER_ORDER = Object.freeze({
