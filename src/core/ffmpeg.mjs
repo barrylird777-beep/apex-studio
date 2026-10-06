@@ -157,3 +157,22 @@ export async function createMasterRenderPlan({ probe, format = '4k', preferredEn
   const encoder = selectEncoderFromList(encoders, preferredEncoder);
   return Object.freeze({ mode: 'encode', encoder, preset, availableEncoders: encoders });
 }
+
+
+export function buildRenderQualityPolicy({ format = '4k', source = {}, network = {} } = {}) {
+  const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS['4k'];
+  const sourcePixels = Math.max(0, Number(source.width || 0) * Number(source.height || 0));
+  const targetPixels = preset.width * preset.height;
+  const bandwidth = Math.max(0, Number(network.uploadMbps || 0));
+  const rtt = Math.max(0, Number(network.rttMs || 0));
+  const loss = Math.max(0, Number(network.lossPct || 0));
+  return Object.freeze({
+    target: { width: preset.width, height: preset.height, fps: preset.fps },
+    preserveSource: true,
+    avoidUpscale: sourcePixels > 0 && sourcePixels < targetPixels,
+    streamCopyPreferred: true,
+    adaptiveUpload: bandwidth >= 250 && rtt <= 50 && loss < 0.5 ? 'maximum' : 'balanced',
+    integrity: 'sha256',
+    qualityFloor: 'source-preserving'
+  });
+}
