@@ -1,4 +1,5 @@
 name: Gemini PR Review
+# Advisory reviewer; deterministic gate is separate.
 
 on:
   pull_request_target:
