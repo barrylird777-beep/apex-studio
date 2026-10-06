@@ -27,7 +27,6 @@ import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
-import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
 import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
 import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
 import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
@@ -35,9 +34,6 @@ import RogueApDetector, { validateObservationEnvelope } from './src/network/rogu
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-startLoadShedder({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) });
-app.use(loadShedderMiddleware({ threshold: Number(process.env.APEX_EVENT_LOOP_ELU_THRESHOLD || 0.9) }));
-app.use((req,res,next) => runWithTrace({ trace_id: String(req.headers['x-request-id'] || crypto.randomUUID()) }, next));
 
 if (durableWorkerEnabled()) {
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
