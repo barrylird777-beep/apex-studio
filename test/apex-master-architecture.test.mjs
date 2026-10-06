@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SYSTEMS, STUDIO_SURFACES, JOB_TYPES,
+  SYSTEMS, ARCHITECTURAL_LAWS, STUDIO_SURFACES, JOB_TYPES,
   createCapability, createCapabilityRequest, createProductionPlan,
   createResearchFinding, createSocialCommand,
   assertOwner, assertStudioNetworkOwnership,
@@ -83,4 +83,15 @@ test("Studio can pull knowledge from Garden without using the search engine", ()
   assert.equal(request.requester, SYSTEMS.STUDIO);
   assert.equal(request.source, SYSTEMS.GARDEN);
   assert.deepEqual(request.evidenceStates, ["KNOWN","OBSERVED","INFERRED","UNKNOWN"]);
+});
+
+
+test("Black-Pen architecture laws keep Special Search inside Studio", () => {
+  assert.equal(ARCHITECTURAL_LAWS.PRIMARY_SYSTEM_COUNT, 3);
+  assert.equal(ARCHITECTURAL_LAWS.SPECIAL_SEARCH_OWNER, SYSTEMS.STUDIO);
+  assert.equal(ARCHITECTURAL_LAWS.SPECIAL_SEARCH_IS_STUDIO_SURFACE, true);
+  assert.equal(ARCHITECTURAL_LAWS.SPECIAL_SEARCH_IS_SEPARATE_SYSTEM, false);
+  assert.equal(ARCHITECTURAL_LAWS.SPECIAL_SEARCH_IS_MANDATORY_GATEWAY, false);
+  assert.equal(ARCHITECTURAL_LAWS.STUDIO_DIRECT_GARDEN_ACCESS, true);
+  assert.equal(ARCHITECTURAL_LAWS.STUDIO_DIRECT_KORN_KNOB_ACCESS, true);
 });
