@@ -92,7 +92,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 export function buildNetworkSpeedPolicy(paths = []) {
   const healthy = paths.filter(p => p?.healthy);
   if (!healthy.length) return Object.freeze({ mode: 'offline', lanes: 0, paths: [] });
-  const top = healthy.slice(0, 4);
+  const top = healthy.slice().sort((a,b) => Number(b.score || 0) - Number(a.score || 0)).slice(0, 4);
   const totalScore = top.reduce((sum, p) => sum + Math.max(1, Number(p.score || 1)), 0);
   return Object.freeze({
     mode: top.length > 1 ? 'multipath' : 'single-path',
