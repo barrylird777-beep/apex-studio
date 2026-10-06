@@ -150,3 +150,18 @@ export function buildConnectionPolicy({ speed = 'maximum', multipleConnections =
     maxLanes: maximum && multipleConnections ? 16 : 1
   });
 }
+
+
+export function buildRangeTransferPolicy({ totalBytes = 0, parallelStreams = 4, chunkMiB = 16 } = {}) {
+  const bytes = Math.max(0, Number(totalBytes) || 0);
+  const streams = Math.max(1, Math.min(16, Math.floor(Number(parallelStreams) || 4)));
+  const chunk = Math.max(1, Math.min(64, Math.floor(Number(chunkMiB) || 16)));
+  return Object.freeze({
+    rangeTransfers: bytes > chunk * 1024 * 1024,
+    parallelStreams: streams,
+    chunkMiB: chunk,
+    verifyContentRange: true,
+    verifySha256: true,
+    fallbackToSingleStream: true
+  });
+}
