@@ -98,6 +98,7 @@ export function createSovereignDurableBridge({ engine, db, workerId, peerNode, p
     const records = engine.snapshot().filter((record) => record.status === 'DISPATCHED');
     const results = [];
     const errors = [];
+    let acknowledged = 0;
 
     for (const record of records) {
       try {
@@ -123,12 +124,9 @@ export function createSovereignDurableBridge({ engine, db, workerId, peerNode, p
           status: job.status,
           peer: peerAcceptance
         });
-        results.push({
-          waveId: record.waveId,
-          jobId: job.id,
-          status: job.status,
-          acknowledged: acknowledged.status === 'ACKNOWLEDGED'
-        });
+        const didAck = acknowledged.status === 'ACKNOWLEDGED';
+        if (didAck) acknowledged += 1;
+        results.push({ waveId: record.waveId, jobId: job.id, status: job.status, acknowledged: didAck });
       } catch (error) {
         errors.push({
           waveId: record.waveId,
