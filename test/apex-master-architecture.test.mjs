@@ -64,3 +64,13 @@ test("durable job vocabulary covers cross-system workflows", () => {
     "video-production","social-analysis"
   ]) assert.ok(JOB_TYPES.includes(type));
 });
+
+
+test("Studio owns the specialized search engine", () => {
+  assert.equal(assertStudioSearchOwnership(SYSTEMS.STUDIO), true);
+  assert.throws(() => assertStudioSearchOwnership(SYSTEMS.KORN_KNOB), /Ownership violation/);
+  const request = createStudioSearchRequest({query:"best video model for this scene"});
+  assert.equal(request.owner, SYSTEMS.STUDIO);
+  assert.ok(request.domains.includes("models"));
+  assert.ok(request.domains.includes("providers"));
+});
