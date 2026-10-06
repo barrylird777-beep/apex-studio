@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { now } from "./id.mjs";
+import { runRenderQC, requireRenderQC } from "./validation/render-qc.mjs";
 
 function parseProgress(line){
   const i=line.indexOf("=");
@@ -68,7 +69,17 @@ export class RenderWorker{
       child.once("close",(code,signal)=>{
         this.running.delete(job.id);
         const result={jobId:job.id,ok:code===0,code,signal,output:code===0?output:null,startedAt,finishedAt:now(),progress,stdout:stdout.slice(-4000),stderr:stderr.slice(-8000)};
-        code===0?resolve(result):reject(Object.assign(new Error("FFmpeg exited with code "+code),{result}));
+        if (code !== 0) return reject(Object.assign(new Error("FFmpeg exited with code "+code),{result}));
+        void runRenderQC({
+          mediaPath: output,
+          expectedWidth: job.settings?.expectedWidth ?? job.settings?.width ?? null,
+          expectedHeight: job.settings?.expectedHeight ?? job.settings?.height ?? null,
+          expectedAspect: job.settings?.expectedAspect ?? null,
+          expectedDurationSeconds: job.settings?.expectedDurationSeconds ?? null
+        }).then(qc => {
+          requireRenderQC(qc);
+          resolve({...result, qc});
+        }).catch(error => reject(Object.assign(error,{result})));
       });
     });
   }
