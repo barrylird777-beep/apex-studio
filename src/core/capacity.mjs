@@ -15,9 +15,9 @@ export const CAPACITY=Object.freeze({
   databaseUrl:process.env.DATABASE_URL||"",
   scaleMode:process.env.APEX_SCALE_MODE||"multi-node",
   artificialQuota:false,
-  pricingModel:"free-forever",
-  subscriptionRequired:false,
-  oneTimePurchaseRequired:false
+  pricingModel:process.env.APEX_PRICING_MODEL||"not-configured",
+  subscriptionRequired:String(process.env.APEX_SUBSCRIPTION_REQUIRED||"false").toLowerCase()==="true",
+  oneTimePurchaseRequired:String(process.env.APEX_ONE_TIME_PURCHASE_REQUIRED||"false").toLowerCase()==="true"
 });
 
 export function capacitySnapshot(){
