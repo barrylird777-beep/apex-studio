@@ -62,7 +62,8 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
       await getRange(ranges[index]);
       completed++;
       const elapsedSeconds = Math.max(0.001, (performance.now() - started) / 1000);
-      const observedMbps = (completed * size) * 8 / elapsedSeconds / 1e6;
+      const completedBytes = Math.min(total, completed === ranges.length ? total : completed * size);
+      const observedMbps = completedBytes * 8 / elapsedSeconds / 1e6;
       const state = controller?.observe?.({ observedMbps, lossPct: 0, rttMs: 0 }) || null;
       onProgress?.({ completed, totalRanges: ranges.length, totalBytes: total, observedMbps, controller: state });
     }
