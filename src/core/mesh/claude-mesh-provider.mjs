@@ -2,7 +2,7 @@ export class ClaudeMeshProvider {
   constructor() {
     this.apiKey = process.env.ANTHROPIC_API_KEY || '';
     this.endpoint = process.env.ANTHROPIC_ENDPOINT || 'https://api.anthropic.com/v1/messages';
-    this.model = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
+    this.model = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-5';
   }
 
   async generate(prompt, options = {}) {
