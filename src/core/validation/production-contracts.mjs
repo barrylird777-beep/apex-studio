@@ -14,7 +14,7 @@ export const productionHandoffSchema = z.object({
   gardenPackage: z.object({
     graphVersion: z.string().min(1),
     packageHash: z.string().min(1),
-    references: z.array(gardenReferenceSchema).min(1)
+    references: z.array(gardenReferenceSchema)
   }).strict(),
   artifact: z.object({
     kind: z.enum(["research","script","scene-plan","visual-plan","audio-plan","render-plan","master"]),
