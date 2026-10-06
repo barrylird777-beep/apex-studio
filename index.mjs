@@ -12,12 +12,36 @@ import {
 } from "./src/core/mesh/durable-worker-store.mjs";
 import { generateUnifiedAi } from "./src/providers/unified-ai-router.mjs";
 import { startLockedContinuousAiLoop } from "./src/core/autonomy/locked-continuous-loop.mjs";
+import crypto from "node:crypto";
+import { gardenSnapshot, verifiedGardenIds } from "./src/garden/lore-graph.mjs";
+import { assertProductionHandoff, validateScriptGardenReferences } from "./src/core/validation/production-contracts.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
   const book = String(payload?.book || "").trim();
   const chapter = Number(payload?.chapter);
   const verses = String(payload?.verses || "full").trim();
   if (!book || !Number.isInteger(chapter)) throw new Error("Episode production requires book and integer chapter");
+  const { graph } = await gardenSnapshot();
+  const graphVersion = "garden-lore-v1";
+  const packageHash = crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex");
+  const references = [
+    { id: "garden:Apex", type: "garden:Universe", graphVersion },
+    { id: "garden:JesusFreaks", type: "garden:Collective", graphVersion }
+  ];
+  const verifiedIds = await verifiedGardenIds();
+  validateScriptGardenReferences(references, verifiedIds);
+  const handoff = assertProductionHandoff({
+    contractVersion: "apex-production-handoff.v1",
+    projectId: `bible:${book}`,
+    episodeId: `${book}:${chapter}:${verses}`,
+    gardenPackage: { graphVersion, packageHash, references },
+    artifact: {
+      kind: "research",
+      version: "1",
+      contentHash: crypto.createHash("sha256").update(`${book}:${chapter}:${verses}`).digest("hex")
+    },
+    provenance: { source: "Apex Studio episode-production control plane", verified: true, verifiedAt: new Date().toISOString() }
+  });
   const render = new RenderWorker();
   const ffmpegAvailable = await render.available();
   return {
@@ -26,7 +50,8 @@ async function executeEpisodeProductionTask(payload = {}) {
     book,
     chapter,
     verses,
-    stage: "production-command-accepted",
+    stage: "production-handoff-validated",
+    handoff,
     render: { ffmpegAvailable },
     queuedAt: new Date().toISOString()
   };
