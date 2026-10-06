@@ -40,7 +40,7 @@ function normalizeSchema(schema) {
 export async function generateGrok({
   prompt, messages, system, model = DEFAULT_MODEL, previousResponseId,
   schema, schemaName = 'apex_grok_response', schemaDescription,
-  reasoningEffort = 'high', webSearch = false, xSearch = false
+  reasoningEffort = 'xhigh', webSearch = false, xSearch = false
 } = {}) {
   const client = getClient();
   const input = normalizeInput({ prompt, messages });
@@ -54,7 +54,7 @@ export async function generateGrok({
     input,
     previous_response_id: previousResponseId ? String(previousResponseId) : undefined,
     ...(tools.length ? { tools } : {}),
-    ...(reasoningEffort ? { reasoning: { effort: ['low', 'medium', 'high', 'xhigh'].includes(reasoningEffort) ? reasoningEffort : 'high' } } : {}),
+    ...(reasoningEffort ? { reasoning: { effort: ['low', 'medium', 'high', 'xhigh'].includes(reasoningEffort) ? reasoningEffort : 'xhigh' } } : {}),
     ...(normalizedSchema ? {
       text: { format: {
         type: 'json_schema',
