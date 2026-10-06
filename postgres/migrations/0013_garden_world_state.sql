@@ -1,4 +1,8 @@
 -- Garden world expansion: places, activity, events, lineage, and Freak state.
+-- Adds hierarchy to the immutable 0012 Garden foundation.
+ALTER TABLE "garden_places"
+  ADD COLUMN IF NOT EXISTS "parent_id" bigint REFERENCES "garden_places"("id") ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS "garden_places_parent_idx" ON "garden_places" ("parent_id");
 -- Kept separate from 0012 so applied migrations remain immutable.
 -- Canonical initial Garden places. These are world locations, not Studio rooms.
 INSERT INTO "garden_places" ("slug","name","kind","description") VALUES
