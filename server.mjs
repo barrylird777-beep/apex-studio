@@ -229,6 +229,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.get('/api/network/status', async (_req,res)=>{
   try {
     const { selectNetworkPath } = await import('./src/network/path-selector.mjs');
@@ -279,7 +280,6 @@ app.get('/api/workers/permanent', (_req,res)=>res.json({
 app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
-app.use(express.json({ limit: CAPACITY.jsonBody }));
 app.post('/api/network/rogue-ap/observations', async (req, res) => {
   try {
     const observations = validateObservationEnvelope(req.body);
