@@ -139,3 +139,31 @@ WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='kornworks');
 INSERT INTO garden_places (parent_id,slug,name,kind,description,metadata)
 SELECT (SELECT id FROM garden_places WHERE slug='garden-heart'),'story-gardens','Story Gardens','story','Spaces for developing narrative ideas, Scripture connections, and story concepts.','{"canonical":true}'::jsonb
 WHERE NOT EXISTS (SELECT 1 FROM garden_places WHERE slug='story-gardens');
+
+CREATE TABLE IF NOT EXISTS "garden_freak_specialties" (
+  "id" bigserial PRIMARY KEY,
+  "freak_id" bigint NOT NULL REFERENCES "garden_freaks"("id") ON DELETE CASCADE,
+  "specialty" text NOT NULL,
+  "level" integer NOT NULL DEFAULT 1,
+  "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "garden_freak_specialty_level_check" CHECK ("level" BETWEEN 1 AND 100),
+  CONSTRAINT "garden_freak_specialty_unique" UNIQUE ("freak_id","specialty")
+);
+CREATE INDEX IF NOT EXISTS "garden_freak_specialties_freak_idx" ON "garden_freak_specialties" ("freak_id");
+CREATE INDEX IF NOT EXISTS "garden_freak_specialties_name_idx" ON "garden_freak_specialties" ("specialty");
+
+CREATE TABLE IF NOT EXISTS "garden_freak_state" (
+  "freak_id" bigint PRIMARY KEY REFERENCES "garden_freaks"("id") ON DELETE CASCADE,
+  "status" text NOT NULL DEFAULT 'active',
+  "energy" integer NOT NULL DEFAULT 100,
+  "focus" integer NOT NULL DEFAULT 100,
+  "experience" bigint NOT NULL DEFAULT 0,
+  "state" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "garden_freak_state_status_check" CHECK ("status" IN ('active','resting','learning','creating','exploring','inactive')),
+  CONSTRAINT "garden_freak_state_energy_check" CHECK ("energy" BETWEEN 0 AND 100),
+  CONSTRAINT "garden_freak_state_focus_check" CHECK ("focus" BETWEEN 0 AND 100),
+  CONSTRAINT "garden_freak_state_experience_check" CHECK ("experience" >= 0)
+);
