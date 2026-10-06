@@ -73,6 +73,26 @@ export async function claimWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL
   return r.rows[0] || null;
 }
 
+export async function heartbeatWorkerTasks(tasks = [], leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000) {
+  if (!durableWorkerEnabled() || !tasks.length) return 0;
+  const safeLease = Math.max(15000, Number(leaseMs) || APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000);
+  const owner = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+  const ids = [];
+  const tokens = [];
+  for (const task of tasks) {
+    if (!task?.id || !task?.lease_token) continue;
+    ids.push(String(task.id));
+    tokens.push(String(task.lease_token));
+  }
+  if (!ids.length) return 0;
+  const r = await getPool().query(`UPDATE apex_worker_tasks t
+    SET lease_expires_at=NOW()+($3::double precision * INTERVAL '1 millisecond'), updated_at=NOW()
+    FROM unnest($1::uuid[], $2::text[]) AS heartbeat(id, token)
+    WHERE t.id=heartbeat.id AND t.lease_owner=$4 AND t.lease_token=heartbeat.token AND t.status='running'`,
+    [ids, tokens, safeLease, owner]);
+  return r.rowCount;
+}
+
 export async function heartbeatWorkerTask(id, leaseMs = APEX_LIMITS.WORKER.LEASE_TTL_SECONDS * 1000, leaseToken) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
