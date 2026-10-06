@@ -27,7 +27,7 @@
     "backhaul:fabric": "bash scripts/apex-backhaul-fabric.sh",
     "backhaul:max": "bash scripts/apex-network-max.sh",
     "sovereign:runtime": "node src/core/sovereign-runtime-daemon.mjs",
-    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs test/sovereign-mesh.test.mjs test/sovereign-durable-runtime.test.mjs",
+    "test": "node --test test/projects.test.mjs test/characters.test.mjs test/scripture.test.mjs test/scenes.test.mjs test/schedule.test.mjs test/migrations.test.mjs test/schedule-api.smoke.mjs test/jobs.test.mjs test/editor-engine.test.mjs test/video-foundation.test.mjs test/durable-worker-race.test.mjs test/sovereign-mesh.test.mjs test/sovereign-durable-runtime.test.mjs test/durable-runtime-production.test.mjs",
     "sovereign:peer": "node src/network/sovereign-peer.mjs",
     "durable:worker": "node src/jobs/durable-worker-daemon.mjs",
     "network:select": "node src/network/path-selector.mjs",
