@@ -27,7 +27,6 @@ import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
-import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
 import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
 import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
@@ -1581,15 +1580,6 @@ app.post('/api/voiceover/jobs', async (req,res) => {
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
     res.status(202).json({success:true,id,status:'queued'});
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
-});
-
-app.get('/metrics', async (_req, res) => {
-  try {
-    res.type(prometheusContentType());
-    res.send(await scrapePrometheusMetrics());
-  } catch (error) {
-    res.status(503).type(prometheusContentType()).send('# HELP apex_metrics_scrape_error Metrics scrape failure.\\n# TYPE apex_metrics_scrape_error gauge\\napex_metrics_scrape_error 1\\n');
-  }
 });
 
 app.get(['/health', '/api/health'], (_req, res) => {
