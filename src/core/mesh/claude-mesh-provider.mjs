@@ -6,6 +6,7 @@ export class ClaudeMeshProvider {
   }
 
   async generate(prompt, options = {}) {
+  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Claude');
     if (!this.apiKey) throw new Error('Claude not configured');
     const model = options.model || this.model;
     const body = {
