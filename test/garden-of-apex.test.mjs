@@ -17,3 +17,14 @@ test('Garden domain vocabulary preserves the discovery lineage model', () => {
   assert.deepEqual(GARDEN_OF_APEX.discoveryKinds, ['popcorn','protocob','insight','artifact']);
   assert.equal(GARDEN_OF_APEX.freakKinds.includes('cornnut'), true);
 });
+
+import fs from 'node:fs';
+
+test('Garden world migration is self-contained and preserves migration immutability', () => {
+  const migration = fs.readFileSync(new URL('../postgres/migrations/0013_garden_world_state.sql', import.meta.url), 'utf8');
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS "parent_id"/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_events"/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_freak_state"/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_freak_specialties"/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "garden_discovery_links"/);
+});
