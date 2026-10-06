@@ -101,7 +101,8 @@ export function calculateBandwidthDelayProduct({ bandwidthMbps = 0, rttMs = 0 } 
 }
 
 
-export function buildAdaptiveTransferController({ initial = null, minStreams = 1, maxStreams = 16 } = {}) {
+export function buildAdaptiveTransferController({ initial = null, minStreams = 1, maxStreams = 16, cooldownMs = 1000 } = {}) {
+  let lastAdjustmentAt = 0;
   let state = {
     parallelStreams: Math.max(minStreams, Math.min(maxStreams, Number(initial?.parallelStreams) || 4)),
     chunkMiB: Math.max(1, Number(initial?.chunkMiB) || 16),
@@ -115,12 +116,16 @@ export function buildAdaptiveTransferController({ initial = null, minStreams = 1
       const loss = Math.max(0, Number(lossPct) || 0);
       const rtt = Math.max(0, Number(rttMs) || 0);
       state = { ...state, lastMbps: mbps, lastLossPct: loss, lastRttMs: rtt };
+      const now = Date.now();
+      if (now - lastAdjustmentAt < Math.max(0, Number(cooldownMs) || 0)) return Object.freeze({ ...state });
       if (loss > 2 || rtt > 150) {
         state.parallelStreams = Math.max(minStreams, Math.ceil(state.parallelStreams / 2));
         state.chunkMiB = Math.max(4, Math.ceil(state.chunkMiB / 2));
+        lastAdjustmentAt = now;
       } else if (mbps >= 250 && loss < 0.5 && rtt <= 50) {
         state.parallelStreams = Math.min(maxStreams, state.parallelStreams + 2);
         state.chunkMiB = Math.min(64, state.chunkMiB * 2);
+        lastAdjustmentAt = now;
       }
       return Object.freeze({ ...state });
     },
