@@ -1,1 +1,5 @@
-export function createRenderPool() { return { active: 0, queued: 0 }; }
+import { buildRenderPool } from './render-performance.mjs';
+
+export function createRenderPool({ concurrency = 1 } = {}) {
+  return buildRenderPool({ concurrency });
+}
