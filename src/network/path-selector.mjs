@@ -87,3 +87,35 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   selectNetworkPath().then(r => console.log(JSON.stringify(r, null, 2)))
     .catch(e => { console.error('[NETWORK SELECTOR]', e); process.exitCode = 1; });
 }
+
+
+export function buildNetworkSpeedPolicy(paths = []) {
+  const healthy = paths.filter(p => p?.healthy).sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+  if (!healthy.length) return Object.freeze({ mode: 'offline', lanes: 0, paths: [] });
+  const top = healthy.slice(0, 4);
+  const totalScore = top.reduce((sum, p) => sum + Math.max(1, Number(p.score || 1)), 0);
+  return Object.freeze({
+    mode: top.length > 1 ? 'multipath' : 'single-path',
+    lanes: top.length,
+    paths: top.map(p => Object.freeze({
+      device: p.device,
+      network: p.network,
+      weight: Math.max(1, Number(p.score || 1)) / totalScore,
+      rttMs: p.rttMs
+    })),
+    failover: healthy.slice(4, 8).map(p => p.device)
+  });
+}
+
+export function adaptiveLaneCount({ bandwidthMbps = 0, lossPct = 0, rttMs = 0, maxLanes = 16 } = {}) {
+  const bandwidth = Math.max(0, Number(bandwidthMbps) || 0);
+  const loss = Math.max(0, Number(lossPct) || 0);
+  const rtt = Math.max(0, Number(rttMs) || 0);
+  const ceiling = Math.max(1, Math.min(16, Math.floor(Number(maxLanes) || 16)));
+  if (loss > 3 || rtt > 180) return 1;
+  if (loss > 1.5 || rtt > 100) return Math.min(2, ceiling);
+  if (bandwidth >= 1000 && rtt <= 50 && loss < 0.5) return Math.min(ceiling, 16);
+  if (bandwidth >= 500 && rtt <= 75 && loss < 1) return Math.min(ceiling, 8);
+  if (bandwidth >= 250 && rtt <= 100 && loss < 1.5) return Math.min(ceiling, 4);
+  return Math.min(ceiling, 2);
+}
