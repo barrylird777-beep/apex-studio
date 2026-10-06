@@ -4,6 +4,13 @@ function safeLimit(value, fallback = 50) {
   return Math.max(1, Math.min(500, Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : fallback));
 }
 
+function safeCollectionId(value) {
+  if (value == null) return null;
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) throw new TypeError("collectionId must be a non-negative integer");
+  return n;
+}
+
 function cleanQuery(value) {
   return String(value ?? "").normalize("NFKC").trim();
 }
@@ -25,7 +32,7 @@ export class BibleSearch {
       }
       await client.query("SELECT set_config('pg_trgm.similarity_threshold', $1, true)", [String(threshold)]);
       const params = [query, safeLimit(limit)];
-      const collection = collectionId == null ? null : Number(collectionId);
+      const collection = safeCollectionId(collectionId);
       if (collection !== null && !Number.isSafeInteger(collection)) {
         throw new TypeError("collectionId must be an integer");
       }
@@ -52,7 +59,7 @@ export class BibleSearch {
     if (!query) return [];
     const params = [query, safeLimit(limit)];
     const scope = collectionId == null ? "" : " AND p.collection_id = $3";
-    if (collectionId != null) params.push(Number(collectionId));
+    if (collectionId != null) params.push(safeCollectionId(collectionId));
     const { rows } = await this.pool.query(
       `SELECT p.id, p.collection_id, p.source_id, p.reference, p.book, p.chapter,
               p.verse_start, p.verse_end, p.text,
