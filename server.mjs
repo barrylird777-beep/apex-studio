@@ -22,6 +22,8 @@ import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from '
 import { pool as dbPool } from './src/db/index.ts';
 import { createSearchRouter } from './src/api/routes/search.mjs';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';\nimport { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.mjs';
+import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
+import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
 import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
@@ -1381,6 +1383,22 @@ app.post('/api/ai/generate-grok', async (req, res) => {
 
 app.get('/api/ai/generate-grok/status', (_req, res) => {
   res.json({ success: true, ...grokStatus() });
+});
+
+app.get('/api/ai/providers', (_req, res) => {
+  res.json({ success: true, providers: AI_PROVIDER_CATALOG, ...unifiedAiStatus() });
+});
+
+app.post('/api/ai/generate/:provider', async (req, res) => {
+  try {
+    const result = await generateUnifiedAi({ provider: req.params.provider, ...(req.body || {}) });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    const message = String(error?.message || error);
+    const status = /not configured|required|invalid|unknown provider|too many|exceeds|schema/i.test(message) ? 400 : 502;
+    console.error('[ai-unified]', req.params.provider, message);
+    return res.status(status).json({ success: false, error: status === 502 ? 'AI generation failed' : message });
+  }
 });
 
 app.post('/api/ai/generate', async (req, res) => {
