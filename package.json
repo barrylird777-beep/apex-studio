@@ -18,7 +18,8 @@
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "db:migrate:postgres": "node scripts/migrate-postgres.mjs",
-    "verify:official-runtime": "bash scripts/official-release-runtime.sh"
+    "verify:official-runtime": "bash scripts/official-release-runtime.sh",
+    "verify:speed": "bash scripts/official-cellular-speed-mptcp.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
