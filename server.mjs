@@ -26,6 +26,7 @@ import { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.
 import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
+import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { startLoadShedder, loadShedderMiddleware, runWithTrace } from './src/core/resilience/load-shedder.mjs';
 import { scrapePrometheusMetrics, prometheusContentType } from './src/observability/prometheus-exporter.mjs';
 import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
@@ -240,6 +241,35 @@ app.get('/api/network/status', async (_req,res)=>{
     res.status(200).json({ success:false, status:'degraded', selected:null, candidates:[], failover:[], error:error?.message||String(error), checkedAt:new Date().toISOString() });
   }
 });
+app.use('/api/mobile', createMobileControlPlane({
+  getHealth: async () => ({ ok: true, uptime: process.uptime() }),
+  getAiStatus: async () => ({ ...unifiedAiStatus(), openai: openAiMaxStatus(), grok: grokStatus() }),
+  getCapacity: async () => capacitySnapshot(),
+  getWorkers: async () => ({
+    permanent: fleetStatus(permanentWorkerFleet),
+    supervisor: permanentWorkerSupervisor.status(),
+    durable: await queueStats(),
+    aiCrew: aiCrew.status()
+  }),
+  getOverseer: async () => overseerStatus(apexOverseer, permanentWorkerFleet),
+  getNetwork: async () => {
+    const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
+    const fabric = await selectNetworkPath();
+    const healthy = fabric.candidates.filter(path => path.healthy);
+    return {
+      status: fabric.selected ? 'connected' : 'offline',
+      selected: fabric.selected,
+      failover: fabric.failover,
+      candidates: fabric.candidates,
+      speed: buildNetworkSpeedPolicy(healthy),
+      policy: buildConnectionPolicy(),
+      checkedAt: new Date().toISOString()
+    };
+  },
+  generateAi: payload => generateUnifiedAi(payload),
+  produceEpisode: (book, chapter, verses, traceId) => episodePipeline.igniteEpisode(book, chapter, verses, traceId)
+}));
+
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
   success:true,
