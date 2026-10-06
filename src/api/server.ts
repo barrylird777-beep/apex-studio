@@ -2,7 +2,12 @@ import http from "node:http";import {createReadStream,existsSync} from "node:fs"
 import {generateBreakdown,BreakdownError} from "../scripture/breakdown.js";
 import {getCalendar,createShootDay,deleteShootDay,assignScenes,reorderDay,unassignScene,runAutoSchedule} from "./schedule";
 // @ts-ignore JavaScript provider adapter is runtime-loaded.
-import {generateWithGemini} from "../ai/gemini.js";
+import {generateWithGemini} from "../ai/gemini.js";// @ts-ignore
+import {selectNetworkPath} from "../network/path-selector.mjs";
+// @ts-ignore
+import {swarmPeers} from "../network/ipfs-swarm.mjs";
+// @ts-ignore
+import {describeNetworkSettings} from "../core/network-status.mjs";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
 const send=(res:http.ServerResponse,status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json"});res.end(status===204?"":JSON.stringify(data))};
 const readBody=(req:http.IncomingMessage)=>new Promise<any>((resolve,reject)=>{let s="";req.on("data",c=>s+=c);req.on("end",()=>{try{resolve(s?JSON.parse(s):{})}catch{reject(Error("Invalid JSON"))}});req.on("error",reject)});
@@ -35,5 +40,17 @@ if(p[0]==="api"&&p[1]==="scenes"&&p[2]&&p[3]==="assignment"&&req.method==="DELET
 }
 if(p[0]==="api"&&p[1]==="scenes"&&p[2]){const id=Number(p[2]);if(!Number.isInteger(id))return send(res,400,{error:"Invalid scene id"});if(p.length===3&&req.method==="PUT"){const s=await updateScene(id,await readBody(req));return s?send(res,200,s):send(res,404,{error:"Scene not found"})}if(p.length===3&&req.method==="DELETE")return await deleteScene(id)?send(res,204,null):send(res,404,{error:"Scene not found"})}
 if(p[0]==="api"&&p[1]==="scripture"&&p[2]==="breakdown"&&req.method==="POST"){const body=await readBody(req),reference=typeof body.reference==="string"?body.reference.trim():"",text=body.text;if(!reference)return send(res,400,{error:"reference is required"});if(text!==undefined&&(typeof text!=="string"||text.length>20000))return send(res,400,{error:"text must be a string up to 20000 characters"});try{const result=await generateBreakdown({reference,text,generate:generateWithGemini,refine:body.refine?{provider:"claude",model:"claude-sonnet-5-5"}:null});return send(res,200,result)}catch(e){const err=e as any;if(err?.name==="BreakdownError")return send(res,502,{error:err.message,stage:err.stage,details:err.errors});console.error("scripture breakdown failed",e);return send(res,500,{error:e instanceof Error?e.message:"breakdown failed"})}}
+if(p[0]==="api"&&p[1]==="network"&&p[2]==="status"&&req.method==="GET"){
+  try {
+    const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("network telemetry timeout")),5000));
+    const telemetry=await Promise.race([selectNetworkPath(),timeout]);
+    const peers=await swarmPeers();
+    const selected=telemetry?.selected||null;
+    const state=selected?.healthy?"connected":(telemetry?.candidates?.length?"degraded":"offline");
+    return send(res,200,{state,verified:false,checkedAt:new Date().toISOString(),selected,failover:telemetry?.failover||[],candidates:telemetry?.candidates||[],peers:typeof peers==="object"?peers:peers.length,settings:describeNetworkSettings({speed:"maximum"})});
+  } catch(e) {
+    return send(res,200,{state:"offline",verified:false,checkedAt:new Date().toISOString(),selected:null,failover:[],candidates:[],peers:{available:false},settings:describeNetworkSettings({speed:"maximum"}),error:e instanceof Error?e.message:"network telemetry unavailable"});
+  }
+}
 if(!dev){const path=u.pathname==="/"?"index.html":u.pathname.slice(1),f=join(root,"dist",path),file=existsSync(f)?f:join(root,"dist","index.html");res.writeHead(200,{"content-type":({".html":"text/html",".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"} as any)[extname(file)]||"application/octet-stream"});return createReadStream(file).pipe(res)}res.writeHead(404);res.end()}catch(e){send(res,400,{error:e instanceof Error?e.message:"Request failed"})}});
 server.listen(port,()=>{if(dev)vite=spawn(process.platform==="win32"?"npx.cmd":"npx",["vite","--host","0.0.0.0"],{cwd:root,stdio:"inherit"});else console.log("Apex Studio listening on "+port)});process.on("SIGINT",()=>{vite?.kill();server.close()});process.on("SIGTERM",()=>{vite?.kill();server.close()});

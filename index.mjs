@@ -10,9 +10,6 @@ import {
   requeueExpiredWorkerTasks,
   releaseWorkerTasks
 } from "./src/core/mesh/durable-worker-store.mjs";
-import { pool as dbPool } from "./src/db/index.ts";
-import { createEpisodeJobDispatcher } from "./src/core/mesh/episode-job-dispatcher.mjs";
-import { runWithTrace, log } from "./src/core/resilience/load-shedder.mjs";
 
 async function executePermanentHealthTask(payload = {}) {
   const role = String(payload?.role || "general");
@@ -24,16 +21,6 @@ async function executePermanentHealthTask(payload = {}) {
   } else if (["voiceover", "audio-reference"].includes(role)) {
     const { voiceoverWorkerStatus } = await import("./src/workers/voiceover-worker.mjs");
     await voiceoverWorkerStatus();
-  } else if (role === "security-observation") {
-    const report = payload?.report;
-    if (!report || report.classification !== "behavioral_heuristic" || report.telemetryOnly !== true) {
-      throw new Error("Security observation task requires behavioral telemetry");
-    }
-    log("warn", "High-confidence wireless anomaly queued for configured downstream alert workflow", {
-      threat_count: Number(report.threatCount || 0),
-      high_confidence_count: Number(report.highConfidenceCount || 0),
-      classification: report.classification
-    });
   } else {
     capacitySnapshot();
   }
@@ -66,8 +53,6 @@ if (!workerOnly) {
   let stopping = false;
   let emptyPolls = 0;
 
-  const dispatchEpisodeJob = createEpisodeJobDispatcher({ pool: dbPool });
-
   console.log("[apex-worker] durable worker online");
 
   const inFlight = new Map();
@@ -81,15 +66,13 @@ if (!workerOnly) {
     }, Math.max(5000, Math.floor(leaseMs / 3)));
     heartbeat.unref?.();
     try {
-      const episodeResult = await runWithTrace({ job_id: String(task.id), worker_id: String(task.lease_owner || ""), episode_id: String(task.payload?.episodeId || "") }, () => dispatchEpisodeJob(task));
-      const result = episodeResult ?? await executePermanentHealthTask(task.payload || {});
-      if (result?.deferred) return;
+      const result = await executePermanentHealthTask(task.payload || {});
       const completed = await completeWorkerTask(task.id, result, task.lease_token);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
         return;
       }
-      log("info", "worker task completed", { job_id: task.id, role: task.role });
+      console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
       await failWorkerTask(task.id, error, task.lease_token).then(ok => {
         if (!ok) console.warn("[apex-worker] failure update fenced out", task.id);

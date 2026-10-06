@@ -14,7 +14,7 @@ import { ToolRegistry } from "../agents/tool-registry.mjs";
 import { SessionManager } from "./session.mjs";
 import { JsonStore } from "../core/persistence.mjs";
 import { CommandLog } from "../core/undo.mjs";
-import { universalSearch, buildSearchIndex, searchIndex, SEARCH_CAPABILITIES } from "../core/search.mjs";
+import { universalSearch } from "../core/search.mjs";
 import { Metrics } from "./observability.mjs";
 import { KnowledgeBase } from "../core/knowledge-base.mjs";
 import { RenderQueue } from "../core/render.mjs";
@@ -41,7 +41,6 @@ import { OmniStore } from "../core/omni-store.mjs";
 import { buildRiskReport, createRiskHandshake } from "../core/omni-risk.mjs";
 import { parseProsody } from "../core/prosody.mjs";
 import { monoCompatibleWidth } from "../core/stereo.mjs";
-import { bibleCatalog } from "../biblical/bible-catalog.mjs";
 import { createEditorProject, addTrack, addClip, addKeyframe, addEffect, addCaption, addMarker, setTransition, createExportPlan, validateEditorProject, trimClip, splitClip, moveClip, removeClip, snapshotEditor, restoreEditor, setTrackState, addTrackGroup, toggleTrackGroup, snapTime, moveClipSnapped } from "../core/editor-engine.mjs";
 
 export function createStudio(options={}) {
@@ -67,43 +66,19 @@ export function createStudio(options={}) {
   };
   studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
   void studio.omniStore.init();
-  const bibleCatalogSnapshot=bibleCatalog();
-  const searchCollections=()=>[
-    {type:"bible.families",items:bibleCatalogSnapshot.families},
-    {type:"bible.editions",items:bibleCatalogSnapshot.editions},
+  studio.search=(query,limit=30)=>universalSearch(query,[
     {type:"projects",items:studio.projects.list()},
     {type:"memories",items:studio.memory.items},
     {type:"assets",items:[...studio.assets.assets.values()]},
     {type:"sources",items:studio.sources.list()},
-    {type:"documents",items:studio.knowledgeBase.list()},
-    {type:"graph.entities",items:[...studio.graph.entities.values()]},
-    {type:"graph.relations",items:[...studio.graph.relations.values()]}
-  ];
-  studio.searchCapabilities=[...SEARCH_CAPABILITIES,"bible-catalog","bible-families","bible-editions","outbound-retrieval","source-provenance","parallel-source-fetch","risk-gated-network-egress"];
-  studio._searchCache={index:null,builtAt:0,key:""};
-  studio._searchCollectionsCache={collections:null,builtAt:0};
-  studio.rebuildSearchIndex=(options={})=>{
-    const index=buildSearchIndex(searchCollections(),options);
-    studio._searchCache={index,builtAt:Date.now(),key:JSON.stringify(Array.isArray(options.fields)?options.fields:null)};
-    return index;
-  };
-  studio.search=(query,limit=30,options={})=>{
-    const ttl=Math.max(0,Math.min(30000,Number(options.cacheTtlMs??10000)));
-    const now=Date.now();
-    const index=studio._searchCache.index;
-    const key=JSON.stringify(Array.isArray(options.fields)?options.fields:null);
-    if (!index || key!==studio._searchCache.key || now-studio._searchCache.builtAt>ttl) studio.rebuildSearchIndex(options);
-    return searchIndex(studio._searchCache.index,query,limit,options);
-  };
-  studio.searchIndex=options=>studio.rebuildSearchIndex(options);
-  studio.searchIndexed=(index,query,limit=30,options={})=>searchIndex(index,query,limit,options);
-  studio.searchFederated=async(query,options={})=>studio.sex.search(query,options);
+    {type:"documents",items:studio.knowledgeBase.list()}
+  ],limit);
   studio.omniRisk=(input={})=>buildRiskReport(input);
   studio.beginOmniReview=(input={})=>{const h=createRiskHandshake(studio.omniRisk(input));studio.omniHandshakes.set(h.id,h);return h};
   studio.confirmOmniReview=(id,approved)=>{const h=studio.omniHandshakes.get(id);if(!h)throw new Error("Risk review not found");h.state=approved===true?"approved":"cancelled";h.decidedAt=new Date().toISOString();return h};
   studio.command=async(name,args={})=>studio.commandsRouter.dispatch(name,args);
   studio.commandsRouter
-    .register("search",({query,limit=30,...options})=>studio.search(query,limit,options))
+    .register("search",({query,limit=30})=>studio.search(query,limit))
     .register("omni.risk",input=>buildRiskReport(input))
     .register("omni.prosody",input=>parseProsody(input.text))
     .register("omni.stereo",input=>monoCompatibleWidth(input))

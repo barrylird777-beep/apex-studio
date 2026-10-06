@@ -224,6 +224,18 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+app.get('/api/network/status', async (_req,res)=>{
+  try {
+    const { selectNetworkPath } = await import('./src/network/path-selector.mjs');
+    const { buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
+    const fabric = await selectNetworkPath();
+    const healthy = fabric.candidates.filter(p=>p.healthy);
+    const speed = buildNetworkSpeedPolicy(healthy);
+    res.json({ success:true, status: fabric.selected ? 'connected' : 'offline', selected:fabric.selected, failover:fabric.failover, candidates:fabric.candidates, speed, policy:buildConnectionPolicy(), checkedAt:new Date().toISOString() });
+  } catch (error) {
+    res.status(200).json({ success:false, status:'degraded', selected:null, candidates:[], failover:[], error:error?.message||String(error), checkedAt:new Date().toISOString() });
+  }
+});
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
   success:true,

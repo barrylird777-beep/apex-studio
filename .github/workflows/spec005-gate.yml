@@ -26,15 +26,17 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d apex_test"
           --health-interval 2s --health-timeout 3s --health-retries 15
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
       - run: npm install
-      - name: PostgreSQL migration chain verification
+      - name: Schema drift (every schema change must have a committed migration)
+        run: |
+          npx drizzle-kit generate
+          test -z "$(git status --porcelain drizzle)" || { git status --porcelain drizzle; exit 1; }
+      - name: Migrations rebuild expected schema from empty
         run: npm run verify:migrations
       - name: Real migrate on a fresh database
         env:

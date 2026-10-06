@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>BGTaskSchedulerPermittedIdentifiers</key>
+  <array><string>com.apex.studio.network.refresh</string></array>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Apex uses your local network to discover and synchronize with authorized Apex nodes.</string>
+  <key>NSBonjourServices</key>
+  <array><string>_apex-fabric._tcp</string></array>
+</dict>
+</plist>

@@ -1,0 +1,173 @@
+import os from 'node:os';
+import pg from 'pg';
+import { createDurableJobsStore } from './durable-jobs-store.mjs';
+import { createRenderPool } from '../core/render-pool.mjs';
+
+const { Pool } = pg;
+const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${process.pid}`;
+const leaseMs = Number(process.env.APEX_WORKER_LEASE_MS || 30000);
+const heartbeatMs = Math.max(1000, Math.floor(leaseMs / 3));
+const pollMs = Number(process.env.APEX_WORKER_POLL_MS || 250);
+const claimJitterMs = Math.max(0, Number(process.env.APEX_WORKER_CLAIM_JITTER_MS || 0));
+const concurrency = Math.max(1, Math.min(32, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
+const batchSize = Math.max(1, Math.min(20, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+const renderConcurrency = Math.max(1, Math.min(16, Number(process.env.APEX_RENDER_CONCURRENCY || 8)));
+const idlePollMs = Math.max(10, Number(process.env.APEX_WORKER_IDLE_POLL_MS || 50));
+
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.APEX_PG_POOL_SIZE || 20),
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
+  ssl: process.env.APEX_PG_SSL === 'false' ? false : { rejectUnauthorized: false }
+});
+const store = createDurableJobsStore(pool);
+let stopping = false;
+const active = new Set();
+const renderPool = createRenderPool({ concurrency: renderConcurrency });
+const renderActive = () => renderPool.active;
+const isRenderJob = (job) => /(^|[._-])(render|master|encode|transcode)([._-]|$)/i.test(String(job?.type || '')) || job?.payload?.render === true;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function handle(job) {
+  if (job.type === 'sovereign.publish') {
+    return {
+      durable: true,
+      accepted: true,
+      waveId: job.payload?.waveId ?? null,
+      executedAt: new Date().toISOString()
+    };
+  }
+
+  const modulePath = process.env.APEX_JOB_HANDLER_MODULE;
+  if (!modulePath) {
+    throw new Error(`No production handler configured for durable job type: ${job.type}`);
+  }
+
+  const module = await import(modulePath);
+  const handler =
+    module.handlers?.[job.type] ??
+    module.default?.[job.type] ??
+    module.handleJob ??
+    module.default;
+
+  if (typeof handler !== 'function') {
+    throw new Error(`No production handler registered for durable job type: ${job.type}`);
+  }
+
+  return handler(job);
+}
+
+function retryDelayMs(attempts) {
+  const exponent = Math.max(0, Number(attempts) - 1);
+  const base = Math.min(60000, 1000 * 2 ** exponent);
+  const jitter = Math.floor(Math.random() * Math.max(250, Math.floor(base * 0.25)));
+  return Math.min(60000, base + jitter);
+}
+
+async function runJob(job) {
+  const heartbeat = setInterval(async () => {
+    try {
+      const ok = await store.heartbeat({
+        id: job.id,
+        token: job.leaseToken,
+        fence: job.leaseFence,
+        now: new Date(),
+        leaseMs
+      });
+      if (!ok) console.error('[WORKER] lease lost', job.id);
+    } catch (error) {
+      console.error('[WORKER] heartbeat failed', error);
+    }
+  }, heartbeatMs);
+
+  try {
+    const result = isRenderJob(job)
+      ? await renderPool.run(() => handle(job))
+      : await handle(job);
+    const ok = await store.complete({
+      id: job.id,
+      token: job.leaseToken,
+      fence: job.leaseFence,
+      result,
+      now: new Date()
+    });
+    if (!ok) throw new Error(`stale worker completion rejected for ${job.id}`);
+  } catch (error) {
+    const retry = job.attempts < job.maxAttempts;
+    const retryAt = retry ? new Date(Date.now() + retryDelayMs(job.attempts)) : null;
+    const ok = await store.fail({
+      id: job.id,
+      token: job.leaseToken,
+      fence: job.leaseFence,
+      error: error instanceof Error ? error.message : String(error),
+      now: new Date(),
+      retryAt
+    });
+    if (!ok && !stopping) console.error('[WORKER] stale failure rejected', job.id);
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
+async function recover() {
+  const rows = await store.recoverExpired({
+    now: new Date(),
+    runAt: new Date(Date.now() + 1000),
+    errorFor: 'worker lease expired; task recovered'
+  });
+  if (rows.length) console.log('[WORKER] recovered', rows.length);
+}
+
+async function main() {
+  await pool.query('SELECT 1');
+  console.log('[WORKER] online', workerId);
+  while (!stopping) {
+    await recover();
+    const capacity = concurrency - active.size;
+    if (capacity <= 0) {
+      await sleep(active.size ? 10 : idlePollMs);
+      continue;
+    }
+
+    if (claimJitterMs > 0) await sleep(Math.floor(Math.random() * claimJitterMs));
+    const jobs = await store.claimBatch({
+      workerId,
+      now: new Date(),
+      leaseMs,
+      batchSize: Math.min(batchSize, capacity)
+    });
+
+    if (!jobs.length) {
+      await sleep(pollMs);
+      continue;
+    }
+
+    for (const job of jobs) {
+      const task = runJob(job);
+      active.add(task);
+      task.finally(() => active.delete(task)).catch(() => {});
+    }
+
+    await Promise.race([...active]);
+  }
+}
+
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`[WORKER] draining on ${signal}`);
+  await Promise.allSettled([...active]);
+  await pool.end();
+}
+
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
+
+main().catch(async (error) => {
+  console.error('[WORKER] fatal', error);
+  await pool.end().catch(() => {});
+  process.exitCode = 1;
+});
