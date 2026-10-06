@@ -15,8 +15,10 @@ import { startLockedContinuousAiLoop } from "./src/core/autonomy/locked-continuo
 import crypto from "node:crypto";
 import { gardenSnapshot, verifiedGardenIds } from "./src/garden/lore-graph.mjs";
 import { assertProductionHandoff, validateScriptGardenReferences } from "./src/core/validation/production-contracts.mjs";
+import { normalizeContentDomain } from "./src/core/content/content-domains.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
+  const contentDomain = normalizeContentDomain(payload?.contentDomain || "bible");
   const book = String(payload?.book || "").trim();
   const chapter = Number(payload?.chapter);
   const verses = String(payload?.verses || "full").trim();
@@ -24,15 +26,20 @@ async function executeEpisodeProductionTask(payload = {}) {
   const { graph } = await gardenSnapshot();
   const graphVersion = "garden-lore-v1";
   const packageHash = crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex");
-  const references = [
-    { id: "garden:Apex", type: "garden:Universe", graphVersion },
-    { id: "garden:JesusFreaks", type: "garden:Collective", graphVersion }
-  ];
-  const verifiedIds = await verifiedGardenIds();
-  validateScriptGardenReferences(references, verifiedIds);
+  const references = contentDomain === "korn"
+    ? [
+        { id: "garden:Apex", type: "garden:Universe", graphVersion },
+        { id: "garden:JesusFreaks", type: "garden:Collective", graphVersion }
+      ]
+    : [];
+  if (references.length) {
+    const verifiedIds = await verifiedGardenIds();
+    validateScriptGardenReferences(references, verifiedIds);
+  }
   const handoff = assertProductionHandoff({
     contractVersion: "apex-production-handoff.v1",
-    projectId: `bible:${book}`,
+    projectId: `${contentDomain}:${book}`,
+    contentDomain,
     episodeId: `${book}:${chapter}:${verses}`,
     gardenPackage: { graphVersion, packageHash, references },
     artifact: {
@@ -47,6 +54,7 @@ async function executeEpisodeProductionTask(payload = {}) {
   return {
     ok: true,
     type: "episode-production",
+    contentDomain,
     book,
     chapter,
     verses,
