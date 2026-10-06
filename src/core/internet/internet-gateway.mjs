@@ -167,15 +167,27 @@ export async function internetSearch(query, { limit = 10 } = {}) {
     ["serper", searchSerper]
   ];
   const failures = [];
-  for (const [name, fn] of providers) {
+  const configured = providers.filter(([name]) => {
+    if (name === "brave") return Boolean(process.env.BRAVE_SEARCH_API_KEY);
+    if (name === "tavily") return Boolean(process.env.TAVILY_API_KEY);
+    return Boolean(process.env.SERPER_API_KEY);
+  });
+  if (!configured.length) throw new Error("No internet search provider is configured");
+  const attempts = configured.map(async ([name, fn]) => {
     try {
       const results = await fn(q, safeLimit);
-      if (results.length) return { query: q, results, provider: name, failures };
+      if (!results.length) throw new Error("provider returned no results");
+      return { query: q, results, provider: name, failures: [] };
     } catch (error) {
-      failures.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`${name}: ${error instanceof Error ? error.message : String(error)}`);
     }
+  });
+  try {
+    return await Promise.any(attempts);
+  } catch (aggregate) {
+    for (const error of aggregate?.errors || []) failures.push(String(error?.message || error));
+    throw new Error(`No configured internet search provider succeeded: ${failures.join(" | ")}`);
   }
-  throw new Error(`No configured internet search provider succeeded: ${failures.join(" | ")}`);
 }
 
 export async function internetCapabilities() {
