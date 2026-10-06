@@ -28,6 +28,7 @@ import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
+import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -288,6 +289,35 @@ app.use('/api/phone', createPhoneControlPlane({
     };
   }
 }));
+
+const musicRadarBridge = createMusicRadarBridge({
+  enqueueWorkerTask,
+  getGardenPackage: async () => {
+    const { graph } = await gardenSnapshot();
+    return {
+      graphVersion: "garden-lore-v1",
+      packageHash: crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex"),
+      references: ["garden:Apex", "garden:JesusFreaks"]
+    };
+  }
+});
+
+app.get("/api/music-radar/status", async (_req, res) => {
+  res.json(await musicRadarBridge.status());
+});
+
+app.post("/api/music-radar/handoff", async (req, res) => {
+  const expected = String(process.env.APEX_SHORTCUT_TOKEN || "");
+  const supplied = String(req.get("x-apex-shortcut-token") || "");
+  if (!expected || !supplied || supplied !== expected) {
+    return res.status(401).json({ ok: false, error: "Music Radar integration authentication failed" });
+  }
+  try {
+    res.json(await musicRadarBridge.handoff(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error?.message || String(error) });
+  }
+});
 
 app.use('/api/mobile', createMobileControlPlane({
   getHealth: async () => ({ ok: true, uptime: process.uptime() }),
