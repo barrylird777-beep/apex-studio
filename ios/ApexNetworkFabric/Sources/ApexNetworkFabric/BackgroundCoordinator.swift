@@ -4,10 +4,24 @@ import BackgroundTasks
 public final class ApexBackgroundCoordinator {
     public static let refreshIdentifier = "com.apex.studio.network.refresh"
 
-    public static func register() {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshIdentifier, using: nil) { task in
-            task.setTaskCompleted(success: true)
-            schedule()
+    private let operation: @Sendable () async -> Bool
+
+    public init(operation: @escaping @Sendable () async -> Bool) {
+        self.operation = operation
+    }
+
+    public func register() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshIdentifier, using: nil) { [operation] task in
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+
+            Self.schedule()
+            Task {
+                let success = await operation()
+                refreshTask.setTaskCompleted(success: success)
+            }
         }
     }
 
