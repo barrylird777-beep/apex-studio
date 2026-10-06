@@ -14,6 +14,7 @@ test("internet gateway blocks insecure and private destinations", async () => {
   await assert.rejects(() => internetFetch("http://example.com"), /HTTPS/);
   await assert.rejects(() => internetFetch("https://127.0.0.1/"), /private IPv4/i);
   await assert.rejects(() => internetFetch("https://localhost/"), /local hostname/i);
+  await assert.rejects(() => internetFetch("https://[::ffff:127.0.0.1]/"), /private IPv6/i);
 });
 
 test("internet search rejects empty queries", async () => {
