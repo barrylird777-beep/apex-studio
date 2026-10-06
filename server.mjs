@@ -20,7 +20,6 @@ import { DistributedTileRenderer } from './src/core/vision/distributed-tile-rend
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
 import { pool as dbPool } from './src/db/index.ts';
-import { createSearchRouter } from './src/api/routes/search.mjs';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
 import { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.mjs';
 import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
@@ -254,7 +253,6 @@ app.post('/api/episodes/produce', (_req, res) => {
   return res.status(503).json({ success: false, error: 'Episode pipeline is unavailable in this deployment' });
 });
 
-app.use('/api/search', createSearchRouter(dbPool));
 // Titan-protected mutation surfaces are mounted explicitly at the route boundary.
 app.use('/api/bible-production', async (req, res, next) => {
   try {
