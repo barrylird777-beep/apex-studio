@@ -3,7 +3,7 @@ import path from 'node:path';
 
 export const PROD_SETTINGS = {
   audio: { bitrate: '320k', frequency: 48000, channels: 2, masterLoudness: 'loudnorm=I=-16:LRA=11:TP=-1.5' },
-  video: { codec: 'libx264', preset: 'veryslow', crf: 17, fps: 24, colorGrade: 'eq=contrast=1.15:brightness=-0.02:saturation=1.2' }
+  video: { codec: 'libx264', preset: 'fast', crf: 18, fps: 24, colorGrade: 'eq=contrast=1.15:brightness=-0.02:saturation=1.2' }
 };
 
 export function configureProductionExport(command) {
@@ -61,7 +61,7 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
       .audioBitrate(PROD_SETTINGS.audio.bitrate).audioFrequency(PROD_SETTINGS.audio.frequency)
       .audioChannels(PROD_SETTINGS.audio.channels)
       .outputOptions([
-        '-preset', PROD_SETTINGS.video.preset, '-crf', String(PROD_SETTINGS.video.crf),
+        '-preset', preset.encodePreset || PROD_SETTINGS.video.preset, '-crf', String(PROD_SETTINGS.video.crf),
         '-r', String(preset.fps), '-vf', PROD_SETTINGS.video.colorGrade,
         '-pix_fmt', 'yuv420p', '-profile:v', preset.profile, '-level', preset.level,
         '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-movflags', '+faststart'
@@ -71,12 +71,12 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
 }
 
 export const OUTPUT_PRESETS = Object.freeze({
-  master: { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2' },
-  '4k': { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2' },
-  'youtube-4k': { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2' },
-  'youtube-1080p': { width: 1920, height: 1080, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2' },
-  'vertical-1080x1920': { width: 1080, height: 1920, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2' },
-  square: { width: 1080, height: 1080, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2' }
+  master: { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast' },
+  '4k': { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast' },
+  'youtube-4k': { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast' },
+  'youtube-1080p': { width: 1920, height: 1080, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2', encodePreset: 'fast' },
+  'vertical-1080x1920': { width: 1080, height: 1920, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2', encodePreset: 'fast' },
+  square: { width: 1080, height: 1080, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2', encodePreset: 'fast' }
 });
 
 export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output = 'output.mp4' } = {}) {
@@ -97,7 +97,7 @@ export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output 
 
   const outputArgs = ['-filter_complex', filters, '-map', '[v]', '-map', '[a]', '-c:v', preset.videoCodec, '-c:a', 'aac',
     '-ar', String(PROD_SETTINGS.audio.frequency), '-ac', String(PROD_SETTINGS.audio.channels), '-b:a', PROD_SETTINGS.audio.bitrate,
-    '-pix_fmt', 'yuv420p', '-crf', String(PROD_SETTINGS.video.crf), '-preset', PROD_SETTINGS.video.preset,
+    '-pix_fmt', 'yuv420p', '-crf', String(PROD_SETTINGS.video.crf), '-preset', preset.encodePreset || PROD_SETTINGS.video.preset,
     '-profile:v', preset.profile, '-level', preset.level, '-r', String(preset.fps), '-movflags', '+faststart', output];
 
   return { command: 'ffmpeg', args: args.concat(outputArgs), preset, inputCount: valid.length * 2, ready: true };
