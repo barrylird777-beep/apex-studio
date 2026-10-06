@@ -7,13 +7,14 @@ function parseRange(value) {
 }
 
 export async function probeHttpRange(url, { signal, timeoutMs = 30000 } = {}) {
-  const response = await fetch(url, { headers: { Range: "bytes=0-0", "Accept-Encoding": "identity" }, signal: transferAbort.signal });
+  const response = await fetch(url, { signal: rangeSignal,
+          headers: { Range: "bytes=0-0", "Accept-Encoding": "identity" }, signal: transferAbort.signal });
   const range = parseRange(response.headers.get("content-range"));
   await response.body?.cancel();
   return Object.freeze({ supported: response.status === 206 && Boolean(range), totalBytes: range?.total || null, validator: response.headers.get("etag") || response.headers.get("last-modified") || null });
 }
 
-export async function downloadHttpAsset(url, destinationPath, { parallelStreams = 4, chunkMiB = 16, retryLimit = 4, signal, onProgress, transferController } = {}) {
+export async function downloadHttpAsset(url, destinationPath, { parallelStreams = 4, chunkMiB = 16, retryLimit = 4, signal, onProgress, transferController, rangeTimeoutMs = 30000 } = {}) {
   const probe = await probeHttpRange(url, { signal });
   if (!probe.supported || !probe.totalBytes) {
     const error = new Error("SOURCE_NO_RANGE_SUPPORT");
