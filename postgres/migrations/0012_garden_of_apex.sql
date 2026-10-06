@@ -63,3 +63,18 @@ INSERT INTO "garden_places" ("slug","name","kind","description") VALUES
 ('garden-meadow','Discovery Meadow','realm','A place where discoveries and Popcorns emerge.'),
 ('garden-workshop','Freak Workshop','realm','A place for Freaks to develop ideas before production.')
 ON CONFLICT ("slug") DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS "garden_lineage" (
+  "id" bigserial PRIMARY KEY,
+  "discovery_id" bigint NOT NULL REFERENCES "garden_discoveries"("id") ON DELETE CASCADE,
+  "freak_id" bigint REFERENCES "garden_freaks"("id") ON DELETE SET NULL,
+  "stage" text NOT NULL,
+  "sequence_no" integer NOT NULL,
+  "source_ref" text,
+  "evidence" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "garden_lineage_sequence_chk" CHECK ("sequence_no" >= 0),
+  CONSTRAINT "garden_lineage_unique" UNIQUE ("discovery_id","sequence_no")
+);
+CREATE INDEX IF NOT EXISTS "garden_lineage_discovery_idx" ON "garden_lineage" ("discovery_id","sequence_no");
+CREATE INDEX IF NOT EXISTS "garden_lineage_freak_idx" ON "garden_lineage" ("freak_id");
