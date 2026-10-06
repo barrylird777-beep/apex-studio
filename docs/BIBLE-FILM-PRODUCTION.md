@@ -9,7 +9,7 @@ Supported production domains:
 
 ## Bible mode
 
-Bible productions use Scripture/source provenance as their truth boundary. They can use Scripture research, historical/context research, character and scene planning, original cinematic visualization, Music Radar audio, deterministic render QC, durable PostgreSQL production jobs, and release packaging.
+Bible productions use Scripture/source provenance as their truth boundary. They can use Scripture research, historical/context research, character and scene planning, original cinematic visualization, Studio Audio Lab / KORN-KNOB media capabilities, deterministic render QC, durable PostgreSQL production jobs, and release packaging.
 
 Bible mode does not require Garden of Apex references.
 
