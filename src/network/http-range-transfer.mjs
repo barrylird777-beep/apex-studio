@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
@@ -75,8 +76,6 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
     await handle.sync();
   } finally { signal?.removeEventListener("abort", forwardAbort); await handle.close(); }
   const digest = crypto.createHash("sha256");
-  const readHandle = await fs.open(destinationPath, "r");
-  try { for await (const chunk of readHandle.readableWeb ? readHandle.readableWeb : readHandle.createReadStream()) digest.update(Buffer.from(chunk)); }
-  finally { await readHandle.close(); }
+  for await (const chunk of createReadStream(destinationPath)) digest.update(chunk);
   return Object.freeze({ path: destinationPath, bytes: total, sha256: digest.digest("hex"), parallelStreams: workers, ranges: ranges.length });
 }
