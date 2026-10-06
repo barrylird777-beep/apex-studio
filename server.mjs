@@ -28,6 +28,7 @@ import { EpisodePipeline } from './src/pipelines/episode-pipeline.mjs';
 import { dispatchCompletedWorkerEvents } from './src/workers/webhook-dispatcher.mjs';
 import RogueApDetector, { validateObservationEnvelope } from './src/network/rogue-ap-detector.mjs';
 import { requireTitanAuth } from './src/security/require-titan-auth.mjs';
+import { internetFetch, internetSearch, internetCapabilities } from './src/core/internet/internet-gateway.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -222,6 +223,35 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+app.get('/api/internet/capabilities', requireTitanAuth, async (_req, res) => {
+  res.json({ success: true, ...(await internetCapabilities()) });
+});
+
+app.post('/api/internet/search', requireTitanAuth, async (req, res) => {
+  try {
+    const query = String(req.body?.query || '').normalize('NFKC').trim();
+    if (!query || query.length > 1000) return res.status(400).json({ success: false, error: 'query is required and must be <= 1000 characters' });
+    const result = await internetSearch(query, { limit: req.body?.limit });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(503).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.post('/api/internet/fetch', requireTitanAuth, async (req, res) => {
+  try {
+    const url = String(req.body?.url || '').trim();
+    if (!url || url.length > 4096) return res.status(400).json({ success: false, error: 'url is required and must be <= 4096 characters' });
+    const result = await internetFetch(url, {
+      timeoutMs: req.body?.timeoutMs,
+      maxBytes: req.body?.maxBytes
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
   success:true,
