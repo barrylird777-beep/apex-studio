@@ -55,3 +55,11 @@ CREATE INDEX IF NOT EXISTS "garden_relationships_to_idx" ON "garden_relationship
 INSERT INTO "garden_places" ("slug", "name", "kind", "description")
 VALUES ('the-garden-of-apex', 'THE Garden of Apex', 'garden', 'The living world and ecosystem of the Jesus Freaks.')
 ON CONFLICT ("slug") DO NOTHING;
+
+-- Canonical initial Garden places. These are world locations, not Studio rooms.
+INSERT INTO "garden_places" ("slug","name","kind","description") VALUES
+('garden-heart','Garden Heart','realm','The central gathering place of THE Garden of Apex.'),
+('garden-grove','Knowledge Grove','realm','A place where Kernels develop specialized disciplines.'),
+('garden-meadow','Discovery Meadow','realm','A place where discoveries and Popcorns emerge.'),
+('garden-workshop','Freak Workshop','realm','A place for Freaks to develop ideas before production.')
+ON CONFLICT ("slug") DO NOTHING;
