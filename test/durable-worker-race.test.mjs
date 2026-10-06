@@ -145,3 +145,11 @@ test("rate limiter has a bounded wait instead of looping forever", { skip: !hasD
     finally { await db.end(); await closeWorkerStore(); }
   }
 });
+
+test("durable worker store keeps heartbeat and external-effect operations fenceable", () => {
+  const source = fs.readFileSync(new URL("../src/core/mesh/durable-worker-store.mjs", import.meta.url), "utf8");
+  assert.match(source, /export async function heartbeatWorkerTasks/);
+  assert.match(source, /unnest\(\$1::uuid\[\], \$2::text\[\]\)/);
+  assert.match(source, /export async function releaseExternalEffect/);
+  assert.match(source, /status='started'/);
+});
