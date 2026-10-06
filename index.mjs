@@ -15,6 +15,8 @@ import { startLockedContinuousAiLoop } from "./src/core/autonomy/locked-continuo
 import crypto from "node:crypto";
 import { gardenSnapshot, verifiedGardenIds } from "./src/garden/lore-graph.mjs";
 import { assertProductionHandoff, validateScriptGardenReferences } from "./src/core/validation/production-contracts.mjs";
+import { createMusicRadarHandoff } from "./src/core/music/music-radar-contract.mjs";
+import { buildMusicProductionPlan, verifyMusicGardenPackage } from "./src/core/music/music-studio.mjs";
 import { normalizeContentDomain } from "./src/core/content/content-domains.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
@@ -96,6 +98,62 @@ async function executeAiInferenceTask(payload = {}) {
     prompt,
     system: String(payload?.system || "Apex Studio autonomous worker. Return one concrete, evidence-based result.")
   });
+}
+
+async function executeMusicAudioHandoffTask(payload = {}) {
+  const handoff = createMusicRadarHandoff(payload?.handoff || {});
+  let gardenVerification = { verified: true, references: [] };
+  if (handoff.contentDomain === "korn") {
+    const { graph } = await gardenSnapshot();
+    const packageHash = crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex");
+    const currentPackage = {
+      system: "garden-of-apex",
+      graphVersion: "garden-lore-v1",
+      packageHash,
+      references: handoff.worldPackage?.references || []
+    };
+    const verifiedIds = await verifiedGardenIds();
+    gardenVerification = verifyMusicGardenPackage(
+      { contentDomain: "korn", gardenPackage: currentPackage },
+      verifiedIds
+    );
+    if (handoff.worldPackage?.packageHash && handoff.worldPackage.packageHash !== packageHash) {
+      throw new Error("Music handoff Garden package hash is stale");
+    }
+  }
+  const plan = buildMusicProductionPlan({
+    projectId: handoff.projectId,
+    contentDomain: handoff.contentDomain,
+    gardenPackage: handoff.worldPackage?.system === "garden-of-apex" ? handoff.worldPackage : undefined,
+    genre: handoff.musicalIntent.genre,
+    fusion: handoff.musicalIntent.fusion,
+    mood: handoff.musicalIntent.mood,
+    purpose: handoff.musicalIntent.purpose,
+    tracks: handoff.assets.map(asset => ({
+      trackId: asset.assetId,
+      projectId: handoff.projectId,
+      title: asset.title,
+      role: asset.kind,
+      contentDomain: handoff.contentDomain,
+      durationSeconds: asset.durationSeconds,
+      gardenPackage: handoff.worldPackage?.system === "garden-of-apex" ? handoff.worldPackage : undefined,
+      sourceAsset: {
+        assetId: asset.assetId,
+        checksum: asset.checksum,
+        url: asset.mediaUrl,
+        path: asset.localPath
+      },
+      provenance: asset.provenance
+    }))
+  });
+  return {
+    ok: true,
+    type: "music-audio-handoff",
+    stage: "audio-handoff-validated",
+    handoff,
+    gardenVerification,
+    plan
+  };
 }
 
 async function executePermanentHealthTask(payload = {}) {
