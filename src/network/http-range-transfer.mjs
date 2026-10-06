@@ -31,7 +31,7 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
   }
   const total = probe.totalBytes;
   const started = performance.now();
-  const size = Math.max(1, Math.min(64, Number(chunkMiB) || 16)) * 1024 * 1024;
+  const size = Math.max(0.001, Math.min(64, Number(chunkMiB) || 16)) * 1024 * 1024;
   const ranges = [];
   for (let start = 0; start < total; start += size) ranges.push({ start, end: Math.min(total - 1, start + size - 1) });
   await fs.mkdir(path.dirname(destinationPath), { recursive: true, mode: 0o700 });
