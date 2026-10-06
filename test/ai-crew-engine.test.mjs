@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAiCrewEngine } from "../src/core/mesh/ai-crew-engine.mjs";
@@ -25,4 +26,12 @@ test("AI crew queues and completes bounded work", async () => {
   assert.equal(status.failed, 0);
   assert.equal(calls, 6);
   engine.stop();
+});
+
+test("AI crew exposes specialized production roles", () => {
+  const source = fs.readFileSync(new URL("../src/core/mesh/crew-inference-worker.mjs", import.meta.url), "utf8");
+  for (const role of ["researcher", "verifier", "scriptwriter", "visual_director", "cinematographer", "voice_director", "audio_director", "composer", "sfx_designer", "editor", "qc"]) {
+    assert.match(source, new RegExp("\\b" + role + "\\b"));
+  }
+  assert.match(source, /roleSystem\(role, system\)/);
 });
