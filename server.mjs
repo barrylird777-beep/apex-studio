@@ -25,6 +25,7 @@ import { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.
 import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
+import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 
@@ -124,20 +125,19 @@ const crewRoles = [
   ['architecture-review', 'Review the system architecture for one concrete correctness or durability risk; distinguish verified evidence from inference.']
 ];
 
-const preferredCrewProviders = ['google', 'anthropic', 'xai', 'openai', 'groq', 'cerebras'];
-const configuredCrewProviders = preferredCrewProviders
-  .map(id => AI_PROVIDER_CATALOG.find(provider => provider.id === id))
-  .filter(provider => provider && process.env[provider.env]);
+const safeAi = continuousAiStatus();
+const crewProvider = safeAi.provider || null;
 
-const crewAssignments = crewRoles.map(([role, task], index) => {
-  const provider = configuredCrewProviders[index % Math.max(1, configuredCrewProviders.length)];
-  return {
-    role,
-    task,
-    provider: provider?.id || preferredCrewProviders[index % preferredCrewProviders.length],
-    model: provider ? (process.env[provider.modelEnv] || provider.defaultModel) : undefined
-  };
-});
+const crewAssignments = crewRoles.map(([role, task]) => ({
+  role,
+  task,
+  provider: crewProvider || 'openrouter',
+  model: crewProvider === 'google'
+    ? (process.env.GEMINI_FREE_MODEL || 'gemini-3.8-flash')
+    : crewProvider === 'openrouter'
+      ? 'openrouter/free'
+      : undefined
+}));
 
 const aiCrew = createAiCrewEngine({
   concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 64))),
@@ -145,8 +145,10 @@ const aiCrew = createAiCrewEngine({
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
 
-const aiCrewAutoRun = String(process.env.APEX_AI_CREW_AUTORUN ?? 'true').toLowerCase() !== 'false';
-if (aiCrewAutoRun) {
+// The durable worker loop owns continuous AI work. Keep this in-memory burst
+// opt-in only so an unavailable provider cannot create a permanent failure storm.
+const aiCrewAutoRun = String(process.env.APEX_AI_CREW_AUTORUN ?? 'false').toLowerCase() === 'true';
+if (aiCrewAutoRun && safeAi.enabled) {
   const crewContext = {
     mission: 'Continuously improve Apex Studio as a Bible intelligence and video-production system.',
     rules: [
@@ -157,10 +159,10 @@ if (aiCrewAutoRun) {
       'Surface blockers with a workaround path rather than stopping.'
     ]
   };
-  aiCrew.burst(Math.max(8, Math.min(128, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 128))), crewContext);
+  aiCrew.burst(Math.max(1, Math.min(8, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 8))), crewContext);
   const aiCrewPulse = setInterval(() => {
-    aiCrew.burst(Math.max(4, Math.min(64, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 64))), crewContext);
-  }, Math.max(30000, Number(process.env.APEX_AI_CREW_PULSE_MS || 15000)));
+    aiCrew.burst(Math.max(1, Math.min(4, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 1))), crewContext);
+  }, Math.max(60000, Number(process.env.APEX_AI_CREW_PULSE_MS || 60000)));
   aiCrewPulse.unref?.();
 }
 

@@ -2,6 +2,9 @@ const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_ME
 const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_AI_PROVIDERS = new Set(['openrouter']);
+if (String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED ?? '').toLowerCase() === 'true') {
+  FREE_AI_PROVIDERS.add('google');
+}
 const FREE_AI_MAX_CONCURRENCY = Math.max(1, Number(process.env.APEX_FREE_AI_MAX_CONCURRENCY || 64));
 let freeAiInFlight = 0;
 const freeAiWaiters = [];
