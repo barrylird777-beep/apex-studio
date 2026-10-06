@@ -6,7 +6,18 @@ const DEFAULT_STORAGE_DIR =
   process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 
 function stableJson(value) {
-  return JSON.stringify(value);
+  const normalize = (input) => {
+    if (Array.isArray(input)) return input.map(normalize);
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.keys(input)
+          .sort()
+          .map((key) => [key, normalize(input[key])])
+      );
+    }
+    return input;
+  };
+  return JSON.stringify(normalize(value));
 }
 
 function checksum(record) {
@@ -29,6 +40,7 @@ export class SovereignMeshEngine {
     this.state = new Map();
     this.nextSeq = 1;
     this._writeTail = Promise.resolve();
+    this._writeError = null;
     this._initialized = this._initializeStorage();
   }
 
@@ -90,6 +102,9 @@ export class SovereignMeshEngine {
     }
 
     const waveId = payload.waveId || randomUUID();
+    const existing = this.state.get(waveId);
+    if (existing) return { ...existing };
+
     const peerId = payload.peerId || process.env.APEX_SOVEREIGN_PEER_ID;
 
     if (!peerId) {
@@ -108,9 +123,14 @@ export class SovereignMeshEngine {
 
     record.checksum = checksum(record);
 
-    // Serialize writers in-process and wait for the file's durable flush.
-    this._writeTail = this._writeTail.then(() => this._appendDurably(record));
+    // Serialize writers in-process and recover the chain after a failed write.
+    const write = this._writeTail.catch(() => {}).then(() => this._appendDurably(record));
+    this._writeTail = write.catch((error) => {
+      this._writeError = error;
+      throw error;
+    });
     await this._writeTail;
+    this._writeError = null;
 
     this.state.set(record.waveId, record);
     return { ...record };
@@ -128,6 +148,10 @@ export class SovereignMeshEngine {
 
   get(waveId) {
     return this.state.get(waveId);
+  }
+
+  get writeError() {
+    return this._writeError;
   }
 
   snapshot() {
