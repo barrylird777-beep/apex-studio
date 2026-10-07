@@ -1,0 +1,31 @@
+name: Build Apex iOS 26 URL Filter
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "ios/ApexURLFilter/**"
+      - "ios/project.yml"
+      - ".github/workflows/apex-ios-url-filter.yml"
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate --spec ios/project.yml --project ios/ApexURLFilter.xcodeproj
+      - name: Build unsigned app
+        run: |
+          xcodebuild -project ios/ApexURLFilter.xcodeproj -scheme ApexURLFilter -sdk iphoneos -configuration Release -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Package build artifact
+        run: |
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent build/Build/Products/Release-iphoneos/ApexURLFilter.app dist/ApexURLFilter-unsigned.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApexURLFilter-iOS26-unsigned
+          path: dist/ApexURLFilter-unsigned.zip
