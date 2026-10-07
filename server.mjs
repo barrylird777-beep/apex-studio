@@ -36,6 +36,7 @@ import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMet
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
+import { networkSearch, networkFetch, networkResearch, networkStatus } from './src/network/apex-network-controller.mjs';
 import { streamUnifiedAi } from './src/providers/unified-ai-router.mjs';
 import { createPrivacyControlPlane } from './src/api/privacy-control-plane.mjs';
 import { dispatchSurfaceMission, surfaceCatalog } from './src/core/apex-surface-orchestrator.mjs';
