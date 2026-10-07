@@ -101,8 +101,9 @@ function commonVideoArgs(output, duration, vf) {
     "-vf", vf,
     "-af", `volume=0.04,afade=t=in:st=0:d=0.5,afade=t=out:st=${Math.max(0, duration - 1.5)}:d=1.5`,
     "-c:v", "libx264",
-    "-preset", "veryfast",
-    "-crf", "23",
+    "-preset", process.env.APEX_VIDEO_PRESET || "veryfast",
+    "-crf", process.env.APEX_VIDEO_CRF || "17",
+    "-r", process.env.APEX_VIDEO_FPS || "24",
     "-c:a", "aac",
     "-b:a", "128k",
     "-movflags", "+faststart",
@@ -193,3 +194,16 @@ export async function executeRapidVideoOrder(payload = {}) {
 }
 
 // Rapid buyer smoke gate: validated render path on pull requests.
+
+
+export async function executeRapidTrendRender(payload = {}) {
+  const plan = payload.plan || {};
+  const brief = cleanText(plan.concept || payload.trend || "Create an original trend-inspired short video.");
+  return executeRapidVideoPreview({
+    name: "Apex Trend Swarm",
+    type: "Trend-derived creative proof",
+    brief: (plan.hook ? String(plan.hook) + " — " : "") + brief,
+    platform: "Short-form social",
+    orderId: payload.fingerprint || crypto.randomUUID()
+  });
+}
