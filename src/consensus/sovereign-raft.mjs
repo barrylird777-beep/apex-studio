@@ -4,6 +4,7 @@ import os from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import { paths } from '../core/sovereign-local-storage.mjs';
 import { sendProtocol } from '../network/sovereign-peer.mjs';
+import { verifySelfSignedJwt } from '../security/sovereign-identity.mjs';
 
 const ROOT = process.env.APEX_CONSENSUS_ROOT || path.join(paths.ROOT, 'consensus');
 const RPC = '/apex/raft/1.0.0';
@@ -244,7 +245,7 @@ export class SovereignRaftNode {
 
   attachTransport(node) {
     this.transport = node;
-    node.handle(RPC, async ({ stream }) => {
+    node.handle(RPC, async ({ stream, connection }) => {
       let body = '';
       for await (const chunk of stream.source) { body += dec.decode(chunk, { stream: true }); if (body.includes('\n')) break; }
       const rpc = JSON.parse(body.split('\n')[0]);
