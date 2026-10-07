@@ -36,11 +36,17 @@ import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMet
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
+import { createPrivacyControlPlane } from './src/api/privacy-control-plane.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+const privacyControl = createPrivacyControlPlane();
+app.disable('x-powered-by');
+app.set('etag', false);
+app.set('trust proxy', false);
+app.use((req,res,next)=>{ res.removeHeader('X-Powered-By'); next(); });
 
 let runtimeFault = null;
 
@@ -70,6 +76,8 @@ app.get('/api/fetch', async (req,res) => {
   try { res.json(await fetchAnything(req.query.url)); }
   catch(error) { res.status(400).json({error:error?.message||'Fetch failed'}); }
 });
+
+app.get('/api/privacy/status', (_req,res)=>res.json(privacyControl.status()));
 
 app.get('/health', (_req, res) => {
   const memory = process.memoryUsage();
