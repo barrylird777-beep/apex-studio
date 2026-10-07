@@ -30,6 +30,8 @@ import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
+import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
+import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1622,6 +1624,22 @@ app.post('/api/voiceover/jobs', async (req,res) => {
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
 });
 
+app.get('/api/network/adblock/profile', (_req, res) => {
+  try {
+    const body = studioAdBlockMobileConfig();
+    res.writeHead(200, {
+      'content-type': 'application/x-apple-aspen-config',
+      'content-disposition': 'attachment; filename="Apex-Studio-Ad-Blocker.mobileconfig"',
+      'cache-control': 'no-store'
+    });
+    res.end(body);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'profile generation failed' });
+  }
+});
+app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
+app.all('/api/network/adblock/doh', (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
+
 app.get(['/health', '/api/health'], (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
@@ -1638,5 +1656,7 @@ async function routeWithSwarm(payload, retries = 2) {
   }
   throw new Error('All swarm nodes failed');
 }
+
+void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
 
 app.listen(PORT, HOST, () => console.log(`[apex] server listening on ${HOST}:${PORT}`));
