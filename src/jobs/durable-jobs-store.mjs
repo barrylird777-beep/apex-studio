@@ -54,7 +54,7 @@ export function createDurableJobsStore(db) {
     },
 
     claimBatch: async ({ workerId, now = new Date(), leaseMs = 30000, batchSize = 20 }) => {
-      const size = Math.max(1, Math.min(20, Number(batchSize) || 1));
+      const size = Math.max(1, Number(batchSize) || 1);
       const result = await query(
         `WITH next AS (
            SELECT id
