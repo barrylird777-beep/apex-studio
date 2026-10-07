@@ -1,3 +1,5 @@
+import { assertSafeResearchUrl } from '../security/research-boundary.mjs';
+
 const DEFAULT_USER_AGENT = 'Apex-Frictionless-Research/1.0 (+https://github.com/barrylird777-beep/apex-studio)';
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_MAX_ARTIFACT_BYTES = 25 * 1024 * 1024;
@@ -485,12 +487,13 @@ export class FrictionlessResearchEngine {
   }
 
   async ingestSyndication(url) {
-    const result = await fetchText(this.fetch, url, {
+    const safeUrl = await assertSafeResearchUrl(url);
+    const result = await fetchText(this.fetch, safeUrl, {
       userAgent: this.userAgent,
       maxBytes: this.maxArtifactBytes
     });
     return {
-      source: url,
+      source: safeUrl,
       retrievedAt: new Date().toISOString(),
       items: parseRssItems(result.text, url)
     };
@@ -500,7 +503,8 @@ export class FrictionlessResearchEngine {
     if (!artifact?.url || artifact.access !== 'open') {
       throw new Error('artifact is not marked open');
     }
-    return fetchText(this.fetch, artifact.url, {
+    const safeUrl = await assertSafeResearchUrl(artifact.url);
+    return fetchText(this.fetch, safeUrl, {
       userAgent: this.userAgent,
       maxBytes: this.maxArtifactBytes
     });
