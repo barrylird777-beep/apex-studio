@@ -15,6 +15,44 @@ const dir = path.join(root, "postgres", "migrations");
 const pool = new Pool({ connectionString: url });
 
 try {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS apex_projects (
+      id UUID PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      state JSONB NOT NULL DEFAULT '{}'::jsonb,
+      version BIGINT NOT NULL DEFAULT 1 CHECK (version >= 1),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS apex_projects_owner_idx ON apex_projects(owner_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS render_nodes (
+      id TEXT PRIMARY KEY,
+      capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
+      max_concurrency INTEGER NOT NULL DEFAULT 1 CHECK (max_concurrency >= 1),
+      in_flight INTEGER NOT NULL DEFAULT 0 CHECK (in_flight >= 0),
+      heartbeat_at TIMESTAMPTZ,
+      state TEXT NOT NULL DEFAULT 'ready' CHECK (state IN ('ready','draining','offline')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS render_nodes_capacity_idx ON render_nodes(state, in_flight, max_concurrency);
+    CREATE TABLE IF NOT EXISTS apex_job_events (
+      id BIGSERIAL PRIMARY KEY,
+      job_id UUID NOT NULL,
+      event_type TEXT NOT NULL,
+      worker_id TEXT,
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS apex_job_events_job_idx ON apex_job_events(job_id, created_at);
+    ALTER TABLE durable_jobs
+      ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS parent_job_id UUID;
+    CREATE INDEX IF NOT EXISTS durable_jobs_priority_claim_idx
+      ON durable_jobs(status, priority DESC, run_at, created_at);
+  `);
+
   await pool.query(`CREATE TABLE IF NOT EXISTS apex_schema_migrations (
     version TEXT PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
