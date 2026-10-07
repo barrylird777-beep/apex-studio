@@ -80,7 +80,7 @@ select,input{width:100%;height:50px;border:1px solid var(--creamLine);background
 footer{padding:38px 0 54px;text-align:center;color:#4f4e4a;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
 @media(max-width:900px){.hero-grid{grid-template-columns:1fr}.visual{min-height:430px}.composer{margin-top:12px}.proof-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.page{padding:0 11px}.top{height:60px}.wordmark{font-size:21px}.hero{padding-top:19px}.hero-copy{padding-top:5px}h1{font-size:60px}.hero-copy p{font-size:15px;margin-top:19px}.visual{min-height:390px;border-radius:24px}.visual-frame{left:14%;right:14%;top:9%;bottom:9%}.composer{padding:13px;border-radius:23px}.composer-top{align-items:flex-start;flex-direction:column;gap:4px}.composer-bottom{grid-template-columns:1fr}.composer-foot{display:block}.composer-foot span{display:block;margin-top:4px}.section{padding-top:35px}.section-head{display:block}.section-head h2{font-size:29px}.section-head p{margin-top:4px}.proof-card h3{font-size:29px}.buy{grid-template-columns:1fr}.price{font-size:42px}.order-grid{grid-template-columns:1fr}}
-</style>
+.hero-art{display:block;width:100%;height:100%;min-height:500px;object-fit:cover}.visual{padding:0}.visual:before{pointer-events:none;z-index:2}.visual:after{content:"";position:absolute;inset:0;border-radius:30px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);pointer-events:none}@media(max-width:620px){.hero-art{min-height:390px}.visual:after{border-radius:24px}}</style>
 </head>
 <body>
 <main class="page">
@@ -99,11 +99,7 @@ footer{padding:38px 0 54px;text-align:center;color:#4f4e4a;font-size:9px;letter-
   </div>
 
   <div class="visual" aria-label="Apex featured proof">
-   <div class="visual-frame">
-    <div class="visual-meta"><span class="pill red">APEX / PROOF 01</span><span class="pill">10 SEC</span></div>
-   </div>
-   <div class="visual-copy"><div class="visual-kicker">FEATURED OUTPUT</div><div class="visual-title">Your next scroll-stopper starts here.</div></div>
-   <button class="play" type="button" aria-label="Preview area">▶</button>
+   <img class="hero-art" src="/rapid-hero.svg" alt="Apex Rapid Video cinematic proof interface" loading="eager" decoding="async">
   </div>
  </div>
 
