@@ -48,8 +48,8 @@ footer{text-align:center;color:#4f4d52;font-size:9px;letter-spacing:.12em;text-t
  </div>
 </section>
 <section class="section" id="order">
- <div class="buy"><div><h2>Make the full version.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4</p></div><div class="price">$25</div></div>
- <div class="order"><div class="orderGrid"><div><label class="label">Name / brand</label><input id="name" placeholder="Your name or brand"></div><div><label class="label">What are we making?</label><input id="type" placeholder="Product, story, song…"></div><div><label class="label">Platform</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select></div><button class="cta full" type="button" onclick="startOrder()">START THE $25 PRODUCTION →</button></div><div id="orderStatus"></div></div>
+ <div class="buy"><div><h2>Make the full version.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4 · delivered through your order page</p></div><div class="price">$25</div></div>
+ <div class="order"><div class="orderGrid"><div><label class="label">Name / brand</label><input id="name" placeholder="Your name or brand" autocomplete="name"></div><div><label class="label">Email for your order</label><input id="email" type="email" inputmode="email" placeholder="you@example.com" autocomplete="email"></div><div><label class="label">What are we making?</label><input id="type" placeholder="Product, story, song…"></div><div><label class="label">Platform</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select></div><button class="cta full" type="button" onclick="startOrder()">START THE $25 PRODUCTION →</button></div><div id="orderStatus"></div></div>
 </section>
 <footer>APEX STUDIO · RAPID VIDEO</footer>
 </main>
@@ -129,8 +129,8 @@ async function shareProof(){
 }
 async function startOrder(){
  const status=document.getElementById('orderStatus');
- const data={name:document.getElementById('name').value.trim(),type:document.getElementById('type').value.trim(),brief:getBrief(),platform:document.getElementById('platform').value};
- if(!data.name||!data.type||!data.brief){status.textContent='Name, type and idea are required.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
+ const data={name:document.getElementById('name').value.trim(),email:document.getElementById('email').value.trim(),type:document.getElementById('type').value.trim(),brief:getBrief(),platform:document.getElementById('platform').value};
+ if(!data.name||!data.email||!data.type||!data.brief){status.textContent='Name, email, type and idea are required.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
  status.textContent='Creating your production checkout…';
  try{
   const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
