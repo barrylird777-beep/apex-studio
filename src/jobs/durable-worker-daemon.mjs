@@ -2,71 +2,65 @@ import os from 'node:os';
 import pg from 'pg';
 import { createDurableJobsStore } from './durable-jobs-store.mjs';
 import { createRenderPool } from '../core/render-pool.mjs';
-import { handlers as productionHandlers } from './production-handlers.mjs';
+import { handlers as productionHandlers, closeProductionHandlers } from './production-handlers.mjs';
 import { pollTrendSwarm, closeTrendSwarm } from '../services/trend-swarm.mjs';
 
 const { Pool } = pg;
 const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${process.pid}`;
-const leaseMs = Number(process.env.APEX_WORKER_LEASE_MS || 30000);
-const heartbeatMs = Math.max(1000, Math.floor(leaseMs / 3));
-const pollMs = Number(process.env.APEX_WORKER_POLL_MS || 250);
+const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 30000));
+const heartbeatMs = Math.max(5000, Math.floor(leaseMs / 3));
+const pollMs = Math.max(100, Number(process.env.APEX_WORKER_POLL_MS || 250));
 const claimJitterMs = Math.max(0, Number(process.env.APEX_WORKER_CLAIM_JITTER_MS || 0));
 const concurrency = Math.max(1, Math.min(32, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
-const batchSize = Math.max(1, Math.min(20, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
+const batchSize = Math.max(1, Math.min(concurrency, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
 const renderConcurrency = Math.max(1, Math.min(16, Number(process.env.APEX_RENDER_CONCURRENCY || 8)));
-const idlePollMs = Math.max(10, Number(process.env.APEX_WORKER_IDLE_POLL_MS || 50));
-const trendPollMs = Math.max(15000, Number(process.env.APEX_TREND_POLL_MS || 60000));
-let nextTrendPoll = 0;
+const idlePollMs = Math.max(25, Number(process.env.APEX_WORKER_IDLE_POLL_MS || 100));
+const trendPollMs = Math.max(30000, Number(process.env.APEX_TREND_POLL_MS || 60000));
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: Number(process.env.APEX_PG_POOL_SIZE || 20),
+  max: Math.max(5, Math.min(20, Number(process.env.APEX_PG_POOL_SIZE || 10))),
   connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
   ssl: process.env.APEX_PG_SSL === 'false' ? false : { rejectUnauthorized: false }
 });
 const store = createDurableJobsStore(pool);
-let stopping = false;
-const active = new Set();
 const renderPool = createRenderPool({ concurrency: renderConcurrency });
-const renderActive = () => renderPool.active;
-const isRenderJob = (job) => /(^|[._-])(render|master|encode|transcode)([._-]|$)/i.test(String(job?.type || '')) || job?.payload?.render === true;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const active = new Set();
+let stopping = false;
+let nextTrendPoll = 0;
 
-async function handle(job) {
-  if (job.type === 'sovereign.publish') {
-    return {
-      durable: true,
-      accepted: true,
-      waveId: job.payload?.waveId ?? null,
-      executedAt: new Date().toISOString()
-    };
-  }
-
-  const modulePath = process.env.APEX_JOB_HANDLER_MODULE;
-  const module = modulePath ? await import(modulePath) : null;
-  const handler =
-    productionHandlers?.[job.type] ??
-    module?.handlers?.[job.type] ??
-    module?.default?.[job.type] ??
-    module?.handleJob ??
-    module?.default;
-  if (typeof handler !== 'function') throw new Error(`No production handler registered for durable job type: ${job.type}`);
-
-  if (typeof handler !== 'function') {
-    throw new Error(`No production handler registered for durable job type: ${job.type}`);
-  }
-
-  return handler(job);
-}
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const isRenderJob = job =>
+  /(^|[._-])(render|master|encode|transcode)([._-]|$)/i.test(String(job?.type || '')) ||
+  job?.payload?.render === true;
 
 function retryDelayMs(attempts) {
   const exponent = Math.max(0, Number(attempts) - 1);
   const base = Math.min(60000, 1000 * 2 ** exponent);
-  const jitter = Math.floor(Math.random() * Math.max(250, Math.floor(base * 0.25)));
-  return Math.min(60000, base + jitter);
+  return Math.min(60000, base + Math.floor(Math.random() * Math.max(250, base * 0.25)));
+}
+
+async function handle(job) {
+  if (job.type === 'sovereign.publish') {
+    return { durable: true, accepted: true, waveId: job.payload?.waveId ?? null, executedAt: new Date().toISOString() };
+  }
+
+  const modulePath = process.env.APEX_JOB_HANDLER_MODULE;
+  const external = modulePath ? await import(modulePath) : null;
+  const handler =
+    productionHandlers?.[job.type] ??
+    external?.handlers?.[job.type] ??
+    external?.default?.[job.type] ??
+    external?.handleJob ??
+    external?.default;
+
+  if (typeof handler !== 'function') {
+    throw new Error(`No production handler registered for durable job type: ${job.type}`);
+  }
+  return handler(job);
 }
 
 async function runJob(job) {
@@ -84,11 +78,13 @@ async function runJob(job) {
       console.error('[WORKER] heartbeat failed', error);
     }
   }, heartbeatMs);
+  heartbeat.unref?.();
 
   try {
     const result = isRenderJob(job)
       ? await renderPool.run(() => handle(job))
       : await handle(job);
+
     const ok = await store.complete({
       id: job.id,
       token: job.leaseToken,
@@ -98,7 +94,7 @@ async function runJob(job) {
     });
     if (!ok) throw new Error(`stale worker completion rejected for ${job.id}`);
   } catch (error) {
-    const retry = job.attempts < job.maxAttempts;
+    const retry = Number(job.attempts) < Number(job.maxAttempts);
     const retryAt = retry ? new Date(Date.now() + retryDelayMs(job.attempts)) : null;
     const ok = await store.fail({
       id: job.id,
@@ -126,19 +122,27 @@ async function recover() {
 async function main() {
   await pool.query('SELECT 1');
   console.log('[WORKER] online', workerId);
+
   while (!stopping) {
     if (Date.now() >= nextTrendPoll) {
       nextTrendPoll = Date.now() + trendPollMs;
-      pollTrendSwarm().then(result => console.log('[SWARM] trend poll', result)).catch(error => console.error('[SWARM] trend poll failed', error));
+      void pollTrendSwarm()
+        .then(result => console.log('[SWARM] trend poll', result))
+        .catch(error => console.error('[SWARM] trend poll failed', error));
     }
+
     await recover();
+
     const capacity = concurrency - active.size;
     if (capacity <= 0) {
-      await sleep(active.size ? 10 : idlePollMs);
+      await sleep(25);
       continue;
     }
 
-    if (claimJitterMs > 0) await sleep(Math.floor(Math.random() * claimJitterMs));
+    if (claimJitterMs > 0) {
+      await sleep(Math.floor(Math.random() * claimJitterMs));
+    }
+
     const jobs = await store.claimBatch({
       workerId,
       now: new Date(),
@@ -147,7 +151,7 @@ async function main() {
     });
 
     if (!jobs.length) {
-      await sleep(pollMs);
+      await sleep(Math.max(pollMs, idlePollMs));
       continue;
     }
 
@@ -157,7 +161,7 @@ async function main() {
       task.finally(() => active.delete(task)).catch(() => {});
     }
 
-    await Promise.race([...active]);
+    if (active.size) await Promise.race([...active]);
   }
 }
 
@@ -166,6 +170,7 @@ async function shutdown(signal) {
   stopping = true;
   console.log(`[WORKER] draining on ${signal}`);
   await Promise.allSettled([...active]);
+  await closeProductionHandlers().catch(() => {});
   await closeTrendSwarm().catch(() => {});
   await pool.end();
 }
@@ -173,8 +178,10 @@ async function shutdown(signal) {
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
-main().catch(async (error) => {
+main().catch(async error => {
   console.error('[WORKER] fatal', error);
+  await closeProductionHandlers().catch(() => {});
+  await closeTrendSwarm().catch(() => {});
   await pool.end().catch(() => {});
   process.exitCode = 1;
 });
