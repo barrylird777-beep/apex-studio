@@ -1,58 +1,65 @@
-import { and, asc, eq, gte, inArray } from "drizzle-orm";
-import { db } from "../db/index";
-import { budgetItems, callSheets, characters, projects, scenes, shootDays } from "../db/schema";
+import { apexPureDataStore as store } from "../core/apex-pure-data.mjs";
 
-export const PROJECT_STATUSES = ["development", "pre-production", "production", "post"] as const;
+export const PROJECT_STATUSES = ["development","pre-production","production","post"] as const;
 type Input = { title: string; primaryScripture?: string; description?: string; status?: string };
 
 const clean = (x: Input) => {
   const title = x.title?.trim();
   if (!title) throw new Error("Project title is required");
-  const status = PROJECT_STATUSES.includes(x.status as any) ? x.status : "development";
-  return { title, primaryScripture: x.primaryScripture?.trim() || null, description: x.description?.trim() || null, status };
+  return {
+    title,
+    primaryScripture: x.primaryScripture?.trim() || null,
+    description: x.description?.trim() || null,
+    status: PROJECT_STATUSES.includes(x.status as any) ? x.status : "development"
+  };
 };
 
-const overview = async (id: number) => {
-  const project = await db.select().from(projects).where(eq(projects.id, id)).then(r => r[0]);
+const overview = async (id: string | number) => {
+  const project = await store.get("projects", String(id));
   if (!project) return null;
-  const rows = await db.select({ charactersPresent: scenes.charactersPresent }).from(scenes).where(eq(scenes.projectId, id));
-  const ids = [...new Set(rows.flatMap(s => Array.isArray(s.charactersPresent) ? s.charactersPresent : []))];
-  const characterCount = ids.length
-    ? (await db.select({ id: characters.id }).from(characters).where(inArray(characters.id, ids as number[]))).length
-    : 0;
-  const today = new Date().toISOString().slice(0, 10);
-  const next = await db.select({ date: shootDays.date })
-    .from(shootDays)
-    .where(and(eq(shootDays.projectId, id), gte(shootDays.date, today)))
-    .orderBy(asc(shootDays.date))
-    .limit(1)
-    .then(r => r[0]);
-  return { ...project, sceneCount: rows.length, characterCount, nextShootDay: next?.date ?? null };
+  const scenes = await store.query("scenes", x => Number(x.projectId) === Number(id));
+  const days = await store.query("shootDays", x => Number(x.projectId) === Number(id), {
+    sort: (a,b) => String(a.date).localeCompare(String(b.date))
+  });
+  const chars = await store.list("characters");
+  const ids = new Set(
+    scenes.flatMap(s => Array.isArray(s.charactersPresent) ? s.charactersPresent : []).map(Number)
+  );
+  const characterCount = chars.filter(c => ids.has(Number(c.id))).length;
+  const today = new Date().toISOString().slice(0,10);
+  const next = days.find(d => String(d.date) >= today);
+  return {
+    ...project,
+    id: String(project.id),
+    sceneCount: scenes.length,
+    characterCount,
+    nextShootDay: next?.date ?? null
+  };
 };
 
-export const listProjects = async () =>
-  Promise.all((await db.select().from(projects).orderBy(asc(projects.title))).map(p => overview(p.id))).then(rows => rows.filter(Boolean));
-
-export const createProject = async (x: Input) => {
-  const [row] = await db.insert(projects).values(clean(x)).returning({ id: projects.id });
-  return row ? overview(row.id) : null;
+export const listProjects = async () => {
+  const rows = await store.list("projects");
+  rows.sort((a,b) => String(a.title).localeCompare(String(b.title)));
+  return (await Promise.all(rows.map(p => overview(p.id)))).filter(Boolean);
 };
+
+export const createProject = async (x: Input) => overview((await store.create("projects", clean(x))).id);
 
 export const updateProject = async (id: number, x: Input) => {
-  await db.update(projects).set({ ...clean(x), updatedAt: new Date() }).where(eq(projects.id, id));
+  if (!(await store.get("projects", String(id)))) return null;
+  await store.put("projects", String(id), clean(x));
   return overview(id);
 };
 
 export const deleteProject = async (id: number) => {
-  return db.transaction(async tx => {
-    const days = await tx.select({ id: shootDays.id }).from(shootDays).where(eq(shootDays.projectId, id));
-    if (days.length) await tx.delete(callSheets).where(inArray(callSheets.shootDayId, days.map(d => d.id)));
-    await tx.delete(scenes).where(eq(scenes.projectId, id));
-    await tx.delete(budgetItems).where(eq(budgetItems.projectId, id));
-    await tx.delete(shootDays).where(eq(shootDays.projectId, id));
-    const result = await tx.delete(projects).where(eq(projects.id, id)).returning({ id: projects.id });
-    return result.length > 0;
-  });
+  if (!(await store.get("projects", String(id)))) return false;
+  for (const collection of ["scenes","shootDays","budgetItems","callSheets","scriptNotes"]) {
+    for (const row of await store.query(collection, x => Number(x.projectId) === Number(id))) {
+      await store.delete(collection, row.id);
+    }
+  }
+  await store.delete("projects", String(id));
+  return true;
 };
 
 export const getProjectOverview = overview;
