@@ -30,6 +30,7 @@ targets:
     platform: iOS
     sources:
       - path: ios/ApexURLFilter/ApexURLFilterControlProvider.swift
+      - path: ios/ApexURLFilter/ApexBloomFilter.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.barrylird777.apex.ApexURLFilterControlProvider
