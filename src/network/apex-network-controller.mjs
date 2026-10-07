@@ -2,7 +2,7 @@ import { searchAnything, fetchAnything, sanitizeOutboundHeaders, assertPublicUrl
 
 export const NETWORK_CAPABILITIES=Object.freeze([
   "public-web-search","multi-engine-search","https-fetch","source-discovery",
-  "content-fetch","research-aggregation","network-diagnostics"
+  "content-fetch","research-aggregation","network-diagnostics","safe-outbound-gateway","redirect-revalidation","header-minimization","adblock-health"
 ]);
 
 export async function networkSearch(query,options={}){
