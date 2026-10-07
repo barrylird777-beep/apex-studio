@@ -15,15 +15,16 @@ function decode(value){
   return Buffer.from(String(value||''),'base64url').toString('utf8');
 }
 
-export function buildRapidCheckoutMetadata({orderId,name,type,brief,platform}){
+export function buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}){
   const out={
     orderId:String(orderId),
     name:String(name||'').slice(0,500),
     type:String(type||'').slice(0,500),
     platform:String(platform||'Other').slice(0,500),
+    email:String(email||'').trim().slice(0,320),
     briefParts:String(brief||'').match(/.{1,360}/gs)||['']
   };
-  const metadata={orderId:out.orderId,name:out.name,type:out.type,platform:out.platform};
+  const metadata={orderId:out.orderId,name:out.name,type:out.type,platform:out.platform,email:out.email};
   out.briefParts.forEach((part,i)=>{metadata['brief_'+String(i+1).padStart(2,'0')]=encode(part).slice(0,500);});
   return metadata;
 }
@@ -35,11 +36,12 @@ export function decodeRapidCheckoutMetadata(metadata={}){
     name:String(metadata.name||''),
     type:String(metadata.type||''),
     platform:String(metadata.platform||'Other'),
+    email:String(metadata.email||''),
     brief:keys.map(k=>decode(metadata[k])).join('')
   };
 }
 
-export async function createRapidCheckout({orderId,name,type,brief,platform,successUrl,cancelUrl}){
+export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const secret=requireSecret();
   const params=new URLSearchParams();
   const add=(k,v)=>params.set(k,String(v));
@@ -47,12 +49,13 @@ export async function createRapidCheckout({orderId,name,type,brief,platform,succ
   add('success_url',successUrl);
   add('cancel_url',cancelUrl);
   add('client_reference_id',orderId);
+  if (String(email||'').trim()) add('customer_email',String(email).trim());
   add('line_items[0][price_data][currency]','usd');
   add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','Apex Rapid Video');
   add('line_items[0][price_data][product_data][description]','One finished short-form video production.');
   add('line_items[0][quantity]','1');
-  for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform}))) add('metadata['+k+']',v);
+  for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
 
   const response=await fetch(STRIPE_API+'/checkout/sessions',{
     method:'POST',
