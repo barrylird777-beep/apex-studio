@@ -100,12 +100,8 @@ async function runJob(job) {
 }
 
 async function recover() {
-  const rows = await store.recoverExpired({
-    now: new Date(),
-    runAt: new Date(Date.now() + 1000),
-    errorFor: 'worker lease expired; task recovered'
-  });
-  if (rows.length) console.log('[WORKER] recovered', rows.length);
+  const recovered = await store.recoverExpired({ limit: batchSize });
+  if (recovered) console.log('[WORKER] recovered', recovered);
 }
 
 async function main() {
