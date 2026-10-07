@@ -73,7 +73,15 @@ async function advance(episode, stage, file, metadata={}){
   }
   const assetId=await recordAsset(episode,stage,file,metadata);
   if(stage==="catalog"){
-    await pool.query("INSERT INTO apexus_catalog(id,episode_id,master_asset_id,duration_seconds,qc_passed_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT (episode_id) DO UPDATE SET master_asset_id=EXCLUDED.master_asset_id,duration_seconds=EXCLUDED.duration_seconds,qc_passed_at=EXCLUDED.qc_passed_at",[randomUUID(),episode.id,assetId,episode.runtime_target_seconds]);
+    const master=await pool.query(
+      "SELECT id FROM apexus_episode_assets WHERE episode_id=$1 AND asset_type='episode.master' ORDER BY version DESC LIMIT 1",
+      [episode.id]
+    );
+    if(!master.rowCount) throw new Error("Catalog cannot register without a master asset");
+    await pool.query(
+      "INSERT INTO apexus_catalog(id,episode_id,master_asset_id,duration_seconds,qc_passed_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT (episode_id) DO UPDATE SET master_asset_id=EXCLUDED.master_asset_id,duration_seconds=EXCLUDED.duration_seconds,qc_passed_at=EXCLUDED.qc_passed_at",
+      [randomUUID(),episode.id,master.rows[0].id,episode.runtime_target_seconds]
+    );
   }
   if(stage==="schedule"){
     await pool.query("DELETE FROM apexus_schedule WHERE episode_id=$1 AND status='scheduled'",[episode.id]);
@@ -201,7 +209,7 @@ async function handle(stage, job){
       .outputOptions(["-c","copy","-movflags","+faststart"])
       .save(file).on("end",resolve).on("error",reject));
   }else if(stage==="catalog"){
-    file=await writeJson(code,stage,"catalog.json",{episode:code,status:"catalog-ready",master:"master/master.json"});
+    file=await writeJson(code,stage,"catalog.json",{episode:code,status:"catalog-ready",master:`master/${code}.mp4`});
   }else if(stage==="schedule"){
     file=await writeJson(code,stage,"schedule.json",{episode:code,block:"Apexus Toonhouse",status:"scheduled"});
   }
