@@ -395,6 +395,30 @@ app.use('/api/mobile', createMobileControlPlane({
   }
 }));
 
+app.post('/api/rapid/preview', async (req, res) => {
+  try {
+    const name = String(req.body?.name || 'Preview visitor').trim().slice(0, 120);
+    const type = String(req.body?.type || 'Creative proof').trim().slice(0, 160);
+    const brief = String(req.body?.brief || '').trim().slice(0, 4000);
+    const platform = String(req.body?.platform || 'Short-form social').trim().slice(0, 80);
+    if (!brief) return res.status(400).json({ success: false, error: 'brief is required' });
+    if (!durableWorkerEnabled()) return res.status(503).json({ success: false, error: 'Preview queue is temporarily unavailable' });
+    const orderId = crypto.randomUUID();
+    const result = await enqueueWorkerTask({
+      id: orderId, workerId: 'rapid-preview-intake', role: 'rapid-preview',
+      task: 'rapid-video-preview',
+      payload: { orderId, name, type, brief, platform, submittedAt: new Date().toISOString() },
+      maxAttempts: 1,
+      dedupeKey: `rapid-preview:${crypto.createHash('sha256').update(JSON.stringify({ name, type, brief, platform })).digest('hex')}`,
+      traceId: orderId
+    });
+    return res.status(202).json({ success: true, orderId: result.id, status: 'queued', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}` });
+  } catch (error) {
+    console.error('[rapid-preview]', error);
+    return res.status(500).json({ success: false, error: 'Unable to queue preview' });
+  }
+});
+
 app.post('/api/rapid/orders', async (req, res) => {
   try {
     const name = String(req.body?.name || '').trim().slice(0, 120);
@@ -442,7 +466,7 @@ app.post('/api/rapid/orders', async (req, res) => {
 app.get('/api/rapid/orders/:id', async (req, res) => {
   try {
     const task = await getWorkerTask(req.params.id);
-    if (!task || task.task !== 'rapid-video-order') {
+    if (!task || !['rapid-video-order','rapid-video-preview'].includes(task.task)) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
     return res.json({
