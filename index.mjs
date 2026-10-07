@@ -19,7 +19,6 @@ import { createMusicRadarHandoff } from "./src/core/music/music-radar-contract.m
 import { buildMusicProductionPlan, verifyMusicGardenPackage } from "./src/core/music/music-studio.mjs";
 import { normalizeContentDomain } from "./src/core/content/content-domains.mjs";
 import { executeRapidVideoOrder, executeRapidVideoPreview } from "./src/workers/rapid-video-worker.mjs";
-import { startShowrunner, stopShowrunner } from "./src/workers/showrunner.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
   const contentDomain = normalizeContentDomain(payload?.contentDomain || "bible");
@@ -202,8 +201,6 @@ if (!workerOnly) {
   let emptyPolls = 0;
 
   console.log("[apex-worker] durable worker online");
-  const showrunner = startShowrunner();
-  console.log("[apex-worker] showrunner", showrunner);
 
   // Locked continuous path: seed only zero-cost AI work. If no provider is
   // provably zero-cost, the feeder stays idle rather than risking a charge.
@@ -276,7 +273,6 @@ if (!workerOnly) {
       });
     }
     autonomousAiLoop.stop();
-    await stopShowrunner().catch(error => console.error("[apex-worker] showrunner stop failed:", error?.message || error));
     process.exit(0);
   };
 
