@@ -67,3 +67,16 @@ Durable workflow state belongs in PostgreSQL rather than SQLite or process-local
 npm install
 npm start
 ```
+
+## Apex Universe — Six Surfaces / One Capability Plane
+
+The Apex universe is six distinct product surfaces sharing the same maximum-capability foundation:
+
+- **KORNKOB — EARS:** music, sound, audio discovery and intelligence.
+- **ApexStudios — EYES:** production, visual/media creation and distribution.
+- **GardenOfApex — BRAIN:** Korn World, scripture, research and knowledge.
+- **ApexOpportunity:** opportunity, growth, monetization and business intelligence.
+- **ApexRapidVideo:** rapid paid video creation and fulfillment.
+- **ApexAdBlocker:** network protection and ad blocking.
+
+All six surfaces can use the same AI, automation, analytics, storage, provenance, media, orchestration and network capability plane. Ownership boundaries remain separate.
