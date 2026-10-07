@@ -54,6 +54,34 @@ footer{text-align:center;color:#4f4d52;font-size:9px;letter-spacing:.12em;text-t
 <footer>APEX STUDIO · RAPID VIDEO</footer>
 </main>
 <script>
+function initPaymentState(){
+ const params=new URLSearchParams(location.search);
+ const orderId=params.get('orderId');
+ const status=document.getElementById('orderStatus');
+ if(params.get('canceled')==='1'){status.textContent='Checkout canceled. Your idea is still here when you are ready.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
+ if(params.get('paid')==='1'&&orderId){
+  status.textContent='Payment received. Apex is starting production…';
+  document.getElementById('order').scrollIntoView({behavior:'smooth'});
+  pollPaidOrder(orderId);
+ }
+}
+async function pollPaidOrder(id){
+ const status=document.getElementById('orderStatus');
+ for(let i=0;i<90;i++){
+  await new Promise(r=>setTimeout(r,2000));
+  try{
+   const response=await fetch('/api/rapid/orders/'+encodeURIComponent(id),{cache:'no-store'});
+   if(response.status===404){status.textContent='Payment received. Waiting for the production worker…';continue;}
+   const body=await response.json();
+   if(body.status==='completed'&&body.result?.url){
+    status.innerHTML='Production complete. <a href="'+body.result.url+'" target="_blank" rel="noreferrer">WATCH / DOWNLOAD YOUR VIDEO →</a>';return;
+   }
+   if(body.status==='failed'){status.textContent='Payment received, but production failed: '+(body.error||'worker error');return;}
+   status.textContent='Payment received. Production status: '+String(body.status||'queued')+'…';
+  }catch{}
+ }
+ status.textContent='Payment received. Production is still running. Keep this page open and check the order again shortly.';
+}
 function setIdea(kind){
  const examples={
   'Bible story':'Turn a Bible story into a dark cinematic anime short with an opening hook that makes people stop scrolling.',
@@ -111,6 +139,7 @@ async function startOrder(){
   status.textContent='Checkout is not available for this production yet.';
  }catch(error){status.textContent=error.message||'Order could not be started.';}
 }
+initPaymentState();
 </script>
 </body>
 </html>
