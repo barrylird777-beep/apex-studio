@@ -45,3 +45,5 @@ jobs:
           code="$(curl -sS -o /tmp/preview.json -w '%{http_code}' -X POST https://apex-studio-production.up.railway.app/api/rapid/preview -H 'content-type: application/json' --data '{"brief":"live verifier proof","platform":"TikTok"}')"
           test "$code" = "202"
           grep -q '"status":"queued"' /tmp/preview.json
+
+# live rollout verifier
