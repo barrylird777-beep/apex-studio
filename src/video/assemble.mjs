@@ -30,7 +30,7 @@ const ts = (sec) => { const ms = Math.round(sec * 1000), p = (n, w = 2) => Strin
 export function buildSrt(shots) { let t = 0, n = 0; const out = []; for (const s of shots) { const start = t; t += s.durationSec; const text = (s.narration ?? '').trim(); if (!text) continue; out.push(`${++n}\n${ts(start)} --> ${ts(t)}\n${text}\n`); } return out.join('\n'); }
 export function buildFfmpegArgs({ shots, narration, music = null, tmpOut }) {
   const narIdx = shots.length, musicIdx = music ? narIdx + 1 : null, total = shots.reduce((a, s) => a + s.durationSec, 0);
-  return ['-y','-hide_banner','-loglevel','error',...shots.flatMap((s) => ['-i', s.image]),'-i',narration,...(music ? ['-i',music] : []),'-filter_complex',buildFilterGraph(shots,{narIdx,musicIdx}),'-map','[v]','-map','[a]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r',String(FPS),'-c:a','aac','-b:a','192k','-t',total.toFixed(3),'-movflags','+faststart','-f','mp4',tmpOut];
+  return ['-y','-hide_banner','-loglevel','error',...shots.flatMap((s) => ['-i', s.image]),'-i',narration,...(music ? ['-i',music] : []),'-filter_complex',buildFilterGraph(shots,{narIdx,musicIdx}),'-map','[v]','-map','[a]','-c:v','libx264','-preset','medium','-crf',process.env.APEX_VIDEO_CRF||'17','-pix_fmt','yuv420p','-r',String(FPS),'-c:a','aac','-b:a','192k','-t',total.toFixed(3),'-movflags','+faststart','-f','mp4',tmpOut];
 }
 const has = async (p) => { try { await access(p); return true; } catch { return false; } };
 export async function assembleVideo({ shots, narration, music = null, outPath, ffmpegPath = 'ffmpeg', exec = execAsync }) {
