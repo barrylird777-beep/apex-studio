@@ -392,6 +392,13 @@ app.use('/api/bible-production', async (req, res, next) => {
   }
 });
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
+app.get('/korn-knob', async (_req, res) => {
+  try {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } catch (error) {
+    return res.status(500).send('KORN-KNOB UI unavailable');
+  }
+});
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
 // storage module validates all filenames before they are written, while
