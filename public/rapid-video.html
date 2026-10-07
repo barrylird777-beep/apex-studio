@@ -124,14 +124,31 @@ async function submitPreview(){
   const body=await response.json();
   if(!response.ok) throw new Error(body.error||'Preview unavailable');
   orderId=body.orderId;
-  document.getElementById('payBtn').disabled=false;
-  setStatus('Preview ready. Full production is locked until payment.');
-  if(body.previewUrl) {
-   const grid=document.getElementById('proofGrid');
-   grid.innerHTML='<div class="proof" style="grid-column:1/-1"><video controls loop muted playsinline src="'+body.previewUrl+'"></video><figcaption><strong>Your Apex preview</strong> · 3-second limited output</figcaption></div>';
-  }
+  setStatus('Preview queued. Rendering the limited 3-second sample…');
+  await pollPreview(orderId);
  }catch(error){setStatus(error.message||'Preview unavailable.');}
  finally{document.getElementById('previewBtn').disabled=false;}
+}
+
+async function pollPreview(id){
+ for(let i=0;i<40;i++){
+  await new Promise(r=>setTimeout(r,1500));
+  try{
+   const response=await fetch('/api/rapid/orders/'+encodeURIComponent(id),{cache:'no-store'});
+   if(!response.ok)continue;
+   const body=await response.json();
+   const url=body.result?.previewUrl;
+   if(body.status==='completed'&&url){
+    document.getElementById('payBtn').disabled=false;
+    const grid=document.getElementById('proofGrid');
+    grid.innerHTML='<div class="proof" style="grid-column:1/-1"><video controls loop muted playsinline src="'+url+'"></video><figcaption><strong>Your Apex preview</strong> · 3-second limited output</figcaption></div>';
+    setStatus('Preview ready. Full production remains locked until payment.');
+    return;
+   }
+   if(body.status==='failed'){setStatus('Preview failed. Try again.');return;}
+  }catch{}
+ }
+ setStatus('Preview is still rendering. Full production remains locked until payment.');
 }
 
 async function startCheckout(){
