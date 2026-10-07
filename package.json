@@ -29,15 +29,17 @@
     "backhaul:mesh": "bash scripts/apex-decentralized-backhaul.sh",
     "backhaul:fabric": "bash scripts/apex-backhaul-fabric.sh",
     "backhaul:max": "bash scripts/apex-network-max.sh",
-    "sovereign:runtime": "node src/core/sovereign-runtime-daemon.mjs",
+    "sovereign:runtime": "node src/core/sovereign-local-runtime-daemon.mjs",
     "sovereign:peer": "node src/network/sovereign-peer.mjs",
-    "durable:worker": "node src/jobs/durable-worker-daemon.mjs",
+    "durable:worker": "node src/jobs/sovereign-local-worker-daemon.mjs",
     "network:select": "node src/network/path-selector.mjs",
     "network:verify": "node scripts/verify-network-fabric.mjs",
     "sovereign:smoke": "node scripts/sovereign-smoke.mjs",
     "edge:node": "node src/network/apex-edge-node.mjs",
     "test:render-performance": "node --test test/render-performance.test.mjs",
-    "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs"
+    "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs",
+    "sovereign:local": "node src/core/sovereign-local-runtime-daemon.mjs",
+    "worker:local": "node src/jobs/sovereign-local-worker-daemon.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
