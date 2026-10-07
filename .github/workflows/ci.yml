@@ -147,4 +147,8 @@ jobs:
             if [ "$i" = "18" ]; then exit 1; fi
             sleep 10
           done
-          curl -fsSL --max-time 20 "$url/rapid-video.html" | grep -q "Apex Rapid Video"
+          curl -fsSL --max-time 20 "$url/rapid-video.html" -o /tmp/rapid-video.html
+          grep -q "Apex Rapid Video" /tmp/rapid-video.html
+          code="$(curl -sS -o /tmp/rapid-preview.json -w "%{http_code}" -X POST "$url/api/rapid/preview" -H "content-type: application/json" --data '{"brief":"live verifier proof","platform":"TikTok"}')"
+          test "$code" = "202"
+          grep -q '"status":"queued"' /tmp/rapid-preview.json
