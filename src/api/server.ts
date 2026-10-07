@@ -8,7 +8,10 @@ import {selectNetworkPath} from "../network/path-selector.mjs";
 import {swarmPeers} from "../network/ipfs-swarm.mjs";
 // @ts-ignore
 import {describeNetworkSettings} from "../core/network-status.mjs";
-import {initializeStudioAdBlock,handleStudioAdBlockDoH,studioAdBlockStatus} from "../network/studio-adblock-doh.mjs";import {studioAdBlockMobileConfig} from "../network/studio-adblock-profile.mjs";
+// @ts-ignore Runtime-tested JavaScript ad-block modules are loaded by Node at runtime.
+import {initializeStudioAdBlock,handleStudioAdBlockDoH,studioAdBlockStatus} from "../network/studio-adblock-doh.mjs";
+// @ts-ignore Runtime-tested JavaScript ad-block profile module is loaded by Node at runtime.
+import {studioAdBlockMobileConfig} from "../network/studio-adblock-profile.mjs";
 const root=fileURLToPath(new URL("../../",import.meta.url));const port=Number(process.env.PORT||3001);const dev=process.argv.includes("--dev");let vite:any;
 const send=(res:http.ServerResponse,status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json"});res.end(status===204?"":JSON.stringify(data))};
 const readBody=(req:http.IncomingMessage)=>new Promise<any>((resolve,reject)=>{let s="";req.on("data",c=>s+=c);req.on("end",()=>{try{resolve(s?JSON.parse(s):{})}catch{reject(Error("Invalid JSON"))}});req.on("error",reject)});
