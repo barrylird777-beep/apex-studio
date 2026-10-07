@@ -1,6 +1,4 @@
-import { asc, eq, like, or } from "drizzle-orm";
-import { db } from "../db/index";
-import { characters } from "../db/schema";
+import { apexPureDataStore as store } from "../core/apex-pure-data.mjs";
 
 export type CharacterInput = {
   canonicalName: string;
@@ -12,43 +10,42 @@ export type CharacterInput = {
   scriptureReferences?: string[];
 };
 
-const cleanList = (v?: string[]) => Array.isArray(v) ? v.map(x => x.trim()).filter(Boolean) : [];
-const clean = (x: CharacterInput) => {
-  const canonicalName = x.canonicalName?.trim();
-  if (!canonicalName) throw new Error("Canonical name is required");
-  return {
-    canonicalName,
-    aliases: cleanList(x.aliases),
-    primaryStories: cleanList(x.primaryStories),
-    relationships: Array.isArray(x.relationships)
-      ? x.relationships.filter(r => r?.name?.trim() && r?.relation?.trim()).map(r => ({ name: r.name.trim(), relation: r.relation.trim() }))
-      : [],
-    keyTraits: cleanList(x.keyTraits),
-    notes: x.notes?.trim() || null,
-    scriptureReferences: cleanList(x.scriptureReferences),
-  };
+const clean=(x:CharacterInput)=>({
+  canonicalName:x.canonicalName?.trim() || "",
+  aliases:Array.isArray(x.aliases)?x.aliases.map(String).filter(Boolean):[],
+  primaryStories:Array.isArray(x.primaryStories)?x.primaryStories.map(String).filter(Boolean):[],
+  relationships:Array.isArray(x.relationships)?x.relationships.filter(r=>r?.name?.trim()&&r?.relation?.trim()).map(r=>({name:r.name.trim(),relation:r.relation.trim()})):[],
+  keyTraits:Array.isArray(x.keyTraits)?x.keyTraits.map(String).filter(Boolean):[],
+  notes:x.notes?.trim()||null,
+  scriptureReferences:Array.isArray(x.scriptureReferences)?x.scriptureReferences.map(String).filter(Boolean):[]
+});
+
+export const listCharacters=async(query="")=>{
+  const q=query.trim().toLowerCase();
+  return (await store.list("characters"))
+    .filter(x=>!q||[x.canonicalName,...(x.aliases||[]),...(x.primaryStories||[])].some(v=>String(v).toLowerCase().includes(q)))
+    .sort((a,b)=>String(a.canonicalName).localeCompare(String(b.canonicalName)));
 };
 
-export const listCharacters = async (query = "") => {
-  const q = query.trim();
-  return db.select().from(characters)
-    .where(q ? or(like(characters.canonicalName, `%${q}%`), like(characters.primaryStories, `%${q}%`), like(characters.aliases, `%${q}%`)) : undefined)
-    .orderBy(asc(characters.canonicalName));
+export const getCharacter=async(id:number|string)=>store.get("characters",String(id));
+
+export const createCharacter=async(x:CharacterInput)=>{
+  const row=clean(x);
+  if(!row.canonicalName)throw new Error("Canonical name is required");
+  const duplicate=(await store.list("characters")).find(c=>String(c.canonicalName).toLowerCase()===row.canonicalName.toLowerCase());
+  if(duplicate)throw Object.assign(new Error("Character already exists"),{code:"DUPLICATE"});
+  return store.create("characters",row);
 };
 
-export const getCharacter = async (id: number) =>
-  (await db.select().from(characters).where(eq(characters.id, id)).then(r => r[0])) ?? null;
-
-export const createCharacter = async (x: CharacterInput) => {
-  const [row] = await db.insert(characters).values(clean(x)).returning({ id: characters.id });
-  return row ? getCharacter(row.id) : null;
+export const updateCharacter=async(id:number|string,x:CharacterInput)=>{
+  if(!(await getCharacter(id)))return null;
+  const row=clean(x);
+  if(!row.canonicalName)throw new Error("Canonical name is required");
+  return store.put("characters",String(id),row);
 };
 
-export const updateCharacter = async (id: number, x: CharacterInput) => {
-  if (!(await getCharacter(id))) return null;
-  await db.update(characters).set(clean(x)).where(eq(characters.id, id));
-  return getCharacter(id);
+export const deleteCharacter=async(id:number|string)=>{
+  if(!(await getCharacter(id)))return false;
+  await store.delete("characters",String(id));
+  return true;
 };
-
-export const deleteCharacter = async (id: number) =>
-  (await db.delete(characters).where(eq(characters.id, id)).returning({ id: characters.id })).length > 0;
