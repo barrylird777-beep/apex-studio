@@ -8,11 +8,19 @@ POSTGRES_HOST="${APEX_POSTGRES_HOST:-postgres}"
 POSTGRES_PORT="${APEX_POSTGRES_PORT:-5432}"
 PUBLIC_TEST_URL="${APEX_PUBLIC_TEST_URL:-https://example.com}"
 
-if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
-  if ! command -v docker >/dev/null 2>&1 || ! docker network inspect "$SE_X_NETWORK" >/dev/null 2>&1 || ! docker inspect "$SE_X_CONTAINER" >/dev/null 2>&1; then
-    echo "[INFO] CI environment detected. Production network/container topology is not present; skipping deployment-only network boundary inspection."
-    exit 0
-  fi
+if ! command -v docker >/dev/null 2>&1; then
+  echo "FAIL: Docker is required for the SE-X network boundary verifier."
+  exit 1
+fi
+
+if ! docker network inspect "$SE_X_NETWORK" >/dev/null 2>&1; then
+  echo "FAIL: required network $SE_X_NETWORK does not exist."
+  exit 1
+fi
+
+if ! docker inspect "$SE_X_CONTAINER" >/dev/null 2>&1; then
+  echo "FAIL: required container $SE_X_CONTAINER does not exist."
+  exit 1
 fi
 
 echo "== Dedicated network membership =="
