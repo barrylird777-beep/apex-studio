@@ -79,7 +79,7 @@ function normalizeArtifact(raw, source) {
     license: raw.license || null,
     access: raw.access || 'open',
     source,
-    isPdf: Boolean(raw.isPdf || /\\.pdf(?:$|[?#])/i.test(raw.url))
+    isPdf: Boolean(raw.isPdf || /\.pdf(?:$|[?#])/i.test(raw.url))
   };
 }
 
@@ -122,18 +122,18 @@ function scoreCandidate(candidate, query) {
 
 function parseRssItems(xml, baseUrl) {
   const items = [];
-  const blocks = xml.match(/<(?:item|entry)\\b[\\s\\S]*?<\/(?:item|entry)>/gi) || [];
+  const blocks = xml.match(/<(?:item|entry)\b[\s\S]*?<\/(?:item|entry)>/gi) || [];
   for (const block of blocks) {
-    const title = block.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() || null;
-    const linkMatch = block.match(/<link[^>]*(?:href=["']([^"']+)["'][^>]*)?(?:\\/?>)(?:\\s*<\\/link>)?/i);
-    const link = linkMatch?.[1] || block.match(/<link[^>]*>\\s*([^<]+)\\s*<\\/link>/i)?.[1]?.trim() || null;
-    const guid = block.match(/<guid[^>]*>([\\s\\S]*?)<\\/guid>/i)?.[1]?.trim() || null;
-    const description = block.match(/<(?:description|summary|content)[^>]*>([\\s\\S]*?)<\\/(?:description|summary|content)>/i)?.[1]?.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim() || null;
+    const title = block.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() || null;
+    const linkMatch = block.match(/<link[^>]*(?:href=["']([^"']+)["'][^>]*)?(?:\/?>)(?:\s*<\/link>)?/i);
+    const link = linkMatch?.[1] || block.match(/<link[^>]*>\s*([^<]+)\s*<\/link>/i)?.[1]?.trim() || null;
+    const guid = block.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i)?.[1]?.trim() || null;
+    const description = block.match(/<(?:description|summary|content)[^>]*>([\s\S]*?)<\/(?:description|summary|content)>/i)?.[1]?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || null;
     items.push({
       title,
       url: absUrl(link || guid, baseUrl),
       summary: description,
-      publishedAt: block.match(/<(?:pubDate|published|updated)[^>]*>([\\s\\S]*?)<\\//i)?.[1]?.trim() || null
+      publishedAt: block.match(/<(?:pubDate|published|updated)[^>]*>([\s\S]*?)<\//i)?.[1]?.trim() || null
     });
   }
   return items.filter(item => item.title || item.url);
@@ -217,7 +217,7 @@ export class FrictionlessResearchEngine {
       identifiers: {
         openalex: primary.id,
         doi: normalizeDoi(primary.doi),
-        pmid: primary.ids?.pmid ? String(primary.ids.pmid).replace(/^https?:\\/\\/pubmed\\.ncbi\\.nlm\\.nih\\.gov\\//, '').replace(/\\/$/, '') : null,
+        pmid: primary.ids?.pmid ? String(primary.ids.pmid).replace(/^https?:\/\/pubmed\.ncbi\.nlm\.nih\.gov\//, '').replace(/\/$/, '') : null,
         arxiv: primary.ids?.arxiv ? String(primary.ids.arxiv).split('/').pop() : null
       },
       artifacts: mergeArtifacts(artifacts)
@@ -238,7 +238,7 @@ export class FrictionlessResearchEngine {
       title: work.title?.[0] || null,
       doi: normalizeDoi(work.DOI),
       publicationDate: work.published?.['date-parts']?.[0]?.join('-') || null,
-      abstract: work.abstract ? work.abstract.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim() : null,
+      abstract: work.abstract ? work.abstract.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : null,
       authors: (work.author || []).map(a => ({ given: a.given || null, family: a.family || null, orcid: a.ORCID || null })),
       references: (work.reference || []).map(r => ({
         doi: normalizeDoi(r.DOI),
@@ -253,7 +253,7 @@ export class FrictionlessResearchEngine {
     const id = clean(queryOrId);
     const fields = 'title,abstract,year,authors,externalIds,isOpenAccess,openAccessPdf,citations,references';
     const encoded = encodeURIComponent(id);
-    const url = id && (/^10\\./.test(id) || /^[0-9a-f]{40}$/i.test(id) || /^ARXIV:/i.test(id))
+    const url = id && (/^10\./.test(id) || /^[0-9a-f]{40}$/i.test(id) || /^ARXIV:/i.test(id))
       ? `https://api.semanticscholar.org/graph/v1/paper/${encoded}?fields=${fields}`
       : `https://api.semanticscholar.org/graph/v1/paper/search/match?query=${encoded}&fields=${fields}`;
     const data = await this.requestJson(url);
