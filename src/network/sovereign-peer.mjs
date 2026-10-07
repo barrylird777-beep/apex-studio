@@ -59,6 +59,7 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
       const allowlist = allowedPeerIds();
       if (requireAllowlist() && (!allowlist.size || !allowlist.has(remotePeerId))) throw new Error('peer is not allowlisted');
       const envelope = await readJson(stream);
+      if (requireJwt()) verifySelfSignedJwt(envelope?.auth);
       const accepted = onEnvelope ? await onEnvelope(envelope) : true;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
     } catch (error) {
@@ -75,15 +76,24 @@ export async function startSovereignPeer(options) {
   return node;
 }
 
-export async function sendToPeer(node, multiaddr, envelope) {
-  const stream = await node.dialProtocol(multiaddr, PROTOCOL, {
+export async function sendProtocol(node, multiaddr, protocol, envelope) {
+  const authenticated = { ...envelope };
+  if (requireJwt()) {
+    authenticated.peerId = node.peerId.toString();
+    authenticated.auth = await node.sovereignIdentity.issue({ peerId: node.peerId.toString() });
+  }
+  const stream = await node.dialProtocol(multiaddr, protocol, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
-  await stream.sink([encoder.encode(JSON.stringify(envelope) + '\n')]);
+  await stream.sink([encoder.encode(JSON.stringify(authenticated) + '\n')]);
   const response = await readJson(stream);
   await stream.close?.();
   if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
   return response;
+}
+
+export async function sendToPeer(node, multiaddr, envelope) {
+  return sendProtocol(node, multiaddr, PROTOCOL, envelope);
 }
 
 export { PROTOCOL };
