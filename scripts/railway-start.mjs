@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 
 const port = Number(process.env.PORT || 8080);
-const host = process.env.HOST || '127.0.0.1';
+const host = '127.0.0.1';
 
 process.on('uncaughtException', (error) => {
   console.error('[railway-start][uncaughtException]', error);
