@@ -656,6 +656,10 @@ export function createRealZeroStopProxy({
     if (startPromise) return startPromise;
     startPromise = Promise.resolve().then(() => {
       stopping = false;
+      if (fallbackFile && !activeFallbackMedia.length) {
+        activeFallbackMedia = await loadFlvFallbackMedia(fallbackFile);
+        fallbackIndex = 0;
+      }
       if (state.status === 'running' || socket) return status();
       if (fallbackFile && !activeFallbackMedia.length) {
         activeFallbackMedia = await loadFlvFallbackMedia(fallbackFile);
