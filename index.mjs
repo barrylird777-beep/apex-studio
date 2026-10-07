@@ -69,7 +69,7 @@ async function executeEpisodeProductionTask(payload = {}) {
   };
 }
 
-async function executeMusicAudioHandoffTask(payload = {}) {
+) {
   const handoff = payload?.handoff;
   if (!handoff || handoff.contractVersion !== "music-radar-studio-handoff.v1") {
     throw new Error("Invalid Studio music integration audio handoff");
