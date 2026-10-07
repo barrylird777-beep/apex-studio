@@ -3,8 +3,8 @@ import path from 'node:path';
 import { is4kMasterCompliant, selectEncoderFromList, probeFfmpegEncoders } from './render-performance.mjs';
 
 export const PROD_SETTINGS = {
-  audio: { bitrate: '320k', frequency: 48000, channels: 2, masterLoudness: 'loudnorm=I=-16:LRA=11:TP=-1.5' },
-  video: { codec: 'libx264', preset: 'fast', crf: 18, fps: 24, colorGrade: 'eq=contrast=1.15:brightness=-0.02:saturation=1.2' }
+  audio: { bitrate: '320k', frequency: 48000, channels: 2, masterLoudness: 'loudnorm=I=-23:LRA=7:TP=-1' },
+  video: { codec: 'libx264', preset: 'fast', crf: 17, fps: 24, colorGrade: 'eq=contrast=1.15:brightness=-0.02:saturation=1.2' }
 };
 
 export function configureProductionExport(command) {
@@ -99,8 +99,10 @@ export const OUTPUT_PRESETS = Object.freeze({
   square: { width: 1080, height: 1080, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2', encodePreset: 'fast' }
 });
 
-export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output = 'output.mp4' } = {}) {
-  const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS.master;
+export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output = 'output.mp4', fps } = {}) {
+  const basePreset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS.master;
+  const targetFps = Number(fps) > 0 ? Number(fps) : basePreset.fps;
+  const preset = { ...basePreset, fps: targetFps };
   const valid = clips.filter(clip => clip && clip.videoUri);
   if (valid.some(clip => !clip.audioUri)) return { command: 'ffmpeg', args: [], preset, inputCount: valid.length, ready: false, reason: 'Every exported scene must have a persistent audio asset.' };
   if (!valid.length) return { command: 'ffmpeg', args: ['-y', '-f', 'lavfi', '-i', 'color=c=black:s=' + preset.width + 'x' + preset.height + ':r=' + preset.fps, '-t', '1', '-c:v', preset.videoCodec, output], preset, inputCount: 1, ready: false, reason: 'No persistent scene video assets are available.' };
@@ -123,8 +125,10 @@ export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output 
   return { command: 'ffmpeg', args: args.concat(outputArgs), preset, inputCount: valid.length * 2, ready: true };
 }
 
-export function buildFfmpegPlan({ media = [], audio = [], format = 'master', output = 'output.mp4' } = {}) {
-  const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS.master;
+export function buildFfmpegPlan({ media = [], audio = [], format = 'master', output = 'output.mp4', fps } = {}) {
+  const basePreset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS.master;
+  const targetFps = Number(fps) > 0 ? Number(fps) : basePreset.fps;
+  const preset = { ...basePreset, fps: targetFps };
   const video = media.filter(item => item?.uri && item.type !== 'audio');
   const audioInputs = audio.filter(item => item?.uri);
   if (!video.length) return { command: 'ffmpeg', args: ['-y', '-f', 'lavfi', '-i', `color=c=black:s=${preset.width}x${preset.height}:r=${preset.fps}`, '-t', '1', '-c:v', preset.videoCodec, output], preset, inputCount: 1, ready: false, reason: 'No visual media is attached yet.' };

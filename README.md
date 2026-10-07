@@ -1,65 +1,62 @@
-# Apex Ecosystem — Master Architecture
+# Apex Ecosystem — Absolute Topology
 
-**STATUS: BLACK-PEN LOCKED — ARCHITECTURAL LAW**
+**BLACK-PEN ARCHITECTURE**
 
-Apex consists of exactly three primary systems:
+Apex has six product surfaces sharing one universal capability plane:
 
-- **GardenOfApex — THE BRAIN:** research, knowledge, Bible, Korn World, studies, analytics, and AI Chat Lab.
-- **Apex Studio — THE EYES:** creative production, operations, distribution strategy, network/infrastructure, and its native creative interfaces.
-- **KORN-KNOB — THE EARS:** AI models, providers, routing, evaluation, and media-AI capabilities.
+- **KORNKNOB — EARS:** music, sound, audio intelligence, and capability contracts.
+- **ApexStudios — EYES:** production, visual/media creation, operations, and distribution.
+- **GardenOfApex — BRAIN:** scripture, research, knowledge, studies, and Korn World.
+- **ApexOpportunity — MONEY:** opportunity discovery, growth, monetization, and business intelligence.
+- **ApexRapidVideo — MONEY:** rapid paid video creation and fulfillment.
+- **ApexAdBlocker — SHIELD:** network protection and ad blocking.
 
-## Apex Studio
+## Execution spine
 
-The **Special Search Engine is part of Apex Studio**. It is a native Studio interface, not a separate system or product.
+Apex execution state is **not PostgreSQL and not SQLite**.
 
-Studio owns:
-- Special Search Engine
-- Video Lab
-- Imagery Lab
-- Audio Lab
-- AI Creation Lab
-- Movie/video direction
-- Story/script/scene/shot planning
-- Visual and audio production
-- Animation, VFX, compositing, editing
-- Mixing/mastering
-- Rendering and QC
-- Release preparation
-- Social Media Command
-- Network and infrastructure
+The runtime uses:
 
-The Special Search Engine is **optional and user-invoked**. It can discover models, providers, APIs, tools, software, datasets, renderers, media capabilities, services, and other production-relevant capabilities.
+- `src/core/apex-ring-wal.mjs` — append-only JSONL WAL with hash chaining and fsync-backed commits.
+- `src/core/apex-pure-store.mjs` — atomic state files and fenced durable jobs over the WAL.
+- `/srv/apex/se-x/projects` — persistent project/state storage.
+- Ring-buffer memory for hot task dispatch.
+- Lease tokens and monotonic fencing for worker ownership.
+- Replay, recovery, deduplication, retry, and dead-task handling.
+- Atomic temp-file + rename commits for materialized state.
 
-It is **not**:
-- a fourth Apex system
-- an external subsystem
-- a mandatory gateway
-- a replacement for Garden research
-- a replacement for KORN-KNOB capability management
+The system is decentralized by design. Multi-node coordination can be layered over the WAL; it is not described as full Raft consensus unless an actual consensus implementation and test suite prove that claim.
 
-Studio can communicate directly with Garden for knowledge/research and directly with KORN-KNOB for AI/model/media capabilities.
+## Universal search
 
-## GardenOfApex
+Apex exposes a general web search/fetch plane:
 
-Garden owns research and knowledge, including Bible research, Korn World research, world studies, individual histories/states/timelines, research conversations, and the AI Chat Lab.
+- `GET /api/search?q=...`
+- `GET /api/fetch?url=...`
+- iPhone Siri/Shortcuts includes **Search Anything**.
+- Search is not restricted to Bible/project data.
+- HTTPS web targets are supported.
+- Provider, network, licensing, authentication, and physical-device limits still apply; Apex does not bypass them.
 
-Garden evidence must distinguish **KNOWN, OBSERVED, INFERRED, and UNKNOWN** and must not invent missing facts.
+## AI mesh
 
-## KORN-KNOB
+The capability plane can route across local and external inference providers. Local inference is preferred where available. Provider quotas, billing rules, licensing, and authentication remain provider-controlled.
 
-KORN-KNOB owns the AI/model/media capability layer for Apex overall and its own models/capabilities, including LLM, image, video, audio/music, voice, multimodal, embedding/reranking, provider access, routing, evaluation, health, versioning, and fallback.
+## Media
 
-KORN-KNOB supplies capabilities; **Studio owns final production and assembly**.
+FFmpeg remains the mastering layer. 24 FPS is a default cinematic preset, **not a ceiling**. Output frame rate is target-dependent and can be configured for 24/30/60/120 FPS when the source, encoder, and delivery target support it. Hardware encoders are selected when available.
 
-## Production law
+## iPhone
 
-**Garden researches and understands.**
+`ios/ApexMobile/` provides local GGUF inference through llama.cpp/Metal plus App Intents and Siri Shortcuts. iOS background execution is used only within Apple's supported execution model; Apex does not claim an unrestricted third-party daemon.
 
-**Studio directs, creates, produces, operates, and manages distribution strategy.**
+## Monetization
 
-**KORN-KNOB supplies and manages AI/model/media capabilities.**
+Rapid Video uses verified Stripe webhook flows and feeds paid work into the same durable WAL execution plane.
 
-Durable workflow state belongs in PostgreSQL rather than SQLite or process-local persistence.
+## Network protection
+
+ApexAdBlocker provides iOS network/content protection features. iOS system-wide configuration requires the user's explicit system activation where Apple requires it.
 
 ## Development
 
@@ -67,16 +64,3 @@ Durable workflow state belongs in PostgreSQL rather than SQLite or process-local
 npm install
 npm start
 ```
-
-## Apex Universe — Six Surfaces / One Capability Plane
-
-The Apex universe is six distinct product surfaces sharing the same maximum-capability foundation:
-
-- **KORNKOB — EARS:** music, sound, audio discovery and intelligence.
-- **ApexStudios — EYES:** production, visual/media creation and distribution.
-- **GardenOfApex — BRAIN:** Korn World, scripture, research and knowledge.
-- **ApexOpportunity:** opportunity, growth, monetization and business intelligence.
-- **ApexRapidVideo:** rapid paid video creation and fulfillment.
-- **ApexAdBlocker:** network protection and ad blocking.
-
-All six surfaces can use the same AI, automation, analytics, storage, provenance, media, orchestration and network capability plane. Ownership boundaries remain separate.
