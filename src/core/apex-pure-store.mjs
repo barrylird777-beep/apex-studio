@@ -28,9 +28,11 @@ export class ApexPureStore {
   async atomic(file,value){
     await mkdir(path.dirname(file),{recursive:true});
     const tmp=file+"."+process.pid+"."+randomUUID()+".tmp";
-    await writeFile(tmp,JSON.stringify(value,null,2)+"\n","utf8");await rename(tmp,file);
+    await writeFile(tmp,JSON.stringify(value,null,2)+"
+","utf8");await rename(tmp,file);
   }
-  async serialize(fn){const run=this.queue.then(fn,fn);this.queue=run.catch(()=>{});return run;}\n  async put(collection,id,record){
+  async serialize(fn){const run=this.queue.then(fn,fn);this.queue=run.catch(()=>{});return run;}
+  async put(collection,id,record){
     return this.serialize(async()=>{ await this.init();const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     const r=await this.wal.append("state.put",{collection,id:String(id),record:value});this.apply(r);await this.atomic(this.file(collection,id),value);return clone(value);
   }
