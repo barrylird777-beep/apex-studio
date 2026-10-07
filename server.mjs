@@ -200,7 +200,7 @@ const permanentHealthHandler = async (payload) => {
 };
 
 const meshWorkerSupervisor = new WorkerSupervisor({
-  workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 64)),
+  workers: Math.max(1, Number(process.env.APEX_MESH_WORKERS || 128)),
   handler: async (payload) => {
     const type = String(payload?.type || 'inference');
     if (type === 'inference') {
@@ -233,7 +233,7 @@ const meshWorkerSupervisor = new WorkerSupervisor({
 });
 
 const permanentWorkerSupervisor = new WorkerSupervisor({
-  workers: Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 64)),
+  workers: Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 128)),
   handler: permanentHealthHandler
 });
 
@@ -290,7 +290,7 @@ const crewAssignments = crewRoles.map(([role, task]) => ({
 }));
 
 const aiCrew = createAiCrewEngine({
-  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 64))),
+  concurrency: Math.max(1, Math.min(128, Number(process.env.APEX_AI_CREW_CONCURRENCY || 128))),
   assignments: crewAssignments,
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
@@ -309,9 +309,9 @@ if (aiCrewAutoRun && safeAi.enabled) {
       'Surface blockers with a workaround path rather than stopping.'
     ]
   };
-  aiCrew.burst(Math.max(1, Math.min(8, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 8))), crewContext);
+  aiCrew.burst(Math.max(1, Math.min(32, Number(process.env.APEX_AI_CREW_INITIAL_BURST || 32))), crewContext);
   const aiCrewPulse = setInterval(() => {
-    aiCrew.burst(Math.max(1, Math.min(4, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 1))), crewContext);
+    aiCrew.burst(Math.max(1, Math.min(16, Number(process.env.APEX_AI_CREW_PULSE_SIZE || 8))), crewContext);
   }, Math.max(60000, Number(process.env.APEX_AI_CREW_PULSE_MS || 60000)));
   aiCrewPulse.unref?.();
 }
