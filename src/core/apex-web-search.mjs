@@ -2,7 +2,29 @@ import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 
-const timeoutMs=Math.max(1000,Math.min(120000,Number(process.env.APEX_WEB_SEARCH_TIMEOUT_MS||30000)));\nconst maxRedirects=Math.max(0,Math.min(10,Number(process.env.APEX_WEB_MAX_REDIRECTS||5)));\nconst maxResponseBytes=Math.max(1024,Math.min(50*1024*1024,Number(process.env.APEX_WEB_MAX_BYTES||20*1024*1024)));
+const timeoutMs=Math.max(1000,Math.min(120000,Number(process.env.APEX_WEB_SEARCH_TIMEOUT_MS||30000)));
+const maxRedirects=Math.max(0,Math.min(10,Number(process.env.APEX_WEB_MAX_REDIRECTS||5)));
+const maxResponseBytes=Math.max(1024,Math.min(50*1024*1024,Number(process.env.APEX_WEB_MAX_BYTES||20*1024*1024)));
+const OUTBOUND_HEADER_ALLOWLIST=new Set(["accept","accept-language","content-type","cache-control","if-none-match","if-modified-since"]);
+const OUTBOUND_TRACKING_HEADERS=new Set([
+  "authorization","cookie","origin","referer","user-agent","x-forwarded-for","x-forwarded-host",
+  "x-forwarded-proto","x-real-ip","x-client-ip","x-request-id","x-correlation-id","traceparent",
+  "tracestate","baggage","sentry-trace","sentry-baggage","x-amzn-trace-id","x-cloud-trace-context",
+  "x-datadog-trace-id","x-datadog-parent-id","x-datadog-sampling-priority","x-instana-t","x-instana-l",
+  "x-b3-traceid","x-b3-spanid","x-b3-sampled","x-b3-flags"
+]);
+export function sanitizeOutboundHeaders(input={}){
+  const out={};
+  for(const [key,value] of Object.entries(input||{})){
+    const k=String(key).toLowerCase();
+    if(OUTBOUND_TRACKING_HEADERS.has(k))continue;
+    if(OUTBOUND_HEADER_ALLOWLIST.has(k))out[k]=String(value);
+  }
+  out["user-agent"]="Apex-Universal-Research/3.0";
+  out["accept"]="text/html,application/xhtml+xml,application/json,text/plain";
+  return out;
+}
+
 const clean=v=>String(v??"").normalize("NFKC").trim();
 const decode=v=>clean(v).replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#x27;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">");
 const engines=[
@@ -45,7 +67,7 @@ function parse(html,engine,limit){
 
 async function request(url,redirects=0){
   const safe=await assertPublicUrl(url),c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);
-  try{const r=await fetch(safe.href,{signal:c.signal,redirect:"manual",headers:{"user-agent":"Apex-Universal-Research/3.0","accept":"text/html,application/xhtml+xml,application/json"}});
+  try{const r=await fetch(safe.href,{signal:c.signal,redirect:"manual",headers:sanitizeOutboundHeaders({"accept":"text/html,application/xhtml+xml,application/json"})});
     if(r.status>=300&&r.status<400){if(redirects>=maxRedirects)throw new Error("Too many redirects");const location=r.headers.get("location");if(!location)throw new Error("Redirect without location");return request(new URL(location,safe).href,redirects+1);}
     if(!r.ok)throw new Error("HTTP "+r.status);return await r.text();
   }finally{clearTimeout(t);}
@@ -67,7 +89,7 @@ export async function fetchAnything(target,{maxBytes=maxResponseBytes}={}){
   for(let redirects=0;redirects<=5;redirects++){
     const c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);
     try{
-      const r=await fetch(url.href,{signal:c.signal,redirect:"manual",headers:{"user-agent":"Apex-Universal-Research/3.0","accept":"text/html,application/xhtml+xml,application/json,text/plain"}});
+      const r=await fetch(url.href,{signal:c.signal,redirect:"manual",headers:sanitizeOutboundHeaders({"accept":"text/html,application/xhtml+xml,application/json,text/plain"})});
       if(r.status>=300&&r.status<400){
         const location=r.headers.get("location");if(!location)throw new Error("Redirect without location");
         url=await assertPublicUrl(new URL(location,url).href);continue;
