@@ -46,7 +46,7 @@ export async function createSovereignIdentity() {
         iat: now,
         exp: now + Math.max(1, ttlSeconds),
         jti: randomUUID(),
-        ...claims
+        publicKey,\n        ...claims
       };
       const signingInput = b64(stable(header)) + '.' + b64(stable(payload));
       const signature = sign(null, Buffer.from(signingInput), privateKey);
