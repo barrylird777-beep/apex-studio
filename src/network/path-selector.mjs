@@ -32,7 +32,7 @@ async function probe(dev) {
   const started = performance.now();
   if (dev === 'runtime') {
     try {
-      const response = await fetch(process.env.APEX_PATH_PROBE_URL || 'https://www.starlink.com/', {
+      const response = await fetch(process.env.APEX_PATH_PROBE_URL || 'https://www.google.com/generate_204', {
         method: 'HEAD',
         signal: AbortSignal.timeout(Number(process.env.APEX_PATH_PROBE_TIMEOUT || 3000))
       });
