@@ -6,7 +6,7 @@
  */
 export const APEX_SURFACES = Object.freeze({
   KORNKOB: {
-    id: "KORNKNOB",
+    id: "KORNKOB",
     role: "ears",
     domain: "music, sound, audio discovery, analysis and intelligence"
   },
@@ -50,6 +50,8 @@ export const APEX_UNIVERSAL_CAPABILITIES = Object.freeze([
   "orchestration",
   "automation",
   "analytics",
+  "search_anything",
+  "unbounded_web_research",
   "storage",
   "provenance",
   "monetization",
