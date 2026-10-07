@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { claimJobs, completeJob, failJob, recoverExpiredJobs } from '../core/sovereign-local-storage.mjs';
+import { claimJobs, completeJob, failJob, recoverExpiredJobs, renewJobLease } from '../core/sovereign-local-storage.mjs';
 
 const workerId = process.env.APEX_WORKER_ID || `local-${os.hostname()}-${process.pid}`;
 const leaseMs = Math.max(5000, Number(process.env.APEX_WORKER_LEASE_MS || 60000));
@@ -20,11 +20,24 @@ async function handle(job) {
 }
 
 async function run(job) {
+  const heartbeatMs = Math.max(1000, Math.floor(leaseMs / 3));
+  let timer;
   try {
+    timer = setInterval(() => {
+      renewJobLease(job, leaseMs).catch(error => {
+        console.error('[LOCAL SOVEREIGN WORKER] HEARTBEAT FAILED', job.id, error?.message || error);
+      });
+    }, heartbeatMs);
     const result = await handle(job);
     await completeJob(job, result);
   } catch (error) {
-    await failJob(job, error instanceof Error ? error.message : String(error));
+    try {
+      await failJob(job, error instanceof Error ? error.message : String(error));
+    } catch (fenceError) {
+      console.error('[LOCAL SOVEREIGN WORKER] FENCED FAILURE', job.id, fenceError?.message || fenceError);
+    }
+  } finally {
+    if (timer) clearInterval(timer);
   }
 }
 
