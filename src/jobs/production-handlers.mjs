@@ -1,18 +1,90 @@
-import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
-import { enqueueWorkerTask } from "../core/mesh/durable-worker-store.mjs";
+import pg from "pg";
 import { randomUUID } from "node:crypto";
+import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
+import { createDurableJobsStore } from "./durable-jobs-store.mjs";
 import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
-const clean=v=>String(v??"").trim().slice(0,2000);
-async function analyzeTrend(job){
-  const trend=clean(job.payload?.trend), source=clean(job.payload?.source);
-  const prompt=JSON.stringify({trend,source,goal:"Create an original Apex Rapid Video concept inspired by the trend without copying protected expression.",style:"dark cinematic anime, sharp cel shading, high contrast lighting",output:"hook,title,concept,visualDirection"});
+
+const { Pool } = pg;
+const pool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 4,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+      ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false }
+    })
+  : null;
+
+const store = pool ? createDurableJobsStore(pool) : null;
+const clean = (value, max = 2000) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
+
+function parseJson(text) {
+  const raw = String(text || "").trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/i, "").trim();
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("AI response did not contain JSON");
+  return JSON.parse(raw.slice(start, end + 1));
+}
+
+async function analyzeTrend(job) {
+  const trend = clean(job.payload?.trend);
+  const source = clean(job.payload?.source);
+  const fingerprint = clean(job.payload?.fingerprint, 128);
+  if (!trend) throw new Error("trend.analyze requires trend");
+
+  const prompt = JSON.stringify({
+    trend,
+    source,
+    goal: "Create an original Apex Rapid Video concept inspired by the trend without copying protected expression.",
+    style: "dark cinematic anime, sharp cel shading, high contrast lighting",
+    retention: "begin with a compelling opening hook and build escalating visual tension",
+    output: "hook,title,concept,visualDirection"
+  });
+
   let plan;
   try {
-    const r=await generateUnifiedAi({provider:process.env.APEX_TREND_AI_PROVIDER||"openrouter",model:process.env.APEX_TREND_AI_MODEL,system:"Return JSON only. Never reproduce a source work verbatim. Transform the trend into an original creative concept.",prompt,temperature:0.8,max_tokens:900});
-    plan=JSON.parse(String(r.text||"").trim());
-  } catch(error) { plan={hook:"TREND SIGNAL DETECTED.",title:trend,concept:trend,visualDirection:"Original dark cinematic anime"}; }
-  await enqueueWorkerTask({id:randomUUID(),workerId:"rapid-video",role:"creative",task:"rapid.trend.render",payload:{trend,source,plan},maxAttempts:5,dedupeKey:"rapid-trend-render:"+(job.payload?.fingerprint||trend.toLowerCase())});
-  return {analyzed:true,plan};
+    const result = await generateUnifiedAi({
+      provider: process.env.APEX_TREND_AI_PROVIDER || process.env.APEX_RAPID_AI_PROVIDER || "openrouter",
+      model: process.env.APEX_TREND_AI_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined,
+      system: "Return JSON only. Create original expression. Never reproduce source media, lyrics, dialogue, captions, or protected expression verbatim.",
+      prompt,
+      temperature: 0.8,
+      max_tokens: 900
+    });
+    plan = parseJson(result?.text ?? result?.content ?? result);
+  } catch (error) {
+    plan = {
+      hook: "TREND SIGNAL DETECTED.",
+      title: trend,
+      concept: `Original creative interpretation of: ${trend}`,
+      visualDirection: "Original dark cinematic anime"
+    };
+  }
+
+  if (!store) throw new Error("DATABASE_URL is required for autonomous trend rendering");
+
+  const child = await store.enqueue({
+    id: randomUUID(),
+    type: "rapid.trend.render",
+    payload: { trend, source, fingerprint, plan },
+    maxAttempts: 5,
+    dedupeKey: "rapid-trend-render:" + (fingerprint || trend.toLowerCase())
+  });
+
+  return { analyzed: true, plan, childJobId: child?.id || null };
 }
-export const handlers={"trend.analyze":analyzeTrend};
+
+async function renderTrend(job) {
+  return executeRapidTrendRender(job.payload || {});
+}
+
+export const handlers = {
+  "trend.analyze": analyzeTrend,
+  "rapid.trend.render": renderTrend
+};
+
+export async function closeProductionHandlers() {
+  if (pool) await pool.end();
+}
+
 export default handlers;
