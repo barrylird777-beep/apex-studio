@@ -5,7 +5,7 @@
  * Domain ownership remains separate; capabilities are universal.
  */
 export const APEX_SURFACES = Object.freeze({
-  KORNKNOB: {
+  KORNKOB: {
     id: "KORNKNOB",
     role: "ears",
     domain: "music, sound, audio discovery, analysis and intelligence"
