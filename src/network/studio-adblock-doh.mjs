@@ -45,3 +45,4 @@ export async function handleStudioAdBlockDoH(req,res,url){
     res.end(JSON.stringify({error:e instanceof Error?e.message:"DNS request failed"}));
   }
 }
+
