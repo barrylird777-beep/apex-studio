@@ -1,1 +1,2 @@
-export default {};\nexport const dialect = "pure-wal";\n
+// RETIRED by BREAK AWAY. Apex runtime uses Pure-WAL.
+export {};
