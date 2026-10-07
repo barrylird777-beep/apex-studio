@@ -23,7 +23,8 @@
     "durable:worker": "node src/jobs/durable-worker-daemon.mjs",
     "network:select": "node src/network/path-selector.mjs",
     "test:render-performance": "node --test test/render-performance.test.mjs",
-    "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs"
+    "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs",
+    "swarm:daemon": "node src/core/autonomous-swarm-daemon.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
