@@ -13,7 +13,7 @@ final class URLFilterController: ObservableObject {
     // Development configuration only. iOS 26.4 requires service/issuer URLs
     // to be host-only for distribution builds; development-signed builds may
     // use paths. These values will be replaced by the Apex PIR deployment.
-    private let pirServerURL = URL(string: "https://apex-studio-production.up.railway.app")!
+    private let pirServerURL = URL(string: "https://REPLACE_WITH_APEX_PIR_HOST")!
     private let pirPrivacyPassIssuerURL: URL? = nil
     private let authenticationToken = "AAAA"
 
