@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import NetworkExtension
 
@@ -5,38 +6,40 @@ import NetworkExtension
 final class URLFilterController: ObservableObject {
     @Published private(set) var isEnabled = false
     @Published private(set) var status = "Not configured"
-
+    private let controlProviderBundleIdentifier = "com.barrylird777.apex.ApexURLFilterControlProvider"
     private let pirServerURL = URL(string: "https://REPLACE_WITH_APEX_PIR_HOST")!
-    private let pirPrivacyPassIssuerURL = URL(string: "https://REPLACE_WITH_APEX_PIR_ISSUER_HOST")!
+    private let pirPrivacyPassIssuerURL: URL? = nil
     private let authenticationToken = "REPLACE_ME"
-    private let controlProviderBundleIdentifier =
-        "com.barrylird777.apex.ApexURLFilterControlProvider"
 
     func refresh() async {
         let manager = NEURLFilterManager.shared
-        isEnabled = manager.isEnabled
-        status = manager.isEnabled ? "Enabled" : "Disabled"
+        do {
+            try await manager.loadFromPreferences()
+            isEnabled = manager.isEnabled
+            status = manager.isEnabled ? "Enabled" : "Disabled"
+        } catch { status = "Not configured: \(error.localizedDescription)" }
     }
 
     func setEnabled(_ enabled: Bool) {
-        Task {
+        Task { @MainActor in
             do {
                 let manager = NEURLFilterManager.shared
                 if enabled {
-                    try await manager.setConfiguration(
+                    try manager.setConfiguration(
                         pirServerURL: pirServerURL,
                         pirPrivacyPassIssuerURL: pirPrivacyPassIssuerURL,
                         pirAuthenticationToken: authenticationToken,
-                        controlProviderBundleIdentifier: controlProviderBundleIdentifier
-                    )
+                        controlProviderBundleIdentifier: controlProviderBundleIdentifier)
                 }
+                manager.prefilterFetchInterval = 2700
+                manager.shouldFailClosed = false
                 manager.isEnabled = enabled
                 try await manager.saveToPreferences()
                 isEnabled = enabled
                 status = enabled ? "Enabled" : "Disabled"
             } catch {
                 isEnabled = false
-                status = "Configuration required: \(error.localizedDescription)"
+                status = "Configuration error: \(error.localizedDescription)"
             }
         }
     }
