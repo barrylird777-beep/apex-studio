@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
+import ffmpeg from "fluent-ffmpeg";
 import { randomUUID } from "node:crypto";
 import { buildEpisodeProductionJobs } from "../core/apexus-production.mjs";
 
@@ -104,6 +105,15 @@ async function generateText(prompt){
     if(text) return {text,provider:key};
   }
   throw new Error("No configured text-generation provider");
+}
+
+async function makeAudioBed(narrationPath, output){
+  await fs.mkdir(path.dirname(output),{recursive:true});
+  return new Promise((resolve,reject)=>ffmpeg(narrationPath)
+    .input("anullsrc=r=48000:cl=stereo").inputFormat("lavfi")
+    .complexFilter("[0:a]volume=0.16[voice];[1:a]volume=0.035[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=2[mix]")
+    .outputOptions(["-map","[mix]","-c:a","aac","-b:a","192k","-shortest"])
+    .save(output).on("end",()=>resolve(output)).on("error",reject));
 }
 
 async function tts(text, output){
