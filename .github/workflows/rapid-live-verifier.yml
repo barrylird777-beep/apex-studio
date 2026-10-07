@@ -1,0 +1,47 @@
+name: Rapid Live Verifier
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server.mjs'
+      - 'railway.json'
+      - 'public/rapid-video.html'
+      - 'src/workers/rapid-video-worker.mjs'
+      - 'src/payments/stripe-rapid.mjs'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for Railway rollout
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://apex-studio-production.up.railway.app"
+          for i in $(seq 1 24); do
+            code="$(curl -L -sS -o /tmp/health.json -w '%{http_code}' --max-time 10 "$url/health" || true)"
+            if [ "$code" = "200" ] && grep -q '"ok":true' /tmp/health.json; then
+              echo "Railway health is live."
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Attempt $i/24: HTTP $code; waiting..."
+            sleep 10
+          done
+          echo "Railway health did not become ready."
+          exit 1
+      - name: Verify buyer page
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 https://apex-studio-production.up.railway.app/rapid-video.html | grep -q "Apex Rapid Video"
+      - name: Verify buyer API surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/preview.json -w '%{http_code}' -X POST https://apex-studio-production.up.railway.app/api/rapid/preview -H 'content-type: application/json' --data '{"brief":"live verifier proof","platform":"TikTok"}')"
+          test "$code" = "202"
+          grep -q '"status":"queued"' /tmp/preview.json
