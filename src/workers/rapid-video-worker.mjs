@@ -75,6 +75,22 @@ function buildSceneFilters(scenes, duration, palette, brand = "APEX RAPID VIDEO"
   }).join(",");
 }
 
+async function generateHook(brief, platform, provider, model) {
+  try {
+    const result = await generateUnifiedAi({
+      provider: provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter",
+      model: model || process.env.APEX_RAPID_AI_MODEL || undefined,
+      system: "Write one original short-form video hook. Return only the hook, no quotes, no markdown.",
+      prompt: "Idea: " + brief + "\nPlatform: " + platform,
+      temperature: 0.8,
+      max_tokens: 120
+    });
+    return cleanText(result.text, "STOP THE SCROLL.");
+  } catch {
+    return "STOP THE SCROLL.";
+  }
+}
+
 function commonVideoArgs(output, duration, vf) {
   return [
     "-y",
