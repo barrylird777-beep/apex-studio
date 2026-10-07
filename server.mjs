@@ -1965,3 +1965,43 @@ if (durableWorkerEnabled()) {
 
 // Railway rollout heartbeat: Rapid buyer release.
 // buyer-release-trigger-2026-10-07
+
+
+// EngineApex decision layer: opportunity intelligence stays separate from production.
+app.get('/api/engine-apex/snapshot', async (_req, res) => {
+  try {
+    const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
+    return res.json({ success: true, ...(await getEngineSnapshot()) });
+  } catch (error) {
+    console.error('[engine-apex-snapshot]', error);
+    return res.status(503).json({ success: false, error: 'EngineApex evidence is unavailable' });
+  }
+});
+
+app.post('/api/engine-apex/brief', async (req, res) => {
+  try {
+    const { buildEngineBrief } = await import('./src/core/engine-apex.mjs');
+    return res.status(201).json({ success: true, brief: buildEngineBrief(req.body || {}) });
+  } catch (error) {
+    const message = String(error?.message || error);
+    return res.status(400).json({ success: false, error: message });
+  }
+});
+
+app.get('/api/engine-apex/status', async (_req, res) => {
+  try {
+    const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
+    const snapshot = await getEngineSnapshot();
+    return res.json({
+      success: true,
+      engine: 'EngineApex',
+      state: snapshot.state,
+      opportunityCount: snapshot.opportunities.length,
+      handoffs: ['ApexRapid', 'ApexStudio'],
+      productionSeparated: true,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({ success: false, engine: 'EngineApex', state: 'unavailable', error: 'EngineApex evidence is unavailable', checkedAt: new Date().toISOString() });
+  }
+});
