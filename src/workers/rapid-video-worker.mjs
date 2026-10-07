@@ -20,6 +20,21 @@ function fontPath() {
     || "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
 }
 
+export async function executeRapidVideoPreview(payload = {}) {
+  const brief=cleanText(payload.brief,'Your Apex concept');
+  const orderId=cleanText(payload.orderId,crypto.randomUUID());
+  const outputDir=path.join(process.env.STORAGE_DIR||'/srv/apex/se-x/projects','previews');
+  await mkdir(outputDir,{recursive:true,mode:0o700});
+  const filename='rapid_preview_'+orderId.replace(/[^A-Za-z0-9_-]/g,'')+'.mp4';
+  const output=path.join(outputDir,filename);
+  const font=fontPath();
+  const safe=cleanText(brief).replace(/;/g,' ');
+  const vf='drawtext=fontfile=\''+font+'\':text=\''+safe+'\':fontcolor=white:fontsize=54:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.55:boxborderw=24';
+  const args=['-y','-f','lavfi','-i','color=c=black:s=720x1280:r=30:d=3','-vf',vf,'-an','-c:v','libx264','-preset','veryfast','-crf','26','-movflags','+faststart',output];
+  await execFileAsync('ffmpeg',args,{maxBuffer:1024*1024});
+  return {ok:true,type:'rapid-video-preview',orderId,durationSeconds:3,format:'mp4',previewUrl:'/files/previews/'+encodeURIComponent(filename),generatedAt:new Date().toISOString()};
+}
+
 export async function executeRapidVideoOrder(payload = {}) {
   const name = cleanText(payload.name, "Apex GPT");
   const type = cleanText(payload.type, "Short-form video");
