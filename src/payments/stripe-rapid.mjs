@@ -15,6 +15,23 @@ function decode(value){
   return Buffer.from(String(value||''),'base64url').toString('utf8');
 }
 
+function splitBriefForStripe(value, maxBytes = 360){
+  const text=String(value||'');
+  const parts=[];
+  let current='';
+  for(const char of text){
+    const next=current+char;
+    if(current && Buffer.byteLength(next,'utf8')>maxBytes){
+      parts.push(current);
+      current=char;
+    } else {
+      current=next;
+    }
+  }
+  if(current || !parts.length) parts.push(current);
+  return parts;
+}
+
 export function buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}){
   const out={
     orderId:String(orderId),
@@ -22,7 +39,7 @@ export function buildRapidCheckoutMetadata({orderId,name,type,brief,platform,ema
     type:String(type||'').slice(0,500),
     platform:String(platform||'Other').slice(0,500),
     email:String(email||'').trim().slice(0,320),
-    briefParts:String(brief||'').match(/.{1,360}/gs)||['']
+    briefParts:splitBriefForStripe(brief)
   };
   const metadata={orderId:out.orderId,name:out.name,type:out.type,platform:out.platform,email:out.email};
   out.briefParts.forEach((part,i)=>{metadata['brief_'+String(i+1).padStart(2,'0')]=encode(part).slice(0,500);});
