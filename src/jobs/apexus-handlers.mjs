@@ -76,6 +76,7 @@ async function advance(episode, stage, file, metadata={}){
     await pool.query("INSERT INTO apexus_catalog(id,episode_id,master_asset_id,duration_seconds,qc_passed_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT (episode_id) DO UPDATE SET master_asset_id=EXCLUDED.master_asset_id,duration_seconds=EXCLUDED.duration_seconds,qc_passed_at=EXCLUDED.qc_passed_at",[randomUUID(),episode.id,assetId,episode.runtime_target_seconds]);
   }
   if(stage==="schedule"){
+    await pool.query("DELETE FROM apexus_schedule WHERE episode_id=$1 AND status='scheduled'",[episode.id]);
     const start=new Date(Date.now()+365*24*60*60*1000);
     const end=new Date(start.getTime()+Number(episode.runtime_target_seconds)*1000);
     await pool.query("INSERT INTO apexus_schedule(id,episode_id,starts_at,ends_at,block_name,status) VALUES($1,$2,$3,$4,$5,'scheduled')",[randomUUID(),episode.id,start,end,episode.audience_lane]);
