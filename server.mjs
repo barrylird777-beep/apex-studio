@@ -19,7 +19,6 @@ import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
 import { createOverseer, overseerCycle, overseerStatus, overseerTaskFor } from './src/core/mesh/overseer.mjs';
-import { pool as dbPool } from './src/db/index.ts';
 import { createAiCircuitBreakerRegistry } from './src/providers/ai-circuit-breaker.mjs';
 import { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.mjs';
 import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
