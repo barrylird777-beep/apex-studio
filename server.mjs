@@ -34,7 +34,7 @@ import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
 import { createRogueApDetector } from './src/network/rogue-ap-detector.mjs';
 import { createInfiniteBroadcast } from './src/core/infinite-broadcast.mjs';
-import { createStreamRelay } from './src/core/stream-relay.mjs';
+import { createRealZeroStopProxy, RtmpSessionMultiplexer } from './src/core/real-zero-stop-proxy.mjs';
 import { createRelayRouter } from './src/api/relay-routes.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
@@ -45,13 +45,30 @@ const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
-const streamRelay = createStreamRelay({
+const relayDestination = process.env.APEX_RELAY_DEST_ENDPOINT || 'rtmp://127.0.0.1:1935/live/apex-studio';
+const relayFallbackFile = process.env.APEX_RELAY_FALLBACK_FILE || path.join(STORAGE_DIR, 'broadcast', 'standby.flv');
+const relayAutoStart = String(process.env.APEX_RELAY_AUTOSTART || 'false').toLowerCase() === 'true';
+
+const streamRelay = new RtmpSessionMultiplexer({
   ingestSource: process.env.APEX_RELAY_INGEST_SOURCE || '',
-  destEndpoint: process.env.APEX_RELAY_DEST_ENDPOINT || '',
-  ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg'
+  destination: relayDestination,
+  fallbackFile: relayFallbackFile,
+  ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+  reconnectMs: Math.max(250, Number(process.env.APEX_RELAY_RECONNECT_MS || 1000)),
+  frameIntervalMs: Math.max(10, Number(process.env.APEX_RELAY_FRAME_INTERVAL_MS || 40)),
+  autoStart: relayAutoStart
 });
 
 app.use('/api/relay', createRelayRouter(streamRelay));
+
+app.get('/api/relay/health', (_req, res) => {
+  const relay = streamRelay.status();
+  const healthy = relay.downstreamConnected && !relay.lastError;
+  res.status(healthy ? 200 : 503).json({
+    ok: healthy,
+    relay
+  });
+});
 
 const infiniteBroadcast = createInfiniteBroadcast({
   inputDir: process.env.APEX_BROADCAST_INPUT_DIR || path.join(STORAGE_DIR, 'broadcast'),
