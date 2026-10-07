@@ -86,8 +86,8 @@ footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
 <label>Idea / script / instructions</label><textarea id="brief" placeholder="Tell us what you want the viewer to see, hear and feel."></textarea>
 <label>Target platform</label>
 <select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>Other</option></select>
-<button class="primary" onclick="copyOrder()">Copy order brief</button>
-<div id="copyStatus"></div>
+<button class="primary" onclick="submitOrder()">Submit order to Apex</button><button class="secondary" onclick="copyOrder()">Copy order brief</button>
+<div id="copyStatus"></div><div id="orderStatus" class="note"></div>
 <a class="secondary" href="https://cash.app/$TrisRock777">Send $25 through Cash App</a>
 <div class="note">After payment, send the copied brief and payment confirmation through the contact method you were given. Do not include passwords or sensitive financial information.</div>
 </div>
@@ -106,12 +106,53 @@ footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
 <footer>Apex Rapid Video · powered by Apex Studio</footer>
 </main>
 <script>
+function orderFields(){
+ return {
+   name:document.getElementById('name').value.trim(),
+   type:document.getElementById('type').value.trim(),
+   brief:document.getElementById('brief').value.trim(),
+   platform:document.getElementById('platform').value
+ };
+}
+async function submitOrder(){
+ const status=document.getElementById('orderStatus');
+ const data=orderFields();
+ if(!data.name||!data.type||!data.brief){status.textContent='Name, type and brief are required.';return;}
+ status.textContent='Submitting order…';
+ try{
+   const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+   const body=await response.json();
+   if(!response.ok) throw new Error(body.error||'Order submission failed');
+   status.textContent='Order '+body.orderId+' queued. Apex is producing it.';
+   pollOrder(body.orderId);
+ }catch(error){status.textContent=error.message||'Order submission failed.';}
+}
+async function pollOrder(orderId){
+ const status=document.getElementById('orderStatus');
+ for(let i=0;i<90;i++){
+   await new Promise(resolve=>setTimeout(resolve,3000));
+   try{
+     const response=await fetch('/api/rapid/orders/'+encodeURIComponent(orderId),{cache:'no-store'});
+     if(!response.ok) continue;
+     const body=await response.json();
+     if(body.status==='completed'&&body.result?.url){
+       status.innerHTML='Order complete. <a href="'+body.result.url+'" target="_blank" rel="noopener">Open finished MP4</a>';
+       return;
+     }
+     if(body.status==='failed'){
+       status.textContent='Order failed: '+(body.error||'unknown error');
+       return;
+     }
+     status.textContent='Order '+orderId+' — '+body.status+'…';
+   }catch{}
+ }
+}
 function copyOrder(){
- const name=document.getElementById('name').value.trim()||'(not provided)';
- const type=document.getElementById('type').value.trim()||'(not provided)';
- const brief=document.getElementById('brief').value.trim()||'(not provided)';
- const platform=document.getElementById('platform').value;
- const text="APEX RAPID VIDEO ORDER\n\nName/brand: "+name+"\nType: "+type+"\nPlatform: "+platform+"\nBrief:\n"+brief+"\n\nLaunch price: $25";
+ const data=orderFields();
+ const name=data.name||'(not provided)';
+ const type=data.type||'(not provided)';
+ const brief=data.brief||'(not provided)';
+ const text="APEX RAPID VIDEO ORDER\n\nName/brand: "+name+"\nType: "+type+"\nPlatform: "+data.platform+"\nBrief:\n"+brief+"\n\nLaunch price: $25";
  navigator.clipboard.writeText(text).then(()=>document.getElementById('copyStatus').textContent='Order brief copied.').catch(()=>{
    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
    document.getElementById('copyStatus').textContent='Order brief copied.';
