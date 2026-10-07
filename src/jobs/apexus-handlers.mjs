@@ -56,7 +56,7 @@ async function recordAsset(episode, stage, file, metadata={}){
 }
 
 async function advance(episode, stage, file, metadata={}){
-  const state=NEXT_STATE[stage];
+  const state=stage==="catalog" ? "MASTER" : NEXT_STATE[stage];
   const statusColumn = {
     script:"script_status", storyboard:"storyboard_status", voice:"voice_status",
     audio:"audio_status", animation:"animation_status", edit:"edit_status",
