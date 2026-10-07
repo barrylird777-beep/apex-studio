@@ -37,7 +37,7 @@ try {
   await client.query(
     `INSERT INTO durable_jobs
       (id,type,payload,status,run_at,max_attempts,dedupe_key,priority,created_at,updated_at)
-     SELECT gen_random_uuid(),'apexus.episode.story',
+     SELECT md5(e.id::text || ':story')::uuid,'apexus.episode.story',
             jsonb_build_object('episodeId',e.id,'episodeCode',e.episode_code,'stage','story'),
             'queued',NOW(),8,'apexus:'||e.episode_code||':story',1000,NOW(),NOW()
      FROM apexus_episodes e
