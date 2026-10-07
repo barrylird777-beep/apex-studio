@@ -5,7 +5,13 @@
  * Domain ownership remains separate; capabilities are universal.
  */
 export const APEX_SURFACES = Object.freeze({
-  KORNKNOB: {\n    id: "KORNKNOB",\n    aliasOf: "KORNKOB",\n    role: "ears",\n    domain: "music, sound, audio discovery, analysis and intelligence"\n  },\n  KORNKOB: {
+  KORNKNOB: {
+    id: "KORNKNOB",
+    aliasOf: "KORNKOB",
+    role: "ears",
+    domain: "music, sound, audio discovery, analysis and intelligence"
+  },
+  KORNKOB: {
     id: "KORNKOB",
     role: "ears",
     domain: "music, sound, audio discovery, analysis and intelligence"
@@ -30,7 +36,12 @@ export const APEX_SURFACES = Object.freeze({
     role: "money",
     domain: "rapid paid video creation and fulfillment"
   },
-  APEX_ENGINE: {\n    id: "ApexEngine",\n    role: "money",\n    domain: "reusable revenue systems, automation, products and business infrastructure"\n  },\n  APEX_AD_BLOCKER: {
+  APEX_ENGINE: {
+    id: "ApexEngine",
+    role: "money",
+    domain: "reusable revenue systems, automation, products and business infrastructure"
+  },
+  APEX_AD_BLOCKER: {
     id: "ApexAdBlocker",
     role: "shield",
     domain: "network protection and ad blocking"
