@@ -1,4 +1,5 @@
-import crypto from "node:crypto";\nimport { createMusicRadarHandoff } from "../core/music/music-radar-contract.mjs";
+import crypto from "node:crypto";
+import { createMusicRadarHandoff } from "../core/music/music-radar-contract.mjs";
 
 export function createMusicRadarBridge({ enqueueWorkerTask, getGardenPackage } = {}) {
   return {
