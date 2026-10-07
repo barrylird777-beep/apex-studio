@@ -197,6 +197,15 @@ export async function completeExternalEffect(idempotencyKey, result = null) {
   return r.rowCount === 1;
 }
 
+export async function getWorkerTask(id) {
+  if (!durableWorkerEnabled()) return null;
+  const r = await getPool().query(
+    "SELECT id, worker_id, role, task, payload, status, attempts, max_attempts, result, last_error, created_at, updated_at FROM apex_worker_tasks WHERE id=$1 LIMIT 1",
+    [String(id)]
+  );
+  return r.rows[0] || null;
+}
+
 export async function queueStats() {
   if (!durableWorkerEnabled()) return { durable: false };
   const r = await getPool().query(`SELECT COUNT(*) FILTER (WHERE status='queued')::int AS queued,
