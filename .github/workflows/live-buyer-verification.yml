@@ -19,3 +19,9 @@ jobs:
           test "$code" = "200"
           curl -fsSL "$url/rapid-video.html" -o /tmp/page
           grep -q "Apex Rapid Video" /tmp/page
+
+          order_code=$(curl -sS -o /tmp/order -w '%{http_code}' -X POST "$url/api/rapid/orders" -H 'content-type: application/json' --data '{"name":"Live Verification","type":"Product video","brief":"Live buyer checkout verification only. Do not fulfill.","platform":"TikTok","email":"live-verifier@example.com"}')
+          echo "order=$order_code"
+          cat /tmp/order
+          test "$order_code" = "201"
+          grep -q '"checkoutUrl"' /tmp/order
