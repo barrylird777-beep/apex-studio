@@ -14,7 +14,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -33,6 +33,7 @@ import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } 
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
+import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -95,18 +96,30 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+const server = app.listen(PORT, HOST, () => {
+  console.log(`[apex] server listening on ${HOST}:${PORT}`);
+});
+server.on('error', (error) => {
+  runtimeFault = {
+    type: 'listenError',
+    message: String(error?.message || error),
+    at: new Date().toISOString()
+  };
+  console.error('[apex][listen-error]', error);
+});
+
 
 
 app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
   try {
     const event = verifyRapidStripeSignature(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
-    if (event.type !== 'checkout.session.completed') return res.json({ received: true, ignored: true });
+    if (!['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)) return res.json({ received: true, ignored: true });
 
     const session = event.data?.object || {};
     const metadata = decodeRapidCheckoutMetadata(session.metadata || {});
     const amount = Number(session.amount_total);
     const paid = session.payment_status === 'paid';
-    if (!metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
+    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
     if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
@@ -125,6 +138,7 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
         type: metadata.type,
         brief: metadata.brief,
         platform: metadata.platform,
+        email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
         price: 25,
         paid: true,
         stripeSessionId: String(session.id || ''),
@@ -527,8 +541,12 @@ app.post('/api/rapid/orders', async (req, res) => {
     const type = String(req.body?.type || '').trim().slice(0, 160);
     const brief = String(req.body?.brief || '').trim().slice(0, 4000);
     const platform = String(req.body?.platform || 'Other').trim().slice(0, 80);
-    if (!name || !type || !brief) {
-      return res.status(400).json({ success: false, error: 'name, type and brief are required' });
+    const email = String(req.body?.email || '').trim().slice(0, 320).toLowerCase();
+    if (!name || !type || !brief || !email) {
+      return res.status(400).json({ success: false, error: 'name, type and email are required' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, error: 'Enter a valid email address' });
     }
     if (!process.env.STRIPE_SECRET_KEY) {
       return res.status(503).json({ success: false, error: 'Rapid Video checkout is not configured' });
@@ -536,7 +554,7 @@ app.post('/api/rapid/orders', async (req, res) => {
     const orderId = crypto.randomUUID();
     const origin = `${req.headers['x-forwarded-proto'] || req.protocol || 'https'}://${req.get('host')}`;
     const checkout = await createRapidCheckout({
-      orderId, name, type, brief, platform,
+      orderId, name, type, brief, platform, email,
       successUrl: origin + '/rapid-video.html?paid=1&orderId=' + encodeURIComponent(orderId),
       cancelUrl: origin + '/rapid-video.html?canceled=1#order'
     });
@@ -1879,16 +1897,53 @@ async function routeWithSwarm(payload, retries = 2) {
 
 void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
 
-const server = app.listen(PORT, HOST, () => {
-  console.log(`[apex] server listening on ${HOST}:${PORT}`);
-});
-server.on('error', (error) => {
-  runtimeFault = {
-    type: 'listenError',
-    message: String(error?.message || error),
-    at: new Date().toISOString()
+
+async function runInlineRapidTask(task) {
+  const leaseMs = Math.max(15000, Number(process.env.APEX_RAPID_INLINE_LEASE_MS || 45000));
+  const heartbeat = setInterval(() => {
+    void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
+      console.error('[rapid-inline-worker] heartbeat failed:', error?.message || error);
+    });
+  }, Math.max(5000, Math.floor(leaseMs / 3)));
+  heartbeat.unref?.();
+  try {
+    const result = task.task === 'rapid-video-preview'
+      ? await executeRapidVideoPreview(task.payload || {})
+      : await executeRapidVideoOrder(task.payload || {});
+    const completed = await completeWorkerTask(task.id, result, task.lease_token);
+    if (!completed) console.warn('[rapid-inline-worker] completion fenced out', task.id);
+  } catch (error) {
+    await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
+      console.error('[rapid-inline-worker] failure update failed:', failure?.message || failure);
+    });
+    console.error('[rapid-inline-worker] task failed:', task.id, error?.message || error);
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
+if (durableWorkerEnabled()) {
+  const rapidInlineLoop = async () => {
+    const roles = ['rapid-preview', 'rapid-video'];
+    while (true) {
+      try {
+        let claimedAny = false;
+        for (const role of roles) {
+          const tasks = await claimNextWorkerTasks(1, 45000, role);
+          if (!tasks.length) continue;
+          claimedAny = true;
+          await runInlineRapidTask(tasks[0]);
+        }
+        if (!claimedAny) await new Promise(resolve => setTimeout(resolve, 1500));
+      } catch (error) {
+        console.error('[rapid-inline-worker] poll failed:', error?.message || error);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
   };
-  console.error('[apex][listen-error]', error);
-});
+  void rapidInlineLoop();
+}
+
+
 
 // Railway autodeploy trigger: keep production deployment tied to main.
