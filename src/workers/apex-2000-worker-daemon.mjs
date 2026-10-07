@@ -23,10 +23,26 @@ const handlerFor=(type)=>{
   return h;
 };
 const workersByTask=new Map();
+const workersByRole=new Map();
 for(const worker of APEX_WORKERS){
-  const list=workersByTask.get(worker.task)??[];
-  list.push(worker);
-  workersByTask.set(worker.task,list);
+  const taskList=workersByTask.get(worker.task)??[];
+  taskList.push(worker);
+  workersByTask.set(worker.task,taskList);
+  const roleList=workersByRole.get(worker.role)??[];
+  roleList.push(worker);
+  workersByRole.set(worker.role,roleList);
+}
+
+function workersForJob(job){
+  const requested=String(job?.payload?.workerTask||job?.workerTask||"");
+  if(requested && workersByTask.has(requested)) return workersByTask.get(requested);
+  const exact=workersByTask.get(String(job?.type||""));
+  if(exact) return exact;
+  const role=String(job?.payload?.workerRole||"").toLowerCase();
+  if(role && workersByRole.has(role)) return workersByRole.get(role);
+  const prefix=String(job?.type||"").split(/[._-]/)[0].toLowerCase();
+  if(workersByRole.has(prefix)) return workersByRole.get(prefix);
+  return APEX_WORKERS;
 }
 const active=new Set();
 let stopping=false;
@@ -92,7 +108,7 @@ async function fail(job,error){
 }
 
 async function run(job){
-  const workers=workersByTask.get(job.type)||[];
+  const workers=workersForJob(job);
   const worker=workers[Number(job.attempts)%Math.max(1,workers.length)];
   const hb=setInterval(()=>void heartbeat(job).catch(()=>{}),Math.max(5000,Math.floor(leaseMs/3)));
   hb.unref?.();
