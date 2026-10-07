@@ -151,7 +151,7 @@ export async function enqueueJob(job) {
 }
 
 export async function claimJobs({ workerId, limit = Infinity, leaseMs = 60000 } = {}) {
-  return withFileLock('claims', async () => {
+  return withFileLock('append', async () => {
     const { state } = await replay();
     const now = Date.now();
     const candidates = [];
@@ -170,7 +170,7 @@ export async function claimJobs({ workerId, limit = Infinity, leaseMs = 60000 } 
     for (const job of claimed) {
       const fence = Number(job.fence || 0) + 1;
       const leaseToken = randomUUID();
-      const event = await appendEvent('job.claim', {
+      const event = await appendEventUnlocked('job.claim', {
         ...job,
         status: 'running',
         workerId,
@@ -215,7 +215,7 @@ export async function failJob(job, error, retryAt) {
 }
 
 export async function recoverExpiredJobs() {
-  return withFileLock('claims', async () => {
+  return withFileLock('append', async () => {
     const { state } = await replay();
     const recovered = [];
     const now = Date.now();
@@ -233,7 +233,7 @@ export async function recoverExpiredJobs() {
         runAt: new Date().toISOString(),
         lastError: 'worker lease expired; recovered locally'
       };
-      await appendEvent('job.recovered', recoveredJob, { id, stream: 'jobs' });
+      await appendEventUnlocked('job.recovered', recoveredJob, { id, stream: 'jobs' });
       recovered.push(recoveredJob);
     }
     return recovered;
