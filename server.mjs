@@ -35,6 +35,8 @@ import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerR
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT || 8080);
+const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
 let runtimeFault = null;
@@ -92,6 +94,8 @@ app.get('/api/health', (_req, res) => {
     runtimeFault
   });
 });
+
+
 
 app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
   try {
@@ -337,9 +341,6 @@ const permanentWorkerHeartbeat = setInterval(() => {
 }, apexOverseer.intervalMs);
 permanentWorkerHeartbeat.unref?.();
 
-
-const PORT = Number(process.env.PORT || 8080);
-const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
