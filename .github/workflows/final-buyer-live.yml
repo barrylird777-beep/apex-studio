@@ -24,3 +24,4 @@ jobs:
           cat /tmp/order
           test "$code" = "201"
           grep -q '"checkoutUrl"' /tmp/order
+          echo "BUYER_CHECKOUT_VERIFIED=1"
