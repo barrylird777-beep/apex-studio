@@ -9,10 +9,14 @@ const CELLULAR_HINT = process.env.APEX_CELLULAR_INTERFACE || 'wwan';
 const APPLY_ROUTES = process.env.APEX_NETWORK_APPLY_ROUTES === 'true';
 
 async function interfaces() {
-  const { stdout } = await exec('ip', ['-o', 'link', 'show']);
-  return stdout.trim().split('\n').filter(Boolean)
-    .map(line => line.split(': ')[1]?.split('@')[0])
-    .filter(x => x && x !== 'lo');
+  try {
+    const { stdout } = await exec('ip', ['-o', 'link', 'show']);
+    return stdout.trim().split('\n').filter(Boolean)
+      .map(line => line.split(': ')[1]?.split('@')[0])
+      .filter(x => x && x !== 'lo');
+  } catch {
+    return [];
+  }
 }
 
 function classify(dev) {
@@ -26,6 +30,17 @@ function classify(dev) {
 
 async function probe(dev) {
   const started = performance.now();
+  if (dev === 'runtime') {
+    try {
+      const response = await fetch(process.env.APEX_PATH_PROBE_URL || 'https://www.starlink.com/', {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(Number(process.env.APEX_PATH_PROBE_TIMEOUT || 3000))
+      });
+      return { healthy: response.ok || response.status < 500, rttMs: performance.now() - started, httpCode: response.status };
+    } catch {
+      return { healthy: false, rttMs: Infinity, httpCode: 0 };
+    }
+  }
   try {
     const { stdout } = await exec('curl', [
       '-4', '-L', '--silent', '--show-error', '--fail',
@@ -65,6 +80,10 @@ export async function selectNetworkPath() {
     return { device, network, ...result, score: score(device, result), source: 'server-interface' };
   }));
   const candidates = results;
+  if (!candidates.some(candidate => candidate.healthy)) {
+    const fallback = await probe('runtime');
+    if (fallback.healthy) candidates.push({ device: 'runtime', network: 'runtime', ...fallback, score: score('runtime', fallback), source: 'runtime-connectivity-fallback' });
+  }
   candidates.sort((a, b) => b.score - a.score);
   const selected = candidates[0] || null;
   const failover = candidates.slice(1, 4).map(({ device, network, score: pathScore, healthy }) => ({ device, network, score: pathScore, healthy }));
@@ -74,7 +93,7 @@ export async function selectNetworkPath() {
     selected,
     failover,
     candidates,
-    route: selected ? await applyPriority(selected.device) : { applied: false },
+    route: selected && selected.device !== 'runtime' ? await applyPriority(selected.device) : { applied: false, reason: selected?.device === 'runtime' ? 'runtime connectivity fallback; route mutation not applicable' : 'no selected path' },
     policy: {
       sixGHint: SIX_G_HINT,
       starlinkHint: STARLINK_HINT,
