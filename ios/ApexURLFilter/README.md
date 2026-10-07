@@ -1,30 +1,35 @@
-# Apex URL Filter
+# Apex AdBlock — iOS 26 URL Filter
 
-Apex's iOS 26 full-URL ad/tracker filtering layer.
+This is the system-level Apex filtering target for the locked requirement:
 
-Policy:
-- Allow by default.
-- Block dedicated ad/tracker resource URLs.
-- Never block main-frame website navigation.
-- Preserve first-party content.
-- DNS remains the fallback layer.
-- No HTTPS man-in-the-middle.
-- No browsing-history collection.
+- iPhone 14
+- iOS 26.4
+- native-app traffic where Apple URL Filter can observe it
+- advertising-resource filtering rather than broad DNS blocking
+- Google/YouTube content allowed by default
+- fail-open when the filter cannot make a decision
 
-## Apple requirements
+## Current architecture
 
-This target uses Apple's Network Extension URL Filter API. It must be packaged as a signed iOS app with the URL-filter-provider entitlement and registered through Apple's Identity & Trust / CloudKit onboarding.
+1. NEURLFilterManager enables Apple's iOS 26 URL Filter.
+2. ApexURLFilterControlProvider supplies the on-device Bloom prefilter.
+3. Apple's PIR service performs the privacy-preserving final URL lookup for Bloom-positive requests.
+4. The filter dataset contains advertising-resource URLs, not broad Google/YouTube domains.
 
-The URL Filter also requires Apple's privacy-preserving PIR service configuration. The Apex Railway server is not a substitute for that cryptographic service.
+Apple documents that URL Filter evaluates full URLs system-wide for HTTP/HTTPS requests made through WebKit and URLSession. Apps using other networking stacks must voluntarily participate through NEURLFilter.
 
-Apple documents that URL Filters operate system-wide for URL requests made through WebKit and URLSession and can filter specific resources by full URL rather than blocking an entire hostname.
+## iOS 26.4 deployment constraint
 
-## Source layout
+Apple's current PIR onboarding documentation says that, beginning with iOS/macOS 26.4, service and token-issuer URLs must use host-only HTTPS URLs rather than custom paths for distribution deployments. Development-installed builds may use paths during testing.
 
-- `ApexURLFilterApp.swift` — minimal configuration app.
-- `URLFilterController.swift` — enables/disables the system URL filter.
-- `ApexURLFilterControlProvider.swift` — supplies the local prefilter.
-- `ApexURLFilter.entitlements` — Network Extension URL-filter-provider entitlement.
-- `ApexURLFilter-Info.plist` — extension configuration metadata.
+## Signing
 
-Before distribution, replace the placeholder bundle identifiers and PIR configuration with the values issued during Apple's onboarding.
+A free Apple Account can create a Personal Team for device development; Apple states that personal-team provisioning expires after 7 days.
+
+The Network Extension url-filter-provider entitlement is required.
+
+## Current blocker to physical activation
+
+The repository now has the corrected iOS 26 target foundation, but physical activation still requires the Apple-side signing/installation path and the actual PIR service. The previous DNS implementation is intentionally not being used because it violates the Google/YouTube compatibility requirement.
+
+The next build target is the Apex PIR service plus an automated iOS build artifact.
