@@ -42,13 +42,13 @@ export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = n
       AND attempts < max_attempts
       AND (next_run_at IS NULL OR next_run_at <= NOW())
       AND ($3::text IS NULL OR role=$3)
-    ORDER BY created_at
+    ORDER BY priority DESC, created_at
     FOR UPDATE SKIP LOCKED
     LIMIT $1
   ) UPDATE apex_worker_tasks t
     SET status='running', attempts=attempts+1,
         lease_owner=$2, lease_token=gen_random_uuid()::text, last_worker_pid=$5, lease_expires_at=NOW()+($4::double precision * INTERVAL '1 millisecond'),
-        updated_at=NOW()
+        started_at=COALESCE(started_at, NOW()), updated_at=NOW()
     FROM candidate
     WHERE t.id=candidate.id
     RETURNING t.*`,
@@ -86,7 +86,7 @@ export async function heartbeatWorkerTask(id, leaseMs = 45000, leaseToken) {
 export async function completeWorkerTask(id, result = null, leaseToken) {
   if (!durableWorkerEnabled()) return false;
   const r = await getPool().query(`UPDATE apex_worker_tasks
-    SET status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, next_run_at=NULL, result=$3::jsonb, updated_at=NOW()
+    SET status='completed', lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL, next_run_at=NULL, result=$3::jsonb, completed_at=NOW(), updated_at=NOW()
     WHERE id=$1 AND lease_owner=$2 AND lease_token=$4 AND status='running'`,
     [id, process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local", JSON.stringify(result), leaseToken]);
   return r.rowCount === 1;
@@ -219,4 +219,52 @@ export async function queueStats() {
 export async function closeWorkerStore() {
   if (pool) await pool.end();
   pool = null;
+}
+
+
+export async function recordWorkerJobEvent(jobId, eventType, payload = {}, workerId = null) {
+  if (!durableWorkerEnabled()) return false;
+  const r = await getPool().query(
+    "INSERT INTO apex_job_events (job_id, event_type, worker_id, payload) VALUES ($1,$2,$3,$4::jsonb) RETURNING id",
+    [jobId, String(eventType || "unknown").slice(0, 120), workerId ? String(workerId).slice(0, 255) : null, JSON.stringify(payload)]
+  );
+  return Boolean(r.rows[0]?.id);
+}
+
+export async function registerRenderNode({ id, capabilities = {}, maxConcurrency = 1, state = "ready" }) {
+  if (!durableWorkerEnabled()) return false;
+  const nodeId = String(id || process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local").slice(0, 255);
+  await getPool().query(
+    `INSERT INTO render_nodes (id, capabilities, max_concurrency, heartbeat_at, state, updated_at)
+     VALUES ($1,$2::jsonb,$3,NOW(),$4,NOW())
+     ON CONFLICT (id) DO UPDATE SET capabilities=$2::jsonb, max_concurrency=$3, heartbeat_at=NOW(), state=$4, updated_at=NOW()`,
+    [nodeId, JSON.stringify(capabilities), Math.max(1, Number(maxConcurrency) || 1), String(state || "ready")]
+  );
+  return true;
+}
+
+export async function heartbeatRenderNode({ id, inFlight = 0, state = "ready" }) {
+  if (!durableWorkerEnabled()) return false;
+  const nodeId = String(id || process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local").slice(0, 255);
+  const r = await getPool().query(
+    "UPDATE render_nodes SET in_flight=$2, heartbeat_at=NOW(), state=$3, updated_at=NOW() WHERE id=$1",
+    [nodeId, Math.max(0, Number(inFlight) || 0), String(state || "ready")]
+  );
+  return r.rowCount === 1;
+}
+
+export async function renderCapacitySnapshot() {
+  if (!durableWorkerEnabled()) return { durable: false, nodes: [], available: 0 };
+  const r = await getPool().query(`
+    SELECT id, max_concurrency, in_flight, state, heartbeat_at,
+           GREATEST(0, max_concurrency - in_flight) AS available
+    FROM render_nodes
+    WHERE state='ready'
+    ORDER BY available DESC, id
+  `);
+  return {
+    durable: true,
+    nodes: r.rows,
+    available: r.rows.reduce((sum, row) => sum + Number(row.available || 0), 0)
+  };
 }
