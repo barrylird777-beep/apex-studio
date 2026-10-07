@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Apex AdBlock",
+  "version": "1.0.0",
+  "description": "Apex first-party-safe ad and tracker blocker for Safari.",
+  "permissions": ["declarativeNetRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "declarative_net_request": {
+    "rule_resources": [{ "id": "apex_ads", "enabled": true, "path": "rules.json" }]
+  }
+}
