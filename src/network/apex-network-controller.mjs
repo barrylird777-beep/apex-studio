@@ -55,3 +55,20 @@ export async function networkStatus(){
     maxFetchBytes:20*1024*1024
   };
 }
+
+
+export async function networkProbe(targets=["https://example.com"]) {
+  const list=Array.isArray(targets)?targets.slice(0,12):[targets];
+  const results=[];
+  for(const target of list){
+    const started=Date.now();
+    try{
+      const response=await gatewayFetch(String(target),{method:"HEAD"});
+      results.push({target:String(target),ok:response.ok,status:response.status,latencyMs:Date.now()-started});
+      try{await response.body?.cancel();}catch{}
+    }catch(error){
+      results.push({target:String(target),ok:false,latencyMs:Date.now()-started,error:String(error?.message||error)});
+    }
+  }
+  return {checkedAt:new Date().toISOString(),results};
+}
