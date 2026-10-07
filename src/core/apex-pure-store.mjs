@@ -9,7 +9,7 @@ const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const safe=v=>String(v).replace(/[^a-zA-Z0-9._:-]/g,"_");
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=root;this.wal=wal;this.state=new Map();this.jobsState=new Map();this.ready=false;}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=root;this.wal=wal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.queue=Promise.resolve();this.sequence=0;}
   async init(){
     if(this.ready)return this;
     await mkdir(this.root,{recursive:true});await this.wal.init();
@@ -30,25 +30,25 @@ export class ApexPureStore {
     const tmp=file+"."+process.pid+"."+randomUUID()+".tmp";
     await writeFile(tmp,JSON.stringify(value,null,2)+"\n","utf8");await rename(tmp,file);
   }
-  async put(collection,id,record){
-    await this.init();const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
+  async serialize(fn){const run=this.queue.then(fn,fn);this.queue=run.catch(()=>{});return run;}\n  async put(collection,id,record){
+    return this.serialize(async()=>{ await this.init();const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     const r=await this.wal.append("state.put",{collection,id:String(id),record:value});this.apply(r);await this.atomic(this.file(collection,id),value);return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
   async get(collection,id){await this.init();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
   async list(collection){await this.init();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
-  async delete(collection,id){await this.init();const r=await this.wal.append("state.delete",{collection,id:String(id)});this.apply(r);return true;}
+  async delete(collection,id){return this.serialize(async()=>{await this.init();const r=await this.wal.append("state.delete",{collection,id:String(id)});this.apply(r);return true;}
 
-  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null}){
+  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}){
     await this.init();if(!type)throw new Error("job type required");
     if(dedupeKey){const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&["queued","running"].includes(j.status));if(existing)return {durable:true,id:existing.id,duplicate:true};}
-    const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
+    const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,priority:Number(priority)||0,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
     const r=await this.wal.append("job.enqueue",{id:job.id,job});this.apply(r);return {durable:true,id:job.id};
   }
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
-    await this.init();const now=Date.now(),out=[];const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!role||j.payload?._apex_worker?.role===role)).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
+    return this.serialize(async()=>{await this.init();const now=Date.now(),out=[];const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!role||j.payload?._apex_worker?.role===role)).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
     for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){const token=randomUUID(),fence=Number(j.leaseFence||0)+1;const patch={status:"running",attempts:Number(j.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+leaseMs,updatedAt:new Date().toISOString()};const r=await this.wal.append("job.transition",{id:j.id,patch});this.apply(r);out.push({...j,...patch});}
     return out;
   }
