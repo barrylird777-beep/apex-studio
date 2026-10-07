@@ -79,12 +79,12 @@ export async function getEngineSnapshot() {
       id: randomUUID(),
       opportunityId: item.id,
       action: "build-brief",
-      handoff: "ApexRapid or ApexStudio",
+      handoff: "Apexus or ApexStudio",
       status: "proposed"
     })),
     separation: {
       EngineApex: "decides what is worth pursuing and why",
-      ApexRapid: "fulfills fast customer-facing video orders",
+      Apexus: "operates the 24/7 original animated entertainment network",
       ApexStudio: "executes full production",
       GardenOfApex: "supplies world and research knowledge where applicable",
       KornKnob: "supplies audio intelligence and capabilities"
@@ -104,7 +104,7 @@ export function buildEngineBrief(input = {}) {
     audience: text(input.audience) || "existing Apex audience",
     monetization: text(input.monetization) || "attention → audience growth → downstream revenue",
     evidenceRequired: true,
-    handoff: text(input.handoff) || "ApexRapid",
+    handoff: text(input.handoff) || "Apexus",
     createdAt: new Date().toISOString()
   };
 }
