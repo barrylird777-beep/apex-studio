@@ -21,7 +21,7 @@ export function buildRapidCheckoutMetadata({orderId,name,type,brief,platform}){
     name:String(name||'').slice(0,500),
     type:String(type||'').slice(0,500),
     platform:String(platform||'Other').slice(0,500),
-    briefParts:String(brief||'').match(/.{1,450}/gs)||['']
+    briefParts:String(brief||'').match(/.{1,360}/gs)||['']
   };
   const metadata={orderId:out.orderId,name:out.name,type:out.type,platform:out.platform};
   out.briefParts.forEach((part,i)=>{metadata['brief_'+String(i+1).padStart(2,'0')]=encode(part).slice(0,500);});
