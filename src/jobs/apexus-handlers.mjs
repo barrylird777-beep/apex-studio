@@ -59,7 +59,7 @@ async function advance(episode, stage, file, metadata={}){
   const state=NEXT_STATE[stage];
   const statusColumn = {
     script:"script_status", storyboard:"storyboard_status", voice:"voice_status",
-    audio:"audio_status", animation:"animation_status", edit:"edit_status",
+audio:"audio_status", "visual-development":"animation_status", animation:"animation_status", edit:"edit_status",
     qc:"qc_status", master:"master_status", catalog:"programming_status"
   }[stage];
   if(stage==="story"){
