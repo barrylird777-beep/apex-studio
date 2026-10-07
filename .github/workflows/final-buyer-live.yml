@@ -1,0 +1,26 @@
+name: Final Buyer Live Verification
+on:
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify live buyer path
+        run: |
+          set -euo pipefail
+          url=https://apex-studio-production.up.railway.app
+          for i in $(seq 1 24); do
+            code=$(curl -sS -o /tmp/health -w '%{http_code}' --max-time 10 "$url/health" || true)
+            echo "health=$code"
+            if [ "$code" = "200" ]; then break; fi
+            sleep 10
+          done
+          test "$code" = "200"
+          curl -fsSL --max-time 20 "$url/rapid-video.html" -o /tmp/page
+          grep -qi "Apex Rapid Video" /tmp/page
+          code=$(curl -sS -o /tmp/order -w '%{http_code}' --max-time 30 -X POST "$url/api/rapid/orders" -H 'content-type: application/json' --data '{"name":"Live Verification","type":"Product video","brief":"Live buyer checkout verification only. Do not fulfill.","platform":"TikTok","email":"live-verifier@example.com"}' || true)
+          echo "order=$code"
+          cat /tmp/order
+          test "$code" = "201"
+          grep -q '"checkoutUrl"' /tmp/order
