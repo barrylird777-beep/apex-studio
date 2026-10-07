@@ -48,6 +48,25 @@ const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
+function timingSafeSecret(expected, supplied) {
+  if (!expected || !supplied) return false;
+  const a = Buffer.from(String(expected));
+  const b = Buffer.from(String(supplied));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function requireControlPlaneAuth(req, res, next) {
+  const expected = process.env.APEX_SHORTCUT_TOKEN || process.env.APEX_CONTROL_TOKEN;
+  if (!expected) return res.status(503).json({ success: false, error: 'Control plane authorization is not configured' });
+  const supplied = req.get('x-apex-shortcut-token') || req.get('x-apex-control-token') ||
+    req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (!timingSafeSecret(expected, supplied)) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  return next();
+}
+
+
 const relayDestination = process.env.APEX_RELAY_DEST_ENDPOINT || 'rtmp://127.0.0.1:1935/live/apex-studio';
 const relayFallbackFile = process.env.APEX_RELAY_FALLBACK_FILE || path.join(STORAGE_DIR, 'broadcast', 'standby.flv');
 const relayAutoStart = String(process.env.APEX_RELAY_AUTOSTART || 'false').toLowerCase() === 'true';
@@ -76,7 +95,7 @@ app.get('/api/workforce/status', (_req, res) => {
   });
 });
 
-app.post('/api/workforce/burst', async (req, res) => {
+app.post('/api/workforce/burst', requireControlPlaneAuth, async (req, res) => {
   try {
     const requested = Number(req.body?.count ?? permanentWorkerFleet.workers.length);
     const limit = Math.max(1, Math.min(permanentWorkerFleet.workers.length, Number.isFinite(requested) ? Math.floor(requested) : permanentWorkerFleet.workers.length));
@@ -113,11 +132,11 @@ const infiniteBroadcast = createInfiniteBroadcast({
 });
 
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
-app.post('/api/broadcast/start', async (_req, res) => {
+app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
   catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
 });
-app.post('/api/broadcast/stop', async (_req, res) => {
+app.post('/api/broadcast/stop', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.stop() }); }
   catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
 });
