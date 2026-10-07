@@ -33,7 +33,7 @@ function looksDedicated(host) {
 
 function isFirstParty(url, firstPartyHost) {
   if (!firstPartyHost) return false;
-  return isUnder(firstPartyHost, url.hostname);
+  return isUnder(url.hostname, firstPartyHost);
 }
 
 export function classifyNetworkRequest(rawUrl, { firstPartyHost = "", resourceType = "other" } = {}) {
