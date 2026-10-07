@@ -273,7 +273,7 @@ const aiCrew = createAiCrewEngine({
 
 // The durable worker loop owns continuous AI work. Keep this in-memory burst
 // opt-in only so an unavailable provider cannot create a permanent failure storm.
-const aiCrewAutoRun = String(process.env.APEX_AI_CREW_AUTORUN ?? 'false').toLowerCase() === 'true';
+const aiCrewAutoRun = String(process.env.APEX_AI_CREW_AUTORUN ?? (safeAi.enabled ? 'true' : 'false')).toLowerCase() === 'true';
 if (aiCrewAutoRun && safeAi.enabled) {
   const crewContext = {
     mission: 'Continuously improve Apex Studio as a Bible intelligence and video-production system.',
@@ -332,12 +332,17 @@ const permanentWorkerHeartbeat = setInterval(() => {
     permanentWorkerInFlight.add(worker.id);
     const durableTaskId = crypto.randomUUID();
 
+    const taskPayload = { type: 'permanent-health', workerId: worker.id, role: worker.role, task };
     void enqueueWorkerTask({
       id: durableTaskId,
       workerId: worker.id,
       role: worker.role,
       task,
-      payload: { type: 'permanent-health', workerId: worker.id, role: worker.role, task }
+      payload: taskPayload
+    }).catch(async () => {
+      // Keep the swarm alive when durable persistence is unavailable.
+      // The durable queue resumes distribution automatically when it returns.
+      await permanentWorkerSupervisor.dispatch(taskPayload);
     }).then(() => {
       worker.taskStartedAt = null;
       worker.taskToken = null;
