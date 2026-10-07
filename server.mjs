@@ -33,9 +33,55 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
+import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
+  try {
+    const event = verifyRapidStripeSignature(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+    if (event.type !== 'checkout.session.completed') return res.json({ received: true, ignored: true });
+
+    const session = event.data?.object || {};
+    const metadata = decodeRapidCheckoutMetadata(session.metadata || {});
+    const amount = Number(session.amount_total);
+    const paid = session.payment_status === 'paid';
+    if (!metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
+      return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
+    }
+    if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
+
+    const existing = await getWorkerTask(metadata.orderId);
+    if (existing) return res.json({ received: true, duplicate: true, orderId: metadata.orderId });
+
+    await enqueueWorkerTask({
+      id: metadata.orderId,
+      workerId: 'rapid-video-intake',
+      role: 'rapid-video',
+      task: 'rapid-video-order',
+      payload: {
+        orderId: metadata.orderId,
+        name: metadata.name,
+        type: metadata.type,
+        brief: metadata.brief,
+        platform: metadata.platform,
+        price: 25,
+        paid: true,
+        stripeSessionId: String(session.id || ''),
+        paidAt: new Date().toISOString()
+      },
+      maxAttempts: 3,
+      dedupeKey: 'rapid-paid:' + metadata.orderId,
+      traceId: metadata.orderId
+    });
+    return res.json({ received: true, queued: true, orderId: metadata.orderId });
+  } catch (error) {
+    console.error('[rapid-stripe-webhook]', error);
+    return res.status(400).json({ received: false, error: error.message || 'Webhook verification failed' });
+  }
+});
+
 app.use(express.json({ limit: CAPACITY.jsonBody }));
 
 if (durableWorkerEnabled()) {
@@ -428,38 +474,27 @@ app.post('/api/rapid/orders', async (req, res) => {
     if (!name || !type || !brief) {
       return res.status(400).json({ success: false, error: 'name, type and brief are required' });
     }
-    if (!durableWorkerEnabled()) {
-      return res.status(503).json({ success: false, error: 'Order queue is temporarily unavailable' });
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(503).json({ success: false, error: 'Rapid Video checkout is not configured' });
     }
     const orderId = crypto.randomUUID();
-    const result = await enqueueWorkerTask({
-      id: orderId,
-      workerId: 'rapid-video-intake',
-      role: 'rapid-video',
-      task: 'rapid-video-order',
-      payload: {
-        orderId,
-        name,
-        type,
-        brief,
-        platform,
-        price: 25,
-        submittedAt: new Date().toISOString()
-      },
-      maxAttempts: 3,
-      dedupeKey: `rapid-video:${crypto.createHash('sha256').update(JSON.stringify({ name, type, brief, platform })).digest('hex')}`,
-      traceId: orderId
+    const origin = `${req.headers['x-forwarded-proto'] || req.protocol || 'https'}://${req.get('host')}`;
+    const checkout = await createRapidCheckout({
+      orderId, name, type, brief, platform,
+      successUrl: origin + '/rapid-video.html?paid=1&orderId=' + encodeURIComponent(orderId),
+      cancelUrl: origin + '/rapid-video.html?canceled=1#order'
     });
-    return res.status(202).json({
+    return res.status(201).json({
       success: true,
-      orderId: result.id,
-      status: 'queued',
+      orderId,
+      status: 'payment_required',
       price: 25,
-      statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}`
+      checkoutUrl: checkout.url,
+      statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
   } catch (error) {
     console.error('[rapid-order]', error);
-    return res.status(500).json({ success: false, error: 'Unable to queue order' });
+    return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
   }
 });
 
