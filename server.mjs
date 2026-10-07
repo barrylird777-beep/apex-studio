@@ -394,7 +394,7 @@ app.use('/api/bible-production', async (req, res, next) => {
 app.use(express.urlencoded({ extended: true, limit: CAPACITY.urlencodedBody }));
 app.get('/korn-knob', async (_req, res) => {
   try {
-    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    return res.sendFile(path.join(__dirname, 'public', 'korn-knob.html'));
   } catch (error) {
     return res.status(500).send('KORN-KNOB UI unavailable');
   }
