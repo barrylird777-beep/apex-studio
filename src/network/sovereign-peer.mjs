@@ -11,6 +11,8 @@ const PROTOCOL = '/apex/sovereign/1.0.0';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
+const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
+const discoveryEnabled = () => process.env.APEX_ENABLE_MDNS === 'true';
 
 async function readJson(stream) {
   let text = '';
@@ -31,7 +33,7 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
     connectionEncrypters: [noise()],
     streamMuxers: [yamux()],
     peerDiscovery: [
-      mdns({ interval: 5000 }),
+      ...(discoveryEnabled() ? [mdns({ interval: 5000 })] : []),
       ...(bootstrapPeers().length ? [bootstrap({ list: bootstrapPeers() })] : [])
     ],
     services: {
@@ -47,8 +49,11 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
     }
   });
 
-  node.handle(PROTOCOL, async ({ stream }) => {
+  node.handle(PROTOCOL, async ({ stream, connection }) => {
     try {
+      const remotePeerId = connection?.remotePeer?.toString?.() || '';
+      const allowlist = allowedPeerIds();
+      if (allowlist.size && !allowlist.has(remotePeerId)) throw new Error('peer is not allowlisted');
       const envelope = await readJson(stream);
       const accepted = onEnvelope ? await onEnvelope(envelope) : true;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
