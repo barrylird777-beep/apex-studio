@@ -22,6 +22,7 @@ export function providerHeaders(headers={}){
     if(TRACKING_HEADERS.includes(String(key).toLowerCase()) && String(key).toLowerCase()!=="authorization")continue;
     out[key]=value;
   }
+  out["user-agent"]="Apex-Universal/1.0";
   return out;
 }
 
