@@ -34,10 +34,22 @@ try {
   }
   await client.query("COMMIT");
   const result = await pool.query("SELECT COUNT(*)::int AS count FROM apexus_episodes");
+  await client.query(
+    `INSERT INTO durable_jobs
+      (id,type,payload,status,run_at,max_attempts,dedupe_key,priority,created_at,updated_at)
+     SELECT gen_random_uuid(),'apexus.episode.story',
+            jsonb_build_object('episodeId',e.id,'episodeCode',e.episode_code,'stage','story'),
+            'queued',NOW(),8,'apexus:'||e.episode_code||':story',1000,NOW(),NOW()
+     FROM apexus_episodes e
+     WHERE e.state='IDEA'
+     ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL AND status IN ('queued','running') DO NOTHING`
+  );
+  const queued = await pool.query(`SELECT COUNT(*)::int AS count FROM durable_jobs WHERE type='apexus.episode.story' AND status='queued'`);
   console.log(JSON.stringify({
     status: "ok",
     network: "Apexus",
     episodeCount: result.rows[0].count,
+    storyJobsQueued: queued.rows[0].count,
     first: "APX-0001",
     last: "APX-2785"
   }));
