@@ -3,162 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#070708">
-<title>Apex Rapid Video — Make the idea impossible to ignore</title>
-<meta name="description" content="Apex Rapid Video turns a rough idea, story, product, verse, song or script into a cinematic short-form proof, then a finished production.">
+<meta name="theme-color" content="#080809">
+<title>Apex Rapid Video</title>
+<meta name="description" content="Turn an idea into a finished short-form video.">
 <style>
-:root{
- --black:#070708;--black2:#0d0d0f;--ink:#121214;--white:#f7f6f1;--cream:#efede5;
- --muted:#96958e;--muted2:#67665f;--line:rgba(255,255,255,.12);
- --creamLine:rgba(12,12,13,.15);--red:#ff321c;--redDark:#d92311;--gold:#d6b27a;
- --green:#72e09a;--shadow:0 32px 100px rgba(0,0,0,.45);
-}
-*{box-sizing:border-box}
-html{background:var(--black);color:var(--white);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;scroll-behavior:smooth}
-body{margin:0;min-height:100vh;background:
- radial-gradient(900px 560px at 86% -8%,rgba(214,178,122,.16),transparent 62%),
- radial-gradient(760px 620px at 4% 24%,rgba(255,50,28,.075),transparent 65%),
- linear-gradient(180deg,#09090a,#050506 72%);overflow-x:hidden}
-button,input,textarea,select{font:inherit}
-button{cursor:pointer}
-a{color:inherit;text-decoration:none}
-.page{width:min(1220px,100%);margin:auto;padding:0 18px}
-.top{height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
-.wordmark{font-weight:1000;letter-spacing:.11em;font-size:25px}.wordmark small{font-size:10px;letter-spacing:.18em;color:#77766f;font-weight:800;margin-left:8px}
-.live{font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#b8b7b0}.live i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 12px rgba(114,224,154,.8);margin-right:7px}
-.hero{padding:30px 0 0}
-.hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(350px,.7fr);gap:24px;align-items:stretch}
-.hero-copy{padding:18px 0 6px}
-.eyebrow{display:inline-flex;gap:8px;align-items:center;text-transform:uppercase;letter-spacing:.15em;font-size:10px;font-weight:900;color:#c9c7bf;margin-bottom:18px}
-.eyebrow b{background:var(--red);color:#fff;border-radius:4px;padding:5px 7px}
-h1{font-size:clamp(60px,8.8vw,108px);line-height:.79;letter-spacing:-.085em;margin:0;max-width:820px}
-h1 span{color:#7c7b76}
-.hero-copy p{max-width:650px;color:#aaa9a2;font-size:17px;line-height:1.55;margin:24px 0 20px}
-.tags{display:flex;gap:7px;flex-wrap:wrap}.tag{border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:999px;padding:8px 11px;color:#d2d0c9;font-size:10px;font-weight:800;letter-spacing:.03em}
-.visual{position:relative;min-height:500px;border-radius:30px;overflow:hidden;border:1px solid var(--line);background:
- radial-gradient(280px 360px at 68% 34%,rgba(214,178,122,.28),transparent 70%),
- radial-gradient(260px 300px at 24% 66%,rgba(255,50,28,.18),transparent 72%),
- linear-gradient(145deg,#2a2927,#111113 48%,#080809);box-shadow:var(--shadow)}
-.visual:before{content:"";position:absolute;inset:-30%;background:linear-gradient(115deg,transparent 37%,rgba(255,255,255,.10) 46%,transparent 54%);transform:rotate(7deg)}
-.visual-frame{position:absolute;left:13%;right:13%;top:11%;bottom:10%;border:1px solid rgba(255,255,255,.18);border-radius:23px;background:
- linear-gradient(180deg,rgba(255,255,255,.05),transparent 28%),
- radial-gradient(150px 220px at 50% 42%,rgba(216,178,122,.32),transparent 65%),
- linear-gradient(160deg,#1b1b1d,#070708);overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.55)}
-.visual-frame:after{content:"";position:absolute;left:17%;right:17%;top:19%;height:48%;border-radius:50% 50% 42% 42%;background:
- radial-gradient(circle at 50% 30%,rgba(255,255,255,.22),transparent 17%),
- linear-gradient(165deg,rgba(214,178,122,.48),rgba(90,50,36,.14) 45%,rgba(0,0,0,.85) 80%);filter:blur(.2px);clip-path:polygon(48% 0,64% 9%,72% 28%,91% 50%,74% 54%,83% 100%,18% 100%,26% 56%,8% 49%,31% 26%,36% 9%)}
-.visual-meta{position:absolute;z-index:2;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:8px}
-.pill{border:1px solid rgba(255,255,255,.18);background:rgba(5,5,6,.72);backdrop-filter:blur(10px);border-radius:999px;padding:7px 9px;font-size:8px;letter-spacing:.13em;text-transform:uppercase}
-.pill.red{background:var(--red);border-color:var(--red);font-weight:950}
-.visual-copy{position:absolute;z-index:3;left:18px;right:18px;bottom:19px}
-.visual-kicker{font-size:8px;text-transform:uppercase;letter-spacing:.15em;color:#aaa79e}.visual-title{font-size:31px;line-height:.93;font-weight:950;letter-spacing:-.055em;margin-top:6px}
-.play{position:absolute;z-index:4;right:18px;bottom:18px;width:54px;height:54px;border-radius:50%;border:0;background:var(--white);color:#111;display:grid;place-items:center;font-size:17px;box-shadow:0 10px 35px rgba(0,0,0,.35)}
-.composer{position:relative;margin:-42px 0 0;background:var(--cream);color:#111;border-radius:31px;padding:21px;box-shadow:0 34px 100px rgba(0,0,0,.34);z-index:5}
-.composer-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.composer-title{font-size:20px;font-weight:950;letter-spacing:-.04em}.composer-note{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#6e6b64}
-textarea{width:100%;min-height:130px;border:1px solid var(--creamLine);border-radius:19px;background:#fbfaf6;color:#111;padding:16px;font-size:17px;line-height:1.42;outline:none;resize:vertical}
-textarea:focus{border-color:var(--red);box-shadow:0 0 0 4px rgba(255,50,28,.10)}
-.quick{display:flex;gap:7px;overflow:auto;padding:10px 0 3px;scrollbar-width:none}.quick::-webkit-scrollbar{display:none}
-.quick button{white-space:nowrap;border:1px solid var(--creamLine);background:#e5e2d9;color:#282722;border-radius:999px;padding:8px 11px;font-size:10px;font-weight:850}
-.modebar{display:flex;gap:7px;align-items:center;margin-top:8px;flex-wrap:wrap}.mode{border:1px solid var(--creamLine);border-radius:999px;padding:7px 10px;font-size:10px;color:#6c6962}.mode.active{background:#161616;color:#fff;border-color:#161616}
-.composer-bottom{display:grid;grid-template-columns:190px 1fr;gap:9px;margin-top:11px}.field label{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.13em;color:#706d65;font-weight:950;margin:0 0 5px}
-select,input{width:100%;height:50px;border:1px solid var(--creamLine);background:#fff;color:#111;border-radius:13px;padding:0 13px;outline:none}
-.primary{width:100%;height:50px;border:0;border-radius:13px;background:var(--red);color:#fff;font-weight:1000;letter-spacing:-.02em;box-shadow:0 12px 28px rgba(255,50,28,.23)}
-.primary:hover{background:#ef2c18}.primary:disabled{opacity:.55;cursor:wait}
-.composer-foot{display:flex;justify-content:space-between;gap:12px;margin-top:10px;color:#77746c;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
-#previewStatus{min-height:18px;margin-top:9px;color:#8e2b21;font-size:12px;font-weight:800}
-.preview-result{margin-top:13px;border-radius:20px;overflow:hidden;background:#0c0c0d;border:1px solid #252527}
-.preview-result video{display:block;width:100%;max-height:650px;background:#000}
-.preview-actions{display:flex;gap:8px;padding:10px}.preview-actions a,.preview-actions button{flex:1;border:1px solid #333;background:#18181a;color:#fff;border-radius:11px;padding:11px;text-align:center;font-size:11px;font-weight:900}
-.section{padding-top:48px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:15px;margin-bottom:13px}.section-head h2{font-size:35px;letter-spacing:-.065em;margin:0}.section-head p{color:#7e7d77;font-size:10px;margin:0}
-.proof-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:11px}
-.proof-card,.process-card{border:1px solid var(--line);border-radius:25px;background:linear-gradient(145deg,#151517,#0b0b0c);overflow:hidden}
-.proof-card{min-height:270px;padding:18px;position:relative}.proof-card:after{content:"";position:absolute;width:340px;height:340px;right:-120px;bottom:-160px;border-radius:50%;background:radial-gradient(circle,rgba(214,178,122,.18),transparent 68%)}
-.label{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:#8e8c85}.proof-card h3{font-size:33px;line-height:.95;letter-spacing:-.06em;margin:11px 0 8px;max-width:580px}.proof-card p{max-width:560px;color:#8f8e88;font-size:12px;line-height:1.5;margin:0}.proof-metrics{display:flex;gap:7px;margin-top:22px;flex-wrap:wrap}.metric{border:1px solid var(--line);border-radius:12px;padding:9px 11px}.metric b{display:block;font-size:15px}.metric span{display:block;font-size:8px;color:#77766f;text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
-.process-card{padding:18px}.process-card h3{margin:0 0 9px;font-size:20px}.pstep{display:flex;gap:11px;padding:12px 0;border-top:1px solid var(--line)}.pstep:first-of-type{border-top:0}.pnum{color:var(--gold);font-size:9px;font-weight:950;padding-top:2px}.pstep b{display:block;font-size:12px}.pstep span{display:block;color:#81807a;font-size:10px;line-height:1.4;margin-top:3px}
-.buy{margin-top:11px;background:var(--cream);color:#111;border-radius:25px;padding:19px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}.buy h2{font-size:29px;letter-spacing:-.055em;margin:0}.buy p{font-size:10px;color:#6e6c65;margin:5px 0 0}.price{font-size:47px;font-weight:1000;letter-spacing:-.075em;white-space:nowrap}.price small{font-size:8px;letter-spacing:.12em;color:#6f6d66;font-weight:900}
-.order{margin-top:10px;background:var(--cream);color:#111;border-radius:25px;padding:19px}.order-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}.order-grid .full{grid-column:1/-1}.order-status{min-height:18px;color:#8e2b21;font-size:12px;font-weight:800;margin-top:8px}
-footer{padding:38px 0 54px;text-align:center;color:#4f4e4a;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
-@media(max-width:900px){.hero-grid{grid-template-columns:1fr}.visual{min-height:430px}.composer{margin-top:12px}.proof-grid{grid-template-columns:1fr}}
-@media(max-width:620px){.page{padding:0 11px}.top{height:60px}.wordmark{font-size:21px}.hero{padding-top:19px}.hero-copy{padding-top:5px}h1{font-size:60px}.hero-copy p{font-size:15px;margin-top:19px}.visual{min-height:390px;border-radius:24px}.visual-frame{left:14%;right:14%;top:9%;bottom:9%}.composer{padding:13px;border-radius:23px}.composer-top{align-items:flex-start;flex-direction:column;gap:4px}.composer-bottom{grid-template-columns:1fr}.composer-foot{display:block}.composer-foot span{display:block;margin-top:4px}.section{padding-top:35px}.section-head{display:block}.section-head h2{font-size:29px}.section-head p{margin-top:4px}.proof-card h3{font-size:29px}.buy{grid-template-columns:1fr}.price{font-size:42px}.order-grid{grid-template-columns:1fr}}
-.hero-art{display:block;width:100%;height:100%;min-height:500px;object-fit:cover}.visual{padding:0}.visual:before{pointer-events:none;z-index:2}.visual:after{content:"";position:absolute;inset:0;border-radius:30px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);pointer-events:none}@media(max-width:620px){.hero-art{min-height:390px}.visual:after{border-radius:24px}}</style>
+:root{--bg:#080809;--panel:#101012;--panel2:#151518;--text:#f5f3ed;--muted:#92919a;--gold:#e7bd78;--red:#ff3b22;--line:rgba(255,255,255,.11)}
+*{box-sizing:border-box}html{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif}body{margin:0;background:radial-gradient(900px 600px at 70% -10%,rgba(231,189,120,.13),transparent 62%),var(--bg)}button,input,textarea,select{font:inherit}button{cursor:pointer}.shell{width:min(1080px,100%);margin:auto;padding:0 20px}.nav{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.logo{font-size:25px;font-weight:950;letter-spacing:.13em}.logo small{font-size:9px;color:#85848b;letter-spacing:.18em;margin-left:8px}.online{font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#9fdda9}.online i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#72df96;margin-right:7px;box-shadow:0 0 14px #72df96}
+.hero{padding:55px 0 0}.heroGrid{display:grid;grid-template-columns:1fr .78fr;gap:48px;align-items:center}.eyebrow{font-size:10px;letter-spacing:.2em;color:#aaa8ad;text-transform:uppercase;margin-bottom:22px}.eyebrow b{color:#fff}.headline{font-size:clamp(56px,7.4vw,92px);line-height:.86;letter-spacing:-.075em;margin:0;max-width:700px}.headline span{color:#77767e}.lead{font-size:17px;line-height:1.55;color:#a09fa7;max-width:590px;margin:26px 0 25px}.proofTags{display:flex;gap:7px;flex-wrap:wrap}.tag{font-size:9px;letter-spacing:.08em;border:1px solid var(--line);padding:8px 10px;border-radius:999px;color:#bbb9bf}
+.art{position:relative;aspect-ratio:3/4;border:1px solid var(--line);border-radius:30px;overflow:hidden;background:#0e0e10;box-shadow:0 35px 100px rgba(0,0,0,.45)}.art img{width:100%;height:100%;object-fit:cover;display:block}.art:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 50%,rgba(0,0,0,.3))}
+.composer{margin:38px auto 0;max-width:900px;background:#f0eee7;color:#111;border-radius:27px;padding:20px;box-shadow:0 28px 80px rgba(0,0,0,.35)}.composerHead{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:12px}.composerHead strong{font-size:21px;letter-spacing:-.04em}.composerHead span{font-size:9px;color:#77736c;text-transform:uppercase;letter-spacing:.12em}textarea{width:100%;min-height:126px;border:1px solid #d2cfc6;border-radius:18px;background:#faf9f4;padding:16px;color:#111;font-size:17px;line-height:1.4;resize:vertical;outline:none}textarea:focus{border-color:var(--red);box-shadow:0 0 0 4px rgba(255,59,34,.1)}.quick{display:flex;gap:7px;overflow:auto;padding:10px 0 4px;scrollbar-width:none}.quick::-webkit-scrollbar{display:none}.quick button{white-space:nowrap;border:1px solid #d1cec5;background:#e5e2da;border-radius:999px;padding:8px 11px;font-size:10px;font-weight:800;color:#282722}.bar{display:grid;grid-template-columns:170px 1fr;gap:9px;margin-top:8px}select,input{height:50px;width:100%;border:1px solid #d0cdc4;border-radius:13px;background:#fff;color:#111;padding:0 12px;outline:none}.cta{height:50px;border:0;border-radius:13px;background:#111;color:#fff;font-weight:900;letter-spacing:-.02em}.cta:hover{background:#252529}.cta:disabled{opacity:.55}.hint{display:flex;justify-content:space-between;color:#77736d;font-size:9px;text-transform:uppercase;letter-spacing:.08em;margin-top:9px}#previewStatus,#orderStatus{font-size:12px;font-weight:700;color:#9b3022;margin-top:8px}.preview{margin-top:12px;border-radius:18px;overflow:hidden;background:#050506}.preview video{display:block;width:100%;max-height:620px}.previewActions{display:flex;gap:8px;padding:9px}.previewActions>*{flex:1;border:1px solid #333;background:#171719;color:#fff;border-radius:10px;padding:11px;text-align:center;font-size:11px;font-weight:800}
+.section{padding:75px 0 0}.sectionTitle{font-size:38px;letter-spacing:-.065em;margin:0 0 15px}.cards{display:grid;grid-template-columns:1.1fr .9fr;gap:11px}.card{background:linear-gradient(145deg,#131316,#0c0c0e);border:1px solid var(--line);border-radius:24px;padding:22px}.card .label{font-size:9px;color:#85838a;letter-spacing:.15em;text-transform:uppercase}.card h2{font-size:33px;line-height:.95;letter-spacing:-.06em;margin:12px 0}.card p{color:#89878f;font-size:12px;line-height:1.55;margin:0;max-width:560px}.stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}.stat{border:1px solid var(--line);border-radius:12px;padding:9px 12px}.stat b{display:block;font-size:15px}.stat span{font-size:8px;color:#77757d;text-transform:uppercase;letter-spacing:.1em}.steps h3{margin:0 0 5px;font-size:20px}.step{display:flex;gap:12px;border-top:1px solid var(--line);padding:13px 0}.step:first-of-type{border-top:0}.num{color:var(--gold);font-size:9px;font-weight:900}.step b{font-size:12px}.step span{display:block;color:#85838a;font-size:10px;margin-top:3px;line-height:1.4}
+.buy{margin-top:12px;background:#f0eee7;color:#111;border-radius:24px;padding:20px;display:flex;justify-content:space-between;align-items:center;gap:18px}.buy h2{font-size:28px;letter-spacing:-.055em;margin:0}.buy p{color:#6f6c65;font-size:10px;margin:5px 0 0}.price{font-size:48px;font-weight:950;letter-spacing:-.075em}.order{margin-top:9px;background:#f0eee7;color:#111;border-radius:24px;padding:20px}.orderGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}.orderGrid .full{grid-column:1/-1}.label{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.13em;color:#706d66;font-weight:900;margin-bottom:5px}
+footer{text-align:center;color:#4f4d52;font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:55px 0 65px}
+@media(max-width:850px){.heroGrid{grid-template-columns:1fr;gap:28px}.art{max-width:520px;margin:auto}.cards{grid-template-columns:1fr}}@media(max-width:620px){.shell{padding:0 13px}.nav{height:62px}.logo{font-size:20px}.online{font-size:8px}.hero{padding-top:35px}.headline{font-size:59px}.lead{font-size:15px}.art{border-radius:23px}.composer{margin-top:15px;border-radius:23px;padding:13px}.composerHead{display:block}.composerHead span{display:block;margin-top:4px}.bar,.orderGrid{grid-template-columns:1fr}.hint{display:block}.hint span{display:block;margin-top:4px}.section{padding-top:55px}.sectionTitle{font-size:31px}.buy{align-items:flex-start;flex-direction:column}.price{font-size:43px}}
+</style>
 </head>
 <body>
-<main class="page">
-<header class="top">
- <div class="wordmark">APEX <small>RAPID VIDEO</small></div>
- <div class="live"><i></i>production engine</div>
-</header>
-
+<main class="shell">
+<header class="nav"><div class="logo">APEX <small>RAPID VIDEO</small></div><div class="online"><i></i>taking orders</div></header>
 <section class="hero">
- <div class="hero-grid">
-  <div class="hero-copy">
-   <div class="eyebrow"><b>RAPID VIDEO</b> cinematic short-form production</div>
-   <h1>Make the idea<br><span>impossible to ignore.</span></h1>
-   <p>Drop the story, product, verse, song, script or rough thought. Apex turns the direction into a real visual proof before you commit to the full production.</p>
-   <div class="tags"><span class="tag">⚡ FAST PROOF</span><span class="tag">🎬 CINEMATIC</span><span class="tag">9:16 SOCIAL</span><span class="tag">↗ SHAREABLE</span></div>
+ <div class="heroGrid">
+  <div>
+   <div class="eyebrow"><b>SHORT-FORM VIDEO PRODUCTION</b> · APEX STUDIO</div>
+   <h1 class="headline">Your idea.<br><span>Made watchable.</span></h1>
+   <p class="lead">Give Apex an idea, script, product, sermon, song, story or existing footage. We turn it into a polished short-form video with a strong hook, cinematic visuals, captions, audio and a ready-to-post final.</p>
+   <div class="proofTags"><span class="tag">HOOK FIRST</span><span class="tag">CINEMATIC</span><span class="tag">9:16</span><span class="tag">READY TO POST</span></div>
   </div>
-
-  <div class="visual" aria-label="Apex featured proof">
-   <img class="hero-art" src="/rapid-hero.svg" alt="Apex Rapid Video cinematic proof interface" loading="eager" decoding="async">
-  </div>
+  <div class="art"><img src="/rapid-hero.svg" alt="Apex Rapid Video preview"></div>
  </div>
-
  <div class="composer" id="proofBox">
-  <div class="composer-top"><div class="composer-title">Your vision</div><div class="composer-note">No card required · real generated proof</div></div>
-  <textarea id="brief" placeholder="Tell your story, script, product, verse or idea…"></textarea>
-  <div class="quick">
-   <button type="button" onclick="setIdea('Bible story')">BIBLE STORY</button>
-   <button type="button" onclick="setIdea('Product ad')">PRODUCT AD</button>
-   <button type="button" onclick="setIdea('Music / song')">MUSIC / SONG</button>
-   <button type="button" onclick="setIdea('Creator clip')">CREATOR CLIP</button>
-   <button type="button" onclick="setIdea('Surprise me')">SURPRISE ME</button>
-  </div>
-  <div class="modebar"><span class="mode active">SINGLE VIDEO</span><span class="mode">$25 launch production</span><span class="mode">10 sec proof first</span></div>
-  <div class="composer-bottom">
-   <div class="field"><label>Where will it live?</label><select id="previewPlatform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option></select></div>
-   <button class="primary" id="previewButton" type="button" onclick="makePreview()">GENERATE MY PROOF →</button>
-  </div>
-  <div class="composer-foot"><span>Hook-first creative direction</span><span>Vertical proof · generated by Apex workers</span></div>
-  <div id="previewStatus"></div>
-  <div id="previewResult" class="preview-result" hidden></div>
+  <div class="composerHead"><strong>Start with the idea.</strong><span>10-second proof · no card required</span></div>
+  <textarea id="brief" placeholder="Tell us what you want people to see, feel, or remember…"></textarea>
+  <div class="quick"><button type="button" onclick="setIdea('Bible story')">BIBLE STORY</button><button type="button" onclick="setIdea('Product ad')">PRODUCT</button><button type="button" onclick="setIdea('Music / song')">MUSIC</button><button type="button" onclick="setIdea('Creator clip')">CREATOR</button><button type="button" onclick="setIdea('Surprise me')">SURPRISE ME</button></div>
+  <div class="bar"><select id="previewPlatform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option></select><button class="cta" id="previewButton" type="button" onclick="makePreview()">GENERATE MY PROOF →</button></div>
+  <div class="hint"><span>Hook-first creative direction</span><span>Vertical proof · generated by Apex workers</span></div>
+  <div id="previewStatus"></div><div id="previewResult" class="preview" hidden></div>
  </div>
 </section>
-
 <section class="section">
- <div class="section-head"><h2>Proof before production.</h2><p>THE APEX LOOP</p></div>
- <div class="proof-grid">
-  <div class="proof-card">
-   <div class="label">10 SECOND PROOF</div>
-   <h3>See the direction before you spend the $25.</h3>
-   <p>Apex gives the creative idea something tangible to react to. If it hits, unlock the full 30–60 second social production.</p>
-   <div class="proof-metrics"><div class="metric"><b>10s</b><span>proof</span></div><div class="metric"><b>30–60s</b><span>full cut</span></div><div class="metric"><b>9:16</b><span>export</span></div></div>
-  </div>
-  <div class="process-card">
-   <h3>From vision to post</h3>
-   <div class="pstep"><div class="pnum">01</div><div><b>Drop the vision</b><span>Rough is enough. Start with what you want people to feel.</span></div></div>
-   <div class="pstep"><div class="pnum">02</div><div><b>Watch the proof</b><span>Get an actual short-form visual instead of a wall of prompt text.</span></div></div>
-   <div class="pstep"><div class="pnum">03</div><div><b>Unlock the full cut</b><span>Send the winning direction into the production queue.</span></div></div>
-   <div class="pstep"><div class="pnum">04</div><div><b>Post</b><span>Receive a ready-to-post MP4.</span></div></div>
-  </div>
+ <h2 class="sectionTitle">Proof before production.</h2>
+ <div class="cards">
+  <div class="card"><div class="label">THE APEX LOOP</div><h2>See it. Then make it bigger.</h2><p>A real 10-second proof gives the idea something tangible to react to. If the direction hits, send it into the full production queue.</p><div class="stats"><div class="stat"><b>10s</b><span>proof</span></div><div class="stat"><b>30–60s</b><span>final</span></div><div class="stat"><b>9:16</b><span>social</span></div></div></div>
+  <div class="card steps"><h3>From vision to post</h3><div class="step"><div class="num">01</div><div><b>Drop the vision</b><span>Rough is fine. Start with the idea.</span></div></div><div class="step"><div class="num">02</div><div><b>Watch the proof</b><span>React to an actual visual.</span></div></div><div class="step"><div class="num">03</div><div><b>Unlock production</b><span>Send the winning direction forward.</span></div></div><div class="step"><div class="num">04</div><div><b>Post it</b><span>Receive a ready-to-post MP4.</span></div></div></div>
  </div>
 </section>
-
 <section class="section" id="order">
- <div class="buy"><div><h2>Make the full version.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4</p></div><div class="price">$25 <small>LAUNCH</small></div></div>
- <div class="order">
-  <div class="order-grid">
-   <div class="field"><label>Name / brand</label><input id="name" placeholder="Your name or brand"></div>
-   <div class="field"><label>What are we making?</label><input id="type" placeholder="Product, Bible story, song…"></div>
-   <div class="field"><label>Where will it live?</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select></div>
-   <button class="primary full" type="button" onclick="startOrder()">UNLOCK FULL PRODUCTION →</button>
-  </div>
-  <div id="orderStatus" class="order-status"></div>
- </div>
+ <div class="buy"><div><h2>Make the full version.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4</p></div><div class="price">$25</div></div>
+ <div class="order"><div class="orderGrid"><div><label class="label">Name / brand</label><input id="name" placeholder="Your name or brand"></div><div><label class="label">What are we making?</label><input id="type" placeholder="Product, story, song…"></div><div><label class="label">Platform</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select></div><button class="cta full" type="button" onclick="startOrder()">START THE $25 PRODUCTION →</button></div><div id="orderStatus"></div></div>
 </section>
-
 <footer>APEX STUDIO · RAPID VIDEO</footer>
 </main>
-
 <script>
 function setIdea(kind){
  const examples={
