@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 const DEFAULT_RESTART_MS=2000;
 const DEFAULT_PROBE_TIMEOUT_MS=10000;
-const VIDEO_COPY_CODECS=new Set(['h264','hevc']);
+const VIDEO_COPY_CODECS=new Set(['h264']);
 const AUDIO_COPY_CODECS=new Set(['aac','mp3']);
 
 function required(value,name){if(!value)throw new TypeError(name+' is required');}
@@ -22,15 +22,15 @@ export function buildTranscodeArgs({ingest,dest,encoder='libx264'}={}){
   return ['-hide_banner','-loglevel','warning','-fflags','+genpts+nobuffer','-i',ingest,...video,'-c:a','aac','-b:a','192k','-ar','48000','-ac','2','-f','flv','-flvflags','no_duration_filesize',dest];
 }
 
-export function canCopyProbe(probe={}){
+export function canCopyProbe(probe={}, {enhancedRtmp=false}={}){
   const streams=Array.isArray(probe.streams)?probe.streams:[];
   const video=streams.find(s=>s.codec_type==='video');
   const audio=streams.find(s=>s.codec_type==='audio');
-  return Boolean(video&&audio&&VIDEO_COPY_CODECS.has(String(video.codec_name).toLowerCase())&&AUDIO_COPY_CODECS.has(String(audio.codec_name).toLowerCase()));
+  return Boolean(video&&audio&&(VIDEO_COPY_CODECS.has(String(video.codec_name).toLowerCase()) || (enhancedRtmp && String(video.codec_name).toLowerCase()==='hevc'))&&AUDIO_COPY_CODECS.has(String(audio.codec_name).toLowerCase()));
 }
 
-export function selectRelayMode(probe,{preferNvenc=false}={}){
-  if(canCopyProbe(probe))return {mode:'copy',encoder:null};
+export function selectRelayMode(probe,{preferNvenc=false,enhancedRtmp=false}={}){
+  if(canCopyProbe(probe,{enhancedRtmp}))return {mode:'copy',encoder:null};
   return {mode:'transcode',encoder:preferNvenc?'h264_nvenc':'libx264'};
 }
 
@@ -57,7 +57,8 @@ export function createStreamRelay({
   ffprobePath='ffprobe',
   restartMs=DEFAULT_RESTART_MS,
   probeTimeoutMs=DEFAULT_PROBE_TIMEOUT_MS,
-  preferNvenc=false
+  preferNvenc=false,
+  enhancedRtmp=false
 }={}){
   const state={status:'idle',mode:null,encoder:null,probe:null,pid:null,starts:0,restarts:0,lastExitCode:null,lastSignal:null,lastError:null,startedAt:null,lastProbeAt:null};
   let child=null,stopping=false,timer=null;
@@ -69,7 +70,7 @@ export function createStreamRelay({
     state.status='probing';
     try{
       const probe=await probeInput({ffprobePath,ingest:ingestSource,timeoutMs:Math.max(1000,Number(probeTimeoutMs)||DEFAULT_PROBE_TIMEOUT_MS)});
-      const route=selectRelayMode(probe,{preferNvenc});
+      const route=selectRelayMode(probe,{preferNvenc,enhancedRtmp});
       state.probe=probe;
       state.mode=route.mode;
       state.encoder=route.encoder;
@@ -105,6 +106,6 @@ export function createStreamRelay({
   }
 
   function stop(){stopping=true;clear();if(child)child.kill('SIGTERM');state.status='stopped';return status();}
-  function status(){return {...state,configured:Boolean(ingestSource&&destEndpoint),copyEligible:state.probe?canCopyProbe(state.probe):null};}
+  function status(){return {...state,configured:Boolean(ingestSource&&destEndpoint),copyEligible:state.probe?canCopyProbe(state.probe,{enhancedRtmp}):null};}
   return {start,stop,status};
 }
