@@ -11,9 +11,9 @@ const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 30000
 const heartbeatMs = Math.max(5000, Math.floor(leaseMs / 3));
 const pollMs = Math.max(100, Number(process.env.APEX_WORKER_POLL_MS || 250));
 const claimJitterMs = Math.max(0, Number(process.env.APEX_WORKER_CLAIM_JITTER_MS || 0));
-const concurrency = Math.max(1, Number(process.env.APEX_WORKER_CONCURRENCY || 32));
-const batchSize = Math.max(1, Number(process.env.APEX_WORKER_BATCH_SIZE || Math.min(concurrency, 20)));
-const renderConcurrency = Math.max(1, Number(process.env.APEX_RENDER_CONCURRENCY || 8));
+const concurrency = Math.max(1, Number(process.env.APEX_WORKER_CONCURRENCY || Number(process.env.APEX_WORKER_FABRIC_IN_FLIGHT || 2000)));
+const batchSize = Math.max(1, Number(process.env.APEX_WORKER_BATCH_SIZE || concurrency));
+const renderConcurrency = Math.max(1, Number(process.env.APEX_RENDER_CONCURRENCY || concurrency));
 const idlePollMs = Math.max(25, Number(process.env.APEX_WORKER_IDLE_POLL_MS || 100));
 const trendPollMs = Math.max(30000, Number(process.env.APEX_TREND_POLL_MS || 60000));
 
@@ -21,7 +21,7 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: Math.max(5, Math.min(20, Number(process.env.APEX_PG_POOL_SIZE || 10))),
+  max: Math.max(5, Number(process.env.APEX_PG_POOL_SIZE || 20)),
   connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
   ssl: process.env.APEX_PG_SSL === 'false' ? false : { rejectUnauthorized: false }
