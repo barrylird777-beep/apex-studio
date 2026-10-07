@@ -165,7 +165,7 @@ export class SovereignRaftNode {
   async replicate() {
     if (!this.running || this.role !== 'leader') return;
     const request = { rpc: 'appendEntries', term: this.state.term, leaderId: this.nodeId, prevIndex: this.lastIndex(), prevTerm: this.lastTerm(), entries: [], leaderCommit: this.state.commitIndex };
-    const responses = await Promise.allSettled(this.peers.map(peer => sendToPeer(this.transport, peer.multiaddr, request)));
+    const responses = await Promise.allSettled(this.peers.map(peer => sendProtocol(this.transport, peer.multiaddr, RPC, request)));
     if (responses.some(x => x.status === 'fulfilled' && x.value?.accepted)) return;
   }
 
