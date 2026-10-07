@@ -61,4 +61,5 @@ export function decryptPrivate(record){
   return JSON.parse(Buffer.concat([decipher.update(Buffer.from(record.data,"base64url")),decipher.final()]).toString("utf8"));
 }
 
+export const privacyHeaders=providerHeaders;
 export const sanitizeProviderHeaders=providerHeaders;
