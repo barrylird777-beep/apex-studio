@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apex AdShield</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:0 auto;padding:28px;line-height:1.5}
+.card{border:1px solid #ccc;border-radius:16px;padding:20px;margin:16px 0}
+a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#111;color:#fff;text-decoration:none}
+.small{opacity:.7}
+</style>
+</head>
+<body>
+<h1>Apex AdShield</h1>
+<p><strong>Zero-cost iPhone path.</strong> No Mac, no Apple Developer account, no DNS-wide website blocking.</p>
+<div class="card">
+<h2>What it does</h2>
+<ul>
+<li>Runs in Safari only.</li>
+<li>Targets high-confidence advertising elements.</li>
+<li>Targets YouTube ad presentation and skip controls.</li>
+<li>Leaves normal sites, videos, and app traffic alone.</li>
+<li>Fails open when it cannot confidently identify an ad.</li>
+</ul>
+</div>
+<div class="card">
+<h2>Run it</h2>
+<p>Save this page as a Safari Favorite. Open the saved bookmark while viewing a page to activate Apex AdShield on that page.</p>
+<a class="button" href="javascript:(() => {
+  &quot;use strict&quot;;
+  if (window.__APEX_ADSHIELD__) return;
+  window.__APEX_ADSHIELD__ = true;
+
+  const youtube = /(^|\\.)youtube(?:-nocookie)?\\.com$/i.test(location.hostname);
+  const genericSelectors = [
+    '[id^=&quot;ad-&quot;]',
+    '[id*=&quot;advert&quot;]',
+    '[class*=&quot;advertisement&quot;]',
+    '[class*=&quot;ad-banner&quot;]',
+    '[data-ad-slot]',
+    '[aria-label=&quot;Advertisement&quot;]'
+  ];
+  const youtubeSelectors = [
+    &quot;ytd-display-ad-renderer&quot;,
+    &quot;ytd-promoted-sparkles-web-renderer&quot;,
+    &quot;ytd-ad-slot-renderer&quot;,
+    &quot;ytd-in-feed-ad-layout-renderer&quot;,
+    &quot;.ytp-ad-overlay-container&quot;,
+    &quot;.ytp-ad-overlay-slot&quot;,
+    &quot;.ytp-ad-text-overlay&quot;
+  ];
+
+  const hide = (root = document) => {
+    const selectors = youtube ? genericSelectors.concat(youtubeSelectors) : genericSelectors;
+    for (const selector of selectors) {
+      try {
+        root.querySelectorAll(selector).forEach(el => {
+          if (el && el.style.display !== &quot;none&quot;) {
+            el.style.setProperty(&quot;display&quot;, &quot;none&quot;, &quot;important&quot;);
+            el.setAttribute(&quot;data-apex-adshield&quot;, &quot;hidden&quot;);
+          }
+        });
+      } catch {}
+    }
+  };
+
+  const skipYoutubeAd = () => {
+    if (!youtube) return;
+    document.querySelectorAll(&quot;video&quot;).forEach(video => {
+      const player = video.closest(&quot;.html5-video-player&quot;);
+      if (!player?.classList.contains(&quot;ad-showing&quot;)) return;
+      const skip = player.querySelector(
+        &quot;.ytp-ad-skip-button, .ytp-ad-skip-button-modern, button.ytp-ad-skip-button&quot;
+      );
+      if (skip) {
+        try { skip.click(); } catch {}
+      }
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        try {
+          video.currentTime = video.duration;
+        } catch {}
+      }
+    });
+  };
+
+  const run = () => {
+    hide();
+    skipYoutubeAd();
+  };
+
+  run();
+  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
+  setInterval(skipYoutubeAd, 350);
+})();">Activate Apex AdShield</a>
+<p class="small">If Safari will not save the JavaScript action directly, save this page as a bookmark first, then edit that bookmark's address to the JavaScript action behind the button.</p>
+</div>
+<div class="card">
+<h2>Limits</h2>
+<p>This is intentionally not a system-wide VPN/DNS blocker. iOS does not expose arbitrary app HTTPS ad interception to a free web page or configuration profile.</p>
+</div>
+</body>
+</html>
