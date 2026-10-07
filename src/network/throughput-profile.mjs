@@ -51,10 +51,10 @@ export function buildAdaptiveTransferController(options = {}) {
     get state() { return state; },
     observe({ observedMbps = 0, lossPct = 0, rttMs = 0 } = {}) {
       const congested = Number(lossPct) >= 2 || Number(rttMs) >= 150 || Number(observedMbps) < 100;
-      const accelerating = Number(lossPct) < 1 && Number(observedMbps) >= 500 && Number(rttMs) <= 60;
+      const accelerating = Number(lossPct) < 1 && Number(observedMbps) >= 250 && Number(rttMs) <= 60;
       state = Object.freeze({
-        parallelStreams: clamp(state.parallelStreams + (accelerating ? 2 : congested ? -1 : 0), 1, 16),
-        chunkMiB: clamp(state.chunkMiB + (accelerating ? 16 : congested ? -16 : 0), 4, 64)
+        parallelStreams: congested ? Math.max(1, Math.ceil(state.parallelStreams / 2)) : clamp(state.parallelStreams + (accelerating ? 2 : 0), 1, 16),
+        chunkMiB: congested ? Math.max(4, Math.floor(state.chunkMiB / 2)) : clamp(state.chunkMiB + (accelerating ? 16 : 0), 4, 64)
       });
       return state;
     }
