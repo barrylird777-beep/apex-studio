@@ -5,7 +5,7 @@ import {buildRapidCheckoutMetadata,decodeRapidCheckoutMetadata,verifyRapidStripe
 
 test('Rapid checkout metadata round-trips full brief',()=>{
   const brief='Line one\nLine two — cinematic hook. '.repeat(140);
-  const metadata=buildRapidCheckoutMetadata({orderId:'order-1',name:'Apex',type:'Bible story',brief,platform:'TikTok'});
+  const metadata=buildRapidCheckoutMetadata({orderId:'order-1',name:'Apex',type:'Bible story',brief,platform:'TikTok',email:'buyer@example.com'});
   assert.ok(Object.keys(metadata).length<=50);
   for(const value of Object.values(metadata)) assert.ok(String(value).length<=500);
   const decoded=decodeRapidCheckoutMetadata(metadata);
@@ -13,6 +13,7 @@ test('Rapid checkout metadata round-trips full brief',()=>{
   assert.equal(decoded.name,'Apex');
   assert.equal(decoded.type,'Bible story');
   assert.equal(decoded.platform,'TikTok');
+  assert.equal(decoded.email,'buyer@example.com');
   assert.equal(decoded.brief,brief);
 });
 
