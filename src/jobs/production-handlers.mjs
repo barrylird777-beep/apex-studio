@@ -1,22 +1,10 @@
-import pg from "pg";
 import { randomUUID } from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 import { createDurableJobsStore } from "./durable-jobs-store.mjs";
 import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
 import { buildUniversalExecutionEnvelope } from "../core/apex-universal-capabilities.mjs";
 
-const { Pool } = pg;
-const pool = process.env.DATABASE_URL
-  ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 4,
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000,
-      ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false }
-    })
-  : null;
-
-const store = pool ? createDurableJobsStore(pool) : null;
+const store = createDurableJobsStore();
 const clean = (value, max = 2000) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
 
 function parseJson(text) {
@@ -62,8 +50,6 @@ async function analyzeTrend(job) {
     };
   }
 
-  if (!store) throw new Error("DATABASE_URL is required for autonomous trend rendering");
-
   const child = await store.enqueue({
     id: randomUUID(),
     type: "rapid.trend.render",
@@ -85,7 +71,7 @@ export const handlers = {
 };
 
 export async function closeProductionHandlers() {
-  if (pool) await pool.end();
+
 }
 
 export default handlers;
