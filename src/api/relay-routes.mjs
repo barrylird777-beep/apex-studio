@@ -8,8 +8,8 @@ export function createRelayRouter(relay) {
   const router = Router();
 
   router.get('/status', (_req, res) => {
-    res.json({
-      ok: true,
+    res.status(200).json({
+      success: true,
       relay: relay.status(),
     });
   });
@@ -17,8 +17,8 @@ export function createRelayRouter(relay) {
   router.post('/start', async (_req, res, next) => {
     try {
       const status = await relay.start();
-      res.json({
-        ok: true,
+      res.status(200).json({
+        success: true,
         relay: status,
       });
     } catch (error) {
@@ -26,11 +26,15 @@ export function createRelayRouter(relay) {
     }
   });
 
-  router.post('/stop', (_req, res) => {
-    res.json({
-      ok: true,
-      relay: relay.stop(),
-    });
+  router.post('/stop', (_req, res, next) => {
+    try {
+      res.status(200).json({
+        success: true,
+        relay: relay.stop(),
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;
