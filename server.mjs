@@ -289,12 +289,21 @@ app.get('/api/network/throughput', async (req, res) => {
   res.end();
 });
 
+let latestClientNetworkTelemetry = null;
+
+app.post('/api/network/client-telemetry', (req, res) => {
+  const body = req.body || {};
+  latestClientNetworkTelemetry = { online:Boolean(body.online), type:String(body.type||'unknown').slice(0,32), effectiveType:String(body.effectiveType||'unknown').slice(0,32), downlinkMbps:Number.isFinite(Number(body.downlinkMbps))?Number(body.downlinkMbps):null, rttMs:Number.isFinite(Number(body.rttMs))?Number(body.rttMs):null, saveData:Boolean(body.saveData), reportedAt:new Date().toISOString() };
+  res.set('Cache-Control','no-store').json({ok:true,receivedAt:latestClientNetworkTelemetry.reportedAt});
+});
+
 app.get('/api/network/status', async (_req,res)=>{
   try {
     const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
     const fabric = await selectNetworkPath();
     const healthy = fabric.candidates.filter(p => p.healthy);
-    res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:'server-interface-observation'},clientDevice:{status:'telemetry-required',source:'browser-or-mobile-client',note:'Server cannot directly inspect iPhone Wi-Fi or cellular modem.'},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:true,clientWifiObserved:false,clientCellularObserved:false,starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Multiple server interfaces do not bond iPhone Wi-Fi and cellular.'],checkedAt:new Date().toISOString()});
+    const runtimeObserved = fabric.source === 'railway-runtime-interface-observation' && fabric.candidates.length > 0;
+    res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:latestClientNetworkTelemetry?(latestClientNetworkTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:latestClientNetworkTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:latestClientNetworkTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(latestClientNetworkTelemetry?.type)),starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
 app.use('/api/studio/audio', createAudioStationRouter());
