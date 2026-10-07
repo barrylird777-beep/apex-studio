@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import { paths } from '../core/sovereign-local-storage.mjs';
-import { sendToPeer } from '../network/sovereign-peer.mjs';
+import { sendProtocol } from '../network/sovereign-peer.mjs';
 
 const ROOT = process.env.APEX_CONSENSUS_ROOT || path.join(paths.ROOT, 'consensus');
 const RPC = '/apex/raft/1.0.0';
@@ -98,7 +98,7 @@ export class SovereignRaftNode {
     const request = { rpc: 'requestVote', term: this.state.term, candidateId: this.nodeId, lastIndex: this.lastIndex(), lastTerm: this.lastTerm() };
     await Promise.allSettled(this.peers.map(async peer => {
       try {
-        const response = await sendToPeer(this.transport, peer.multiaddr, request);
+        const response = await sendProtocol(this.transport, peer.multiaddr, RPC, request);
         if (response?.accepted && response?.payload?.voteGranted && response.payload.term === this.state.term) this.votes.add(peer.id);
         if (response?.payload?.term > this.state.term) await this.stepDown(response.payload.term);
       } catch {}
