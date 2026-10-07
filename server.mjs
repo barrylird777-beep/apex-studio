@@ -1793,3 +1793,5 @@ async function routeWithSwarm(payload, retries = 2) {
 void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
 
 app.listen(PORT, HOST, () => console.log(`[apex] server listening on ${HOST}:${PORT}`));
+
+// Railway autodeploy trigger: keep production deployment tied to main.
