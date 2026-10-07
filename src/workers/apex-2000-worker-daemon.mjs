@@ -51,7 +51,7 @@ async function claimWave(){
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
-    const types=[...workersByTask.keys()];
+    const types=[...workersByTask.keys(), ...(handlersModule?.handlers ? Object.keys(handlersModule.handlers) : [])].filter((v,i,a)=>a.indexOf(v)===i);
     const room=Math.max(0,Math.min(APEX_WORKER_COUNT,maxInFlight-active.size));
     if(!room){await client.query("ROLLBACK");return [];}
     const result=await client.query(
