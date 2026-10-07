@@ -62,7 +62,7 @@ export function buildEpisode(globalEpisodeNumber, input = {}) {
     state: "IDEA",
     statuses: {
       script: "pending", storyboard: "pending", voice: "pending", audio: "pending",
-      animation: "pending", edit: "pending", qc: "pending", master: "pending",
+      visualDevelopment: "pending", animation: "pending", edit: "pending", qc: "pending", master: "pending",
       programming: "pending"
     },
     creativeBrief: input.creativeBrief ?? {},
