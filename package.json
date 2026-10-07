@@ -25,7 +25,8 @@
     "test:render-performance": "node --test test/render-performance.test.mjs",
     "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs",
     "swarm:daemon": "node src/core/autonomous-swarm-daemon.mjs",
-    "research:ingest": "node scripts/research-ingest.mjs"
+    "research:ingest": "node scripts/research-ingest.mjs",
+    "apexus:bootstrap": "node scripts/bootstrap-apexus-2785.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
