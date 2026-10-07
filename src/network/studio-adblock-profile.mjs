@@ -1,4 +1,4 @@
-const DOH_URL = process.env.APEX_ADBLOCK_DOH_URL || "https://apex-studio-production.up.railway.app/api/network/adblock/doh";
+const DOH_URL = process.env.APEX_ADBLOCK_DOH_URL || "https://dns.adguard-dns.com/dns-query";
 const PROFILE_UUID = "A6A7B5F4-7D2A-4C3D-9F4C-5D1A4E7C9B20";
 const DNS_PAYLOAD_UUID = "D9E2C6A1-3B74-4F2E-8C51-6A93B7D4E105";
 
