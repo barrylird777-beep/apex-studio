@@ -1,4 +1,4 @@
-import { searchAnything, fetchAnything } from "../core/apex-web-search.mjs";
+import { searchAnything, fetchAnything, sanitizeOutboundHeaders } from "../core/apex-web-search.mjs";
 
 export const NETWORK_CAPABILITIES=Object.freeze([
   "public-web-search","multi-engine-search","https-fetch","source-discovery",
@@ -27,4 +27,15 @@ export async function networkResearch(query,{limit=20,engines="all"}={}){
     }
   }
   return {query:String(query),results:search.results||[],documents,errors:search.errors||[]};
+}
+
+export async function gatewayFetch(target,{method="GET",headers={},body,signal}={}) {
+  const response=await fetch(target,{
+    method,
+    headers:sanitizeOutboundHeaders(headers),
+    body,
+    signal,
+    redirect:"manual"
+  });
+  return response;
 }
