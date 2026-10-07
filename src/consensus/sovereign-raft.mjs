@@ -110,6 +110,8 @@ export class SovereignRaftNode {
   async becomeLeader() {
     this.role = 'leader';
     this.leaderId = this.nodeId;
+    this.nextIndex = new Map(this.peers.map(peer => [peer.id, this.lastIndex() + 1]));
+    this.matchIndex = new Map(this.peers.map(peer => [peer.id, 0]));
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = setInterval(() => void this.replicate(), Math.max(25, Number(process.env.APEX_RAFT_HEARTBEAT_MS || 100)));
     await this.replicate();
@@ -162,24 +164,61 @@ export class SovereignRaftNode {
     return { term: this.state.term, ok: false, error: 'unknown rpc' };
   }
 
+  async replicatePeer(peer) {
+    if (!this.running || this.role !== 'leader') return false;
+    const next = Math.max(1, this.nextIndex?.get(peer.id) || 1);
+    const previous = this.log.find(x => x.index === next - 1);
+    const entries = this.log.filter(x => x.index >= next);
+    const request = {
+      rpc: 'appendEntries',
+      term: this.state.term,
+      leaderId: this.nodeId,
+      prevIndex: previous?.index || 0,
+      prevTerm: previous?.term || 0,
+      entries,
+      leaderCommit: this.state.commitIndex
+    };
+    try {
+      const response = await sendProtocol(this.transport, peer.multiaddr, RPC, request);
+      const result = response?.payload;
+      if (result?.term > this.state.term) {
+        await this.stepDown(result.term);
+        return false;
+      }
+      if (result?.success) {
+        this.matchIndex.set(peer.id, result.matchIndex);
+        this.nextIndex.set(peer.id, result.matchIndex + 1);
+        return true;
+      }
+      this.nextIndex.set(peer.id, Math.max(1, next - 1));
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   async replicate() {
     if (!this.running || this.role !== 'leader') return;
-    const request = { rpc: 'appendEntries', term: this.state.term, leaderId: this.nodeId, prevIndex: this.lastIndex(), prevTerm: this.lastTerm(), entries: [], leaderCommit: this.state.commitIndex };
-    const responses = await Promise.allSettled(this.peers.map(peer => sendProtocol(this.transport, peer.multiaddr, RPC, request)));
-    if (responses.some(x => x.status === 'fulfilled' && x.value?.accepted)) return;
+    await Promise.allSettled(this.peers.map(peer => this.replicatePeer(peer)));
+    const indexes = [this.lastIndex(), ...this.peers.map(peer => this.matchIndex?.get(peer.id) || 0)].sort((a, b) => b - a);
+    const quorumIndex = indexes[this.majority() - 1] || 0;
+    if (quorumIndex > this.state.commitIndex) {
+      const candidate = this.log.find(x => x.index === quorumIndex);
+      if (candidate?.term === this.state.term) {
+        this.state.commitIndex = quorumIndex;
+        await this.persistMeta();
+        await this.replayCommitted();
+      }
+    }
   }
 
   async propose(command, payload = {}) {
     if (this.role !== 'leader') throw new Error(`consensus leader unavailable; current role=${this.role}`);
     const entry = await this.appendLocal({ command, payload });
-    let acknowledgements = 1;
-    const request = { rpc: 'appendEntries', term: this.state.term, leaderId: this.nodeId, prevIndex: entry.index - 1, prevTerm: this.log[entry.index - 2]?.term || 0, entries: [entry], leaderCommit: this.state.commitIndex };
-    const results = await Promise.allSettled(this.peers.map(peer => sendToPeer(this.transport, peer.multiaddr, request)));
-    for (const result of results) if (result.status === 'fulfilled' && result.value?.accepted && result.value?.payload?.success) acknowledgements++;
-    if (acknowledgements < this.majority()) throw new Error('quorum unavailable; state remains uncommitted');
-    this.state.commitIndex = entry.index;
-    await this.persistMeta();
-    await this.replayCommitted();
+    if (!this.matchIndex) this.matchIndex = new Map();
+    this.matchIndex.set(this.nodeId, entry.index);
+    await this.replicate();
+    if (this.state.commitIndex < entry.index) throw new Error('quorum unavailable; state remains uncommitted');
     return entry;
   }
 
