@@ -12,9 +12,9 @@ test("Apex has six locked product surfaces", () => {
     "KORNKOB",
     "APEX_STUDIOS",
     "GARDEN_OF_APEX",
-    "APEX_OPPORTUNITY",
-    "APEX_RAPID_VIDEO",
-    "APEX_AD_BLOCKER"
+    "ENGINE_APEX",
+    "APEX_RAPID",
+    "SHIELD_APEX"
   ]);
 });
 
