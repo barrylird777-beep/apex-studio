@@ -41,6 +41,13 @@ async function assertJobFence(job){
   if(current.leaseUntil&&Date.parse(current.leaseUntil)<=Date.now()) throw new Error('job lease expired');
   return current;
 }
+export async function renewJobLease(job, leaseMs=60000){
+  return withFileLock('append',async()=>{
+    const current=await assertJobFence(job);
+    const renewed={...current,leaseUntil:new Date(Date.now()+Math.max(1000,Number(leaseMs))).toISOString()};
+    return appendEventUnlocked('job.heartbeat',renewed,{id:job.id,stream:'jobs'});
+  });
+}
 export async function completeJob(job,result){
   return withFileLock('append',async()=>{
     const current=await assertJobFence(job);
