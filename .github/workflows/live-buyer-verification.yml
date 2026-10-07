@@ -1,0 +1,21 @@
+name: Live Buyer Verification
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -e
+          url=https://apex-studio-production.up.railway.app
+          for i in $(seq 1 18); do
+            code=$(curl -sS -o /tmp/h -w '%{http_code}' --max-time 10 "$url/health" || true)
+            echo "health=$code"
+            if [ "$code" = "200" ]; then cat /tmp/h; break; fi
+            sleep 10
+          done
+          test "$code" = "200"
+          curl -fsSL "$url/rapid-video.html" -o /tmp/page
+          grep -q "Apex Rapid Video" /tmp/page
