@@ -1,147 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import pg from "pg";
-import crypto from "node:crypto";
-import {
-  ensureWorkerTaskSchema,
-  enqueueWorkerTask,
-  claimNextWorkerTasks,
-  claimWorkerTask,
-  completeWorkerTask,
-  requeueExpiredWorkerTasks,
-  closeWorkerStore,
-  claimExternalEffect,
-  completeExternalEffect,
-  releaseWorkerTasks,
-  acquireAiRateLimit
-} from "../src/core/mesh/durable-worker-store.mjs";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
+import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
 
-const hasDatabase = Boolean(String(process.env.DATABASE_URL || "").trim());
+async function storeFixture(){
+  const root=await mkdtemp(path.join(tmpdir(),"apex-worker-race-"));
+  const walFile=path.join(root,"wal","race.jsonl");
+  const store=new ApexPureStore({root:path.join(root,"projects"),wal:new ApexRingWAL({file:walFile,ringSize:4096})});
+  await store.init();
+  return store;
+}
 
-test("two workers race for one task and only one claim wins", { skip: !hasDatabase, concurrency: false }, async () => {
-  const id = crypto.randomUUID();
-  await ensureWorkerTaskSchema();
-  await enqueueWorkerTask({ id, workerId: "race-test", role: "general", task: "race" });
+test("many workers racing for jobs produce unique fenced claims",async()=>{
+  const store=await storeFixture();
+  const ids=await Promise.all(Array.from({length:64},(_,i)=>store.enqueue({id:"job-"+i,type:"race",payload:{i},maxAttempts:3})));
+  assert.equal(ids.length,64);
+  const claims=(await Promise.all(Array.from({length:16},(_,i)=>store.claim({workerId:"worker-"+i,limit:8,leaseMs:30000})))).flat();
+  assert.equal(claims.length,64);
+  assert.equal(new Set(claims.map(x=>x.id)).size,64);
+  assert.ok(claims.every(x=>x.leaseToken&&x.leaseFence===1&&x.status==="running"));
+});
 
-  const [a, b] = await Promise.all([
-    claimWorkerTask(id, 15000),
-    claimWorkerTask(id, 15000)
+test("stale fenced completion cannot finish a reclaimed job",async()=>{
+  const store=await storeFixture();
+  await store.enqueue({id:"fenced",type:"race",payload:{},maxAttempts:3});
+  const first=(await store.claim({workerId:"a",limit:1,leaseMs:1}))[0];
+  assert.ok(first);
+  await new Promise(r=>setTimeout(r,5));
+  assert.equal(await store.recoverExpired(10),1);
+  const second=(await store.claim({workerId:"b",limit:1,leaseMs:30000}))[0];
+  assert.ok(second);
+  assert.notEqual(first.leaseToken,second.leaseToken);
+  assert.notEqual(first.leaseFence,second.leaseFence);
+  assert.equal(await store.transition("fenced","complete",{leaseToken:first.leaseToken,leaseFence:first.leaseFence,result:{stale:true}}),false);
+  assert.equal(await store.transition("fenced","complete",{leaseToken:second.leaseToken,leaseFence:second.leaseFence,result:{ok:true}}),true);
+});
+
+test("concurrent completion/failure/heartbeat resolves through one mutation lane",async()=>{
+  const store=await storeFixture();
+  await store.enqueue({id:"serial",type:"race",payload:{},maxAttempts:3});
+  const job=(await store.claim({workerId:"serial-worker",limit:1,leaseMs:30000}))[0];
+  const results=await Promise.all([
+    store.heartbeat(job.id,job.leaseToken,30000,job.leaseFence),
+    store.transition(job.id,"complete",{leaseToken:job.leaseToken,leaseFence:job.leaseFence,result:{ok:true}}),
+    store.transition(job.id,"fail",{leaseToken:job.leaseToken,leaseFence:job.leaseFence,error:"late failure"})
   ]);
-  const claimed = [a, b].filter(Boolean);
-  assert.equal(claimed.length, 1);
-
-  assert.equal(await completeWorkerTask(id, { ok: true }, claimed[0].lease_token), true);
+  assert.equal(results.filter(Boolean).length,1);
+  const final=store.jobs().find(x=>x.id==="serial");
+  assert.ok(final);
+  assert.equal(final.status,"completed");
 });
 
-test("expired lease can be reclaimed but stale result is rejected", { skip: !hasDatabase }, async () => {
-  const id = crypto.randomUUID();
-  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    await ensureWorkerTaskSchema();
-    await enqueueWorkerTask({ id, workerId: "crash-test", role: "general", task: "crash", maxAttempts: 3 });
-
-    const first = await claimWorkerTask(id, 15000);
-    assert.equal(first.id, id);
-
-    await db.query(
-      "UPDATE apex_worker_tasks SET lease_expires_at=NOW()-INTERVAL '1 second' WHERE id=$1",
-      [id]
-    );
-    assert.equal(await requeueExpiredWorkerTasks(), 1);
-    await db.query("UPDATE apex_worker_tasks SET next_run_at=NOW() WHERE id=$1", [id]);
-
-    const second = await claimWorkerTask(id, 15000);
-    assert.ok(second);
-    assert.equal(second.id, id);
-    assert.notEqual(second.lease_token, first.lease_token);
-
-    assert.equal(await completeWorkerTask(id, { stale: true }, first.lease_token), false);
-    assert.equal(await completeWorkerTask(id, { ok: true }, second.lease_token), true);
-  } finally {
-    await db.query("DELETE FROM apex_worker_tasks WHERE id=$1", [id]).catch(() => {});
-    await db.end();
-  }
-});
-
-test("expired recovery workers partition rows with SKIP LOCKED", { skip: !hasDatabase }, async () => {
-  const ids = Array.from({ length: 4 }, () => crypto.randomUUID());
-  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    await ensureWorkerTaskSchema();
-    for (const id of ids) {
-      await enqueueWorkerTask({ id, workerId: "recovery-race", role: "general", task: "recovery", maxAttempts: 3 });
-      await claimWorkerTask(id, 15000);
-    }
-    await db.query(
-      "UPDATE apex_worker_tasks SET lease_expires_at=NOW()-INTERVAL '1 second', next_run_at=NULL WHERE id=ANY($1::uuid[])",
-      [ids]
-    );
-    const [a, b] = await Promise.all([
-      requeueExpiredWorkerTasks(2),
-      requeueExpiredWorkerTasks(2)
-    ]);
-    assert.equal(a + b, ids.length);
-    const rows = await db.query("SELECT recovered_count FROM apex_worker_tasks WHERE id=ANY($1::uuid[])", [ids]);
-    assert.deepEqual(rows.rows.map(r => r.recovered_count).sort((x, y) => x - y), [1, 1, 1, 1]);
-  } finally {
-    await db.query("DELETE FROM apex_worker_tasks WHERE id=ANY($1::uuid[])", [ids]).catch(() => {});
-    await db.end();
-  }
-});
-
-test("lease heartbeat extends the active fence", { skip: !hasDatabase }, async () => {
-  const id = crypto.randomUUID();
-  await ensureWorkerTaskSchema();
-  await enqueueWorkerTask({ id, workerId: "heartbeat-test", role: "general", task: "heartbeat" });
-  const task = await claimWorkerTask(id, 15000);
-  assert.ok(task?.lease_token);
-  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    const before = await db.query("SELECT lease_expires_at FROM apex_worker_tasks WHERE id=$1", [id]);
-    assert.equal(await (await import("../src/core/mesh/durable-worker-store.mjs")).heartbeatWorkerTask(id, 30000, task.lease_token), true);
-    const after = await db.query("SELECT lease_expires_at FROM apex_worker_tasks WHERE id=$1", [id]);
-    assert.ok(new Date(after.rows[0].lease_expires_at) > new Date(before.rows[0].lease_expires_at));
-  } finally {
-    await db.query("DELETE FROM apex_worker_tasks WHERE id=$1", [id]).catch(() => {});
-    await db.end();
-    await closeWorkerStore();
-  }
-});
-
-test("external side effect idempotency key admits only one caller", { skip: !hasDatabase }, async () => {
-  const key = "race-effect-" + crypto.randomUUID();
-  await ensureWorkerTaskSchema();
-  const [a, b] = await Promise.all([claimExternalEffect(key), claimExternalEffect(key)]);
-  assert.equal([a, b].filter(Boolean).length, 1);
-  assert.equal(await completeExternalEffect(key, { ok: true }), true);
-  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  try { await db.query("DELETE FROM apex_external_effects WHERE idempotency_key=$1", [key]); }
-  finally { await db.end(); await closeWorkerStore(); }
-});
-
-test("shutdown release pairs each task with its exact lease token", { skip: !hasDatabase }, async () => {
-  const ids = [crypto.randomUUID(), crypto.randomUUID()];
-  await ensureWorkerTaskSchema();
-  for (const id of ids) {
-    await enqueueWorkerTask({ id, workerId: "release-test", role: "general", task: "release" });
-  }
-  const tasks = await claimNextWorkerTasks(2, 15000);
-  assert.equal(tasks.length, 2);
-  const tokens = tasks.map(task => task.lease_token);
-  assert.equal(await releaseWorkerTasks(ids, [tokens[1], tokens[0]]), 0);
-  assert.equal(await releaseWorkerTasks(ids, tokens), 2);
-  await closeWorkerStore();
-});
-
-test("rate limiter has a bounded wait instead of looping forever", { skip: !hasDatabase }, async () => {
-  const key = "rate-limit-test-" + crypto.randomUUID();
-  await ensureWorkerTaskSchema();
-  try {
-    assert.equal(await acquireAiRateLimit({ key, capacity: 1, refillPerSecond: 0.0001, maxWaitMs: 100 }), true);
-    assert.equal(await acquireAiRateLimit({ key, capacity: 1, refillPerSecond: 0.0001, retryMs: 50, maxWaitMs: 100 }), false);
-  } finally {
-    const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    try { await db.query("DELETE FROM rate_limits WHERE key=$1", [key]); }
-    finally { await db.end(); await closeWorkerStore(); }
-  }
+test("dedupe is atomic under concurrent enqueue",async()=>{
+  const store=await storeFixture();
+  const rows=await Promise.all(Array.from({length:100},()=>store.enqueue({type:"dedupe",payload:{},dedupeKey:"same-key"})));
+  assert.equal(new Set(rows.map(x=>x.id)).size,1);
+  assert.equal(rows.filter(x=>x.duplicate).length,99);
 });
