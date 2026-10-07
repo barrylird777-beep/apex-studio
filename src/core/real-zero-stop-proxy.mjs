@@ -171,6 +171,7 @@ class RtmpChunkDecoder extends EventEmitter {
   readChunk() {
     const b = this.buffer;
     if (b.length < 1) return null;
+
     const first = b[0];
     const fmt = first >> 6;
     let csid = first & 0x3f;
@@ -187,46 +188,78 @@ class RtmpChunkDecoder extends EventEmitter {
     }
 
     let header = this.headers.get(csid);
+    const partial = this.messages.get(csid);
+
     if (fmt === 0) {
       if (b.length < pos + 11) return null;
-      const timestamp = b.readUIntBE(pos, 3);
+      const rawTimestamp = b.readUIntBE(pos, 3);
       const length = b.readUIntBE(pos + 3, 3);
       const type = b[pos + 6];
       const streamId = b.readUInt32LE(pos + 7);
       pos += 11;
-      header = { timestamp, delta: 0, length, type, streamId };
-      this.headers.set(csid, header);
+      header = {
+        timestamp: rawTimestamp,
+        delta: 0,
+        length,
+        type,
+        streamId,
+        extended: rawTimestamp === 0xffffff
+      };
     } else if (!header) {
       return null;
     } else if (fmt === 1) {
       if (b.length < pos + 7) return null;
-      const delta = b.readUIntBE(pos, 3);
+      const rawDelta = b.readUIntBE(pos, 3);
       const length = b.readUIntBE(pos + 3, 3);
       const type = b[pos + 6];
       pos += 7;
-      header = { ...header, timestamp: header.timestamp + delta, delta, length, type };
-      this.headers.set(csid, header);
+      header = {
+        ...header,
+        timestamp: header.timestamp + rawDelta,
+        delta: rawDelta,
+        length,
+        type,
+        extended: rawDelta === 0xffffff
+      };
     } else if (fmt === 2) {
       if (b.length < pos + 3) return null;
-      const delta = b.readUIntBE(pos, 3);
+      const rawDelta = b.readUIntBE(pos, 3);
       pos += 3;
-      header = { ...header, timestamp: header.timestamp + delta, delta };
-      this.headers.set(csid, header);
-    } else {
-      header = { ...header, timestamp: header.timestamp + header.delta };
-      this.headers.set(csid, header);
+      header = {
+        ...header,
+        timestamp: header.timestamp + rawDelta,
+        delta: rawDelta,
+        extended: rawDelta === 0xffffff
+      };
+    } else if (!partial) {
+      header = {
+        ...header,
+        timestamp: header.timestamp + header.delta
+      };
     }
 
-    const extendedTimestamp = (fmt === 0 || fmt === 1 || fmt === 2) && header.timestamp >= 0xffffff;
-    if (extendedTimestamp) {
+    if (header.extended) {
       if (b.length < pos + 4) return null;
       const extended = b.readUInt32BE(pos);
       pos += 4;
-      header = { ...header, timestamp: extended };
-      this.headers.set(csid, header);
+      if (fmt === 0) {
+        header = { ...header, timestamp: extended, extended: false };
+      } else if (fmt === 1 || fmt === 2) {
+        const previousTimestamp = this.headers.get(csid)?.timestamp ?? 0;
+        header = {
+          ...header,
+          timestamp: previousTimestamp + extended,
+          delta: extended,
+          extended: false
+        };
+      } else {
+        header = { ...header, extended: false };
+      }
     }
 
-    const current = this.messages.get(csid) || { header, payload: Buffer.alloc(0) };
+    this.headers.set(csid, header);
+
+    const current = partial || { header, payload: Buffer.alloc(0) };
     const remaining = header.length - current.payload.length;
     const take = Math.min(this.chunkSize, remaining);
     if (b.length < pos + take) return null;
@@ -243,8 +276,7 @@ class RtmpChunkDecoder extends EventEmitter {
 
     this.messages.set(csid, current);
     return { type: 'partial' };
-  }
-}
+  }}
 
 function parseMessageUrl(value) {
   return parseRtmpUrl(value);
