@@ -20,20 +20,20 @@ export const APEX_SURFACES = Object.freeze({
     role: "brain",
     domain: "Korn World, scripture, research, knowledge and study"
   },
-  APEX_OPPORTUNITY: {
-    id: "ApexOpportunity",
+  ENGINE_APEX: {
+    id: "EngineApex",
     role: "money",
-    domain: "opportunity discovery, growth, monetization and business intelligence"
+    domain: "opportunity discovery, growth, business, monetization and decision intelligence"
   },
-  APEX_RAPID_VIDEO: {
-    id: "ApexRapidVideo",
+  APEX_RAPID: {
+    id: "ApexRapid",
     role: "money",
-    domain: "rapid paid video creation and fulfillment"
+    domain: "rapid customer-facing video fulfillment"
   },
-  APEX_AD_BLOCKER: {
-    id: "ApexAdBlocker",
+  SHIELD_APEX: {
+    id: "ShieldApex",
     role: "shield",
-    domain: "network protection and ad blocking"
+    domain: "network, security and execution-environment protection"
   }
 });
 
