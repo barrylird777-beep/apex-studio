@@ -2,6 +2,8 @@ import os from 'node:os';
 import pg from 'pg';
 import { createDurableJobsStore } from './durable-jobs-store.mjs';
 import { createRenderPool } from '../core/render-pool.mjs';
+import { handlers as productionHandlers } from './production-handlers.mjs';
+import { pollTrendSwarm, closeTrendSwarm } from '../services/trend-swarm.mjs';
 
 const { Pool } = pg;
 const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${process.pid}`;
@@ -13,6 +15,8 @@ const concurrency = Math.max(1, Math.min(32, Number(process.env.APEX_WORKER_CONC
 const batchSize = Math.max(1, Math.min(20, Number(process.env.APEX_WORKER_BATCH_SIZE || 20)));
 const renderConcurrency = Math.max(1, Math.min(16, Number(process.env.APEX_RENDER_CONCURRENCY || 8)));
 const idlePollMs = Math.max(10, Number(process.env.APEX_WORKER_IDLE_POLL_MS || 50));
+const trendPollMs = Math.max(15000, Number(process.env.APEX_TREND_POLL_MS || 60000));
+let nextTrendPoll = 0;
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 
@@ -42,16 +46,14 @@ async function handle(job) {
   }
 
   const modulePath = process.env.APEX_JOB_HANDLER_MODULE;
-  if (!modulePath) {
-    throw new Error(`No production handler configured for durable job type: ${job.type}`);
-  }
-
-  const module = await import(modulePath);
+  const module = modulePath ? await import(modulePath) : null;
   const handler =
-    module.handlers?.[job.type] ??
-    module.default?.[job.type] ??
-    module.handleJob ??
-    module.default;
+    productionHandlers?.[job.type] ??
+    module?.handlers?.[job.type] ??
+    module?.default?.[job.type] ??
+    module?.handleJob ??
+    module?.default;
+  if (typeof handler !== 'function') throw new Error(`No production handler registered for durable job type: ${job.type}`);
 
   if (typeof handler !== 'function') {
     throw new Error(`No production handler registered for durable job type: ${job.type}`);
@@ -125,6 +127,10 @@ async function main() {
   await pool.query('SELECT 1');
   console.log('[WORKER] online', workerId);
   while (!stopping) {
+    if (Date.now() >= nextTrendPoll) {
+      nextTrendPoll = Date.now() + trendPollMs;
+      pollTrendSwarm().then(result => console.log('[SWARM] trend poll', result)).catch(error => console.error('[SWARM] trend poll failed', error));
+    }
     await recover();
     const capacity = concurrency - active.size;
     if (capacity <= 0) {
@@ -160,6 +166,7 @@ async function shutdown(signal) {
   stopping = true;
   console.log(`[WORKER] draining on ${signal}`);
   await Promise.allSettled([...active]);
+  await closeTrendSwarm().catch(() => {});
   await pool.end();
 }
 
