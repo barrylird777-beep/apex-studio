@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import pg from "pg";
 import { createDurableJobsStore } from "../jobs/durable-jobs-store.mjs";
+import { buildUniversalExecutionEnvelope } from "../core/apex-universal-capabilities.mjs";
 const { Pool } = pg;
 const DEFAULT_FEEDS = ["https://trends.google.com/trending/rss?geo=US"];
 const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, max: 3, connectionTimeoutMillis: 5000, idleTimeoutMillis: 15000, ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false } }) : null;
@@ -26,7 +27,7 @@ export async function pollTrendSwarm() {
   let queued=0;
   for(const trend of discovered) {
     const fingerprint=hash(trend.source+"|"+trend.title.toLowerCase());
-    const result=await store.enqueue({id:randomUUID(),type:"trend.analyze",payload:{trend:trend.title,source:trend.source,sourceUrl:trend.link||null,publishedAt:trend.pubDate||null,fingerprint,style:"original dark cinematic anime"},maxAttempts:5,dedupeKey:"trend:"+fingerprint,runAt:new Date()});
+    const result=await store.enqueue({id:randomUUID(),type:"trend.analyze",payload:{trend:trend.title,source:trend.source,sourceUrl:trend.link||null,publishedAt:trend.pubDate||null,fingerprint,style:"original dark cinematic anime",execution:buildUniversalExecutionEnvelope({capability:"video",request:trend.title,source:trend.source})},maxAttempts:5,dedupeKey:"trend:"+fingerprint,runAt:new Date()});
     if(result) queued++;
   }
   return {durable:true,discovered:discovered.length,queued,errors};
