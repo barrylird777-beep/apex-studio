@@ -42,7 +42,8 @@
     "worker:local": "node src/jobs/sovereign-local-worker-daemon.mjs",
     "sovereign:raft": "node scripts/sovereign-raft-node.mjs",
     "sovereign:verify": "node scripts/verify-sovereign-elite.mjs",
-    "sovereign:scheduler": "node scripts/sovereign-scheduler-smoke.mjs"
+    "sovereign:scheduler": "node scripts/sovereign-scheduler-smoke.mjs",
+    "verify:rapid-buyer": "node --check server.mjs && node --check index.mjs && node --check src/payments/stripe-rapid.mjs && node --check src/workers/rapid-video-worker.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
