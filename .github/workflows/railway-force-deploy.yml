@@ -39,3 +39,5 @@ jobs:
         run: railway up --ci --project "$PROJECT_ID" --environment production --service apex-studio
       - name: Deploy Apex workers
         run: railway up --ci --project "$PROJECT_ID" --environment production --service apex-workers
+
+# force-deploy verification
