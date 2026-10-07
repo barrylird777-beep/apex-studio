@@ -35,7 +35,7 @@ export class SovereignRaftNode {
     this.metaFile = path.join(this.dir, 'raft-meta.json');
     this.logFile = path.join(this.dir, 'raft-log.jsonl');
     this.snapshotFile = path.join(this.dir, 'snapshot.json');
-    this.state = { term: 0, votedFor: null, commitIndex: 0, lastApplied: 0 };
+    this.state = { term: 0, votedFor: null, commitIndex: 0, lastApplied: 0, lastIncludedIndex: 0, lastIncludedTerm: 0 };
     this.log = [];
     this.role = 'follower';
     this.leaderId = null;
@@ -53,6 +53,12 @@ export class SovereignRaftNode {
     this.log = raw.split('\n').filter(Boolean).map(JSON.parse);
     const snapshot = await readJson(this.snapshotFile, null);
     if (snapshot?.state) this.stateMachine = new Map(Object.entries(snapshot.state));
+    if (snapshot) {
+      this.state.lastIncludedIndex = Number(snapshot.lastIncludedIndex || 0);
+      this.state.lastIncludedTerm = Number(snapshot.lastIncludedTerm || 0);
+      this.state.lastApplied = Math.max(this.state.lastApplied, this.state.lastIncludedIndex);
+      this.state.commitIndex = Math.max(this.state.commitIndex, this.state.lastIncludedIndex);
+    }
     await this.replayCommitted();
     return this;
   }
@@ -76,8 +82,8 @@ export class SovereignRaftNode {
     return record;
   }
 
-  lastIndex() { return this.log.at(-1)?.index || 0; }
-  lastTerm() { return this.log.at(-1)?.term || 0; }
+  lastIndex() { return this.log.at(-1)?.index || Number(this.state.lastIncludedIndex || 0); }
+  lastTerm() { return this.log.at(-1)?.term || Number(this.state.lastIncludedTerm || 0); }
 
   resetElectionTimer() {
     if (this.electionTimer) clearTimeout(this.electionTimer);
@@ -143,7 +149,8 @@ export class SovereignRaftNode {
       this.leaderId = rpc.leaderId;
       this.role = 'follower';
       const previous = rpc.prevIndex ? this.log.find(x => x.index === rpc.prevIndex) : null;
-      if (rpc.prevIndex && (!previous || previous.term !== rpc.prevTerm)) return { term: this.state.term, success: false, matchIndex: this.lastIndex() };
+      const snapshotMatch = rpc.prevIndex === Number(this.state.lastIncludedIndex || 0) && rpc.prevTerm === Number(this.state.lastIncludedTerm || 0);
+      if (rpc.prevIndex && (!previous && !snapshotMatch || previous && previous.term !== rpc.prevTerm)) return { term: this.state.term, success: false, matchIndex: this.lastIndex() };
       for (const entry of rpc.entries || []) {
         const existing = this.log.find(x => x.index === entry.index);
         if (existing && existing.hash !== entry.hash) {
@@ -234,11 +241,14 @@ export class SovereignRaftNode {
   }
 
   async snapshot() {
-    const snapshot = { lastIncludedIndex: this.state.lastApplied, lastIncludedTerm: this.log.find(x => x.index === this.state.lastApplied)?.term || 0, state: Object.fromEntries(this.stateMachine) };
+    const snapshot = { lastIncludedIndex: this.state.lastApplied, lastIncludedTerm: this.log.find(x => x.index === this.state.lastApplied)?.term || (this.state.lastApplied === this.state.lastIncludedIndex ? this.state.lastIncludedTerm : 0), state: Object.fromEntries(this.stateMachine) };
     await atomicWrite(this.snapshotFile, snapshot);
     if (this.state.lastApplied > 0) {
       this.log = this.log.filter(x => x.index > this.state.lastApplied);
+      this.state.lastIncludedIndex = snapshot.lastIncludedIndex;
+      this.state.lastIncludedTerm = snapshot.lastIncludedTerm;
       await fs.writeFile(this.logFile, this.log.map(x => JSON.stringify(x)).join('\n') + (this.log.length ? '\n' : ''), { mode: 0o600 });
+      await this.persistMeta();
     }
     return snapshot;
   }
