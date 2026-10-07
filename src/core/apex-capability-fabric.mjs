@@ -31,6 +31,10 @@ export class ApexCapabilityFabric {
       ...p,
       configured: !p.env || Boolean(process.env[p.env])
     }]));
+    this.models = new Map(modelCatalog.map(m => [m.id, {
+      ...m,
+      configured: Boolean(this.providers.get(m.provider)?.configured)
+    }]));
     this.registerNode(nodeId, {
       classes:['cpu'],
       capabilities:['script','reasoning','coding','render','encode','decode','vector','storage','network'],
