@@ -7,7 +7,6 @@
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:0 auto;padding:28px;line-height:1.5}
 .card{border:1px solid #ccc;border-radius:16px;padding:20px;margin:16px 0}
-code{word-break:break-all}
 a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#111;color:#fff;text-decoration:none}
 .small{opacity:.7}
 </style>
@@ -27,29 +26,29 @@ a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#1
 </div>
 <div class="card">
 <h2>Run it</h2>
-<p>On iPhone Safari, add this page to your Favorites. The bookmarklet below is the zero-cost workaround for Apple's signed-extension requirement.</p>
+<p>Save this page as a Safari Favorite. Open the saved bookmark while viewing a page to activate Apex AdShield on that page.</p>
 <a class="button" href="javascript:(() => {
-  "use strict";
+  &quot;use strict&quot;;
   if (window.__APEX_ADSHIELD__) return;
   window.__APEX_ADSHIELD__ = true;
 
   const youtube = /(^|\\.)youtube(?:-nocookie)?\\.com$/i.test(location.hostname);
   const genericSelectors = [
-    '[id^="ad-"]',
-    '[id*="advert"]',
-    '[class*="advertisement"]',
-    '[class*="ad-banner"]',
+    '[id^=&quot;ad-&quot;]',
+    '[id*=&quot;advert&quot;]',
+    '[class*=&quot;advertisement&quot;]',
+    '[class*=&quot;ad-banner&quot;]',
     '[data-ad-slot]',
-    '[aria-label="Advertisement"]'
+    '[aria-label=&quot;Advertisement&quot;]'
   ];
   const youtubeSelectors = [
-    "ytd-display-ad-renderer",
-    "ytd-promoted-sparkles-web-renderer",
-    "ytd-ad-slot-renderer",
-    "ytd-in-feed-ad-layout-renderer",
-    ".ytp-ad-overlay-container",
-    ".ytp-ad-overlay-slot",
-    ".ytp-ad-text-overlay"
+    &quot;ytd-display-ad-renderer&quot;,
+    &quot;ytd-promoted-sparkles-web-renderer&quot;,
+    &quot;ytd-ad-slot-renderer&quot;,
+    &quot;ytd-in-feed-ad-layout-renderer&quot;,
+    &quot;.ytp-ad-overlay-container&quot;,
+    &quot;.ytp-ad-overlay-slot&quot;,
+    &quot;.ytp-ad-text-overlay&quot;
   ];
 
   const hide = (root = document) => {
@@ -57,9 +56,9 @@ a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#1
     for (const selector of selectors) {
       try {
         root.querySelectorAll(selector).forEach(el => {
-          if (el && el.style.display !== "none") {
-            el.style.setProperty("display", "none", "important");
-            el.setAttribute("data-apex-adshield", "hidden");
+          if (el && el.style.display !== &quot;none&quot;) {
+            el.style.setProperty(&quot;display&quot;, &quot;none&quot;, &quot;important&quot;);
+            el.setAttribute(&quot;data-apex-adshield&quot;, &quot;hidden&quot;);
           }
         });
       } catch {}
@@ -68,11 +67,11 @@ a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#1
 
   const skipYoutubeAd = () => {
     if (!youtube) return;
-    document.querySelectorAll("video").forEach(video => {
-      const player = video.closest(".html5-video-player");
-      if (!player?.classList.contains("ad-showing")) return;
+    document.querySelectorAll(&quot;video&quot;).forEach(video => {
+      const player = video.closest(&quot;.html5-video-player&quot;);
+      if (!player?.classList.contains(&quot;ad-showing&quot;)) return;
       const skip = player.querySelector(
-        ".ytp-ad-skip-button, .ytp-ad-skip-button-modern, button.ytp-ad-skip-button"
+        &quot;.ytp-ad-skip-button, .ytp-ad-skip-button-modern, button.ytp-ad-skip-button&quot;
       );
       if (skip) {
         try { skip.click(); } catch {}
@@ -93,8 +92,8 @@ a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#1
   run();
   new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(skipYoutubeAd, 350);
-})();">Apex AdShield</a>
-<p class="small">If Safari strips the javascript link, create a bookmark for this page and replace the bookmark address with the JavaScript from the button link.</p>
+})();">Activate Apex AdShield</a>
+<p class="small">If Safari will not save the JavaScript action directly, save this page as a bookmark first, then edit that bookmark's address to the JavaScript action behind the button.</p>
 </div>
 <div class="card">
 <h2>Limits</h2>
