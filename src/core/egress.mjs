@@ -4,27 +4,48 @@ import { now } from "./id.mjs";
 
 function isPrivateIPv4(ip) {
   const p = ip.split(".").map(Number);
-  if (p.length !== 4 || p.some(Number.isNaN)) return false;
-  const [a,b] = p;
-  return a === 10 || a === 127 || a === 0 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168);
+  if (p.length !== 4 || p.some(Number.isNaN)) return true;
+  const [a, b, c] = p;
+  return a === 0 ||
+    a === 10 ||
+    a === 100 && b >= 64 && b <= 127 ||
+    a === 127 ||
+    a === 169 && b === 254 ||
+    a === 172 && b >= 16 && b <= 31 ||
+    a === 192 && b === 0 && c === 0 ||
+    a === 192 && b === 0 && c === 2 ||
+    a === 192 && b === 168 ||
+    a === 198 && b === 18 ||
+    a === 198 && b === 19 ||
+    a === 198 && b === 51 && c === 100 ||
+    a === 203 && b === 0 && c === 113 ||
+    a >= 224;
+}
+
+function mappedIPv4(ip) {
+  const normalized = ip.toLowerCase();
+  const match = normalized.match(/^::ffff:(?:0:)?(\\d+(?:\\.\\d+){3})$/);
+  return match?.[1] ?? null;
+}
+
+function isPrivateIPv6(ip) {
+  const normalized = ip.toLowerCase().split("%")[0];
+  if (normalized === "::" || normalized === "::1") return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  if (normalized.startsWith("fe80:")) return true;
+  if (normalized.startsWith("ff")) return true;
+  const mapped = mappedIPv4(normalized);
+  return mapped ? isPrivateIPv4(mapped) : false;
 }
 
 function isPrivateAddress(ip) {
   if (net.isIPv4(ip)) return isPrivateIPv4(ip);
-  if (!net.isIPv6(ip)) return true;
-  const normalized = ip.toLowerCase();
-  return normalized === "::1" ||
-    normalized === "::" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:");
+  if (net.isIPv6(ip)) return isPrivateIPv6(ip);
+  return true;
 }
 
 function normalizeHost(host) {
-  return String(host ?? "").trim().toLowerCase().replace(/^\.+|\.+$/g, "");
+  return String(host ?? "").trim().toLowerCase().replace(/^\\.+|\\.+$/g, "");
 }
 
 function hostAllowed(host, patterns) {
@@ -50,11 +71,15 @@ export class EgressPolicy {
     this.audit = [];
     this.resolve = options.resolve ?? dns.lookup;
     this.allowedHosts = parseAllowlist(options.allowedHosts ?? process.env.APEX_SEX_ALLOWED_HOSTS);
-    this.requireAllowlist = options.requireAllowlist === true;
-    this.allowedProtocols = new Set((options.allowedProtocols ?? ["http:", "https:"]).map(String));
+    this.requireAllowlist = options.requireAllowlist ?? true;
+    this.allowedProtocols = new Set((options.allowedProtocols ?? ["https:"]).map(String));
   }
 
-  async check(target, { action = "request", requireAllowlist = this.requireAllowlist, allowedProtocols = this.allowedProtocols } = {}) {
+  async check(target, {
+    action = "request",
+    requireAllowlist = this.requireAllowlist,
+    allowedProtocols = this.allowedProtocols
+  } = {}) {
     const url = new URL(String(target));
 
     if (!allowedProtocols.has(url.protocol)) {
@@ -68,6 +93,10 @@ export class EgressPolicy {
     }
 
     const host = normalizeHost(url.hostname);
+    if (!host) {
+      this.#audit(url.href, action, false, "empty-host");
+      throw new Error("Egress denied: target host is empty");
+    }
 
     if (requireAllowlist && !hostAllowed(host, this.allowedHosts)) {
       this.#audit(url.href, action, false, "host-not-allowlisted");
@@ -84,13 +113,20 @@ export class EgressPolicy {
     }
 
     this.#audit(url.href, action, true, "allowed");
-    return true;
+    return {
+      allowed: true,
+      hostname: host,
+      addresses: [...addresses],
+      protocol: url.protocol
+    };
   }
 
   #audit(target, action, allowed, reason) {
     this.audit.push({
       target,
-      host: (() => { try { return new URL(target).hostname; } catch { return ""; } })(),
+      host: (() => {
+        try { return new URL(target).hostname; } catch { return ""; }
+      })(),
       action,
       allowed,
       reason,
