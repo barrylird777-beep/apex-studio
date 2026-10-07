@@ -1,6 +1,7 @@
 import net from 'node:net';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { readFile } from 'node:fs/promises';
 
 const RTMP_VERSION = 3;
 const HANDSHAKE_SIZE = 1536;
@@ -245,6 +246,55 @@ function parseMessageUrl(value) {
   return parseRtmpUrl(value);
 }
 
+export async function loadFlvFallbackMedia(file) {
+  required(file, 'fallback FLV file');
+  const buffer = await readFile(file);
+  if (buffer.length < 13 || buffer.subarray(0, 3).toString() !== 'FLV') {
+    throw new Error('fallback file must be an FLV container');
+  }
+  const offset = buffer.readUInt32BE(5);
+  let pos = Math.max(9, offset) + 4;
+  const tags = [];
+  while (pos + 11 <= buffer.length) {
+    const type = buffer[pos];
+    const dataSize = buffer.readUIntBE(pos + 1, 3);
+    const timestamp = buffer.readUIntBE(pos + 4, 3) + (buffer[pos + 7] * 0x1000000);
+    const dataStart = pos + 11;
+    const dataEnd = dataStart + dataSize;
+    if (dataEnd + 4 > buffer.length) break;
+    if (type === TYPE_AUDIO || type === TYPE_VIDEO) {
+      tags.push({
+        type,
+        timestamp,
+        payload: Buffer.from(buffer.subarray(dataStart, dataEnd))
+      });
+    }
+    pos = dataEnd + 4;
+  }
+
+  const firstKeyframe = tags.findIndex(tag =>
+    tag.type === TYPE_VIDEO && (tag.payload[0] >> 4) === 1
+  );
+  if (firstKeyframe < 0) {
+    throw new Error('fallback FLV contains no H264 keyframe');
+  }
+
+  const ordered = tags.slice(firstKeyframe);
+  const nextKeyframe = ordered.findIndex((tag, index) =>
+    index > 0 && tag.type === TYPE_VIDEO && (tag.payload[0] >> 4) === 1
+  );
+  const selected = nextKeyframe > 0 ? ordered.slice(0, nextKeyframe) : ordered;
+  const base = selected[0]?.timestamp ?? 0;
+
+  return selected.map((tag, index) => ({
+    type: tag.type,
+    payload: tag.payload,
+    durationMs: index + 1 < selected.length
+      ? Math.max(1, selected[index + 1].timestamp - tag.timestamp)
+      : Math.max(1, tag.timestamp - base || 40)
+  }));
+}
+
 export function buildRtmpHandshake() {
   return Buffer.concat([Buffer.from([RTMP_VERSION]), makeHandshakeC1()]);
 }
@@ -387,8 +437,16 @@ export function createRealZeroStopProxy({
 
   const forwardMedia = message => {
     if (message.type !== TYPE_AUDIO && message.type !== TYPE_VIDEO && message.type !== TYPE_AMF0_DATA) return;
-    lastMedia.set(message.type, Buffer.from(message.payload));
-    state.timestamp = Math.max(state.timestamp + 1, message.timestamp >>> 0);
+    if (message.type === TYPE_AUDIO || message.type === TYPE_VIDEO) {
+      if (state.fallbackActive) {
+        state.fallbackActive = false;
+        stopFallbackLoop();
+      }
+      lastMedia.set(message.type, Buffer.from(message.payload));
+    }
+    const sourceTimestamp = Number(message.timestamp) || 0;
+    state.timestamp = Math.max(state.timestamp + 1, state.timestamp + Math.max(0, sourceTimestamp - (state.lastSourceTimestamp ?? sourceTimestamp)));
+    state.lastSourceTimestamp = sourceTimestamp;
     sendMessage({
       csid: message.type === TYPE_VIDEO ? 6 : 7,
       type: message.type,
