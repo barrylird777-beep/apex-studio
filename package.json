@@ -27,6 +27,7 @@
     "swarm:daemon": "node src/core/autonomous-swarm-daemon.mjs",
     "research:ingest": "node scripts/research-ingest.mjs",
     "apexus:bootstrap": "node scripts/bootstrap-apexus-2785.mjs",
+    "apexus:prepare": "node scripts/prepare-apexus-2785.mjs",
     "apexus:worker": "APEX_JOB_HANDLER_MODULE=./src/jobs/apexus-handlers.mjs npm run durable:worker"
   },
   "dependencies": {
