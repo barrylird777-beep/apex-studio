@@ -1,4 +1,4 @@
-import { searchAnything, fetchAnything, sanitizeOutboundHeaders } from "../core/apex-web-search.mjs";
+import { searchAnything, fetchAnything, sanitizeOutboundHeaders, assertPublicUrl } from "../core/apex-web-search.mjs";
 
 export const NETWORK_CAPABILITIES=Object.freeze([
   "public-web-search","multi-engine-search","https-fetch","source-discovery",
@@ -29,13 +29,29 @@ export async function networkResearch(query,{limit=20,engines="all"}={}){
   return {query:String(query),results:search.results||[],documents,errors:search.errors||[]};
 }
 
-export async function gatewayFetch(target,{method="GET",headers={},body,signal}={}) {
-  const response=await fetch(target,{
-    method,
-    headers:sanitizeOutboundHeaders(headers),
-    body,
-    signal,
-    redirect:"manual"
-  });
-  return response;
+export async function gatewayFetch(target,{method="GET",headers={},body,signal,maxRedirects=5}={}) {
+  let url=await assertPublicUrl(target);
+  for(let redirects=0;;redirects++){
+    const response=await fetch(url,{method,headers:sanitizeOutboundHeaders(headers),body,signal,redirect:"manual"});
+    if(response.status>=300&&response.status<400){
+      if(redirects>=Math.min(10,Math.max(0,Number(maxRedirects)||5)))throw new Error("Too many redirects");
+      const location=response.headers.get("location");
+      if(!location)throw new Error("Redirect without location");
+      url=await assertPublicUrl(new URL(location,url).href);
+      continue;
+    }
+    return response;
+  }
+}
+export async function networkStatus(){
+  return {
+    capabilities:[...NETWORK_CAPABILITIES],
+    searchEngines:["DuckDuckGo","Google","Bing"],
+    outboundTransport:"standard fetch",
+    outboundMetadataPolicy:"tracking headers stripped",
+    ssrfPolicy:"public HTTP(S) targets only; DNS-resolved private/local addresses blocked",
+    redirectPolicy:"every redirect revalidated",
+    maxSearchResults:100,
+    maxFetchBytes:20*1024*1024
+  };
 }
