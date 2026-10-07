@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 import { createDurableJobsStore } from "./durable-jobs-store.mjs";
 import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
+import { buildUniversalExecutionEnvelope } from "../core/apex-universal-capabilities.mjs";
 
 const { Pool } = pg;
 const pool = process.env.DATABASE_URL
@@ -66,7 +67,7 @@ async function analyzeTrend(job) {
   const child = await store.enqueue({
     id: randomUUID(),
     type: "rapid.trend.render",
-    payload: { trend, source, fingerprint, plan },
+    payload: { trend, source, fingerprint, plan, execution: buildUniversalExecutionEnvelope({ capability: "video", request: trend, source }) },
     maxAttempts: 5,
     dedupeKey: "rapid-trend-render:" + (fingerprint || trend.toLowerCase())
   });
