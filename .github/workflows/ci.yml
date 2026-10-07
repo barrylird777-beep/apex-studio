@@ -129,3 +129,5 @@ jobs:
         run: npm install --no-audit --no-fund --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=30000
 
       - run: npm run test:network
+      - run: npm run verify:rapid-buyer
+

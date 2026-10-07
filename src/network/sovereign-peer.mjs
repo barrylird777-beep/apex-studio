@@ -6,6 +6,7 @@ import { mdns } from '@libp2p/mdns';
 import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
+import { createSovereignIdentity, verifySelfSignedJwt } from '../security/sovereign-identity.mjs';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
 const encoder = new TextEncoder();
@@ -13,6 +14,8 @@ const decoder = new TextDecoder();
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const discoveryEnabled = () => process.env.APEX_ENABLE_MDNS === 'true';
+const requireAllowlist = () => process.env.APEX_REQUIRE_PEER_ALLOWLIST !== 'false';
+const requireJwt = () => process.env.APEX_REQUIRE_SELF_SIGNED_JWT !== 'false';
 
 async function readJson(stream) {
   let text = '';
@@ -27,6 +30,7 @@ async function readJson(stream) {
 }
 
 export async function createSovereignPeer({ onEnvelope } = {}) {
+  const sovereignIdentity = await createSovereignIdentity();
   const node = await createLibp2p({
     addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 0)}`] },
     transports: [tcp()],
@@ -53,14 +57,16 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       const allowlist = allowedPeerIds();
-      if (allowlist.size && !allowlist.has(remotePeerId)) throw new Error('peer is not allowlisted');
+      if (requireAllowlist() && (!allowlist.size || !allowlist.has(remotePeerId))) throw new Error('peer is not allowlisted');
       const envelope = await readJson(stream);
+      if (requireJwt()) { const claims = verifySelfSignedJwt(envelope?.auth); if (claims.peerId !== remotePeerId) throw new Error('JWT peer identity mismatch'); }
       const accepted = onEnvelope ? await onEnvelope(envelope) : true;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
     } catch (error) {
       await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: error instanceof Error ? error.message : String(error) }) + '\n')]);
     }
   });
+  node.sovereignIdentity = sovereignIdentity;
   return node;
 }
 
@@ -70,15 +76,24 @@ export async function startSovereignPeer(options) {
   return node;
 }
 
-export async function sendToPeer(node, multiaddr, envelope) {
-  const stream = await node.dialProtocol(multiaddr, PROTOCOL, {
+export async function sendProtocol(node, multiaddr, protocol, envelope) {
+  const authenticated = { ...envelope };
+  if (requireJwt()) {
+    authenticated.peerId = node.peerId.toString();
+    authenticated.auth = await node.sovereignIdentity.issue({ peerId: node.peerId.toString() });
+  }
+  const stream = await node.dialProtocol(multiaddr, protocol, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
-  await stream.sink([encoder.encode(JSON.stringify(envelope) + '\n')]);
+  await stream.sink([encoder.encode(JSON.stringify(authenticated) + '\n')]);
   const response = await readJson(stream);
   await stream.close?.();
   if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
   return response;
+}
+
+export async function sendToPeer(node, multiaddr, envelope) {
+  return sendProtocol(node, multiaddr, PROTOCOL, envelope);
 }
 
 export { PROTOCOL };
