@@ -1,0 +1,211 @@
+[
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.doubleclick.net",
+        "doubleclick.net"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.googlesyndication.com",
+        "googlesyndication.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.googleadservices.com",
+        "googleadservices.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.adnxs.com",
+        "adnxs.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.adsrvr.org",
+        "adsrvr.org"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.taboola.com",
+        "taboola.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.outbrain.com",
+        "outbrain.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.criteo.com",
+        "criteo.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.pubmatic.com",
+        "pubmatic.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.openx.net",
+        "openx.net"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*.scorecardresearch.com",
+        "scorecardresearch.com"
+      ],
+      "resource-type": [
+        "script",
+        "image",
+        "raw",
+        "style-sheet",
+        "font"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  }
+]\n
