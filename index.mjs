@@ -18,6 +18,7 @@ import { assertProductionHandoff, validateScriptGardenReferences } from "./src/c
 import { createMusicRadarHandoff } from "./src/core/music/music-radar-contract.mjs";
 import { buildMusicProductionPlan, verifyMusicGardenPackage } from "./src/core/music/music-studio.mjs";
 import { normalizeContentDomain } from "./src/core/content/content-domains.mjs";
+import { executeRapidVideoOrder } from "./src/workers/rapid-video-worker.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
   const contentDomain = normalizeContentDomain(payload?.contentDomain || "bible");
@@ -216,7 +217,9 @@ if (!workerOnly) {
     heartbeat.unref?.();
     try {
       const taskType = String(task.task || "");
-      const result = taskType === "episode-production"
+      const result = taskType === "rapid-video-order"
+        ? await executeRapidVideoOrder(task.payload || {})
+        : taskType === "episode-production"
         ? await executeEpisodeProductionTask(task.payload || {})
         : taskType === "music-audio-handoff"
           ? await executeMusicAudioHandoffTask(task.payload || {})
