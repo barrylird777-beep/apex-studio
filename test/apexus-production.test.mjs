@@ -21,7 +21,8 @@ test("Apexus has exactly 2,785 deterministic episode slots", () => {
 
 test("episode production cannot skip gates", () => {
   const episode = buildEpisode(1, { title: "Test" });
-  assert.equal(canAdvanceEpisode(episode, "STORY"), true);
+  assert.equal(canAdvanceEpisode(episode, "STORY"), false);
+  assert.equal(canAdvanceEpisode({ ...episode, creativeBrief: { premise: "ready" } }, "STORY"), true);
   assert.equal(canAdvanceEpisode(episode, "SCRIPT"), false);
   assert.equal(canAdvanceEpisode(episode, "QC"), false);
 });
