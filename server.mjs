@@ -55,6 +55,11 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json' }),
     if (!current) return res.status(404).json({ received:false, error:'order not found' });
     if (current.paymentStatus === 'paid') return res.json({ received:true, duplicate:true });
 
+    const expectedAmount = Number(current.price || 25) * 100;
+    if (session.payment_status !== 'paid' || Number(session.amount_total) !== expectedAmount) {
+      return res.status(400).json({ received:false, error:'payment verification failed' });
+    }
+
     await appendEvent('rapid.payment.completed', {
       ...current,
       paymentStatus:'paid',
