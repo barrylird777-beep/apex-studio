@@ -1,6 +1,7 @@
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 import { enqueueWorkerTask } from "../core/mesh/durable-worker-store.mjs";
 import { randomUUID } from "node:crypto";
+import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
 const clean=v=>String(v??"").trim().slice(0,2000);
 async function analyzeTrend(job){
   const trend=clean(job.payload?.trend), source=clean(job.payload?.source);
