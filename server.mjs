@@ -34,6 +34,7 @@ import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
+import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -1694,6 +1695,20 @@ app.post('/api/ai/generate-grok', async (req, res) => {
 app.get('/api/ai/generate-grok/status', (_req, res) => {
   res.json({ success: true, ...grokStatus() });
 });
+
+app.get('/api/apex/universe', (_req, res) => res.json({
+  success: true,
+  surfaces: APEX_SURFACES,
+  capabilities: APEX_UNIVERSAL_CAPABILITIES,
+  executionPolicy: APEX_EXECUTION_POLICY,
+  localMobile: {
+    runtime: "llama.cpp",
+    acceleration: "Metal",
+    appIntents: true,
+    offlineInference: true,
+    unrestrictedBackgroundDaemon: false
+  }
+}));
 
 app.get('/api/ai/catalog', (_req, res) => {
   res.json({ success: true, generatedAt: new Date().toISOString(), providers: getAiCatalog(), categories: getAiCategories() });
