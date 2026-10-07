@@ -37,6 +37,9 @@ import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
 import { createPrivacyControlPlane } from './src/api/privacy-control-plane.mjs';
+import { installPrivacyGuard } from './src/core/apex-privacy-guard.mjs';
+
+installPrivacyGuard();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
