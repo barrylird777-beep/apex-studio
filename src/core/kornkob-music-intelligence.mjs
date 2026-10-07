@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { searchAnything } from "./apex-web-search.mjs";
 import { apexPureStore } from "./apex-pure-store.mjs";
 
@@ -25,7 +26,7 @@ export async function researchMusic(query,{limit=20}={}){
 
 export async function createMusicBrief({task,context={},needs=[]}={}){
   const brief={
-    id:crypto.randomUUID(),
+    id:randomUUID(),
     surface:"KORNKOB",
     task:String(task||""),
     needs:Array.isArray(needs)?needs.map(String):[],
