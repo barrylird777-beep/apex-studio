@@ -17,7 +17,7 @@ main{width:min(1040px,100%);margin:auto;padding:18px 16px 70px}nav{display:flex;
 .proof-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:15px}.proof{overflow:hidden;border:1px solid var(--line);border-radius:16px;background:#070a0f}.proof video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#05070b}.proof figcaption{padding:10px;font-size:12px;color:var(--muted)}.proof strong{color:#fff}.proof-empty{padding:24px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
 .order{display:grid;gap:11px;margin-top:18px}.order label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
 input,textarea,select{width:100%;border:1px solid var(--line);background:#070a0f;color:#fff;border-radius:14px;padding:13px;outline:none;font:inherit}textarea{min-height:130px;resize:vertical}.note{font-size:12px;color:var(--muted);line-height:1.5}.status{min-height:24px;color:var(--good);font-size:13px}
-.limit{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border:1px solid #2b3442;border-radius:14px;background:#0a0f17}.limit b{display:block;color:#fff}.share-box{display:grid;gap:9px;padding:14px;border:1px solid #2b3442;border-radius:14px;background:#0a0f17}.small{font-size:12px}
+.limit{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border:1px solid #2b3442;border-radius:14px;background:#0a0f17}.limit b{display:block;color:#fff}.share-box{display:grid;gap:9px;padding:14px;border:1px solid #2b3442;border-radius:14px;background:#0a0f17}.small{font-size:12px}.modebar{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px;background:#080b10;border:1px solid var(--line);border-radius:14px}.modebar button{min-height:40px;padding:9px 13px;font-size:13px}.modebar button.active{background:#fff;color:#07090d}.help{display:none}.help.show{display:block}.quick{display:flex;gap:8px;flex-wrap:wrap}.quick button{min-height:40px;padding:9px 12px;font-size:12px}.field-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.required{font-size:10px;color:#7f8998}.smart-only{display:none}.advanced .smart-only{display:block}.progress{display:flex;gap:5px;margin:10px 0}.progress i{height:4px;flex:1;border-radius:99px;background:#242c38}.progress i.on{background:#fff}.result{padding:14px;border-radius:15px;border:1px solid #263140;background:#090e15}.result a{display:inline-block;margin-top:8px}
 footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
 @media(max-width:760px){.grid,.steps,.proof-grid{grid-template-columns:1fr}.proof-grid{grid-template-columns:1fr 1fr}.hero{padding-top:8px}}@media(max-width:460px){.proof-grid{grid-template-columns:1fr}}
 </style>
@@ -67,13 +67,18 @@ footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
 </section>
 
 <section id="order" class="panel">
-<h2>Build your order</h2>
-<p class="muted">The free step collects your production brief. Nothing is fully rendered until checkout is completed.</p>
+<h2>Make a video</h2>
+<p class="muted">You do not need to know anything about video production. Tell Apex what you want in plain English.</p>
+<div class="modebar"><div><b id="modeTitle">Simple mode</b><div class="small" id="modeHint">Just answer the basics. Apex handles the technical decisions.</div></div><button id="modeBtn" type="button" onclick="toggleMode()">Switch to Smart mode</button></div>
+<div class="progress"><i id="p1" class="on"></i><i id="p2"></i><i id="p3"></i></div>
 <div class="order">
-<label>Name / brand</label><input id="name" placeholder="Your name or business" maxlength="120">
-<label>What are we making?</label><input id="type" placeholder="Product ad, sermon clip, music video, story, etc." maxlength="160">
-<label>Idea / script / instructions</label><textarea id="brief" placeholder="Tell Apex what the viewer should see, hear and feel." maxlength="4000"></textarea>
-<label>Target platform</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>Other</option></select>
+<div class="field-head"><label>Your name or brand</label><span class="required">Required</span></div><input id="name" placeholder="e.g. John, My Church, My Business" maxlength="120">
+<div class="field-head"><label>What do you want made?</label><span class="required">Required</span></div><input id="type" placeholder="e.g. TikTok ad, Bible story, music clip" maxlength="160">
+<div class="quick"><button type="button" onclick="useIdea('Bible story','Turn a powerful Bible moment into a cinematic short with a strong opening hook.')">Bible story</button><button type="button" onclick="useIdea('Product ad','Create a punchy social ad that makes people want to try the product.')">Product ad</button><button type="button" onclick="useIdea('Social clip','Turn this idea into an engaging short designed for social media.')">Social clip</button></div>
+<div class="field-head"><label>Your idea</label><span class="required">Required</span></div><textarea id="brief" placeholder="Example: “Make a dramatic 30-second video about David facing Goliath. Start with a powerful hook.”" maxlength="4000"></textarea>
+<div class="help show" id="simpleHelp"><span class="small">Tip: You can write this like you are talking to a person. You do not need prompts or technical terms.</span></div>
+<div class="smart-only"><div class="field-head"><label>Advanced production instructions</label><span class="required">Optional</span></div><textarea id="advanced" placeholder="Camera style, pacing, shot structure, visual references, narration, negative prompts, etc." maxlength="4000"></textarea></div>
+<div class="field-head"><label>Where will you post it?</label></div><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>Other</option></select>
 
 <div class="limit"><div>🔒</div><div><b>Free until checkout</b><span class="small">Preview/brief access is limited. The complete render, mastering and delivery pipeline unlock after verified payment.</span></div></div>
 
@@ -84,8 +89,8 @@ footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
 </div>
 
 <div class="actions" style="justify-content:flex-start">
-<button id="previewBtn" class="secondary" type="button" onclick="submitPreview()">Generate limited preview</button>
-<button id="payBtn" class="hot" type="button" onclick="startCheckout()" disabled>Pay $25 & unlock full render</button>
+<button id="previewBtn" class="primary" type="button" onclick="submitPreview()">1. Make my free preview</button>
+<button id="payBtn" class="hot" type="button" onclick="startCheckout()" disabled>2. Pay $25 & make the full video</button>
 </div>
 <div id="status" class="status"></div>
 <div id="copyStatus" class="note"></div>
@@ -102,22 +107,38 @@ footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
 <script>
 let orderId=null;
 let sharedCredit=false;
+let smartMode=false;
+function toggleMode(){
+ smartMode=!smartMode;
+ document.body.classList.toggle('advanced',smartMode);
+ document.getElementById('modeTitle').textContent=smartMode?'Smart mode':'Simple mode';
+ document.getElementById('modeHint').textContent=smartMode?'Full controls are visible. Use them if you know what you want; otherwise leave them alone.':'Just answer the basics. Apex handles the technical decisions.';
+ document.getElementById('modeBtn').textContent=smartMode?'Switch to Simple mode':'Switch to Smart mode';
+ document.getElementById('simpleHelp').classList.toggle('show',!smartMode);
+}
+function useIdea(type,brief){
+ document.getElementById('type').value=type;
+ document.getElementById('brief').value=brief;
+ document.getElementById('brief').focus();
+}
+
 
 function fields(){
  return {
   name:document.getElementById('name').value.trim(),
   type:document.getElementById('type').value.trim(),
-  brief:document.getElementById('brief').value.trim(),
+  brief:(document.getElementById('brief').value.trim()+(smartMode&&document.getElementById('advanced').value.trim()?'\n\nAdvanced instructions:\n'+document.getElementById('advanced').value.trim():'')),
   platform:document.getElementById('platform').value
  };
 }
 function valid(data){return data.name&&data.type&&data.brief;}
 function setStatus(text){document.getElementById('status').textContent=text;}
+function setProgress(n){for(let i=1;i<=3;i++)document.getElementById('p'+i).classList.toggle('on',i<=n);}
 
 async function submitPreview(){
  const data=fields();
  if(!valid(data)){setStatus('Name, type and brief are required.');return;}
- setStatus('Generating limited preview…');
+ setProgress(2); setStatus('Making your free preview…');
  document.getElementById('previewBtn').disabled=true;
  try{
   const response=await fetch('/api/rapid/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -158,7 +179,7 @@ async function startCheckout(){
   setStatus('Generate the limited preview first.');
   return;
  }
- setStatus('Creating secure checkout…');
+ setStatus('Opening secure checkout…');
  document.getElementById('payBtn').disabled=true;
  try{
   const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,sharedCredit})});
@@ -206,7 +227,7 @@ function syncPaymentState(){
  const id=params.get('order_id');
  if(!id)return;
  orderId=id;
- if(paid==='1'){setStatus('Payment confirmed. Apex is checking the production queue…');pollOrder(id);}
+ if(paid==='1'){setProgress(3); setStatus('Payment received. Apex is starting your full video…');pollOrder(id);}
  else if(paid==='0')setStatus('Checkout canceled. Your brief is still here; no production was started.');
 }
 async function pollOrder(id){
