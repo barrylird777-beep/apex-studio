@@ -17,7 +17,7 @@
     "test:render-performance": "node --test test/render-performance.test.mjs",
     "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs",
     "test:wal": "node --test test/apex-ring-wal.test.mjs",
-    "test:atomic": "node --test test/apex-ring-wal.test.mjs test/durable-worker-race.test.mjs"
+    "test:atomic": "node --test test/apex-ring-wal.test.mjs test/apex-atomicity.test.mjs test/durable-worker-race.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
