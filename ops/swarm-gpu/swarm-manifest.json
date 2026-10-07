@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "concurrency": 6,
+  "surfaces": [
+    {
+      "id": "apex-studio",
+      "goal": "production studio, infinite broadcast, visual/media pipeline"
+    },
+    {
+      "id": "kornknob",
+      "goal": "audio and music intelligence"
+    },
+    {
+      "id": "apex-rapid",
+      "goal": "rapid paid vertical video fulfillment"
+    },
+    {
+      "id": "engine-apex",
+      "goal": "opportunity, growth, business and monetization intelligence"
+    },
+    {
+      "id": "garden-of-apex",
+      "goal": "living world, research, scripture, knowledge and civilization"
+    },
+    {
+      "id": "shield-apex",
+      "goal": "network, security and execution-environment protection"
+    }
+  ]
+}\n
