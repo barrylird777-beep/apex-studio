@@ -43,7 +43,7 @@ export function createResearchRouter(engine) {
   router.post('/syndication', async (req, res, next) => {
     try {
       const url = String(req.body?.url || '').trim();
-      if (!/^https?:\\/\\//i.test(url)) {
+      if (!/^https?:\/\//i.test(url)) {
         return res.status(400).json({ success: false, error: 'http(s) syndication URL is required' });
       }
       const feed = await engine.ingestSyndication(url);
