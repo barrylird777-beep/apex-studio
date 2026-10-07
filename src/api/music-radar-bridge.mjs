@@ -1,4 +1,5 @@
-import crypto from "node:crypto";\nimport { createMusicRadarHandoff } from "../core/music/music-radar-contract.mjs";
+import crypto from "node:crypto";
+import { createMusicRadarHandoff } from "../core/music/music-radar-contract.mjs";
 
 export function createMusicRadarBridge({ enqueueWorkerTask, getGardenPackage } = {}) {
   return {
@@ -38,7 +39,7 @@ export function createMusicRadarBridge({ enqueueWorkerTask, getGardenPackage } =
         task: "music-audio-handoff",
         payload: { handoff },
         maxAttempts: 5,
-        dedupeKey: `music-radar:${handoff.projectId}:${handoff.assets.map(x => x.assetId).join(",")}`
+        dedupeKey: "music-radar:" + handoff.projectId + ":" + handoff.assets.map(x => x.assetId).join(",")
       });
       return { queued: true, durable: true, jobId, handoff };
     }
