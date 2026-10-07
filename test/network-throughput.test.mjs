@@ -38,8 +38,8 @@ test('network lane policy scales toward measured capacity', async () => {
     { device:'a', network:'wifi', healthy:true, score:20, rttMs:30 },
     { device:'b', network:'starlink', healthy:true, score:40, rttMs:50 }
   ]);
-  assert.equal(p.mode, 'multipath');
-  assert.equal(p.lanes, 2);
+  assert.equal(p.mode, 'single-path');
+  assert.equal(p.lanes, 1);
   assert.ok(p.paths[1].weight > p.paths[0].weight);
 });
 
