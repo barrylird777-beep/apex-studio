@@ -38,6 +38,8 @@ import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } fro
 import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
 import { streamUnifiedAi } from './src/providers/unified-ai-router.mjs';
 import { createPrivacyControlPlane } from './src/api/privacy-control-plane.mjs';
+import { dispatchSurfaceMission, surfaceCatalog } from './src/core/apex-surface-orchestrator.mjs';
+import { musicModelStatus, researchMusic, createMusicBrief } from './src/core/kornkob-music-intelligence.mjs';
 import { installPrivacyGuard } from './src/core/apex-privacy-guard.mjs';
 
 installPrivacyGuard();
@@ -82,6 +84,20 @@ app.get('/api/fetch', async (req,res) => {
 });
 
 app.get('/api/privacy/status', (_req,res)=>res.json(privacyControl.status()));
+app.get('/api/apex/surfaces', (_req,res)=>res.json({success:true,surfaces:surfaceCatalog()}));
+app.post('/api/apex/surface/:surface/dispatch', async (req,res)=>{
+  try{return res.status(202).json({success:true,...await dispatchSurfaceMission(req.params.surface,String(req.body?.task||"surface-task"),req.body?.payload||{})});}
+  catch(error){return res.status(400).json({success:false,error:error?.message||"dispatch failed"});}
+});
+app.get('/api/kornkob/model/status', (_req,res)=>res.json({success:true,...musicModelStatus()}));
+app.post('/api/kornkob/research', async(req,res)=>{
+  try{return res.json({success:true,...await researchMusic(String(req.body?.query||""),{limit:Number(req.body?.limit||20)})});}
+  catch(error){return res.status(400).json({success:false,error:error?.message||"research failed"});}
+});
+app.post('/api/kornkob/brief', async(req,res)=>{
+  try{return res.json({success:true,...await createMusicBrief(req.body||{})});}
+  catch(error){return res.status(400).json({success:false,error:error?.message||"brief failed"});}
+});
 
 app.post('/api/ai/stream/:provider', async (req,res) => {
   try {
@@ -1951,6 +1967,7 @@ app.get('/api/network/adblock/profile', (_req, res) => {
   }
 });
 app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
+app.get('/api/network/adblock/rules', (_req,res)=>res.status(200).json({version:1,rules:buildSafariContentBlockerRules()}));
 app.all('/api/network/adblock/doh', (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
 
 // Decentralized swarm routing fallback & retry wrapper
