@@ -35,6 +35,7 @@ import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerR
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
+import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -59,6 +60,15 @@ process.on('unhandledRejection', (reason) => {
     at: new Date().toISOString()
   };
   console.error('[apex][unhandledRejection]', reason);
+});
+
+app.get('/api/search', async (req,res) => {
+  try { res.json(await searchAnything(req.query.q,{limit:Number(req.query.limit||50)})); }
+  catch(error) { res.status(400).json({error:error?.message||'Search failed'}); }
+});
+app.get('/api/fetch', async (req,res) => {
+  try { res.json(await fetchAnything(req.query.url)); }
+  catch(error) { res.status(400).json({error:error?.message||'Fetch failed'}); }
 });
 
 app.get('/health', (_req, res) => {
