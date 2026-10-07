@@ -56,7 +56,7 @@ async function recordAsset(episode, stage, file, metadata={}){
 }
 
 async function advance(episode, stage, file, metadata={}){
-  const state=stage==="catalog" ? "MASTER" : NEXT_STATE[stage];
+  const state=NEXT_STATE[stage];
   const statusColumn = {
     script:"script_status", storyboard:"storyboard_status", voice:"voice_status",
     audio:"audio_status", animation:"animation_status", edit:"edit_status",
@@ -164,18 +164,41 @@ async function handle(stage, job){
     const text=`This is ${episode.title}. ${episode.logline||"A new Apexus story begins."}`;
     file=await tts(text,path.join(stagePath(code,stage),"narration.wav"));
   }else if(stage==="audio"){
-    const manifest={episode:code,tracks:[{role:"narration",source:"voice/narration.wav"},{role:"music",status:"generation-required"},{role:"ambience",status:"generation-required"},{role:"sfx",status:"generation-required"}]};
-    file=await writeJson(code,stage,"audio-manifest.json",manifest);
+    const narration=path.join(stagePath(code,"voice"),"narration.wav");
+    file=await makeAudioBed(narration,path.join(stagePath(code,stage),"episode-audio.m4a"));
   }else if(stage==="visual-development"){
     file=await media("image",`${base} character and environment keyframe, original designs, no logos, no existing franchise likenesses`,path.join(stagePath(code,stage),"keyframe.png"));
   }else if(stage==="animation"){
     file=await media("video",`${base} animated scene, original characters and world, dramatic camera movement, polished 16:9 anime sequence`,path.join(stagePath(code,stage),"scene-01.mp4"));
   }else if(stage==="edit"){
-    file=await writeJson(code,stage,"edit-manifest.json",{episode:code,source:"animation/scene-01.mp4",audio:"audio/audio-manifest.json",edit:"single-scene proof assembly"});
+    const video=path.join(stagePath(code,"animation"),"scene-01.mp4");
+    const audio=path.join(stagePath(code,"audio"),"episode-audio.m4a");
+    file=path.join(stagePath(code,stage),"episode-edit.mp4");
+    await fs.mkdir(path.dirname(file),{recursive:true});
+    await new Promise((resolve,reject)=>ffmpeg(video).input(audio)
+      .outputOptions(["-map","0:v:0","-map","1:a:0","-c:v","copy","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart"])
+      .save(file).on("end",resolve).on("error",reject));
   }else if(stage==="qc"){
-    file=await writeJson(code,stage,"qc.json",{episode:code,checks:["asset exists","metadata present","lane assigned","originality declaration"],passed:true});
+    const required=[
+      path.join(stagePath(code,"voice"),"narration.wav"),
+      path.join(stagePath(code,"audio"),"episode-audio.m4a"),
+      path.join(stagePath(code,"animation"),"scene-01.mp4"),
+      path.join(stagePath(code,"edit"),"episode-edit.mp4")
+    ];
+    const checks=[];
+    for(const target of required){
+      const stat=await fs.stat(target).catch(()=>null);
+      if(!stat || stat.size<=0) throw new Error("QC missing or empty asset: "+target);
+      checks.push({asset:target,bytes:stat.size});
+    }
+    file=await writeJson(code,stage,"qc.json",{episode:code,checks,passed:true});
   }else if(stage==="master"){
-    file=await writeJson(code,stage,"master.json",{episode:code,status:"master-candidate",source:"edit/edit-manifest.json"});
+    const source=path.join(stagePath(code,"edit"),"episode-edit.mp4");
+    file=path.join(stagePath(code,stage),code+".mp4");
+    await fs.mkdir(path.dirname(file),{recursive:true});
+    await new Promise((resolve,reject)=>ffmpeg(source)
+      .outputOptions(["-c","copy","-movflags","+faststart"])
+      .save(file).on("end",resolve).on("error",reject));
   }else if(stage==="catalog"){
     file=await writeJson(code,stage,"catalog.json",{episode:code,status:"catalog-ready",master:"master/master.json"});
   }else if(stage==="schedule"){
