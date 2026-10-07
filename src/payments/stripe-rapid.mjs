@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import https from 'node:https';
+import dns from 'node:dns';
 
 const STRIPE_API='https://api.stripe.com/v1';
 
@@ -74,12 +76,27 @@ export async function createRapidCheckout({orderId,name,type,brief,platform,emai
   add('line_items[0][quantity]','1');
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
 
-  const response=await fetch(STRIPE_API+'/checkout/sessions',{
-    method:'POST',
-    headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded'},
-    body:params
+  const body=await new Promise((resolve,reject)=>{
+    const request=https.request(STRIPE_API+'/checkout/sessions',{
+      method:'POST',
+      family:4,
+      lookup:(hostname, options, callback)=>dns.lookup(hostname,{family:4,all:false},callback),
+      headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(params.toString())},
+      timeout:15000
+    },response=>{
+      let text='';
+      response.setEncoding('utf8');
+      response.on('data',chunk=>{text+=chunk;});
+      response.on('end',()=>{
+        let parsed={};
+        try{parsed=text?JSON.parse(text):{};}catch{}
+        resolve({status:response.statusCode||0,ok:(response.statusCode||0)>=200&&(response.statusCode||0)<300,...parsed});
+      });
+    });
+    request.on('timeout',()=>request.destroy(new Error('Stripe checkout request timed out')));
+    request.on('error',reject);
+    request.end(params.toString());
   });
-  const body=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error('Stripe checkout '+response.status+': '+String(body?.error?.message||'request failed'));
   if(!body?.id||!body?.url) throw new Error('Stripe returned an incomplete checkout session');
   return {id:String(body.id),url:String(body.url)};
