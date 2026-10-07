@@ -1,0 +1,26 @@
+name: ApexMobile
+options:
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    IPHONEOS_DEPLOYMENT_TARGET: 16.4
+    TARGETED_DEVICE_FAMILY: "1"
+    PRODUCT_BUNDLE_IDENTIFIER: com.apexstudio.mobile
+    SUPPORTS_MACCATALYST: false
+    CODE_SIGN_STYLE: Automatic
+targets:
+  ApexMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    frameworks:
+      - path: Frameworks/llama.xcframework
+        embed: false
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: Apex Mobile
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
