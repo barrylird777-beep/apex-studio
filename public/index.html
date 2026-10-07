@@ -505,4 +505,5 @@ async function musicRadarHandoff(){try{
 }catch(e){$("musicRadarOut").textContent=e.message}}
 const _view=view;view=function(name){_view(name);if(name==="audio-station")loadAudioStation()}
 </script><script src="/vision-editor.js"></script><script src="/omni-studio.js"></script><script src="/apex-dashboard.js"></script>
+<script>if(location.pathname==='/korn-knob') view('music-radar');</script>
 </body></html>
