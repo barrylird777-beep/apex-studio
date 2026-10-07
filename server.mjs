@@ -24,6 +24,7 @@ import { generateMax, openAiMaxStatus } from './src/providers/openai-max-router.
 import { generateGrok, grokStatus } from './src/providers/grok-router.mjs';
 import { generateUnifiedAi, unifiedAiStatus, AI_PROVIDER_CATALOG } from './src/providers/unified-ai-router.mjs';
 import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
+import { createMassiveAiWorkforce } from './src/core/mesh/massive-ai-workforce.mjs';
 import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
@@ -65,6 +66,36 @@ app.use('/api/relay', createRelayRouter(streamRelay));
 
 const researchEngine = new FrictionlessResearchEngine();
 app.use('/api/research', createResearchRouter(researchEngine));
+
+app.get('/api/workforce/status', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    workforce: massiveAiWorkforce.status(),
+    crew: aiCrew.status(),
+    fleet: fleetStatus(permanentWorkerFleet)
+  });
+});
+
+app.post('/api/workforce/burst', async (req, res) => {
+  try {
+    const requested = Number(req.body?.count ?? permanentWorkerFleet.workers.length);
+    const limit = Math.max(1, Math.min(permanentWorkerFleet.workers.length, Number.isFinite(requested) ? Math.floor(requested) : permanentWorkerFleet.workers.length));
+    const jobs = await massiveAiWorkforce.dispatchWorkers({
+      context: {
+        scope: String(req.body?.scope || 'current repository state').slice(0, 2000),
+        requirement: String(req.body?.requirement || 'Produce evidence and a verification path; do not claim unperformed work.').slice(0, 2000)
+      },
+      limit
+    });
+    return res.status(202).json({
+      success: true,
+      dispatched: jobs.length,
+      workforce: massiveAiWorkforce.status()
+    });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
 
 app.get('/api/relay/health', (_req, res) => {
   const relay = streamRelay.status();
@@ -348,6 +379,28 @@ const aiCrew = createAiCrewEngine({
   assignments: crewAssignments,
   dispatch: payload => meshWorkerSupervisor.dispatch(payload)
 });
+
+const massiveAiWorkforce = createMassiveAiWorkforce({
+  fleet: permanentWorkerFleet,
+  crew: aiCrew,
+  mission: 'Finish Apex through concrete, evidence-backed implementation, testing, and release validation.',
+  maxActive: Math.max(1, Number(process.env.APEX_MASSIVE_AI_ACTIVE || 64)),
+  batchSize: Math.max(1, Number(process.env.APEX_MASSIVE_AI_BATCH || 128))
+});
+
+// Dispatch the whole logical fleet in bounded waves. The fleet may be large,
+// but actual provider execution remains bounded by the AI crew and provider
+// concurrency controls. This avoids pretending that 1000 OS threads exist.
+const massiveAiAutoRun = String(process.env.APEX_MASSIVE_AI_AUTORUN ?? (safeAi.enabled ? 'true' : 'false')).toLowerCase() === 'true';
+if (massiveAiAutoRun && safeAi.enabled) {
+  void massiveAiWorkforce.dispatchWorkers({
+    context: {
+      scope: 'current repository state',
+      requirement: 'Find a concrete issue or improvement and provide evidence plus a verification path.'
+    },
+    limit: permanentWorkerFleet.workers.length
+  });
+}
 
 // The durable worker loop owns continuous AI work. Keep this in-memory burst
 // opt-in only so an unavailable provider cannot create a permanent failure storm.
