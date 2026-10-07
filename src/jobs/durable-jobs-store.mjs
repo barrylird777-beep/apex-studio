@@ -32,6 +32,19 @@ export function createDurableJobsStore(db) {
   return {
     enqueue: async ({ id = randomUUID(), type, payload, runAt = new Date(), maxAttempts = 8, dedupeKey, now = new Date() }) => {
       if (!type) throw new TypeError('durable job type is required');
+      const normalizedType = String(type).trim();
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(normalizedType)) {
+        throw new TypeError('durable job type contains invalid characters or is too long');
+      }
+      const normalizedMaxAttempts = Number(maxAttempts);
+      if (!Number.isInteger(normalizedMaxAttempts) || normalizedMaxAttempts < 1 || normalizedMaxAttempts > 1000) {
+        throw new TypeError('durable job maxAttempts must be an integer from 1 to 1000');
+      }
+      const serializedPayload = JSON.stringify(payload ?? {});
+      if (Buffer.byteLength(serializedPayload, 'utf8') > 1048576) {
+        throw new RangeError('durable job payload exceeds 1 MiB');
+      }
+      const normalizedDedupe = dedupeKey == null ? null : String(dedupeKey).trim().slice(0, 512);
       const inserted = await one(
         `INSERT INTO durable_jobs
           (id, type, payload, status, run_at, max_attempts, dedupe_key, created_at, updated_at)
@@ -40,16 +53,16 @@ export function createDurableJobsStore(db) {
          WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')
          DO NOTHING
          RETURNING *`,
-        [id, type, JSON.stringify(payload ?? {}), runAt, maxAttempts, dedupeKey ?? null, now]
+        [id, normalizedType, serializedPayload, runAt, normalizedMaxAttempts, normalizedDedupe, now]
       );
       if (inserted) return inserted;
-      if (!dedupeKey) return null;
+      if (!normalizedDedupe) return null;
       return one(
         `SELECT * FROM durable_jobs
          WHERE dedupe_key = $1 AND status IN ('queued','running')
          ORDER BY updated_at DESC
          LIMIT 1`,
-        [dedupeKey]
+        [normalizedDedupe]
       );
     },
 
