@@ -1,6 +1,7 @@
 import { mkdir, open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { encryptPrivate, decryptPrivate } from "./apex-privacy.mjs";
 
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const WAL_DIR=process.env.APEX_WAL_DIR||path.join(ROOT,"wal");
@@ -32,7 +33,9 @@ export class ApexRingWAL {
     await this.init();
     const key=path.resolve(this.file),prior=chains.get(key)||Promise.resolve();
     const run=prior.then(async()=>{
-      const record={version:1,id:randomUUID(),seq:this.seq+1,ts:new Date().toISOString(),type:String(type),payload,meta,prevHash:this.lastHash};
+      const protectedPayload=process.env.APEX_DATA_KEY ? encryptPrivate({payload,meta}) : {payload,meta};
+      if(String(process.env.APEX_REQUIRE_WAL_ENCRYPTION||"false").toLowerCase()==="true" && !process.env.APEX_DATA_KEY) throw new Error("APEX_DATA_KEY is required for encrypted WAL persistence");
+      const record={version:2,id:randomUUID(),seq:this.seq+1,ts:new Date().toISOString(),type:String(type),payload:protectedPayload,prevHash:this.lastHash};
       record.hash=sha(record);
       const fh=await open(this.file,"a");
       try{await fh.writeFile(JSON.stringify(record)+"\n","utf8");await fh.sync();}
@@ -47,7 +50,12 @@ export class ApexRingWAL {
     for(const line of text.split("\n").filter(Boolean)){
       const r=JSON.parse(line),expected=sha({...r,hash:undefined});
       if(r.prevHash!==prev||r.hash!==expected||Number(r.seq)!==seq+1)throw new Error("WAL integrity failure at sequence "+r.seq);
-      await onRecord(r);prev=r.hash;seq=r.seq;count++;
+      let restored=r;
+      if(r.version===2 && r.payload?.alg==="AES-256-GCM"){
+        const opened=decryptPrivate(r.payload);
+        restored={...r,payload:opened.payload,meta:opened.meta};
+      }
+      await onRecord(restored);prev=r.hash;seq=r.seq;count++;
     }
     return count;
   }
