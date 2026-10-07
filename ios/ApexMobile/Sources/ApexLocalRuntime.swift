@@ -100,6 +100,8 @@ actor ApexLocalRuntime {
         guard !tokens.isEmpty else { return "" }
         guard tokens.count < Int(contextSize) - Int(outputLimit) else { throw ApexLocalError.contextTooSmall }
 
+        // Context/token indices are deliberately reinitialized from zero after
+        // the KV reset. Never inherit n_past or positions from an earlier request.
         llama_batch_clear(&batch)
         for (index, token) in tokens.enumerated() {
             add(&batch, token: token, position: Int32(index), logits: index == tokens.count - 1)
