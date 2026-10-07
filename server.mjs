@@ -7,6 +7,9 @@ import crypto from 'node:crypto';
 
 import { access, readFile, unlink } from 'node:fs/promises';
 import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
+import { appendEvent, replay } from './src/core/sovereign-local-storage.mjs';
+import { createRapidCheckout, verifyStripeSignature } from './src/payments/stripe-rapid.mjs';
+import { listRapidProofs } from './src/api/rapid-proof.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
@@ -36,6 +39,50 @@ import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerR
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const event = verifyStripeSignature(req.body.toString('utf8'), req.headers['stripe-signature']);
+    if (event.type !== 'checkout.session.completed') return res.json({ received:true });
+    const session = event.data?.object || {};
+    const orderId = String(session.client_reference_id || session.metadata?.order_id || '');
+    if (!orderId) return res.status(400).json({ received:false, error:'missing order reference' });
+
+    const currentState = await replay({ verify:true });
+    const current = [...currentState.state.values()]
+      .find(entry => entry.stream === 'rapid-orders' && entry.id === orderId)?.payload;
+
+    if (!current) return res.status(404).json({ received:false, error:'order not found' });
+    if (current.paymentStatus === 'paid') return res.json({ received:true, duplicate:true });
+
+    await appendEvent('rapid.payment.completed', {
+      ...current,
+      paymentStatus:'paid',
+      fulfillmentStatus:'queued',
+      stripeSessionId:session.id,
+      paidAt:new Date().toISOString()
+    }, { id:orderId, stream:'rapid-orders' });
+
+    if (!durableWorkerEnabled()) return res.status(503).json({ received:false, error:'production queue unavailable' });
+
+    await enqueueWorkerTask({
+      id:orderId,
+      workerId:'rapid-video-paid-intake',
+      role:'rapid-video',
+      task:'rapid-video-order',
+      payload:{ ...current, orderId, price:25, paid:true, stripeSessionId:session.id },
+      maxAttempts:3,
+      dedupeKey:'rapid-video-paid:'+orderId,
+      traceId:orderId
+    });
+
+    return res.json({ received:true, queued:true, orderId });
+  } catch (error) {
+    console.error('[rapid-stripe-webhook]', error);
+    return res.status(400).json({ received:false, error:'invalid webhook' });
+  }
+});
+
 app.use(express.json({ limit: CAPACITY.jsonBody }));
 
 if (durableWorkerEnabled()) {
@@ -397,69 +444,72 @@ app.use('/api/mobile', createMobileControlPlane({
 
 app.post('/api/rapid/orders', async (req, res) => {
   try {
-    const name = String(req.body?.name || '').trim().slice(0, 120);
-    const type = String(req.body?.type || '').trim().slice(0, 160);
-    const brief = String(req.body?.brief || '').trim().slice(0, 4000);
-    const platform = String(req.body?.platform || 'Other').trim().slice(0, 80);
-    if (!name || !type || !brief) {
-      return res.status(400).json({ success: false, error: 'name, type and brief are required' });
-    }
-    if (!durableWorkerEnabled()) {
-      return res.status(503).json({ success: false, error: 'Order queue is temporarily unavailable' });
-    }
-    const orderId = crypto.randomUUID();
-    const result = await enqueueWorkerTask({
-      id: orderId,
-      workerId: 'rapid-video-intake',
-      role: 'rapid-video',
-      task: 'rapid-video-order',
-      payload: {
-        orderId,
-        name,
-        type,
-        brief,
-        platform,
-        price: 25,
-        submittedAt: new Date().toISOString()
-      },
-      maxAttempts: 3,
-      dedupeKey: `rapid-video:${crypto.createHash('sha256').update(JSON.stringify({ name, type, brief, platform })).digest('hex')}`,
-      traceId: orderId
+    const name=String(req.body?.name||'').trim().slice(0,120);
+    const type=String(req.body?.type||'').trim().slice(0,160);
+    const brief=String(req.body?.brief||'').trim().slice(0,4000);
+    const platform=String(req.body?.platform||'Other').trim().slice(0,80);
+    const sharedCredit=req.body?.sharedCredit===true;
+    if(!name||!type||!brief) return res.status(400).json({success:false,error:'name, type and brief are required'});
+
+    const orderId=crypto.randomUUID();
+    await appendEvent('rapid.order.created',{
+      orderId,name,type,brief,platform,
+      price:sharedCredit?15:25,
+      sharedCredit,
+      paymentStatus:'pending',
+      fulfillmentStatus:'awaiting-payment',
+      createdAt:new Date().toISOString()
+    },{id:orderId,stream:'rapid-orders'});
+
+    const checkout=await createRapidCheckout({
+      orderId,
+      priceCents:sharedCredit?1500:2500,
+      sharedCredit,
+      origin:req.protocol+'://'+req.get('host')
     });
-    return res.status(202).json({
-      success: true,
-      orderId: result.id,
-      status: 'queued',
-      price: 25,
-      statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}`
+
+    return res.status(201).json({
+      success:true,
+      orderId,
+      status:'awaiting-payment',
+      price:sharedCredit?15:25,
+      checkoutUrl:checkout.url,
+      statusUrl:'/api/rapid/orders/'+encodeURIComponent(orderId)
     });
-  } catch (error) {
-    console.error('[rapid-order]', error);
-    return res.status(500).json({ success: false, error: 'Unable to queue order' });
+  } catch(error) {
+    console.error('[rapid-order]',error);
+    return res.status(500).json({success:false,error:'Unable to create checkout'});
   }
 });
 
-app.get('/api/rapid/orders/:id', async (req, res) => {
+app.get('/api/rapid/orders/:id', async (req,res) => {
   try {
-    const task = await getWorkerTask(req.params.id);
-    if (!task || task.task !== 'rapid-video-order') {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
+    const orderId=req.params.id;
+    const localState=await replay({verify:true});
+    const local=[...localState.state.values()].find(entry=>entry.stream==='rapid-orders'&&entry.id===orderId)?.payload;
+    const task=await getWorkerTask(orderId).catch(()=>null);
+    if(!local&&!task) return res.status(404).json({success:false,error:'Order not found'});
     return res.json({
-      success: true,
-      orderId: task.id,
-      status: task.status,
-      attempts: task.attempts,
-      maxAttempts: task.max_attempts,
-      result: task.result || null,
-      error: task.last_error || null,
-      createdAt: task.created_at,
-      updatedAt: task.updated_at
+      success:true,
+      orderId,
+      status:task?.status||local?.fulfillmentStatus||'awaiting-payment',
+      paymentStatus:local?.paymentStatus||'pending',
+      attempts:task?.attempts||0,
+      maxAttempts:task?.max_attempts||3,
+      result:task?.result||null,
+      error:task?.last_error||null,
+      createdAt:local?.createdAt||task?.created_at||null,
+      updatedAt:local?.updatedAt||task?.updated_at||null
     });
-  } catch (error) {
-    console.error('[rapid-order-status]', error);
-    return res.status(500).json({ success: false, error: 'Order status unavailable' });
+  } catch(error) {
+    console.error('[rapid-order-status]',error);
+    return res.status(500).json({success:false,error:'Order status unavailable'});
   }
+});
+
+app.get('/api/rapid/proof', async (_req,res) => {
+  try { return res.json({success:true,proof:await listRapidProofs(8)}); }
+  catch(error) { return res.status(500).json({success:false,error:'Proof stream unavailable'}); }
 });
 
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
