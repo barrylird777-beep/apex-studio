@@ -490,6 +490,8 @@ app.post('/api/rapid/orders', async (req, res) => {
     if(!name||!type||!brief) return res.status(400).json({success:false,error:'name, type and brief are required'});
 
     const orderId=crypto.randomUUID();
+    const previewAllowed = process.env.RAPID_PREVIEW_ENABLED !== 'false';
+    if (!previewAllowed) return res.status(503).json({success:false,error:'Rapid preview is temporarily unavailable'});
     await appendEvent('rapid.order.created',{
       orderId,name,type,brief,platform,
       price:sharedCredit?15:25,
