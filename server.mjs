@@ -32,6 +32,7 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
+import { createRogueApDetector } from './src/network/rogue-ap-detector.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
@@ -40,6 +41,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+
+const rogueApDetector = createRogueApDetector({
+  trusted: String(process.env.APEX_TRUSTED_BSSIDS || '').split(',').map(value => value.trim()).filter(Boolean)
+});
 
 let runtimeFault = null;
 
@@ -634,8 +639,32 @@ app.get('/api/workers/permanent', (_req,res)=>res.json({
 app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
-app.post('/api/network/rogue-ap/observations', (_req, res) => {
-  return res.status(503).json({ success: false, error: 'Wireless rogue-AP detector is unavailable in this deployment' });
+app.get('/api/network/rogue-ap/status', (_req, res) => {
+  return res.json({ success: true, detector: rogueApDetector.status() });
+});
+
+app.post('/api/network/rogue-ap/trust', (req, res) => {
+  try {
+    return res.status(200).json({ success: true, ...rogueApDetector.trustBssid(req.body?.bssid) });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/network/rogue-ap/revoke', (req, res) => {
+  try {
+    return res.status(200).json({ success: true, ...rogueApDetector.revokeBssid(req.body?.bssid) });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/network/rogue-ap/observations', (req, res) => {
+  try {
+    return res.status(200).json({ success: true, observation: rogueApDetector.observe(req.body || {}) });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
 });
 
 app.post('/api/episodes/produce', (_req, res) => {
