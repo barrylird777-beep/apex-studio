@@ -33,6 +33,7 @@ import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } 
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
 import { createRogueApDetector } from './src/network/rogue-ap-detector.mjs';
+import { createInfiniteBroadcast } from './src/core/infinite-broadcast.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
@@ -41,6 +42,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+
+const infiniteBroadcast = createInfiniteBroadcast({
+  inputDir: process.env.APEX_BROADCAST_INPUT_DIR || path.join(STORAGE_DIR, 'broadcast'),
+  rtmpUrl: process.env.APEX_BROADCAST_RTMP_URL || '',
+  ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg'
+});
+
+app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
+app.post('/api/broadcast/start', async (_req, res) => {
+  try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
+  catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+});
+app.post('/api/broadcast/stop', async (_req, res) => {
+  try { return res.status(200).json({ success: true, ...await infiniteBroadcast.stop() }); }
+  catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+});
 
 const rogueApDetector = createRogueApDetector({
   trusted: String(process.env.APEX_TRUSTED_BSSIDS || '').split(',').map(value => value.trim()).filter(Boolean)
@@ -1969,6 +1986,9 @@ async function routeWithSwarm(payload, retries = 2) {
 }
 
 void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
+if (String(process.env.APEX_BROADCAST_AUTOSTART || 'false').toLowerCase() === 'true') {
+  void infiniteBroadcast.start().catch(error => console.error('[broadcast] autostart failed:', error?.message || error));
+}
 
 
 async function runInlineRapidTask(task) {
