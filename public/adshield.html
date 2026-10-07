@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apex AdShield</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:0 auto;padding:28px;line-height:1.5}
+.card{border:1px solid #ccc;border-radius:16px;padding:20px;margin:16px 0}
+code{word-break:break-all}
+a.button{display:inline-block;padding:12px 16px;border-radius:10px;background:#111;color:#fff;text-decoration:none}
+.small{opacity:.7}
+</style>
+</head>
+<body>
+<h1>Apex AdShield</h1>
+<p><strong>Zero-cost iPhone path.</strong> No Mac, no Apple Developer account, no DNS-wide website blocking.</p>
+<div class="card">
+<h2>What it does</h2>
+<ul>
+<li>Runs in Safari only.</li>
+<li>Targets high-confidence advertising elements.</li>
+<li>Targets YouTube ad presentation and skip controls.</li>
+<li>Leaves normal sites, videos, and app traffic alone.</li>
+<li>Fails open when it cannot confidently identify an ad.</li>
+</ul>
+</div>
+<div class="card">
+<h2>Run it</h2>
+<p>On iPhone Safari, add this page to your Favorites. The bookmarklet below is the zero-cost workaround for Apple's signed-extension requirement.</p>
+<a class="button" href="javascript:(() => {
+  "use strict";
+  if (window.__APEX_ADSHIELD__) return;
+  window.__APEX_ADSHIELD__ = true;
+
+  const youtube = /(^|\\.)youtube(?:-nocookie)?\\.com$/i.test(location.hostname);
+  const genericSelectors = [
+    '[id^="ad-"]',
+    '[id*="advert"]',
+    '[class*="advertisement"]',
+    '[class*="ad-banner"]',
+    '[data-ad-slot]',
+    '[aria-label="Advertisement"]'
+  ];
+  const youtubeSelectors = [
+    "ytd-display-ad-renderer",
+    "ytd-promoted-sparkles-web-renderer",
+    "ytd-ad-slot-renderer",
+    "ytd-in-feed-ad-layout-renderer",
+    ".ytp-ad-overlay-container",
+    ".ytp-ad-overlay-slot",
+    ".ytp-ad-text-overlay"
+  ];
+
+  const hide = (root = document) => {
+    const selectors = youtube ? genericSelectors.concat(youtubeSelectors) : genericSelectors;
+    for (const selector of selectors) {
+      try {
+        root.querySelectorAll(selector).forEach(el => {
+          if (el && el.style.display !== "none") {
+            el.style.setProperty("display", "none", "important");
+            el.setAttribute("data-apex-adshield", "hidden");
+          }
+        });
+      } catch {}
+    }
+  };
+
+  const skipYoutubeAd = () => {
+    if (!youtube) return;
+    document.querySelectorAll("video").forEach(video => {
+      const player = video.closest(".html5-video-player");
+      if (!player?.classList.contains("ad-showing")) return;
+      const skip = player.querySelector(
+        ".ytp-ad-skip-button, .ytp-ad-skip-button-modern, button.ytp-ad-skip-button"
+      );
+      if (skip) {
+        try { skip.click(); } catch {}
+      }
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        try {
+          video.currentTime = video.duration;
+        } catch {}
+      }
+    });
+  };
+
+  const run = () => {
+    hide();
+    skipYoutubeAd();
+  };
+
+  run();
+  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
+  setInterval(skipYoutubeAd, 350);
+})();">Apex AdShield</a>
+<p class="small">If Safari strips the javascript link, create a bookmark for this page and replace the bookmark address with the JavaScript from the button link.</p>
+</div>
+<div class="card">
+<h2>Limits</h2>
+<p>This is intentionally not a system-wide VPN/DNS blocker. iOS does not expose arbitrary app HTTPS ad interception to a free web page or configuration profile.</p>
+</div>
+</body>
+</html>
