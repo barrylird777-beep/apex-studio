@@ -1947,3 +1947,5 @@ if (durableWorkerEnabled()) {
 
 
 // Railway autodeploy trigger: keep production deployment tied to main.
+
+// Railway rollout heartbeat: Rapid buyer release.
