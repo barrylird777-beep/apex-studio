@@ -52,7 +52,7 @@ export class ApexPureStore {
   async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
     return this.serialize(async()=>{await this.init();const now=Date.now(),out=[];const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!role||j.payload?._apex_worker?.role===role)).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
     for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){const token=randomUUID(),fence=Number(j.leaseFence||0)+1;const patch={status:"running",attempts:Number(j.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+leaseMs,updatedAt:new Date().toISOString()};const r=await this.wal.append("job.transition",{id:j.id,patch});this.apply(r);out.push({...j,...patch});}
-    return out;
+    return out;});
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
     await this.init();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
