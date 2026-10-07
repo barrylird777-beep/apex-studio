@@ -1,5 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+process.env.APEX_SEX_ROOT = await mkdtemp(join(tmpdir(), 'apex-se-test-'));
 
 test('sovereign capability fabric and self-healing modules load', async () => {
   const { ApexCapabilityFabric } = await import('../src/core/apex-capability-fabric.mjs');
