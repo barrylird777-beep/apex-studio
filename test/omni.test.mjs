@@ -51,7 +51,7 @@ test("egress requires an explicit allowlist when requested",async()=>{
   await assert.doesNotReject(()=>egress.check("https://example.org/research"));
   await assert.rejects(()=>egress.check("https://evil.example/research"));
   await assert.rejects(()=>egress.check("https://example.org@evil.example/research"));
-  await assert.doesNotReject(()=>egress.check("http://example.org/research"));
+  await assert.rejects(()=>egress.check("http://example.org/research"), /protocol is not permitted/);
 });
 
 test("egress rejects private address resolution",async()=>{
@@ -60,6 +60,16 @@ test("egress rejects private address resolution",async()=>{
       allowedHosts:["example.org"],
       requireAllowlist:true,
       resolve:async()=>[{address:"127.0.0.1"}]
+    }).check("https://example.org")
+  );
+});
+
+test("egress rejects IPv4-mapped IPv6 private addresses",async()=>{
+  await assert.rejects(
+    ()=>new EgressPolicy({
+      allowedHosts:["example.org"],
+      requireAllowlist:true,
+      resolve:async()=>[{address:"::ffff:127.0.0.1"}]
     }).check("https://example.org")
   );
 });
