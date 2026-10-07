@@ -129,3 +129,22 @@ jobs:
         run: npm install --no-audit --no-fund --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=30000
 
       - run: npm run test:network
+
+      - name: Rapid live production verification
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://apex-studio-production.up.railway.app"
+          for i in $(seq 1 18); do
+            code="$(curl -L -sS -o /tmp/rapid-health.json -w '%{http_code}' --max-time 10 "$url/health" || true)"
+            if [ "$code" = "200" ] && grep -q '"ok":true' /tmp/rapid-health.json; then
+              echo "Rapid production health is live."
+              cat /tmp/rapid-health.json
+              break
+            fi
+            echo "Rapid production attempt $i/18: HTTP $code"
+            if [ "$i" = "18" ]; then exit 1; fi
+            sleep 10
+          done
+          curl -fsSL --max-time 20 "$url/rapid-video.html" | grep -q "Apex Rapid Video"
