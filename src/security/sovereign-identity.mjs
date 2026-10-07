@@ -9,15 +9,12 @@ const PUBLIC = path.join(DIR, 'ed25519-public.pem');
 
 const b64 = value => Buffer.from(value).toString('base64url');
 const unb64 = value => Buffer.from(value, 'base64url');
-const stable = value => JSON.stringify(Object.fromEntries(Object.keys(value).sort().map(k => [k, value[k]])));
+const stable = value => JSON.stringify(Object.fromEntries(Object.keys(value).sort().map(k => [k, value[k]])).sort(([a], [b]) => a.localeCompare(b)));
 
 async function ensureIdentity() {
   await fs.mkdir(DIR, { recursive: true, mode: 0o700 });
   try {
-    const [privateKey, publicKey] = await Promise.all([
-      fs.readFile(PRIVATE, 'utf8'),
-      fs.readFile(PUBLIC, 'utf8')
-    ]);
+    const [privateKey, publicKey] = await Promise.all([fs.readFile(PRIVATE, 'utf8'), fs.readFile(PUBLIC, 'utf8')]);
     return { privateKey, publicKey };
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
@@ -46,7 +43,8 @@ export async function createSovereignIdentity() {
         iat: now,
         exp: now + Math.max(1, ttlSeconds),
         jti: randomUUID(),
-        publicKey,\n        ...claims
+        publicKey,
+        ...claims
       };
       const signingInput = b64(stable(header)) + '.' + b64(stable(payload));
       const signature = sign(null, Buffer.from(signingInput), privateKey);
@@ -60,16 +58,23 @@ export function verifySelfSignedJwt(token, expectedIdentityId = null) {
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('invalid JWT shape');
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
-  const header = JSON.parse(unb64(encodedHeader));
-  const payload = JSON.parse(unb64(encodedPayload));
+  let header;
+  let payload;
+  try {
+    header = JSON.parse(unb64(encodedHeader));
+    payload = JSON.parse(unb64(encodedPayload));
+  } catch {
+    throw new Error('invalid JWT JSON');
+  }
   if (header.alg !== 'EdDSA' || header.typ !== 'JWT') throw new Error('unsupported JWT algorithm');
-  if (!payload.iss || !payload.iat || !payload.exp) throw new Error('invalid JWT claims');
-  if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error('JWT expired');
+  const now = Math.floor(Date.now() / 1000);
+  if (!payload.iss || !payload.sub || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp)) throw new Error('invalid JWT claims');
+  if (payload.iat > now + 30 || payload.exp < now) throw new Error('JWT time claims invalid');
   if (expectedIdentityId && payload.iss !== expectedIdentityId) throw new Error('JWT identity mismatch');
   if (!payload.publicKey) throw new Error('JWT public key missing');
   const publicKey = payload.publicKey;
   const identityId = createHash('sha256').update(publicKey).digest('hex');
-  if (identityId !== payload.iss) throw new Error('JWT public key identity mismatch');
+  if (identityId !== payload.iss || payload.sub !== payload.iss) throw new Error('JWT public key identity mismatch');
   if (!verify(null, Buffer.from(encodedHeader + '.' + encodedPayload), publicKey, unb64(encodedSignature))) throw new Error('JWT signature invalid');
   return payload;
 }
