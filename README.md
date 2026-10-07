@@ -67,3 +67,5 @@ Durable workflow state belongs in PostgreSQL rather than SQLite or process-local
 npm install
 npm start
 ```
+
+<!-- live gate verification -->
