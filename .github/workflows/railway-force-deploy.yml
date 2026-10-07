@@ -10,6 +10,14 @@ on:
       - 'src/workers/rapid-video-worker.mjs'
       - 'src/payments/stripe-rapid.mjs'
       - '.github/workflows/railway-force-deploy.yml'
+  pull_request:
+    paths:
+      - 'server.mjs'
+      - 'railway.json'
+      - 'public/rapid-video.html'
+      - 'src/workers/rapid-video-worker.mjs'
+      - 'src/payments/stripe-rapid.mjs'
+      - '.github/workflows/railway-force-deploy.yml'
   workflow_dispatch:
 
 jobs:
