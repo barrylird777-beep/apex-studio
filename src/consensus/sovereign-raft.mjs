@@ -249,6 +249,11 @@ export class SovereignRaftNode {
       let body = '';
       for await (const chunk of stream.source) { body += dec.decode(chunk, { stream: true }); if (body.includes('\n')) break; }
       const rpc = JSON.parse(body.split('\n')[0]);
+      if (process.env.APEX_REQUIRE_SELF_SIGNED_JWT !== 'false') {
+        const claims = verifySelfSignedJwt(rpc.auth);
+        const remotePeerId = connection?.remotePeer?.toString?.() || '';
+        if (claims.peerId !== remotePeerId || rpc.peerId !== remotePeerId) throw new Error('raft peer identity mismatch');
+      }
       const result = await this.handleRpc(rpc);
       await stream.sink([enc.encode(JSON.stringify({ accepted: true, payload: result }) + '\n')]);
     });
