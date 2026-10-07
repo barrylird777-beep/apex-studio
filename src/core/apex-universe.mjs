@@ -5,6 +5,12 @@
  * Domain ownership remains separate; capabilities are universal.
  */
 export const APEX_SURFACES = Object.freeze({
+  KORNKNOB: {
+    id: "KORNKNOB",
+    aliasOf: "KORNKOB",
+    role: "ears",
+    domain: "music, sound, audio discovery, analysis and intelligence"
+  },
   KORNKOB: {
     id: "KORNKOB",
     role: "ears",
@@ -30,6 +36,11 @@ export const APEX_SURFACES = Object.freeze({
     role: "money",
     domain: "rapid paid video creation and fulfillment"
   },
+  APEX_ENGINE: {
+    id: "ApexEngine",
+    role: "money",
+    domain: "reusable revenue systems, automation, products and business infrastructure"
+  },
   APEX_AD_BLOCKER: {
     id: "ApexAdBlocker",
     role: "shield",
@@ -50,10 +61,17 @@ export const APEX_UNIVERSAL_CAPABILITIES = Object.freeze([
   "orchestration",
   "automation",
   "analytics",
+  "search_anything",
+  "unbounded_web_research",
   "storage",
   "provenance",
   "monetization",
-  "network_protection"
+  "network_protection",
+  "music_model_intelligence",
+  "social_analytics",
+  "commerce_automation",
+  "persistent_adblocking",
+  "surface_orchestration"
 ]);
 
 export const APEX_EXECUTION_POLICY = Object.freeze({

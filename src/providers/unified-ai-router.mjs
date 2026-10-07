@@ -1,3 +1,5 @@
+import { sanitizeProviderHeaders } from "../core/apex-privacy.mjs";
+
 const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_MESSAGES || 50)));
 const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
@@ -173,4 +175,36 @@ export function unifiedAiStatus() {
     model: process.env[p.modelEnv] || p.defaultModel,
     protocol: p.protocol
   }]));
+}
+
+
+export async function streamUnifiedAi({ provider, prompt, messages, system, model, maxTokens, temperature } = {}) {
+  const requested=String(provider||"").trim().toLowerCase();
+  if(!["groq","openrouter"].includes(requested)) throw new Error("Streaming is currently supported for Groq and OpenRouter");
+  const p=providerOf(requested);
+  const key=process.env[p.env];
+  if(!key) throw new Error(`${p.env} is not configured`);
+  const normalized=messagesOf({prompt,messages,system});
+  const selectedModel=String(model||process.env[p.modelEnv]||p.defaultModel).trim();
+  const url=OPENAI_COMPATIBLE[p.id][0];
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),120000);
+  try{
+    return await fetch(url,{
+      method:"POST",
+      headers:sanitizeProviderHeaders({
+        "content-type":"application/json",
+        authorization:`Bearer ${key}`,
+        accept:"text/event-stream"
+      }),
+      body:JSON.stringify({
+        model:selectedModel,
+        messages:normalized,
+        stream:true,
+        ...(temperature==null?{}:{temperature}),
+        ...(maxTokens?{max_tokens:Number(maxTokens)}:{})
+      }),
+      signal:controller.signal
+    });
+  }catch(error){ clearTimeout(timer); throw error; }
 }

@@ -1,11 +1,9 @@
 import os from 'node:os';
-import pg from 'pg';
 import { createDurableJobsStore } from './durable-jobs-store.mjs';
 import { createRenderPool } from '../core/render-pool.mjs';
 import { handlers as productionHandlers, closeProductionHandlers } from './production-handlers.mjs';
 import { pollTrendSwarm, closeTrendSwarm } from '../services/trend-swarm.mjs';
 
-const { Pool } = pg;
 const workerId = process.env.APEX_WORKER_ID || `worker-${os.hostname()}-${process.pid}`;
 const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 30000));
 const heartbeatMs = Math.max(5000, Math.floor(leaseMs / 3));
@@ -17,16 +15,7 @@ const renderConcurrency = Math.max(1, Math.min(16, Number(process.env.APEX_RENDE
 const idlePollMs = Math.max(25, Number(process.env.APEX_WORKER_IDLE_POLL_MS || 100));
 const trendPollMs = Math.max(30000, Number(process.env.APEX_TREND_POLL_MS || 60000));
 
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: Math.max(5, Math.min(20, Number(process.env.APEX_PG_POOL_SIZE || 10))),
-  connectionTimeoutMillis: 10000,
-  idleTimeoutMillis: 30000,
-  ssl: process.env.APEX_PG_SSL === 'false' ? false : { rejectUnauthorized: false }
-});
-const store = createDurableJobsStore(pool);
+const store = createDurableJobsStore();
 const renderPool = createRenderPool({ concurrency: renderConcurrency });
 const active = new Set();
 let stopping = false;
@@ -111,16 +100,11 @@ async function runJob(job) {
 }
 
 async function recover() {
-  const rows = await store.recoverExpired({
-    now: new Date(),
-    runAt: new Date(Date.now() + 1000),
-    errorFor: 'worker lease expired; task recovered'
-  });
-  if (rows.length) console.log('[WORKER] recovered', rows.length);
+  const recovered = await store.recoverExpired({ limit: batchSize });
+  if (recovered) console.log('[WORKER] recovered', recovered);
 }
 
 async function main() {
-  await pool.query('SELECT 1');
   console.log('[WORKER] online', workerId);
 
   while (!stopping) {
@@ -172,7 +156,6 @@ async function shutdown(signal) {
   await Promise.allSettled([...active]);
   await closeProductionHandlers().catch(() => {});
   await closeTrendSwarm().catch(() => {});
-  await pool.end();
 }
 
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
@@ -182,6 +165,5 @@ main().catch(async error => {
   console.error('[WORKER] fatal', error);
   await closeProductionHandlers().catch(() => {});
   await closeTrendSwarm().catch(() => {});
-  await pool.end().catch(() => {});
   process.exitCode = 1;
 });

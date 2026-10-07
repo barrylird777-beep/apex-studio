@@ -35,11 +35,25 @@ import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerR
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
+import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
+import { networkSearch, networkFetch, networkResearch, networkStatus, networkProbe } from './src/network/apex-network-controller.mjs';
+import { streamUnifiedAi } from './src/providers/unified-ai-router.mjs';
+import { createPrivacyControlPlane } from './src/api/privacy-control-plane.mjs';
+import { dispatchSurfaceMission, surfaceCatalog } from './src/core/apex-surface-orchestrator.mjs';
+import { musicModelStatus, researchMusic, createMusicBrief } from './src/core/kornkob-music-intelligence.mjs';
+import { installPrivacyGuard } from './src/core/apex-privacy-guard.mjs';
+
+installPrivacyGuard();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+const privacyControl = createPrivacyControlPlane();
+app.disable('x-powered-by');
+app.set('etag', false);
+app.set('trust proxy', false);
+app.use((req,res,next)=>{ res.removeHeader('X-Powered-By'); next(); });
 
 let runtimeFault = null;
 
@@ -59,6 +73,65 @@ process.on('unhandledRejection', (reason) => {
     at: new Date().toISOString()
   };
   console.error('[apex][unhandledRejection]', reason);
+});
+
+app.get('/api/search', async (req,res) => {
+  try { res.json(await searchAnything(req.query.q,{limit:Number(req.query.limit||50)})); }
+  catch(error) { res.status(400).json({error:error?.message||'Search failed'}); }
+});
+app.get('/api/fetch', async (req,res) => {
+  try { res.json(await fetchAnything(req.query.url)); }
+  catch(error) { res.status(400).json({error:error?.message||'Fetch failed'}); }
+});
+
+app.get('/api/privacy/status', (_req,res)=>res.json(privacyControl.status()));
+app.get('/api/apex/surfaces', (_req,res)=>res.json({success:true,surfaces:surfaceCatalog()}));
+app.post('/api/apex/surface/:surface/dispatch', async (req,res)=>{
+  try{return res.status(202).json({success:true,...await dispatchSurfaceMission(req.params.surface,String(req.body?.task||"surface-task"),req.body?.payload||{})});}
+  catch(error){return res.status(400).json({success:false,error:error?.message||"dispatch failed"});}
+});
+app.get('/api/kornkob/model/status', (_req,res)=>res.json({success:true,...musicModelStatus()}));
+app.post('/api/kornkob/research', async(req,res)=>{
+  try{return res.json({success:true,...await researchMusic(String(req.body?.query||""),{limit:Number(req.body?.limit||20)})});}
+  catch(error){return res.status(400).json({success:false,error:error?.message||"research failed"});}
+});
+app.post('/api/kornkob/brief', async(req,res)=>{
+  try{return res.json({success:true,...await createMusicBrief(req.body||{})});}
+  catch(error){return res.status(400).json({success:false,error:error?.message||"brief failed"});}
+});
+
+app.post('/api/ai/stream/:provider', async (req,res) => {
+  try {
+    const upstream = await streamUnifiedAi({
+      provider:req.params.provider,
+      prompt:req.body?.prompt,
+      messages:req.body?.messages,
+      system:req.body?.system,
+      model:req.body?.model,
+      maxTokens:req.body?.max_tokens ?? req.body?.maxTokens,
+      temperature:req.body?.temperature
+    });
+    res.status(upstream.status);
+    res.setHeader('content-type',upstream.headers.get('content-type')||'text/event-stream');
+    res.setHeader('cache-control','no-cache, no-store');
+    res.setHeader('connection','keep-alive');
+    if(!upstream.body) return res.end();
+    const reader=upstream.body.getReader();
+    req.on('close',()=>{ void reader.cancel().catch(()=>{}); });
+    try {
+      for(;;){
+        const {done,value}=await reader.read();
+        if(done) break;
+        if(value?.byteLength) res.write(Buffer.from(value));
+      }
+      res.end();
+    } finally {
+      reader.releaseLock();
+    }
+  } catch(error) {
+    if(!res.headersSent) return res.status(502).json({success:false,error:'AI stream failed'});
+    res.end();
+  }
 });
 
 app.get('/health', (_req, res) => {
@@ -1895,6 +1968,7 @@ app.get('/api/network/adblock/profile', (_req, res) => {
   }
 });
 app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
+app.get('/api/network/adblock/rules', (_req,res)=>res.status(200).json({version:1,rules:buildSafariContentBlockerRules()}));
 app.all('/api/network/adblock/doh', (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
 
 // Decentralized swarm routing fallback & retry wrapper

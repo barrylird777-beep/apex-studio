@@ -5,69 +5,16 @@ import { PassThrough, Readable } from "node:stream";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 
-const DB_FILE = process.env.APEX_PRODUCTION_DB_FILE || process.env.APEX_OMNI_DB_FILE || "./apex-production.sqlite";
-const CONCURRENCY = Math.max(1, Number(process.env.APEX_AV1_CONCURRENCY || process.env.APEX_JOB_CONCURRENCY || 2));
-const POLL_MS = Math.max(250, Number(process.env.APEX_PRODUCTION_POLL_MS || 1000));
-const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
-const OUTPUT_BUCKET = process.env.APEX_OBJECT_STORE_BUCKET || process.env.S3_BUCKET || "";
-const OUTPUT_PREFIX = (process.env.APEX_AV1_OUTPUT_PREFIX || "av1/").replace(/^\/+|\/+$/g, "");
-const REGION = process.env.AWS_REGION || process.env.S3_REGION || "auto";
-const ENDPOINT = process.env.APEX_OBJECT_STORE_ENDPOINT || process.env.S3_ENDPOINT || "";
-const FORCE_PATH_STYLE = /^(1|true|yes)$/i.test(process.env.APEX_S3_FORCE_PATH_STYLE || "true");
+const CONCURRENCY=Math.max(1,Number(process.env.APEX_AV1_CONCURRENCY||process.env.APEX_JOB_CONCURRENCY||2));
+const POLL_MS=Math.max(250,Number(process.env.APEX_PRODUCTION_POLL_MS||1000));
+const FFMPEG=process.env.FFMPEG_PATH||"ffmpeg";
+import { createDurableJobsStore } from "../jobs/durable-jobs-store.mjs";
+const store=createDurableJobsStore();
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
-let db;
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-function openDb() {
-  if (db) return db;
-  db = new sqlite3.Database(DB_FILE);
-  db.configure("busyTimeout", 10000);
-  return db;
-}
-
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => openDb().run(sql, params, function (err) {
-    if (err) reject(err); else resolve(this);
-  }));
-}
-
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => openDb().all(sql, params, (err, rows) => {
-    if (err) reject(err); else resolve(rows);
-  }));
-}
-
-async function initSchema() {
-  await run(`
-    CREATE TABLE IF NOT EXISTS production_jobs (
-      id TEXT PRIMARY KEY,
-      type TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'queued',
-      attempts INTEGER NOT NULL DEFAULT 0,
-      priority INTEGER NOT NULL DEFAULT 0,
-      available_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      started_at INTEGER,
-      finished_at INTEGER,
-      heartbeat_at INTEGER,
-      output_key TEXT,
-      output_bytes INTEGER,
-      error TEXT,
-      result_json TEXT
-    )
-  `);
-  await run("CREATE INDEX IF NOT EXISTS idx_production_jobs_pick ON production_jobs(status, available_at, priority DESC, created_at)");
-}
-
-export async function enqueueProductionJob(payload, options = {}) {
-  await initSchema();
-  const id = options.id || `av1_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  await run(
-    "INSERT INTO production_jobs (id,type,payload_json,status,priority,available_at) VALUES (?,?,?,?,?,?)",
-    [id, "av1.encode", JSON.stringify(payload ?? {}), "queued", Number(options.priority || 0), Math.floor(Date.now() / 1000)]
-  );
+export async function enqueueProductionJob(payload,options={}){
+  const id=options.id||`av1_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+  await store.enqueue({id,type:"av1.encode",payload:payload??{},priority:Number(options.priority||0),maxAttempts:Number(options.maxAttempts||3)});
   return id;
 }
 
@@ -170,64 +117,17 @@ async function encode(job) {
   return { key, bucket: OUTPUT_BUCKET, bytes, etag: upload?.ETag || null };
 }
 
-async function claimJob() {
-  const now = Math.floor(Date.now() / 1000);
-  return new Promise((resolve, reject) => {
-    const database = openDb();
-    database.serialize(() => {
-      database.run("BEGIN IMMEDIATE", err => {
-        if (err) return reject(err);
-        database.get(
-          "SELECT * FROM production_jobs WHERE status='queued' AND available_at<=? ORDER BY priority DESC, created_at ASC LIMIT 1",
-          [now],
-          (selectErr, row) => {
-            if (selectErr) {
-              database.run("ROLLBACK", () => reject(selectErr));
-              return;
-            }
-            if (!row) {
-              database.run("COMMIT", commitErr => commitErr ? reject(commitErr) : resolve(null));
-              return;
-            }
-            database.run(
-              "UPDATE production_jobs SET status='running', attempts=attempts+1, started_at=?, heartbeat_at=? WHERE id=? AND status='queued'",
-              [now, now, row.id],
-              function (updateErr) {
-                if (updateErr) {
-                  database.run("ROLLBACK", () => reject(updateErr));
-                  return;
-                }
-                database.run("COMMIT", commitErr => commitErr ? reject(commitErr) : resolve({ ...row, attempts: row.attempts + 1 }));
-              }
-            );
-          }
-        );
-      });
-    });
-  });
-}
+async function claimJob(){return store.claimOne({workerId:process.env.HOSTNAME||`av1-${process.pid}`,leaseMs:60000});}
 
-async function finish(job, result) {
-  await run("UPDATE production_jobs SET status='completed',finished_at=?,heartbeat_at=?,output_key=?,output_bytes=?,result_json=?,error=NULL WHERE id=?", [
-    Math.floor(Date.now()/1000), Math.floor(Date.now()/1000), result.key, result.bytes, JSON.stringify(result), job.id
-  ]);
-}
-
-async function fail(job, error) {
-  const retry = job.attempts < Number(process.env.APEX_AV1_MAX_ATTEMPTS || 3);
-  const status = retry ? "queued" : "failed";
-  const delay = retry ? Math.min(300, 2 ** job.attempts * 5) : 0;
-  await run("UPDATE production_jobs SET status=?,available_at=?,error=?,heartbeat_at=? WHERE id=?", [
-    status, Math.floor(Date.now()/1000) + delay, String(error?.stack || error).slice(0, 20000), Math.floor(Date.now()/1000), job.id
-  ]);
-}
+async function finish(job,result){await store.complete({id:job.id,token:job.leaseToken,fence:job.leaseFence,result});}
+async function fail(job,error){await store.fail({id:job.id,token:job.leaseToken,fence:job.leaseFence,error});}
 
 async function workerLoop() {
   while (!stopping) {
     const job = await claimJob();
     if (!job) { await sleep(POLL_MS); continue; }
     try {
-      const payload = JSON.parse(job.payload_json || "{}");
+      const payload = job.payload||{};
       job.payload = payload;
       const result = await encode(job);
       await finish(job, result);
@@ -239,7 +139,7 @@ async function workerLoop() {
 
 let stopping = false;
 export async function startProductionDaemon() {
-  await initSchema();
+  await store.ensureWorkerTaskSchema?.();
   const loops = Array.from({ length: CONCURRENCY }, () => workerLoop());
   await Promise.all(loops);
 }
@@ -247,7 +147,7 @@ export async function startProductionDaemon() {
 async function shutdown(signal) {
   stopping = true;
   await sleep(50);
-  try { db?.close(); } finally { process.exit(signal === "SIGTERM" ? 0 : 1); }
+  process.exit(signal === "SIGTERM" ? 0 : 1);
 }
 for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => void shutdown(signal));
 

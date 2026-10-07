@@ -9,7 +9,7 @@ import {
 
 test("Apex has six locked product surfaces", () => {
   assert.deepEqual(Object.keys(APEX_SURFACES), [
-    "KORNKOB",
+    "KORNKNOB",
     "APEX_STUDIOS",
     "GARDEN_OF_APEX",
     "APEX_OPPORTUNITY",
