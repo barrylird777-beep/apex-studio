@@ -1,0 +1,38 @@
+name: ApexURLFilter
+options:
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  ApexURLFilter:
+    type: application
+    platform: iOS
+    sources:
+      - path: ios/ApexURLFilter/ApexURLFilterApp.swift
+      - path: ios/ApexURLFilter/URLFilterController.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.barrylird777.apex.ApexURLFilter
+        INFOPLIST_KEY_CFBundleDisplayName: Apex AdBlock
+        INFOPLIST_KEY_LSRequiresIPhoneOS: YES
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+    dependencies:
+      - target: ApexURLFilterControlProvider
+  ApexURLFilterControlProvider:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ios/ApexURLFilter/ApexURLFilterControlProvider.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.barrylird777.apex.ApexURLFilterControlProvider
+        INFOPLIST_FILE: ios/ApexURLFilter/ApexURLFilter-Info.plist
+        CODE_SIGN_ENTITLEMENTS: ios/ApexURLFilter/ApexURLFilter.entitlements
+        SKIP_INSTALL: YES
