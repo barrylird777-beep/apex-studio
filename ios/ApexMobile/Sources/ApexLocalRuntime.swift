@@ -81,11 +81,31 @@ actor ApexLocalRuntime {
         batch = llama_batch_init(batchSize, 0, 1)
     }
 
+    /// Hard-reset inference state between independent requests.
+    /// Clear both KV tensors and sequence metadata before reseeding positions.
+    private func clearInferenceState() throws {
+        guard let context else { throw ApexLocalError.contextFailed }
+        guard let memory = llama_get_memory(context) else { throw ApexLocalError.contextFailed }
+        llama_memory_clear(memory, true)
+        _ = llama_memory_seq_rm(memory, -1, -1, -1)
+        if var batch {
+            llama_batch_clear(&batch)
+            self.batch = batch
+        }
+    }
+
     private func resetExecutionContext() throws {
+        if let context {
+            if let memory = llama_get_memory(context) {
+                llama_memory_clear(memory, true)
+                _ = llama_memory_seq_rm(memory, -1, -1, -1)
+            }
+        }
         if let sampler { llama_sampler_free(sampler); self.sampler = nil }
         if var batch { llama_batch_free(batch); self.batch = nil }
         if let context { llama_free(context); self.context = nil }
         try createExecutionContext()
+        try clearInferenceState()
     }
 
     func generate(_ prompt: String) throws -> String {
