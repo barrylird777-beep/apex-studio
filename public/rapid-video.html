@@ -160,7 +160,8 @@ async function startOrder(){
   const body=await response.json();
   if(!response.ok)throw new Error(body.error||'Checkout could not be created');
   if(body.checkoutUrl){location.href=body.checkoutUrl;return;}
-  status.textContent='Order '+(body.orderId||'created')+' — payment setup is ready.';
+  if(body.statusUrl){status.textContent='Production queued. Apex is rendering your full video…'; await pollPreview(body.orderId||body.id); return;}
+  status.textContent='Order '+(body.orderId||'created')+' — queued.';
  }catch(error){status.textContent=error.message||'Order could not be started.';}
 }
 </script>
