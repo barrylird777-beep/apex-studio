@@ -10,6 +10,12 @@ export const CAPABILITIES = Object.freeze([
   'render','encode','decode','vector','storage','network','arbitration'
 ]);
 
+const modelCatalog = Object.freeze([
+  { id:'hf-flux', provider:'huggingface', model:process.env.HF_FLUX_MODEL || 'black-forest-labs/FLUX.1-schnell', capabilities:['image'], quantized:false },
+  { id:'hf-realvisxl', provider:'huggingface', model:process.env.HF_REALVISXL_MODEL || 'SG161222/RealVisXL_V5.0', capabilities:['image'], quantized:false },
+  { id:'local-quantized', provider:'ollama', model:process.env.OLLAMA_MODEL || 'configured', capabilities:['script','reasoning','coding','embedding'], quantized:true }
+]);
+
 const providerCatalog = Object.freeze([
   { id:'groq', env:'GROQ_API_KEY', capabilities:['script','reasoning','coding','audio'] },
   { id:'openrouter', env:'OPENROUTER_API_KEY', capabilities:['script','reasoning','coding','research','image','audio'] },
