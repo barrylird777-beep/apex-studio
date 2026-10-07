@@ -302,6 +302,7 @@ export function buildRtmpHandshake() {
 export function createRealZeroStopProxy({
   destination,
   fallbackMedia = [],
+  fallbackFile = '',
   ffmpegPath = 'ffmpeg',
   ingestSource = '',
   frameIntervalMs = 40,
@@ -335,6 +336,8 @@ export function createRealZeroStopProxy({
   let sourceCreateTx = 0;
   let outboundChunkSize = DEFAULT_OUT_CHUNK_SIZE;
   let lastMedia = new Map();
+  state.lastSourceTimestamp = 0;
+  let activeFallbackMedia = Array.isArray(fallbackMedia) ? fallbackMedia : [];
   let fallbackIndex = 0;
   let fallbackTimer = null;
   let ingestDecoder = null;
@@ -457,8 +460,8 @@ export function createRealZeroStopProxy({
   };
 
   const sendFallbackFrame = () => {
-    if (!state.downstreamConnected || !fallbackMedia.length || stopping) return;
-    const item = fallbackMedia[fallbackIndex++ % fallbackMedia.length];
+    if (!state.downstreamConnected || !activeFallbackMedia.length || stopping) return;
+    const item = activeFallbackMedia[fallbackIndex++ % activeFallbackMedia.length];
     if (!item?.payload || !Number.isFinite(item.type)) return;
     state.timestamp += Math.max(1, Number(item.durationMs) || frameIntervalMs);
     sendMessage({
@@ -471,7 +474,7 @@ export function createRealZeroStopProxy({
   };
 
   const startFallbackLoop = () => {
-    if (fallbackTimer || !fallbackMedia.length) return;
+    if (fallbackTimer || !activeFallbackMedia.length) return;
     fallbackTimer = setInterval(sendFallbackFrame, Math.max(10, Number(frameIntervalMs) || 40));
     fallbackTimer.unref?.();
   };
@@ -633,6 +636,10 @@ export function createRealZeroStopProxy({
     startPromise = Promise.resolve().then(() => {
       stopping = false;
       if (state.status === 'running' || socket) return status();
+      if (fallbackFile && !activeFallbackMedia.length) {
+        activeFallbackMedia = await loadFlvFallbackMedia(fallbackFile);
+      }
+      if (!activeFallbackMedia.length) throw new Error('zero-stop relay requires fallback media');
       state.startedAt ||= new Date().toISOString();
       state.status = 'starting';
       connectDestination();
@@ -660,7 +667,8 @@ export function createRealZeroStopProxy({
     ...state,
     configured: Boolean(destination),
     ingestConfigured: Boolean(ingestSource),
-    fallbackConfigured: fallbackMedia.length > 0,
+    fallbackConfigured: activeFallbackMedia.length > 0,
+    fallbackFile: fallbackFile || null,
     persistentDownstream: true,
     protocol: 'rtmp'
   });
