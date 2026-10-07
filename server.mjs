@@ -36,6 +36,7 @@ import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMet
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { searchAnything, fetchAnything } from './src/core/apex-web-search.mjs';
+import { streamUnifiedAi } from './src/providers/unified-ai-router.mjs';
 import { createPrivacyControlPlane } from './src/api/privacy-control-plane.mjs';
 import { installPrivacyGuard } from './src/core/apex-privacy-guard.mjs';
 
@@ -81,6 +82,40 @@ app.get('/api/fetch', async (req,res) => {
 });
 
 app.get('/api/privacy/status', (_req,res)=>res.json(privacyControl.status()));
+
+app.post('/api/ai/stream/:provider', async (req,res) => {
+  try {
+    const upstream = await streamUnifiedAi({
+      provider:req.params.provider,
+      prompt:req.body?.prompt,
+      messages:req.body?.messages,
+      system:req.body?.system,
+      model:req.body?.model,
+      maxTokens:req.body?.max_tokens ?? req.body?.maxTokens,
+      temperature:req.body?.temperature
+    });
+    res.status(upstream.status);
+    res.setHeader('content-type',upstream.headers.get('content-type')||'text/event-stream');
+    res.setHeader('cache-control','no-cache, no-store');
+    res.setHeader('connection','keep-alive');
+    if(!upstream.body) return res.end();
+    const reader=upstream.body.getReader();
+    req.on('close',()=>{ void reader.cancel().catch(()=>{}); });
+    try {
+      for(;;){
+        const {done,value}=await reader.read();
+        if(done) break;
+        if(value?.byteLength) res.write(Buffer.from(value));
+      }
+      res.end();
+    } finally {
+      reader.releaseLock();
+    }
+  } catch(error) {
+    if(!res.headersSent) return res.status(502).json({success:false,error:'AI stream failed'});
+    res.end();
+  }
+});
 
 app.get('/health', (_req, res) => {
   const memory = process.memoryUsage();
