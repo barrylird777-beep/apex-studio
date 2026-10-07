@@ -1,15 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildPassThroughArgs,createStreamRelay} from '../src/core/stream-relay.mjs';
+import {buildPassThroughArgs,buildTranscodeArgs,canCopyProbe,selectRelayMode} from '../src/core/stream-relay.mjs';
 
-test('pass-through uses stream copy without transcoding',()=>{
- const a=buildPassThroughArgs({ingest:'rtmp://in',dest:'rtmp://out'});
- assert(a.includes('-c:v')&&a.includes('copy'));
- assert(a.includes('-c:a')&&a.includes('copy'));
- assert(!a.includes('libx264')&&!a.includes('aac'));
+const probe=(video,audio)=>({streams:[{codec_type:'video',codec_name:video},{codec_type:'audio',codec_name:audio}]});
+
+test('copy route accepts H264 plus AAC',()=>{
+ const p=probe('h264','aac');
+ assert.equal(canCopyProbe(p),true);
+ assert.deepEqual(selectRelayMode(p),{mode:'copy',encoder:null});
+ assert(buildPassThroughArgs({ingest:'in',dest:'out'}).includes('copy'));
 });
-test('relay is disabled without endpoints',()=>{
- const r=createStreamRelay();
- assert.equal(r.status().status,'idle');
- assert.equal(r.status().configured,false);
+
+test('copy route accepts HEVC plus MP3',()=>assert.equal(canCopyProbe(probe('hevc','mp3')),true));
+
+test('incompatible codecs select CPU fallback',()=>{
+ const r=selectRelayMode(probe('vp9','opus'));
+ assert.deepEqual(r,{mode:'transcode',encoder:'libx264'});
+ const a=buildTranscodeArgs({ingest:'in',dest:'out',encoder:r.encoder});
+ assert(a.includes('ultrafast')&&a.includes('zerolatency')&&a.includes('aac'));
 });
+
+test('incompatible codecs can select NVENC',()=>assert.deepEqual(selectRelayMode(probe('vp9','opus'),{preferNvenc:true}),{mode:'transcode',encoder:'h264_nvenc'}));
