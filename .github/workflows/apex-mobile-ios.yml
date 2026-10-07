@@ -1,0 +1,48 @@
+name: Apex Mobile iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - upgrade/apex-universal-mobile-swarm
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: brew install cmake xcodegen
+
+      - name: Build official llama.cpp iOS XCFramework with Metal
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git ios/ApexMobile/llama.cpp
+          cd ios/ApexMobile/llama.cpp
+          ./build-xcframework.sh ios-device
+          cd ..
+          mkdir -p Frameworks
+          cp -R llama.cpp/build-apple/llama.xcframework Frameworks/llama.xcframework
+
+      - name: Generate Xcode project
+        working-directory: ios/ApexMobile
+        run: xcodegen generate
+
+      - name: Build unsigned iOS application
+        working-directory: ios/ApexMobile
+        run: |
+          xcodebuild \
+            -project ApexMobile.xcodeproj \
+            -scheme ApexMobile \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Upload unsigned build
+        uses: actions/upload-artifact@v6
+        with:
+          name: apex-mobile-unsigned
+          path: ios/ApexMobile/build/**/*.app
