@@ -36,6 +36,8 @@ import { createRogueApDetector } from './src/network/rogue-ap-detector.mjs';
 import { createInfiniteBroadcast } from './src/core/infinite-broadcast.mjs';
 import { createRealZeroStopProxy, RtmpSessionMultiplexer } from './src/core/real-zero-stop-proxy.mjs';
 import { createRelayRouter } from './src/api/relay-routes.mjs';
+import { createResearchRouter } from './src/api/research-routes.mjs';
+import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
@@ -60,6 +62,9 @@ const streamRelay = new RtmpSessionMultiplexer({
 });
 
 app.use('/api/relay', createRelayRouter(streamRelay));
+
+const researchEngine = new FrictionlessResearchEngine();
+app.use('/api/research', createResearchRouter(researchEngine));
 
 app.get('/api/relay/health', (_req, res) => {
   const relay = streamRelay.status();
