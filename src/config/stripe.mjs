@@ -1,7 +1,7 @@
 export function stripeConfig(){
   const secretKey=String(process.env.STRIPE_SECRET_KEY||'').trim();
   const webhookSecret=String(process.env.STRIPE_WEBHOOK_SECRET||'').trim();
-  const requestedMode=String(process.env.STRIPE_MODE||'live').trim().toLowerCase();
+  const requestedMode=String(process.env.STRIPE_MODE||'test').trim().toLowerCase();
   const mode=requestedMode==='test'?'test':'live';
   const keyMatchesMode=!secretKey || (mode==='test' ? secretKey.startsWith('sk_test_') : secretKey.startsWith('sk_live_'));
   return {secretKey,webhookSecret,mode,configured:Boolean(secretKey&&webhookSecret&&keyMatchesMode),checkoutConfigured:Boolean(secretKey&&keyMatchesMode),webhookConfigured:Boolean(webhookSecret),keyMatchesMode};
