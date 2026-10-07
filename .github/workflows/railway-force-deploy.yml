@@ -1,0 +1,33 @@
+name: Railway Force Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server.mjs'
+      - 'railway.json'
+      - 'public/rapid-video.html'
+      - 'src/workers/rapid-video-worker.mjs'
+      - 'src/payments/stripe-rapid.mjs'
+      - '.github/workflows/railway-force-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      PROJECT_ID: eefb6f5e-2454-45b9-98c4-41b9baaa1074
+      ENVIRONMENT_ID: 77e4a45a-0d8c-41f3-9d76-f6984ae2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+      - name: Deploy Apex Studio
+        run: railway up --ci --project "$PROJECT_ID" --environment production --service apex-studio
+      - name: Deploy Apex workers
+        run: railway up --ci --project "$PROJECT_ID" --environment production --service apex-workers
