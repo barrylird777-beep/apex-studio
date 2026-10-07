@@ -77,7 +77,7 @@ export async function selectNetworkPath() {
   const results = await Promise.all(devices.map(async device => {
     const result = await probe(device);
     const network = classify(device);
-    return { device, network, ...result, score: score(device, result), source: 'server-interface' };
+    return { device, network, ...result, score: score(device, result), source: 'server-interface-observation' };
   }));
   const candidates = results;
   if (!candidates.some(candidate => candidate.healthy)) {
@@ -89,7 +89,7 @@ export async function selectNetworkPath() {
   const failover = candidates.slice(1, 4).map(({ device, network, score: pathScore, healthy }) => ({ device, network, score: pathScore, healthy }));
   return {
     observedAt: new Date().toISOString(),
-    source: 'railway-runtime-interface-observation',
+    source: 'server-runtime-observation',
     selected,
     failover,
     candidates,
@@ -116,16 +116,20 @@ export function buildNetworkSpeedPolicy(paths = []) {
   if (!healthy.length) return Object.freeze({ mode: 'offline', lanes: 0, paths: [] });
   const top = healthy.slice(0, 4);
   const totalScore = top.reduce((sum, p) => sum + Math.max(1, Number(p.score || 1)), 0);
+  // Server-side interfaces are not the user's iPhone network paths. Do not
+  // advertise multipath unless multiple client paths have been verified by a
+  // native Network Extension / tunnel endpoint.
+  const clientVerified = top.filter(p => p?.source === 'client-verified').length;
   return Object.freeze({
-    mode: top.length > 1 ? 'multipath' : 'single-path',
-    lanes: top.length,
+    mode: clientVerified > 1 ? 'multipath' : 'single-path',
+    lanes: clientVerified > 1 ? clientVerified : 1,
     paths: top.map(p => Object.freeze({
       device: p.device,
       network: p.network,
       weight: Math.max(1, Number(p.score || 1)) / totalScore,
       rttMs: p.rttMs
     })),
-    failover: healthy.slice(4, 8).map(p => p.device)
+    failover: clientVerified > 1 ? healthy.slice(clientVerified, clientVerified + 4).map(p => p.device) : []
   });
 }
 
