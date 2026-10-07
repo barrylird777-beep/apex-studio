@@ -3,160 +3,165 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#07090d">
-<title>Apex Rapid Video — $25 Short-Form Video</title>
-<meta name="description" content="Apex Rapid Video: cinematic AI short-form videos delivered fast. First 3 orders $25.">
+<meta name="theme-color" content="#05070b">
+<title>Apex Studio — Turn Anything Into Something Worth Watching</title>
+<meta name="description" content="Give Apex an idea, story, product, verse, song or script. Get a free 10-second proof of what it could become.">
 <style>
-:root{--bg:#05070b;--panel:#0d1118;--line:#202733;--text:#f6f7f9;--muted:#9ca5b3;--accent:#fff;--good:#8ee3ad}
-*{box-sizing:border-box}html{background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
-body{margin:0;min-height:100vh;background:radial-gradient(900px 500px at 50% -10%,#263144 0,transparent 62%),linear-gradient(180deg,#080b11,#030406)}
-main{width:min(980px,100%);margin:auto;padding:18px 16px 60px}
-nav{display:flex;justify-content:space-between;align-items:center;padding:8px 0 34px}
-.logo{font-weight:950;letter-spacing:.16em}.logo span{color:#8994a5}.live{font-size:12px;color:var(--good)}
-.hero{text-align:center;padding:36px 0 28px}.eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#aeb7c5;font-weight:850}
-h1{font-size:clamp(42px,8vw,78px);line-height:.94;letter-spacing:-.065em;margin:14px 0}
-.hero p{max-width:680px;margin:18px auto;color:var(--muted);font-size:18px;line-height:1.55}
-.price{font-size:54px;font-weight:950;letter-spacing:-.05em;margin:18px 0 6px}.sub{color:var(--muted)}
-.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:24px 0}
-a,button{font:inherit;text-decoration:none;border:1px solid var(--line);border-radius:15px;padding:14px 20px;min-height:50px;font-weight:850;cursor:pointer}
-.primary{background:#fff;color:#07090d;border-color:#fff}.secondary{background:#111722;color:#fff}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}
-.card{background:linear-gradient(145deg,#111722,#090c12);border:1px solid var(--line);border-radius:22px;padding:20px}
-.card .icon{font-size:24px}.card h2{font-size:16px;margin:12px 0 7px}.card p{color:var(--muted);line-height:1.5;margin:0}
-.panel{background:linear-gradient(145deg,#10151e,#080b10);border:1px solid var(--line);border-radius:24px;padding:22px;margin-top:14px}
-.panel h2{margin:0 0 8px;font-size:23px}.muted{color:var(--muted)}
-ul{margin:16px 0 0;padding-left:20px;line-height:1.9;color:#d9dee6}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}.step{border:1px solid var(--line);border-radius:16px;padding:15px}.step b{display:block;margin-bottom:5px}.step span{color:var(--muted);font-size:13px;line-height:1.45}
-.order{display:grid;gap:11px;margin-top:18px}.order label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
-input,textarea,select{width:100%;border:1px solid var(--line);background:#070a0f;color:#fff;border-radius:14px;padding:13px;outline:none;font:inherit}textarea{min-height:120px;resize:vertical}
-.note{font-size:12px;color:var(--muted);line-height:1.5}
-#copyStatus{min-height:20px;color:var(--good);font-size:13px}
-footer{text-align:center;color:#687180;font-size:12px;margin-top:30px}
-@media(max-width:700px){.grid,.steps{grid-template-columns:1fr}.hero{padding-top:12px}.panel{padding:18px}}
+:root{--bg:#040508;--panel:#0b0e15;--panel2:#111620;--line:#222938;--text:#f7f8fb;--muted:#99a3b3;--hot:#ffffff;--good:#8ff0b0;--glow:rgba(255,255,255,.16)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
+body{margin:0;min-height:100vh;background:radial-gradient(700px 420px at 50% -5%,rgba(93,113,151,.32),transparent 65%),radial-gradient(500px 400px at 85% 28%,rgba(116,83,164,.13),transparent 70%),linear-gradient(180deg,#080b11,#030406 72%)}
+main{width:min(1060px,100%);margin:auto;padding:16px 16px 70px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:8px 0 18px}.logo{font-weight:950;letter-spacing:.18em}.logo span{color:#7e899b}.live{font-size:11px;color:var(--good);letter-spacing:.08em}
+.hero{text-align:center;padding:54px 0 34px}.eyebrow{display:inline-flex;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:999px;padding:8px 12px;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#c4cad4;font-weight:850}
+h1{font-size:clamp(48px,10vw,94px);line-height:.88;letter-spacing:-.075em;margin:20px auto 18px;max-width:900px}
+h1 .dim{color:#737d8d} .hero p{max-width:720px;margin:0 auto;color:var(--muted);font-size:18px;line-height:1.55}
+.proof{margin:28px auto 0;max-width:760px;text-align:left;background:linear-gradient(145deg,rgba(19,24,34,.96),rgba(7,9,13,.98));border:1px solid #2a3241;border-radius:28px;padding:18px;box-shadow:0 20px 80px rgba(0,0,0,.35)}
+.proof-top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.proof-title{font-weight:900}.proof-badge{font-size:11px;color:var(--good);border:1px solid rgba(143,240,176,.25);padding:6px 9px;border-radius:999px}
+textarea,input,select{width:100%;border:1px solid #2a3240;background:#070a0f;color:#fff;border-radius:16px;padding:15px;outline:none;font:inherit;font-size:16px}
+textarea{min-height:112px;resize:vertical}textarea:focus,input:focus,select:focus{border-color:#66738a;box-shadow:0 0 0 4px rgba(255,255,255,.04)}
+.quick{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.quick button{border:1px solid var(--line);background:#0d121b;color:#cbd1db;border-radius:999px;padding:9px 12px;font-size:12px;cursor:pointer}
+button,a{font:inherit}.cta{width:100%;border:0;border-radius:16px;padding:16px 18px;background:#fff;color:#05070b;font-weight:950;font-size:16px;cursor:pointer;box-shadow:0 8px 30px var(--glow)}
+.cta:disabled{opacity:.55;cursor:wait}.proof-note{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:#7f8998;font-size:11px;line-height:1.45}
+#previewStatus{min-height:22px;margin-top:12px;color:var(--good);font-size:13px}.preview-result{margin-top:14px;border-radius:20px;overflow:hidden;border:1px solid var(--line);background:#05070b}.preview-result video{display:block;width:100%;max-height:560px;background:#000}.preview-actions{display:flex;gap:9px;padding:12px;flex-wrap:wrap}.preview-actions a,.preview-actions button{flex:1;text-align:center;min-width:150px;border:1px solid var(--line);background:#111722;color:#fff;border-radius:13px;padding:12px;text-decoration:none;font-weight:850;cursor:pointer}
+.section{margin-top:34px}.section-head{text-align:center;margin-bottom:15px}.section-head h2{font-size:30px;letter-spacing:-.04em;margin:0 0 7px}.section-head p{color:var(--muted);margin:0}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.card{padding:20px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,#10151e,#080b10)}.card .icon{font-size:24px}.card h3{margin:12px 0 7px}.card p{color:var(--muted);line-height:1.5;margin:0;font-size:14px}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.flow .step{border:1px solid var(--line);border-radius:18px;padding:17px;background:#090c12}.num{font-size:11px;color:#7e8999;letter-spacing:.14em}.step b{display:block;margin:7px 0 5px}.step span{color:var(--muted);font-size:13px;line-height:1.45}
+.order{margin-top:34px;padding:24px;border:1px solid #2a3240;border-radius:26px;background:linear-gradient(145deg,#10151e,#080b10)}.order h2{margin:0;font-size:28px}.order p{color:var(--muted);line-height:1.5}.order-grid{display:grid;gap:11px}.label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#8f99a8;font-weight:850}
+.price-row{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:12px 0}.price{font-size:50px;font-weight:950;letter-spacing:-.06em}.price-sub{color:var(--muted);font-size:12px;text-align:right}
+footer{text-align:center;color:#626d7c;font-size:11px;margin-top:35px}
+@media(max-width:700px){main{padding-left:12px;padding-right:12px}.hero{padding-top:34px}.cards,.flow{grid-template-columns:1fr}.proof{padding:13px}.proof-note{display:block}.proof-note span{display:block;margin-top:4px}.price-row{align-items:center}.price{font-size:44px}}
 </style>
 </head>
 <body>
 <main>
-<nav><div class="logo">APEX <span>RAPID VIDEO</span></div><div class="live">● TAKING ORDERS</div></nav>
+<nav><div class="logo">APEX <span>STUDIO</span></div><div class="live">● LIVE</div></nav>
 
 <section class="hero">
-<div class="eyebrow">Short-form video production</div>
-<h1>Your idea.<br>Made watchable.</h1>
-<p>Give us an idea, script, product, sermon, song, story, or existing footage. Apex turns it into a polished short-form video with a strong hook, cinematic visuals, captions, audio and a ready-to-post final.</p>
-<div class="price">$25</div>
-<div class="sub">First 3 orders · 30–60 sec · 24-hour target</div>
-<div class="actions">
-<a class="primary" href="#order">Start a $25 order</a>
-<a class="secondary" href="https://cash.app/$TrisRock777">Pay with Cash App</a>
+<div class="eyebrow">AI creative production engine</div>
+<h1>Give us <span class="dim">anything.</span><br>We'll make it watchable.</h1>
+<p>Paste an idea, story, product, verse, song, script or rough concept. Apex turns it into a short-form video concept built around the hook, the story and the reason someone should keep watching.</p>
+
+<div class="proof" id="proofBox">
+<div class="proof-top"><div class="proof-title">See it before you buy it.</div><div class="proof-badge">FREE 10-SECOND PROOF</div></div>
+<textarea id="brief" placeholder="Example: Turn Psalm 23 into a dark cinematic anime short that makes someone stop scrolling."></textarea>
+<div class="quick">
+<button onclick="setIdea('Bible story')">Bible story</button>
+<button onclick="setIdea('Product ad')">Product ad</button>
+<button onclick="setIdea('Music / song')">Music / song</button>
+<button onclick="setIdea('Creator clip')">Creator clip</button>
+<button onclick="setIdea('Surprise me')">Surprise me</button>
 </div>
-<div class="note">The $25 launch price is for the first three completed orders. Larger packages are available after the first order.</div>
-</section>
-
-<section class="grid">
-<div class="card"><div class="icon">⚡</div><h2>Fast hook</h2><p>We build the opening around attention and retention instead of wasting the first seconds.</p></div>
-<div class="card"><div class="icon">🎬</div><h2>Cinematic finish</h2><p>Visuals, pacing, captions, transitions, voice and sound are assembled as one finished piece.</p></div>
-<div class="card"><div class="icon">📱</div><h2>Ready to post</h2><p>Vertical short-form delivery for TikTok, Reels, Shorts and other social feeds.</p></div>
-</section>
-
-<section class="panel">
-<h2>What $25 gets you</h2>
-<ul>
-<li>One 30–60 second short-form video</li>
-<li>Hook + concise structure</li>
-<li>AI-assisted visuals or editing of supplied footage</li>
-<li>Captions/subtitles</li>
-<li>Voiceover or supplied narration when appropriate</li>
-<li>Music/SFX and basic audio polish</li>
-<li>One finished MP4 optimized for social posting</li>
-</ul>
-<div class="steps">
-<div class="step"><b>1. Brief</b><span>Send the idea, script, product or footage.</span></div>
-<div class="step"><b>2. Forge</b><span>Apex builds the story, shots and production plan.</span></div>
-<div class="step"><b>3. Render</b><span>Visual, audio and editing stages are assembled.</span></div>
-<div class="step"><b>4. Deliver</b><span>You receive the finished short.</span></div>
+<button class="cta" id="previewButton" onclick="makePreview()">MAKE MY FREE PROOF →</button>
+<div class="proof-note"><span>No card required for the proof.</span><span>One short concept · vertical · built to demonstrate the idea.</span></div>
+<div id="previewStatus"></div>
+<div id="previewResult" class="preview-result" hidden></div>
 </div>
 </section>
 
-<section id="order" class="panel">
-<h2>Start the order</h2>
-<p class="muted">Fill this out, then copy the generated order brief and send it with your payment confirmation.</p>
-<div class="order">
-<label>Name / brand</label><input id="name" placeholder="Your name or business">
-<label>What are we making?</label><input id="type" placeholder="Product ad, sermon clip, music video, story, etc.">
-<label>Idea / script / instructions</label><textarea id="brief" placeholder="Tell us what you want the viewer to see, hear and feel."></textarea>
-<label>Target platform</label>
-<select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>Other</option></select>
-<button class="primary" onclick="submitOrder()">Submit order to Apex</button><button class="secondary" onclick="copyOrder()">Copy order brief</button>
-<div id="copyStatus"></div><div id="orderStatus" class="note"></div>
-<a class="secondary" href="https://cash.app/$TrisRock777">Send $25 through Cash App</a>
-<div class="note">After payment, send the copied brief and payment confirmation through the contact method you were given. Do not include passwords or sensitive financial information.</div>
+<section class="section">
+<div class="section-head"><h2>Not another prompt box.</h2><p>Apex is built around the whole creative loop.</p></div>
+<div class="cards">
+<div class="card"><div class="icon">🧠</div><h3>Find the hook</h3><p>The system starts with why somebody should care, not just what the video contains.</p></div>
+<div class="card"><div class="icon">🎬</div><h3>Build the proof</h3><p>You see a real generated concept before committing to a full production.</p></div>
+<div class="card"><div class="icon">🚀</div><h3>Make it spread</h3><p>Finished work is designed for posting, sharing and pulling the next person into Apex.</p></div>
 </div>
 </section>
 
-<section class="panel">
-<h2>Want more than one?</h2>
-<p class="muted">Launch packages after the $25 trial:</p>
-<ul>
-<li><b>$50</b> — 3 short videos</li>
-<li><b>$100</b> — 7 short videos</li>
-<li><b>$250</b> — 20 short videos</li>
-</ul>
+<section class="section">
+<div class="section-head"><h2>One idea → a production.</h2><p>Start small. Upgrade only when the proof earns it.</p></div>
+<div class="flow">
+<div class="step"><span class="num">01 / IDEA</span><b>Drop anything</b><span>Rough thoughts are enough. Apex shapes the creative direction.</span></div>
+<div class="step"><span class="num">02 / PROOF</span><b>Watch 10 seconds</b><span>Get a tangible preview instead of guessing from a prompt.</span></div>
+<div class="step"><span class="num">03 / FULL</span><b>Unlock production</b><span>Turn the winning concept into a finished short-form video.</span></div>
+<div class="step"><span class="num">04 / SHARE</span><b>Send it into the world</b><span>Post the result. Let the result become the next discovery point.</span></div>
+</div>
 </section>
 
-<footer>Apex Rapid Video · powered by Apex Studio</footer>
+<section class="order" id="order">
+<h2>Ready to make the full thing?</h2>
+<p>The launch production is a 30–60 second finished social video. Hook, structure, visuals, captions, audio and export are handled as one production.</p>
+<div class="price-row"><div><div class="price">$25</div><div class="price-sub" style="text-align:left">launch production</div></div><div class="price-sub">30–60 sec<br>vertical social format<br>ready-to-post MP4</div></div>
+<div class="order-grid">
+<label class="label" for="name">Name / brand</label><input id="name" placeholder="Your name or brand">
+<label class="label" for="type">What are we making?</label><input id="type" placeholder="Product, Bible story, song, creator clip, announcement…">
+<label class="label" for="platform">Where will it live?</label>
+<select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select>
+<button class="cta" onclick="startOrder()">UNLOCK FULL PRODUCTION →</button>
+<div id="orderStatus" class="proof-note"></div>
+</div>
+</section>
+
+<footer>Apex Studio · creative production powered by the Apex worker mesh</footer>
 </main>
+
 <script>
-function orderFields(){
- return {
-   name:document.getElementById('name').value.trim(),
-   type:document.getElementById('type').value.trim(),
-   brief:document.getElementById('brief').value.trim(),
-   platform:document.getElementById('platform').value
+let lastPreview=null;
+function setIdea(kind){
+ const examples={
+  'Bible story':'Turn a Bible story into a dark cinematic anime short with an opening hook that makes people stop scrolling.',
+  'Product ad':'Turn my product into a cinematic 15-second social ad that makes the viewer want to know more.',
+  'Music / song':'Turn this song into a visually striking short-form concept with a memorable opening.',
+  'Creator clip':'Turn this creator idea into a sharp short-form video with a strong first 3 seconds.',
+  'Surprise me':'Take this idea and make the most scroll-stopping version you can.'
  };
+ const b=document.getElementById('brief'); b.value=(examples[kind]||'')+(kind==='Surprise me'?'\n\nMy idea: ':'');
+ b.focus();
 }
-async function submitOrder(){
- const status=document.getElementById('orderStatus');
- const data=orderFields();
- if(!data.name||!data.type||!data.brief){status.textContent='Name, type and brief are required.';return;}
- status.textContent='Submitting order…';
+function getBrief(){return document.getElementById('brief').value.trim();}
+async function makePreview(){
+ const button=document.getElementById('previewButton');
+ const status=document.getElementById('previewStatus');
+ const result=document.getElementById('previewResult');
+ const brief=getBrief();
+ if(!brief){status.textContent='Give Apex an idea first.';document.getElementById('brief').focus();return;}
+ button.disabled=true;status.textContent='Apex is forging your 10-second proof…';result.hidden=true;result.innerHTML='';
  try{
-   const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const response=await fetch('/api/rapid/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Preview visitor',type:'Creative proof',brief,platform:'Short-form social'})});
+  const body=await response.json();
+  if(!response.ok)throw new Error(body.error||'Preview could not be created');
+  lastPreview=body;
+  pollPreview(body.orderId||body.id);
+ }catch(error){status.textContent=error.message||'Preview failed.';button.disabled=false;}
+}
+async function pollPreview(id){
+ const status=document.getElementById('previewStatus');
+ const result=document.getElementById('previewResult');
+ for(let i=0;i<80;i++){
+  await new Promise(r=>setTimeout(r,1500));
+  try{
+   const response=await fetch('/api/rapid/orders/'+encodeURIComponent(id),{cache:'no-store'});
+   if(!response.ok)continue;
    const body=await response.json();
-   if(!response.ok) throw new Error(body.error||'Order submission failed');
-   status.textContent='Order '+body.orderId+' queued. Apex is producing it.';
-   pollOrder(body.orderId);
- }catch(error){status.textContent=error.message||'Order submission failed.';}
-}
-async function pollOrder(orderId){
- const status=document.getElementById('orderStatus');
- for(let i=0;i<90;i++){
-   await new Promise(resolve=>setTimeout(resolve,3000));
-   try{
-     const response=await fetch('/api/rapid/orders/'+encodeURIComponent(orderId),{cache:'no-store'});
-     if(!response.ok) continue;
-     const body=await response.json();
-     if(body.status==='completed'&&body.result?.url){
-       status.innerHTML='Order complete. <a href="'+body.result.url+'" target="_blank" rel="noopener">Open finished MP4</a>';
-       return;
-     }
-     if(body.status==='failed'){
-       status.textContent='Order failed: '+(body.error||'unknown error');
-       return;
-     }
-     status.textContent='Order '+orderId+' — '+body.status+'…';
-   }catch{}
+   if(body.status==='completed'&&body.result?.url){
+    const url=body.result.url;
+    result.innerHTML='<video controls playsinline preload="metadata" src="'+url+'"></video><div class="preview-actions"><a href="#order">MAKE THE FULL VERSION →</a><button onclick="shareProof()">SHARE THIS PROOF</button></div>';
+    result.hidden=false;status.textContent='Your proof is ready. If the direction is right, make the full version.';
+    document.getElementById('previewButton').disabled=false;return;
+   }
+   if(body.status==='failed'){status.textContent='Proof failed: '+(body.error||'unknown error');document.getElementById('previewButton').disabled=false;return;}
+   status.textContent='Apex is working… '+String(body.status||'queued');
+  }catch{}
  }
+ status.textContent='The proof is taking longer than expected. Keep this page open and try again if needed.';
+ document.getElementById('previewButton').disabled=false;
 }
-function copyOrder(){
- const data=orderFields();
- const name=data.name||'(not provided)';
- const type=data.type||'(not provided)';
- const brief=data.brief||'(not provided)';
- const text="APEX RAPID VIDEO ORDER\n\nName/brand: "+name+"\nType: "+type+"\nPlatform: "+data.platform+"\nBrief:\n"+brief+"\n\nLaunch price: $25";
- navigator.clipboard.writeText(text).then(()=>document.getElementById('copyStatus').textContent='Order brief copied.').catch(()=>{
-   const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
-   document.getElementById('copyStatus').textContent='Order brief copied.';
- });
+async function shareProof(){
+ const share={title:'Apex Studio proof',text:'I just turned an idea into a video proof with Apex Studio.',url:location.href};
+ try{if(navigator.share){await navigator.share(share);return;}}catch{}
+ try{await navigator.clipboard.writeText(location.href);document.getElementById('previewStatus').textContent='Link copied. Send it to someone who needs a video.';}catch{document.getElementById('previewStatus').textContent='Copy this page link and share your proof.';}
+}
+async function startOrder(){
+ const status=document.getElementById('orderStatus');
+ const data={name:document.getElementById('name').value.trim(),type:document.getElementById('type').value.trim(),brief:getBrief(),platform:document.getElementById('platform').value};
+ if(!data.name||!data.type||!data.brief){status.textContent='Name, type and idea are required.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
+ status.textContent='Creating your production checkout…';
+ try{
+  const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const body=await response.json();
+  if(!response.ok)throw new Error(body.error||'Checkout could not be created');
+  if(body.checkoutUrl){location.href=body.checkoutUrl;return;}
+  status.textContent='Order '+(body.orderId||'created')+' — payment setup is ready.';
+ }catch(error){status.textContent=error.message||'Order could not be started.';}
 }
 </script>
 </body>
