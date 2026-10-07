@@ -14,7 +14,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, enqueueWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -385,6 +385,73 @@ app.use('/api/mobile', createMobileControlPlane({
     };
   }
 }));
+
+app.post('/api/rapid/orders', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    const type = String(req.body?.type || '').trim().slice(0, 160);
+    const brief = String(req.body?.brief || '').trim().slice(0, 4000);
+    const platform = String(req.body?.platform || 'Other').trim().slice(0, 80);
+    if (!name || !type || !brief) {
+      return res.status(400).json({ success: false, error: 'name, type and brief are required' });
+    }
+    if (!durableWorkerEnabled()) {
+      return res.status(503).json({ success: false, error: 'Order queue is temporarily unavailable' });
+    }
+    const orderId = crypto.randomUUID();
+    const result = await enqueueWorkerTask({
+      id: orderId,
+      workerId: 'rapid-video-intake',
+      role: 'rapid-video',
+      task: 'rapid-video-order',
+      payload: {
+        orderId,
+        name,
+        type,
+        brief,
+        platform,
+        price: 25,
+        submittedAt: new Date().toISOString()
+      },
+      maxAttempts: 3,
+      dedupeKey: `rapid-video:${crypto.createHash('sha256').update(JSON.stringify({ name, type, brief, platform })).digest('hex')}`,
+      traceId: orderId
+    });
+    return res.status(202).json({
+      success: true,
+      orderId: result.id,
+      status: 'queued',
+      price: 25,
+      statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}`
+    });
+  } catch (error) {
+    console.error('[rapid-order]', error);
+    return res.status(500).json({ success: false, error: 'Unable to queue order' });
+  }
+});
+
+app.get('/api/rapid/orders/:id', async (req, res) => {
+  try {
+    const task = await getWorkerTask(req.params.id);
+    if (!task || task.task !== 'rapid-video-order') {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    return res.json({
+      success: true,
+      orderId: task.id,
+      status: task.status,
+      attempts: task.attempts,
+      maxAttempts: task.max_attempts,
+      result: task.result || null,
+      error: task.last_error || null,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at
+    });
+  } catch (error) {
+    console.error('[rapid-order-status]', error);
+    return res.status(500).json({ success: false, error: 'Order status unavailable' });
+  }
+});
 
 app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
 app.get('/api/workers/permanent', (_req,res)=>res.json({
