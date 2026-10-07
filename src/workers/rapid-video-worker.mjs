@@ -121,8 +121,9 @@ export async function executeRapidVideoPreview(payload = {}) {
   const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
   const output = path.join(outputDir, filename);
   const [bg, accent, warm] = paletteFor(brief + platform);
+  const hook = await generateHook(brief, platform, payload.provider, payload.model);
   const scenes = [
-    ["STOP THE SCROLL.", brief],
+    [hook, brief],
     ["MAKE IT WATCHABLE.", "Apex turns the raw idea into a sharp visual direction."],
     ["THE HOOK.", "Clear story. Fast pacing. A reason to keep watching."],
     ["READY FOR MORE?", platform + " — full production is one click away."]
