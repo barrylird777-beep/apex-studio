@@ -278,6 +278,11 @@ export function createRealZeroStopProxy({
   let startPromise = null;
   let transaction = 1;
   let downstreamStreamId = 1;
+  let sourceStreamId = 1;
+  let destinationConnectTx = 0;
+  let destinationCreateTx = 0;
+  let sourceConnectTx = 0;
+  let sourceCreateTx = 0;
   let outboundChunkSize = DEFAULT_OUT_CHUNK_SIZE;
   let lastMedia = new Map();
   let fallbackIndex = 0;
@@ -314,12 +319,13 @@ export function createRealZeroStopProxy({
 
   const sendConnectSequence = () => {
     const tcUrl = destination;
+    destinationConnectTx = transaction++;
     sendMessage({
       csid: 3,
       type: TYPE_AMF0_COMMAND,
       streamId: 0,
       timestamp: 0,
-      payload: encodeCommand('connect', transaction++, [
+      payload: encodeCommand('connect', destinationConnectTx, [
         encodeAmf0Object({
           app: dest.app,
           tcUrl,
@@ -335,13 +341,13 @@ export function createRealZeroStopProxy({
   };
 
   const sendPublishSequence = () => {
-    const createTx = transaction++;
+    destinationCreateTx = transaction++;
     sendMessage({
       csid: 3,
       type: TYPE_AMF0_COMMAND,
       streamId: 0,
       timestamp: 0,
-      payload: encodeCommand('createStream', createTx, [encodeAmf0Null()])
+      payload: encodeCommand('createStream', destinationCreateTx, [encodeAmf0Null()])
     });
   };
 
@@ -367,12 +373,15 @@ export function createRealZeroStopProxy({
   const handleCommand = message => {
     const values = decodeCommand(message.payload);
     const name = values[0];
-    if (name === '_result' && values.includes('createStream')) {
-      const streamId = values.find(v => typeof v === 'number' && v > 0);
-      if (streamId) downstreamStreamId = streamId;
-      sendPublish();
-    } else if (name === '_result' && values.includes('connect')) {
+    const tx = Number(values[1]);
+    if (name === '_result' && tx === destinationConnectTx) {
       sendPublishSequence();
+      return;
+    }
+    if (name === '_result' && tx === destinationCreateTx) {
+      const streamId = Number(values[3]);
+      if (Number.isFinite(streamId) && streamId > 0) downstreamStreamId = streamId;
+      sendPublish();
     }
   };
 
@@ -429,11 +438,7 @@ export function createRealZeroStopProxy({
     s.on('data', chunk => {
       handshake = Buffer.concat([handshake, chunk]);
       if (stage === 0 && handshake.length >= 1 + HANDSHAKE_SIZE * 2) {
-        write(Buffer.concat([
-          Buffer.from([RTMP_VERSION]),
-          handshake.subarray(1, 1 + HANDSHAKE_SIZE),
-          handshake.subarray(1, 1 + HANDSHAKE_SIZE)
-        ]));
+        write(handshake.subarray(1, 1 + HANDSHAKE_SIZE));
         handshake = handshake.subarray(1 + HANDSHAKE_SIZE * 2);
         stage = 1;
         state.downstreamConnected = true;
@@ -467,6 +472,61 @@ export function createRealZeroStopProxy({
     });
   };
 
+  const sendSourceConnect = () => {
+    sourceConnectTx = transaction++;
+    const input = parseMessageUrl(ingestSource);
+    const tcUrl = ingestSource;
+    if (!ingest) return;
+    ingest.write(encodeChunkedMessage({
+      csid: 3,
+      type: TYPE_AMF0_COMMAND,
+      streamId: 0,
+      timestamp: 0,
+      payload: encodeCommand('connect', sourceConnectTx, [
+        encodeAmf0Object({ app: input.app, tcUrl, type: 'nonprivate', flashVer: 'APEX/1.0', capabilities: 15, audioCodecs: 4071, videoCodecs: 252, videoFunction: 1 })
+      ])
+    }));
+  };
+
+  const sendSourceCreateStream = () => {
+    sourceCreateTx = transaction++;
+    if (!ingest) return;
+    ingest.write(encodeChunkedMessage({
+      csid: 3,
+      type: TYPE_AMF0_COMMAND,
+      streamId: 0,
+      timestamp: 0,
+      payload: encodeCommand('createStream', sourceCreateTx, [encodeAmf0Null()])
+    }));
+  };
+
+  const sendSourcePlay = () => {
+    const input = parseMessageUrl(ingestSource);
+    if (!ingest) return;
+    ingest.write(encodeChunkedMessage({
+      csid: 8,
+      type: TYPE_AMF0_COMMAND,
+      streamId: sourceStreamId,
+      timestamp: 0,
+      payload: encodeCommand('play', transaction++, [encodeAmf0String(input.stream)])
+    }));
+  };
+
+  const handleSourceCommand = message => {
+    const values = decodeCommand(message.payload);
+    const name = values[0];
+    const tx = Number(values[1]);
+    if (name === '_result' && tx === sourceConnectTx) {
+      sendSourceCreateStream();
+      return;
+    }
+    if (name === '_result' && tx === sourceCreateTx) {
+      const streamId = Number(values[3]);
+      if (Number.isFinite(streamId) && streamId > 0) sourceStreamId = streamId;
+      sendSourcePlay();
+    }
+  };
+
   const connectIngest = () => {
     if (!ingestSource || ingest || stopping) return;
     const input = parseMessageUrl(ingestSource);
@@ -477,19 +537,17 @@ export function createRealZeroStopProxy({
     ingestDecoder = new RtmpChunkDecoder();
 
     s.on('connect', () => {
-      write(Buffer.concat([Buffer.from([RTMP_VERSION]), makeHandshakeC1()]));
+      s.write(buildRtmpHandshake());
     });
 
     s.on('data', chunk => {
       handshake = Buffer.concat([handshake, chunk]);
       if (stage === 0 && handshake.length >= 1 + HANDSHAKE_SIZE * 2) {
-        s.write(Buffer.concat([
-          Buffer.from([RTMP_VERSION]),
-          handshake.subarray(1, 1 + HANDSHAKE_SIZE),
-          handshake.subarray(1, 1 + HANDSHAKE_SIZE)
-        ]));
+        s.write(handshake.subarray(1, 1 + HANDSHAKE_SIZE));
         handshake = handshake.subarray(1 + HANDSHAKE_SIZE * 2);
         stage = 1;
+        state.ingestConnected = true;
+        sendSourceConnect();
       }
       if (stage === 1 && handshake.length) {
         ingestDecoder.push(handshake);
@@ -497,7 +555,10 @@ export function createRealZeroStopProxy({
       }
     });
 
-    ingestDecoder.on('message', forwardMedia);
+    ingestDecoder.on('message', message => {
+      if (message.type === TYPE_AMF0_COMMAND) handleSourceCommand(message);
+      forwardMedia(message);
+    });
     s.on('error', error => {
       state.lastError = String(error.message).slice(-2000);
     });
