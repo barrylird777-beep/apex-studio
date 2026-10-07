@@ -10,6 +10,7 @@ on:
       - 'public/rapid-video.html'
       - 'src/workers/rapid-video-worker.mjs'
       - 'src/payments/stripe-rapid.mjs'
+      - '.github/workflows/rapid-live-verifier.yml'
 
 jobs:
   verify:
