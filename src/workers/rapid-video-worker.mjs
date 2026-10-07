@@ -172,3 +172,5 @@ export async function executeRapidVideoOrder(payload = {}) {
     generatedAt: new Date().toISOString()
   };
 }
+
+// Rapid buyer smoke gate: validated render path on pull requests.
