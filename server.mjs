@@ -241,15 +241,39 @@ meshWorkerSupervisor.start();
 permanentWorkerSupervisor.start();
 
 const crewRoles = [
-  ['scripture-research', 'Produce one evidence-backed scripture research finding that can improve a Bible video episode.'],
-  ['story-architecture', 'Find one concrete narrative, pacing, or retention improvement for a Bible video episode.'],
-  ['visual-direction', 'Find one concrete cinematic visual-direction improvement for Apex Studio output.'],
-  ['audio-direction', 'Find one concrete narration, music, sound-design, or audio-mix improvement.'],
-  ['production-engineering', 'Find one concrete production-pipeline reliability or performance defect and propose the smallest robust fix.'],
-  ['network-engineering', 'Inspect network/runtime integration and identify one concrete reliability, failover, or observability improvement.'],
-  ['qa-review', 'Act as a hostile QA reviewer: identify one reproducible defect or missing acceptance test and state the evidence required.'],
-  ['architecture-review', 'Review the system architecture for one concrete correctness or durability risk; distinguish verified evidence from inference.']
-];
+  ["network-defense", "Audit network paths, DNS, SSE, failover, rogue-AP telemetry, and client/runtime separation. Produce one concrete fix with evidence criteria."],
+  ["adblock", "Audit DNS/content filtering coverage, state reporting, data-path overhead, and iOS behavior. Produce one concrete fix and test."],
+  ["sse-reliability", "Audit SSE connection lifecycle, origin policy, heartbeats, capacity, cleanup, and backpressure. Produce one concrete fix and test."],
+  ["security", "Attack auth, input validation, secrets, CORS, prototype pollution, upload boundaries, and exposed control planes. Produce one reproducible finding."],
+  ["release-gate", "Find the highest-risk blocker preventing a truthful buyer-ready release and define the smallest executable acceptance test."],
+  ["runtime", "Audit server startup, imports, route registration, shutdown, uncaught faults, and dependency availability. Produce one concrete runtime fix."],
+  ["ui-runtime", "Audit every public UI surface for reachable APIs, error states, mobile behavior, and functional controls. Produce one concrete fix."],
+  ["e2e", "Trace one user journey from UI request through backend, worker, media, artifact, and delivery. Identify the first broken boundary."],
+  ["storage", "Audit project persistence, atomicity, recovery, corruption resistance, and current Ring-WAL/pure-store direction. Produce one concrete fix."],
+  ["workers", "Audit worker supervision, queue fallback, leases, retries, duplicate execution, and shutdown behavior. Produce one concrete fix."],
+  ["media", "Audit ingest, probing, asset assembly, FFmpeg, mastering, QC, and artifact delivery. Produce one concrete fix."],
+  ["provenance", "Audit source/asset provenance and evidence lineage through production. Identify one gap and acceptance test."],
+  ["scripture", "Audit Bible research/source handling, provenance, textual accuracy boundaries, and evidence-backed production handoffs."],
+  ["story", "Audit opening hooks, retention, pacing, narrative architecture, and episode structure for one concrete improvement."],
+  ["visuals", "Audit cinematic visual generation, continuity, shot planning, style consistency, and 16:9 production readiness."],
+  ["audio", "Audit narration, music, SFX, mixing, mastering, synchronization, and KornKnob handoffs."],
+  ["rapid", "Audit ApexRapid against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
+  ["engine", "Audit EngineApex against current final conclusions, opportunity evidence, scoring, economics, growth, monetization, and handoffs."],
+  ["studio", "Audit ApexStudio as the complete production system, Bible-first then Korn, from planning through mastering and delivery."],
+  ["garden", "Audit GardenOfApex as the research/knowledge/world-development surface, preserving its separation from ApexStudio."],
+  ["kornknob", "Audit KORNKNOB as the audio/music intelligence surface and its capability contracts to other systems."],
+  ["shield", "Audit ShieldApex network/security/protection responsibilities and boundary separation."],
+  ["architecture", "Audit six-surface separation, universal capabilities, dependency direction, and forbidden cross-domain coupling."],
+  ["performance", "Find the largest CPU, memory, latency, queue, render, or network bottleneck and define a measurable fix."],
+  ["observability", "Audit health, metrics, logs, worker state, runtime faults, and evidence needed for release confidence."],
+  ["accessibility", "Audit mobile/iPhone controls, keyboard/accessibility semantics, contrast, captions, and failure messaging."],
+  ["payments", "Audit Rapid checkout/webhook idempotency, signature verification, price/currency enforcement, and order state."],
+  ["provider-routing", "Audit AI provider selection, free-first policy, explicit provider contracts, retries, and no silent paid fallback."],
+  ["qa-hostile", "Act as hostile final QA. Find one reproducible defect, missing test, or false-positive readiness signal."],
+  ["integration", "Audit boundaries among GardenOfApex, ApexStudio, KORNKNOB, EngineApex, ApexRapid, and ShieldApex."],
+  ["documentation", "Audit runtime/config/deployment documentation against actual code and remove misleading operational claims."],
+  ["cleanup", "Find dead, duplicated, stale, or contradictory code/config that can damage runtime correctness and define the safest cleanup."],
+]
 
 const safeAi = continuousAiStatus();
 const crewProvider = safeAi.provider || null;
