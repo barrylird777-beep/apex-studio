@@ -32,6 +32,7 @@ import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
+import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -241,6 +242,28 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.disable('x-powered-by');
 app.use(cors());
+app.get('/api/network/adblock/content/status', (_req, res) => {
+  return res.json(contentFilterStatus(studioAdBlockStatus().blockedDomains));
+});
+
+app.get('/api/network/adblock/content/rules', (_req, res) => {
+  res.type('application/json').set('Cache-Control', 'no-store');
+  return res.send(JSON.stringify(buildSafariContentBlockerRules(), null, 2));
+});
+
+app.get('/api/network/adblock/content/classify', (req, res) => {
+  const target = String(req.query?.url || '');
+  const firstPartyHost = String(req.query?.firstPartyHost || '');
+  const resourceType = String(req.query?.resourceType || 'other');
+  if (!target) return res.status(400).json({ ok:false, error:'url is required' });
+  return res.json({ ok:true, ...classifyNetworkRequest(target, { firstPartyHost, resourceType }) });
+});
+
+app.get('/api/network/adblock/profile', (_req, res) => {
+  res.type('application/x-apple-aspen-config').set('Content-Disposition', 'attachment; filename="Apex-AdBlock.mobileconfig"');
+  return res.send(studioAdBlockMobileConfig());
+});
+
 app.get('/api/network/throughput', async (req, res) => {
   const requestedMiB = Number(req.query?.mib ?? 32);
   const mib = Math.min(64, Math.max(1, Number.isFinite(requestedMiB) ? Math.floor(requestedMiB) : 32));
