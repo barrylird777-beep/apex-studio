@@ -150,10 +150,10 @@ function encodeChunkedMessage({ csid = 4, timestamp = 0, type, streamId = 1, pay
 }
 
 class RtmpChunkDecoder extends EventEmitter {
-  constructor() {
+  constructor({ chunkSize = DEFAULT_CHUNK_SIZE } = {}) {
     super();
     this.buffer = Buffer.alloc(0);
-    this.chunkSize = DEFAULT_CHUNK_SIZE;
+    this.chunkSize = Math.max(1, Number(chunkSize) || DEFAULT_CHUNK_SIZE);
     this.headers = new Map();
     this.messages = new Map();
   }
@@ -217,9 +217,13 @@ class RtmpChunkDecoder extends EventEmitter {
       this.headers.set(csid, header);
     }
 
-    if (header.timestamp >= 0xffffff) {
+    const extendedTimestamp = (fmt === 0 || fmt === 1 || fmt === 2) && header.timestamp >= 0xffffff;
+    if (extendedTimestamp) {
       if (b.length < pos + 4) return null;
+      const extended = b.readUInt32BE(pos);
       pos += 4;
+      header = { ...header, timestamp: extended };
+      this.headers.set(csid, header);
     }
 
     const current = this.messages.get(csid) || { header, payload: Buffer.alloc(0) };
@@ -299,6 +303,24 @@ export function buildRtmpHandshake() {
   return Buffer.concat([Buffer.from([RTMP_VERSION]), makeHandshakeC1()]);
 }
 
+export class RtmpSessionMultiplexer {
+  constructor(options = {}) {
+    this.engine = createRealZeroStopProxy(options);
+  }
+
+  start() {
+    return this.engine.start();
+  }
+
+  stop() {
+    return this.engine.stop();
+  }
+
+  status() {
+    return this.engine.status();
+  }
+}
+
 export function createRealZeroStopProxy({
   destination,
   fallbackMedia = [],
@@ -334,7 +356,7 @@ export function createRealZeroStopProxy({
   let destinationCreateTx = 0;
   let sourceConnectTx = 0;
   let sourceCreateTx = 0;
-  let outboundChunkSize = DEFAULT_OUT_CHUNK_SIZE;
+  const outboundChunkSize = DEFAULT_OUT_CHUNK_SIZE;
   let lastMedia = new Map();
   state.lastSourceTimestamp = 0;
   let activeFallbackMedia = Array.isArray(fallbackMedia) ? fallbackMedia : [];
@@ -418,9 +440,8 @@ export function createRealZeroStopProxy({
   };
 
   const handleControl = message => {
-    if (message.type === TYPE_SET_CHUNK_SIZE && message.payload.length >= 4) {
-      outboundChunkSize = Math.max(128, message.payload.readUInt32BE(0));
-    }
+    // The peer's Set Chunk Size controls our decoder, not our encoder.
+    // RtmpChunkDecoder owns the inbound chunk-size state.
   };
 
   const handleCommand = message => {
@@ -665,6 +686,13 @@ export function createRealZeroStopProxy({
 
   const status = () => ({
     ...state,
+    multiplexer: true,
+    protocolState: {
+      downstream: state.downstreamConnected ? 'connected' : 'disconnected',
+      ingest: state.ingestConnected ? 'connected' : 'disconnected',
+      sourceMode: state.fallbackActive ? 'standby' : 'live',
+      timestampMs: state.timestamp
+    },
     configured: Boolean(destination),
     ingestConfigured: Boolean(ingestSource),
     fallbackConfigured: activeFallbackMedia.length > 0,
