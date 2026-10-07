@@ -39,7 +39,7 @@ function privateIp(ip){
   if(net.isIPv6(ip)){const x=ip.toLowerCase();return x==="::1"||x==="::"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe8")||x.startsWith("fe9")||x.startsWith("fea")||x.startsWith("feb");}
   return true;
 }
-async function assertPublicUrl(target){
+export async function assertPublicUrl(target){
   const u=new URL(String(target));
   if(!["http:","https:"].includes(u.protocol))throw new Error("Only HTTP(S) targets are supported");
   const host=u.hostname.replace(/^\[|\]$/g,"").toLowerCase();
