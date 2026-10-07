@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 
 const execFileAsync = promisify(execFile);
 
