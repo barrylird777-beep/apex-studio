@@ -17,8 +17,6 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-    resources:
-      - path: Resources
     frameworks:
       - path: Frameworks/llama.xcframework
         embed: false
