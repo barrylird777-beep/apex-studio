@@ -39,7 +39,10 @@
     "test:render-performance": "node --test test/render-performance.test.mjs",
     "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs",
     "sovereign:local": "node src/core/sovereign-local-runtime-daemon.mjs",
-    "worker:local": "node src/jobs/sovereign-local-worker-daemon.mjs"
+    "worker:local": "node src/jobs/sovereign-local-worker-daemon.mjs",
+    "sovereign:raft": "node scripts/sovereign-raft-node.mjs",
+    "sovereign:verify": "node scripts/verify-sovereign-elite.mjs",
+    "sovereign:scheduler": "node scripts/sovereign-scheduler-smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
