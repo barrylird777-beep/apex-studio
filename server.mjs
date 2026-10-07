@@ -34,6 +34,7 @@ import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from './src/network/apex-content-filter.mjs';
 import { createRogueApDetector } from './src/network/rogue-ap-detector.mjs';
 import { createInfiniteBroadcast } from './src/core/infinite-broadcast.mjs';
+import { createStreamRelay } from './src/core/stream-relay.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
@@ -42,6 +43,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+
+const streamRelay = createStreamRelay({
+  ingestSource: process.env.APEX_RELAY_INGEST_SOURCE || '',
+  destEndpoint: process.env.APEX_RELAY_DEST_ENDPOINT || '',
+  ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg'
+});
+
+app.get('/api/relay/status', (_req,res)=>res.status(200).json({success:true,...streamRelay.status()}));
+app.post('/api/relay/start', (_req,res)=>{
+  try{return res.status(200).json({success:true,...streamRelay.start()});}
+  catch(error){return res.status(503).json({success:false,error:String(error?.message||error)});}
+});
+app.post('/api/relay/stop', (_req,res)=>{
+  try{return res.status(200).json({success:true,...streamRelay.stop()});}
+  catch(error){return res.status(503).json({success:false,error:String(error?.message||error)});}
+});
 
 const infiniteBroadcast = createInfiniteBroadcast({
   inputDir: process.env.APEX_BROADCAST_INPUT_DIR || path.join(STORAGE_DIR, 'broadcast'),
