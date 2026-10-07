@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "priority": 100,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "doubleclick\\.net",
+      "resourceTypes": ["script", "image", "stylesheet", "font", "xmlhttprequest", "ping", "other"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 100,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "googlesyndication\\.com",
+      "resourceTypes": ["script", "image", "stylesheet", "font", "xmlhttprequest", "ping", "other"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 100,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "googleadservices\\.com",
+      "resourceTypes": ["script", "image", "stylesheet", "font", "xmlhttprequest", "ping", "other"]
+    }
+  }
+]
