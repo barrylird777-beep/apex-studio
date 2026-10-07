@@ -59,7 +59,7 @@ export class ApexPureStore {
   async delete(collection,id){
     return this.serialize(async()=>{await this.init();const r=await this.wal.append("state.delete",{collection,id:String(id)});this.apply(r);return true;});
   }
-  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
+  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0,parentJobId=null}={}){
     return this.serialize(async()=>{
       await this.init(); if(!type)throw new Error("job type required");
       if(dedupeKey){
@@ -68,16 +68,16 @@ export class ApexPureStore {
       }
       const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,
         maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,
-        priority:Number(priority)||0,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),
+        priority:Number(priority)||0,parentJobId:parentJobId?String(parentJobId):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),
         updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
       const r=await this.wal.append("job.enqueue",{id:job.id,job});this.apply(r);return {durable:true,id:job.id};
     });
   }
   jobs(){return [...this.jobsState.values()].map(clone);}
-  async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
+  async claim({workerId="local",limit=1,leaseMs=45000,role=null,id=null}={}){
     return this.serialize(async()=>{
       await this.init(); const now=Date.now(),out=[];
-      const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!role||j.payload?._apex_worker?.role===role))
+      const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!id||j.id===String(id))&&(!role||j.payload?._apex_worker?.role===role))
         .sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
       for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){
         const token=randomUUID(),fence=Number(j.leaseFence||0)+1;
