@@ -9,7 +9,7 @@
 set -Eeuo pipefail
 
 REPO="barrylird777-beep/apex-studio"
-TARGET_COMMIT="6e657537f6523049bd7b6245d37647d43eb954f1"
+TARGET_COMMIT="946d9eec99d7f70307ad52179a75b8f59b685ad6"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
