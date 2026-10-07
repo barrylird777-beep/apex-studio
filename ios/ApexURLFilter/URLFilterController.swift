@@ -6,10 +6,16 @@ import NetworkExtension
 final class URLFilterController: ObservableObject {
     @Published private(set) var isEnabled = false
     @Published private(set) var status = "Not configured"
-    private let controlProviderBundleIdentifier = "com.barrylird777.apex.ApexURLFilterControlProvider"
-    private let pirServerURL = URL(string: "https://REPLACE_WITH_APEX_PIR_HOST")!
+
+    private let controlProviderBundleIdentifier =
+        "com.barrylird777.apex.ApexURLFilterControlProvider"
+
+    // Development configuration only. iOS 26.4 requires service/issuer URLs
+    // to be host-only for distribution builds; development-signed builds may
+    // use paths. These values will be replaced by the Apex PIR deployment.
+    private let pirServerURL = URL(string: "https://apex-studio-production.up.railway.app")!
     private let pirPrivacyPassIssuerURL: URL? = nil
-    private let authenticationToken = "REPLACE_ME"
+    private let authenticationToken = "AAAA"
 
     func refresh() async {
         let manager = NEURLFilterManager.shared
@@ -17,22 +23,27 @@ final class URLFilterController: ObservableObject {
             try await manager.loadFromPreferences()
             isEnabled = manager.isEnabled
             status = manager.isEnabled ? "Enabled" : "Disabled"
-        } catch { status = "Not configured: \(error.localizedDescription)" }
+        } catch {
+            status = "Not configured: \(error.localizedDescription)"
+        }
     }
 
     func setEnabled(_ enabled: Bool) {
         Task { @MainActor in
             do {
                 let manager = NEURLFilterManager.shared
+
                 if enabled {
                     try manager.setConfiguration(
                         pirServerURL: pirServerURL,
                         pirPrivacyPassIssuerURL: pirPrivacyPassIssuerURL,
                         pirAuthenticationToken: authenticationToken,
-                        controlProviderBundleIdentifier: controlProviderBundleIdentifier)
+                        controlProviderBundleIdentifier: controlProviderBundleIdentifier
+                    )
+                    manager.prefilterFetchInterval = 2700
+                    manager.shouldFailClosed = false
                 }
-                manager.prefilterFetchInterval = 2700
-                manager.shouldFailClosed = false
+
                 manager.isEnabled = enabled
                 try await manager.saveToPreferences()
                 isEnabled = enabled
