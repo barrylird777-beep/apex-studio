@@ -38,6 +38,62 @@ import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMet
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+let runtimeFault = null;
+
+process.on('uncaughtException', (error) => {
+  runtimeFault = {
+    type: 'uncaughtException',
+    message: String(error?.message || error),
+    at: new Date().toISOString()
+  };
+  console.error('[apex][uncaughtException]', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  runtimeFault = {
+    type: 'unhandledRejection',
+    message: String(reason?.message || reason),
+    at: new Date().toISOString()
+  };
+  console.error('[apex][unhandledRejection]', reason);
+});
+
+app.get('/health', (_req, res) => {
+  const memory = process.memoryUsage();
+  res.status(200).json({
+    ok: true,
+    status: runtimeFault ? 'degraded' : 'ok',
+    uptime: process.uptime(),
+    pid: process.pid,
+    memory: {
+      rss: memory.rss,
+      heapTotal: memory.heapTotal,
+      heapUsed: memory.heapUsed,
+      external: memory.external,
+      arrayBuffers: memory.arrayBuffers
+    },
+    runtimeFault
+  });
+});
+
+app.get('/api/health', (_req, res) => {
+  const memory = process.memoryUsage();
+  res.status(200).json({
+    ok: true,
+    status: runtimeFault ? 'degraded' : 'ok',
+    uptime: process.uptime(),
+    pid: process.pid,
+    memory: {
+      rss: memory.rss,
+      heapTotal: memory.heapTotal,
+      heapUsed: memory.heapUsed,
+      external: memory.external,
+      arrayBuffers: memory.arrayBuffers
+    },
+    runtimeFault
+  });
+});
+
 app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
   try {
     const event = verifyRapidStripeSignature(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
@@ -1808,10 +1864,6 @@ app.get('/api/network/adblock/profile', (_req, res) => {
 app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
 app.all('/api/network/adblock/doh', (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
 
-app.get(['/health', '/api/health'], (_req, res) => {
-  res.json({ ok: true, uptime: process.uptime() });
-});
-
 // Decentralized swarm routing fallback & retry wrapper
 async function routeWithSwarm(payload, retries = 2) {
   const providers = ['groq', 'openrouter', 'pollinations', 'gemini'];
@@ -1827,6 +1879,16 @@ async function routeWithSwarm(payload, retries = 2) {
 
 void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
 
-app.listen(PORT, HOST, () => console.log(`[apex] server listening on ${HOST}:${PORT}`));
+const server = app.listen(PORT, HOST, () => {
+  console.log(`[apex] server listening on ${HOST}:${PORT}`);
+});
+server.on('error', (error) => {
+  runtimeFault = {
+    type: 'listenError',
+    message: String(error?.message || error),
+    at: new Date().toISOString()
+  };
+  console.error('[apex][listen-error]', error);
+});
 
 // Railway autodeploy trigger: keep production deployment tied to main.
