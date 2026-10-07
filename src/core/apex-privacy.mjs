@@ -16,10 +16,10 @@ export const PRIVACY_POLICY=Object.freeze({
   failClosed:true
 });
 
-export function privacyHeaders(headers={}){
+export function providerHeaders(headers={}){
   const out={};
   for(const [key,value] of Object.entries(headers||{})){
-    if(TRACKING_HEADERS.includes(String(key).toLowerCase()))continue;
+    if(TRACKING_HEADERS.includes(String(key).toLowerCase()) && String(key).toLowerCase()!=="authorization")continue;
     out[key]=value;
   }
   return out;
@@ -60,3 +60,5 @@ export function decryptPrivate(record){
   decipher.setAuthTag(Buffer.from(record.tag,"base64url"));
   return JSON.parse(Buffer.concat([decipher.update(Buffer.from(record.data,"base64url")),decipher.final()]).toString("utf8"));
 }
+
+export const sanitizeProviderHeaders=providerHeaders;
