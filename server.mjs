@@ -442,6 +442,39 @@ app.use('/api/mobile', createMobileControlPlane({
   }
 }));
 
+app.post('/api/rapid/preview', async (req,res) => {
+  try {
+    const name=String(req.body?.name||'').trim().slice(0,120);
+    const type=String(req.body?.type||'').trim().slice(0,160);
+    const brief=String(req.body?.brief||'').trim().slice(0,4000);
+    const platform=String(req.body?.platform||'Other').trim().slice(0,80);
+    if(!name||!type||!brief) return res.status(400).json({success:false,error:'name, type and brief are required'});
+    if(!durableWorkerEnabled()) return res.status(503).json({success:false,error:'Preview service unavailable'});
+    const orderId=crypto.randomUUID();
+    const result=await enqueueWorkerTask({
+      id:orderId,
+      workerId:'rapid-video-preview',
+      role:'rapid-video',
+      task:'rapid-video-preview',
+      payload:{orderId,name,type,brief,platform,preview:true},
+      maxAttempts:1,
+      dedupeKey:'rapid-preview:'+crypto.createHash('sha256').update(JSON.stringify({name,type,brief,platform})).digest('hex'),
+      traceId:orderId
+    });
+    const stored=await new Promise(resolve=>setTimeout(()=>resolve(null),10));
+    return res.status(202).json({
+      success:true,
+      orderId:result.id,
+      status:'preview-queued',
+      previewUrl:null,
+      note:'Preview queued. Full production requires verified payment.'
+    });
+  } catch(error) {
+    console.error('[rapid-preview]',error);
+    return res.status(500).json({success:false,error:'Unable to queue preview'});
+  }
+});
+
 app.post('/api/rapid/orders', async (req, res) => {
   try {
     const name=String(req.body?.name||'').trim().slice(0,120);
