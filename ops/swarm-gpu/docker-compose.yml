@@ -1,0 +1,31 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    ipc: host
+    ports:
+      - "8000:8000"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    command:
+      - --model
+      - ${MODEL:?Set MODEL}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - ${GPU_MEMORY_UTILIZATION:-0.92}
+      - --max-model-len
+      - ${MAX_MODEL_LEN:-32768}
+      - --enable-prefix-caching
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+volumes:
+  hf-cache:
