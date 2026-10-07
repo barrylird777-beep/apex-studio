@@ -14,8 +14,8 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: ios/ApexURLFilter/ApexURLFilterApp.swift
-      - path: ios/ApexURLFilter/URLFilterController.swift
+      - path: ApexURLFilter/ApexURLFilterApp.swift
+      - path: ApexURLFilter/URLFilterController.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.barrylird777.apex.ApexURLFilter
@@ -23,17 +23,18 @@ targets:
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+        CODE_SIGN_ENTITLEMENTS: ApexURLFilter/ApexURLFilter.entitlements
     dependencies:
       - target: ApexURLFilterControlProvider
   ApexURLFilterControlProvider:
     type: app-extension
     platform: iOS
     sources:
-      - path: ios/ApexURLFilter/ApexURLFilterControlProvider.swift
-      - path: ios/ApexURLFilter/ApexBloomFilter.swift
+      - path: ApexURLFilter/ApexURLFilterControlProvider.swift
+      - path: ApexURLFilter/ApexBloomFilter.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.barrylird777.apex.ApexURLFilterControlProvider
-        INFOPLIST_FILE: ios/ApexURLFilter/ApexURLFilter-Info.plist
-        CODE_SIGN_ENTITLEMENTS: ios/ApexURLFilter/ApexURLFilter.entitlements
+        INFOPLIST_FILE: ApexURLFilter/ApexURLFilter-Info.plist
+        CODE_SIGN_ENTITLEMENTS: ApexURLFilter/ApexURLFilter.entitlements
         SKIP_INSTALL: YES
