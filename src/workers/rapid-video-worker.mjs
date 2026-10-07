@@ -1,3 +1,32 @@
+export async function executeRapidVideoPreview(payload = {}) {
+  const name = cleanText(payload.name, "Preview visitor");
+  const type = cleanText(payload.type, "Creative proof");
+  const brief = cleanText(payload.brief, "Turn this idea into something people want to watch.");
+  const platform = cleanText(payload.platform, "Short-form social");
+  const orderId = cleanText(payload.orderId, crypto.randomUUID());
+  const outputDir = path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "previews");
+  await mkdir(outputDir, { recursive: true, mode: 0o700 });
+  const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
+  const output = path.join(outputDir, filename);
+  const font = fontPath();
+  const lines = [
+    ["GIVE US ANYTHING.", brief],
+    ["MAKE IT WATCHABLE.", "Apex turns the raw idea into a scroll-stopping proof."],
+    ["THE HOOK.", "Strong opening. Clear story. Cinematic treatment."],
+    ["READY FOR MORE?", platform + " — Apex Studio"]
+  ];
+  const filters = lines.map((scene, i) => {
+    const start = i * 2.5, end = start + 2.5;
+    return [
+      `drawtext=fontfile='${font}':text='${cleanText(scene[0])}':fontcolor=white:fontsize=76:x=(w-text_w)/2:y=760:enable='between(t,${start},${end})'`,
+      `drawtext=fontfile='${font}':text='${cleanText(scene[1])}':fontcolor=white:fontsize=40:x=(w-text_w)/2:y=900:enable='between(t,${start},${end})'`
+    ].join(",");
+  }).join(",");
+  const vf = `scale=1080:1920,format=yuv420p,${filters}`;
+  await execFileAsync("ffmpeg", ["-y","-f","lavfi","-i","color=c=black:s=1080x1920:r=30:d=10","-f","lavfi","-i","sine=frequency=110:sample_rate=48000:duration=10","-vf",vf,"-af","volume=0.035,afade=t=in:st=0:d=0.4,afade=t=out:st=8.8:d=1.2","-c:v","libx264","-preset","veryfast","-crf","22","-c:a","aac","-b:a","128k","-movflags","+faststart",output], { maxBuffer: 1024 * 1024 * 4 });
+  return { ok:true, type:"rapid-video-preview", orderId, customer:name, videoType:type, brief, platform, stage:"rendered", durationSeconds:10, format:"mp4", url:"/files/previews/"+encodeURIComponent(filename), generatedAt:new Date().toISOString() };
+}
+
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, rm } from "node:fs/promises";
