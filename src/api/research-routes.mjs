@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
+import { assertSafeResearchUrl, validateResearchQuery } from '../core/security/research-boundary.mjs';
 
 export function createResearchRouter(engine) {
   if (!engine || typeof engine.resolveWork !== 'function') {
@@ -7,9 +9,19 @@ export function createResearchRouter(engine) {
 
   const router = Router();
 
-  router.get('/resolve', async (req, res, next) => {
+  const requireResearchAuth = (req, res, next) => {
+    const expected = process.env.APEX_RESEARCH_TOKEN || process.env.APEX_SHORTCUT_TOKEN;
+    if (!expected) return res.status(503).json({ success: false, error: 'Research authorization is not configured' });
+    const supplied = req.get('x-apex-research-token') || req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\\s+/i, '');
+    const a = Buffer.from(String(expected));
+    const b = Buffer.from(String(supplied || ''));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    return next();
+  };
+
+  router.get('/resolve', requireResearchAuth, async (req, res, next) => {
     try {
-      const query = String(req.query.q || req.query.query || '').trim();
+      const query = validateResearchQuery(req.query.q || req.query.query);
       if (!query) return res.status(400).json({ success: false, error: 'query is required' });
       const work = await engine.resolveWork(query);
       return res.status(200).json({ success: true, work });
@@ -18,9 +30,9 @@ export function createResearchRouter(engine) {
     }
   });
 
-  router.post('/expand', async (req, res, next) => {
+  router.post('/expand', requireResearchAuth, async (req, res, next) => {
     try {
-      const query = String(req.body?.query || '').trim();
+      const query = validateResearchQuery(req.body?.query);
       if (!query) return res.status(400).json({ success: false, error: 'query is required' });
       const work = await engine.resolveWork(query);
       const evidence = await engine.expandEvidence(work, {
@@ -40,12 +52,10 @@ export function createResearchRouter(engine) {
     }
   });
 
-  router.post('/syndication', async (req, res, next) => {
+  router.post('/syndication', requireResearchAuth, async (req, res, next) => {
     try {
       const url = String(req.body?.url || '').trim();
       if (!/^https?:\/\//i.test(url)) {
-        return res.status(400).json({ success: false, error: 'http(s) syndication URL is required' });
-      }
       const feed = await engine.ingestSyndication(url);
       return res.status(200).json({ success: true, feed });
     } catch (error) {
