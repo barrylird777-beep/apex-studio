@@ -59,7 +59,7 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
       const allowlist = allowedPeerIds();
       if (requireAllowlist() && (!allowlist.size || !allowlist.has(remotePeerId))) throw new Error('peer is not allowlisted');
       const envelope = await readJson(stream);
-      if (requireJwt()) verifySelfSignedJwt(envelope?.auth);
+      if (requireJwt()) { const claims = verifySelfSignedJwt(envelope?.auth); if (claims.peerId !== remotePeerId) throw new Error('JWT peer identity mismatch'); }
       const accepted = onEnvelope ? await onEnvelope(envelope) : true;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
     } catch (error) {
