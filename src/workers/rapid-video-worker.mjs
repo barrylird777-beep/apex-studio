@@ -161,8 +161,9 @@ export async function executeRapidVideoOrder(payload = {}) {
 
   const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
   const output = path.join(outputDir, filename);
+  const hook = await generateHook(brief, platform, payload.provider, payload.model);
   const scenes = [
-    ["YOUR IDEA.", brief],
+    [hook, brief],
     ["BUILD THE HOOK.", "Open hard. Give the viewer a reason to stay."],
     ["BUILD THE STORY.", "Turn the core idea into a fast, clear visual sequence."],
     ["MAKE IT FEEL BIG.", "Cinematic motion, strong typography, music and pacing."],
