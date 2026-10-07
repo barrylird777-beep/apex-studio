@@ -73,12 +73,19 @@ export function buildAutonomousAiTask({ role, task, provider, model, cycle = Dat
   };
 }
 
-export async function seedAutonomousAiWork({ maxTasks = ROLES.length } = {}) {
+export async function seedAutonomousAiWork({ maxTasks = ROLES.length, dispatch } = {}) {
   const provider = zeroCostAiProvider();
   if (!provider) return { enabled: false, reason: "no confirmed zero-cost AI provider configured", queued: 0 };
 
-  const stats = await queueStats();
-  const queued = Number(stats?.queued || 0);
+  let queued = 0;
+  try {
+    const stats = await queueStats();
+    queued = Number(stats?.queued || 0);
+  } catch {
+    // The durable queue is an enhancement, not permission to stop autonomous work.
+    // A supplied in-process dispatcher keeps the swarm moving during queue outages.
+    if (typeof dispatch !== "function") return { enabled: true, provider, queued: 0, reason: "durable queue unavailable and no local dispatcher" };
+  }
   const capacity = Math.max(0, Math.min(ROLES.length, Number(maxTasks) || ROLES.length));
   if (queued >= capacity * 2) {
     return { enabled: true, provider, queued: 0, reason: "durable queue already has work" };
@@ -92,8 +99,14 @@ export async function seedAutonomousAiWork({ maxTasks = ROLES.length } = {}) {
       provider: provider.provider,
       model: provider.model
     });
-    const result = await enqueueWorkerTask(item);
-    created.push({ id: result.id, role, provider: provider.provider, model: provider.model });
+    try {
+      const result = await enqueueWorkerTask(item);
+      created.push({ id: result.id, role, provider: provider.provider, model: provider.model, mode: "durable" });
+    } catch (error) {
+      if (typeof dispatch !== "function") throw error;
+      await dispatch(item.payload);
+      created.push({ id: item.id, role, provider: provider.provider, model: provider.model, mode: "local" });
+    }
   }
 
   return { enabled: true, provider, queued: created.length, jobs: created };
@@ -114,14 +127,14 @@ export function continuousAiStatus() {
   };
 }
 
-export async function startLockedContinuousAiLoop() {
+export async function startLockedContinuousAiLoop({ dispatch } = {}) {
   const intervalMs = Math.max(15000, Number(process.env.APEX_AUTONOMOUS_AI_PULSE_MS || 60000));
   let stopping = false;
 
   const pulse = async () => {
     if (stopping) return;
     try {
-      const result = await seedAutonomousAiWork();
+      const result = await seedAutonomousAiWork({ dispatch });
       if (result.queued) console.log("[apex-autonomy] seeded", result.queued, "AI jobs via", result.provider.provider);
     } catch (error) {
       console.error("[apex-autonomy] seed failed:", error?.message || error);
