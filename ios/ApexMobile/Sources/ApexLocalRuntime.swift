@@ -10,7 +10,7 @@ actor ApexLocalRuntime {
     private var context: OpaquePointer?
     private var vocab: OpaquePointer?
     private var sampler: UnsafeMutablePointer<llama_sampler>?
-    private var batch: llama_batch?
+    private var batch: llama_batch?\n    /// Bridge-owned token cursor. Every fresh inference begins at position zero.\n    private var tokenPosition: Int32 = 0
 
     private let contextSize: UInt32 = 4096
     private let batchSize: Int32 = 512
@@ -107,7 +107,7 @@ actor ApexLocalRuntime {
 
         guard llama_decode(context, batch) == 0 else { throw ApexLocalError.contextFailed }
 
-        var position = Int32(tokens.count)
+        tokenPosition = Int32(tokens.count)\n        var position = tokenPosition
         var output = ""
 
         for _ in 0..<outputLimit {
