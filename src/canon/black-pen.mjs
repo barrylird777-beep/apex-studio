@@ -728,10 +728,6 @@ export function assertWorkerCanOperateOnObject({
     throw new Error("Kernel authority cannot own Studio production objects");
   }
 
-  if (workerAuthority === WORKER_AUTHORITIES.CORNNUT &&
-      object.system !== SYSTEMS.GARDEN) {
-    throw new Error("CornNut authority cannot own Studio production objects");
-  }
 
   if (workerAuthority === WORKER_AUTHORITIES.COB &&
       object.type !== JESUS_FREAK_TYPES.PROTOCOB &&
