@@ -48,7 +48,7 @@ export async function getPaypexSnapshot() {
     const evidence = clamp(num(item.evidenceVideos) / 10);
     const demand = clamp(avgViews > 0 ? Math.log10(avgViews + 1) / 7 : 0);
     return {
-      id: "engine-opportunity-" + index,
+      id: "paypex-opportunity-" + index,
       topic: text(item.topic) || "Unclassified",
       evidenceVideos: num(item.evidenceVideos),
       avgViews,
@@ -69,10 +69,10 @@ export async function getPaypexSnapshot() {
   }).sort((a, b) => b.score - a.score);
 
   return {
-    engine: "Paypex",
+    engine: "PayPex",
     system: "apex-studio",
-    role: "studio_decision_engine",
-    purpose: "opportunity, growth, business and monetization intelligence",
+    role: "paypex_decision_engine",
+    purpose: "money-making stock, market, business and monetization intelligence",
     state: state.channel ? "evidence-backed" : "awaiting-evidence",
     source: "Apex channel intelligence",
     lifetime: summary.lifetime || null,
@@ -83,10 +83,11 @@ export async function getPaypexSnapshot() {
       action: "build-brief",
       handoff: "TOONX",
       ownerSystem: "apex-studio",
+      ownerApp: "PayPex",
       status: "proposed"
     })),
     separation: {
-      Paypex: "Studio decision and opportunity intelligence",
+      PayPex: "Studio money-making stock, market, business and monetization intelligence",
       ApexStudio: "production, mastering, QC, delivery and infrastructure",
       TOONX: "Studio production surface for original animated entertainment",
       GardenOfApex: "knowledge and research source where applicable",
@@ -101,7 +102,7 @@ export function buildPaypexBrief(input = {}) {
   if (!topic) throw new TypeError("topic is required");
   return {
     id: randomUUID(),
-    engine: "Paypex",
+    engine: "PayPex",
     system: "apex-studio",
     topic,
     objective: text(input.objective) || "Test the highest-value opportunity with the smallest credible production.",
