@@ -5,8 +5,8 @@
  * Domain ownership remains separate; capabilities are universal.
  */
 export const APEX_SURFACES = Object.freeze({
-  KORNKOB: {
-    id: "KORNKOB",
+  KORNKNOB: {
+    id: "KORNKNOB",
     role: "ears",
     domain: "music, sound, audio discovery, analysis and intelligence"
   },
@@ -29,9 +29,8 @@ export const APEX_SURFACES = Object.freeze({
     id: "Apexus",
     role: "network",
     domain: "24/7 original animated entertainment network, programming, broadcast and audience experience"
-  },
-  // Legacy internal key retained only for compatibility while callers migrate.
-  APEX_RAPID: {
+  },\n  // Legacy internal key retained only for compatibility while callers migrate.
+  APEXUS: {
     id: "Apexus",
     role: "network",
     domain: "24/7 original animated entertainment network, programming, broadcast and audience experience"
