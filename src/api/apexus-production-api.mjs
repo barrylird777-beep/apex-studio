@@ -22,6 +22,7 @@ function buildPool() {
 export function createApexusProductionRouter({ enqueue, requireAuth } = {}) {
   if (typeof enqueue !== "function") throw new TypeError("Apexus production enqueue function is required");
   const router=express.Router();
+  router.use(express.json({ limit: '64kb' }));
 
   router.get("/status", async (_req,res)=>{
     const pool=buildPool();
