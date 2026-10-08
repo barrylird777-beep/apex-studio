@@ -29,11 +29,6 @@ export const APEX_SURFACES = Object.freeze({
     id: "Apexus",
     role: "network",
     domain: "24/7 original animated entertainment network, programming, broadcast and audience experience"
-  },\n  // Legacy internal key retained only for compatibility while callers migrate.
-  APEXUS: {
-    id: "Apexus",
-    role: "network",
-    domain: "24/7 original animated entertainment network, programming, broadcast and audience experience"
   },
   SHIELD_APEX: {
     id: "ShieldApex",
