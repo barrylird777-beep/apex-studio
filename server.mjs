@@ -291,10 +291,14 @@ app.get('/api/apex/apps', async (_req, res) => {
   }
 });
 
-
 app.get('/api/apex/apps/:appId/status', async (req, res) => {
   const id = String(req.params.appId || '').trim();
   try {
+    const { getApexApp } = await import('./src/apps/apex-six-apps.mjs');
+    if (getApexApp(id)) {
+      const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
+      return res.json(await canonicalAppStatus(id));
+    }
     if (id === 'korn-knob') {
       const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
       return res.json({ success: true, ...kornKnobStatus() });
@@ -324,6 +328,28 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
   } catch (error) {
     console.error('[apex-app-status]', id, error);
     return res.status(503).json({ success: false, appId: id, error: 'Apex app status unavailable' });
+  }
+});
+
+app.get('/api/canon/apps', async (_req, res) => {
+  try {
+    const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
+    return res.json({ success: true, apps: await canonicalAppsStatus(), checkedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[canonical-apps]', error);
+    return res.status(503).json({ success: false, error: 'Canonical app registry unavailable' });
+  }
+});
+
+app.get('/api/canon/apps/:appId/status', async (req, res) => {
+  try {
+    const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
+    return res.json(await canonicalAppStatus(req.params.appId));
+  } catch (error) {
+    const message=String(error?.message||error);
+    if(message.startsWith('Unknown Apex app:')) return res.status(404).json({success:false,error:message});
+    console.error('[canonical-app-status]',error);
+    return res.status(503).json({success:false,error:'Canonical app status unavailable'});
   }
 });
 
