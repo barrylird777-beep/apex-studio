@@ -64,6 +64,32 @@ test("KoinKob clears a market and supports systemic events",()=>{
   assert.ok(baseline.settlement.settledTrades > 0);
   assert.ok(baseline.volume >= 0);
 });
+test("canonical apps reject malformed state instead of cloning garbage",()=>{
+  assert.throws(() => createPlanet(null), /input must be an object/);
+  assert.throws(() => addPlanetRegion(null,{id:"r1"}), /planet is required/);
+  assert.throws(() => createTheatreItem(null), /item input must be an object/);
+});
+
+test("KoBlocks rejects duplicate edges and unknown output ports",()=>{
+  const source=defineKoBlock({id:"source",outputs:["out"]});
+  const target=defineKoBlock({id:"target"});
+  const duplicate=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"},{from:"source",to:"target",port:"out"}]);
+  assert.deepEqual(validateKoBlockGraph(duplicate),{valid:false,reason:"duplicate-edge"});
+  const unknown=composeKoBlocks([source,target],[{from:"source",to:"target",port:"missing"}]);
+  assert.deepEqual(validateKoBlockGraph(unknown),{valid:false,reason:"unknown-output-port"});
+});
+
+test("KernelVision returns the viewed item with a validated session id",()=>{
+  const session=createViewingSession({item:{id:"film-1",title:"Finished Work"}});
+  assert.equal(session.item.id,"film-1");
+  assert.equal(session.itemId,"film-1");
+  assert.match(session.sessionId,/^[A-Za-z0-9][A-Za-z0-9._:/-]+$/);
+});
+
+test("KoinKob rejects market orders without a worker identity",()=>{
+  assert.throws(() => createMarketOrder({side:"buy",asset:"service",quantity:1,price:1}), /workerId is required/);
+});
+
 test("canonical status aggregator reports all six apps",async()=>{
   const { canonicalAppsStatus } = await import("../src/apps/canonical-six.mjs");
   const statuses = await canonicalAppsStatus();
@@ -73,7 +99,7 @@ test("canonical status aggregator reports all six apps",async()=>{
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
   assert.equal(calculateCashBalance(entries),75);
-  assert.deepEqual(cashFlowSummary(entries),{currency:"USD",inflow:100,outflow:-25,balance:75});
+  assert.deepEqual(cashFlowSummary(entries),{currency:"USD",inflow:100,outflow:-25,balance:75,count:2});
   assert.equal(kashKornerStatus().app.name,"KashKorner");
 });
 test("Kernelodies uses the existing music provenance contract",async()=>{

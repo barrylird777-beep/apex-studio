@@ -8,10 +8,13 @@ const n = (value, fallback = 0) => {
 };
 const uid = () => crypto.randomUUID();
 const clone = value => structuredClone(value);
+const workerIdOf = value => String(value ?? '').trim().slice(0, 256);
 
 export function createWorkerAccount(input = {}) {
+  const workerId = workerIdOf(input.workerId || uid());
+  if (!workerId) throw new TypeError("Worker id is required");
   return {
-    workerId: String(input.workerId || uid()),
+    workerId,
     balance: Math.max(0, n(input.balance)),
     reputation: Math.max(0, n(input.reputation)),
     skills: Array.isArray(input.skills) ? [...new Set(input.skills.map(String))] : [],
@@ -23,14 +26,16 @@ export function createWorkerAccount(input = {}) {
 export function createMarketOrder(input = {}) {
   const side = String(input.side || "buy");
   if (!["buy", "sell"].includes(side)) throw new Error("Market order side must be buy or sell");
+  const workerId = workerIdOf(input.workerId);
+  if (!workerId) throw new Error("Market order workerId is required");
   const quantity = n(input.quantity);
   const price = n(input.price);
   if (quantity <= 0 || price < 0) throw new Error("Market order quantity/price is invalid");
   return {
     id: uid(),
-    workerId: String(input.workerId || ""),
+    workerId,
     side,
-    asset: String(input.asset || "service"),
+    asset: String(input.asset || "service").trim().slice(0, 256) || "service",
     quantity,
     price,
     createdAt: new Date().toISOString()
@@ -42,7 +47,7 @@ export function clearMarket(orders = []) {
   for (const raw of Array.isArray(orders) ? orders : []) {
     if (!raw || !["buy", "sell"].includes(raw.side)) continue;
     const order = { ...raw, quantity: n(raw.quantity), price: n(raw.price), asset: String(raw.asset || "service") };
-    if (order.quantity <= 0 || order.price < 0) continue;
+    if (!order.workerId || order.quantity <= 0 || order.price < 0) continue;
     if (!byAsset.has(order.asset)) byAsset.set(order.asset, { buys: [], sells: [] });
     byAsset.get(order.asset)[order.side === "buy" ? "buys" : "sells"].push(order);
   }

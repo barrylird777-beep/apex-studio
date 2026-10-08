@@ -9,8 +9,10 @@ const safeId = value => {
   return id;
 };
 const objectOrEmpty = value => value && typeof value === "object" && !Array.isArray(value) ? clone(value) : {};
+const assertPlanet = planet => { if (!planet || typeof planet !== "object" || Array.isArray(planet)) throw new TypeError("PlanetApeX planet is required"); return planet; };
 
 export function createPlanet(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("PlanetApeX input must be an object");
   return {
     id: safeId(input.id || crypto.randomUUID()),
     name: String(input.name || "PlanetApeX"),
@@ -22,6 +24,8 @@ export function createPlanet(input = {}) {
 }
 
 export function addPlanetRegion(planet, input = {}) {
+  assertPlanet(planet);
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("PlanetApeX region input must be an object");
   const next = clone(planet);
   if (!next || typeof next !== "object") throw new TypeError("PlanetApeX planet is required");
   const id = safeId(input.id || crypto.randomUUID());
@@ -37,6 +41,8 @@ export function addPlanetRegion(planet, input = {}) {
 }
 
 export function addPlanetEntity(planet, input = {}) {
+  assertPlanet(planet);
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("PlanetApeX entity input must be an object");
   const next = clone(planet);
   if (!next || typeof next !== "object") throw new TypeError("PlanetApeX planet is required");
   const id = safeId(input.id || crypto.randomUUID());
@@ -57,6 +63,7 @@ export function addPlanetEntity(planet, input = {}) {
 }
 
 export function planetSnapshot(planet) {
+  assertPlanet(planet);
   return clone(planet);
 }
 
