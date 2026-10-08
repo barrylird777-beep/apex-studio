@@ -19,7 +19,7 @@ const STAGES = ["story","script","storyboard","voice","audio","visual-developmen
 const NEXT_STATE = {
   story:"STORY", script:"SCRIPT", storyboard:"STORYBOARD", voice:"VOICE", audio:"AUDIO",
   "visual-development":"VISUAL_DEVELOPMENT", animation:"ANIMATION", edit:"EDIT", qc:"QC",
-  master:"MASTER", catalog:"CATALOG", schedule:"SCHEDULED"
+  master:"MASTER", inspection:"INSPECTION", catalog:"CATALOG", schedule:"SCHEDULED"
 };
 
 function safe(value){ return String(value || "").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,160); }
@@ -81,6 +81,9 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
      VALUES($1,$2,'approved',$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb)`,
     [episode.id,stage,String(assetId),file,sha256,JSON.stringify(["TOONX",stage]),JSON.stringify([episode.episode_code]),JSON.stringify({stage,episodeCode:episode.episode_code}),JSON.stringify(metadata)]
   );
+  if(stage==="inspection"){
+    await pool.query("UPDATE toonx_episodes SET metadata=metadata||$2::jsonb WHERE id=$1",[episode.id,JSON.stringify({inspectionApproved:true,inspectionAuthority:"king_cob"})]);
+  }
   if(stage==="catalog"){
     const master=await pool.query(
       "SELECT id FROM toonx_episode_assets WHERE episode_id=$1 AND asset_type='episode.master' ORDER BY version DESC LIMIT 1",
@@ -292,6 +295,18 @@ async function handle(stage, job){
     await new Promise((resolve,reject)=>ffmpeg(source)
       .outputOptions(["-c","copy","-movflags","+faststart"])
       .save(file).on("end",resolve).on("error",reject));
+  }else if(stage==="inspection"){
+    const master=path.join(stagePath(code,"master"),code+".mp4");
+    const stat=await fs.stat(master).catch(()=>null);
+    if(!stat || stat.size<=0) throw new Error("King Cob inspection requires a non-empty master artifact");
+    const evidence=[
+      {type:"asset",artifact:master},
+      {type:"review",artifact:path.join(stagePath(code,"qc"),"qc.json")},
+      {type:"inspection",authority:"king_cob"}
+    ];
+    file=await writeJson(code,stage,"inspection.json",{episode:code,authority:"king_cob",result:"approved",evidence,inspectedAt:new Date().toISOString()});
+    metadata.authority="king_cob";
+    metadata.result="approved";
   }else if(stage==="catalog"){
     file=await writeJson(code,stage,"catalog.json",{episode:code,status:"catalog-ready",master:`master/${code}.mp4`});
   }else if(stage==="schedule"){
