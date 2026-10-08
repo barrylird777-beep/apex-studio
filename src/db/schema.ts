@@ -162,7 +162,7 @@ export const protocobs = pgTable("protocobs", {
   visualDna: jsonb("visual_dna").default({}),
   artifactPath: text("artifact_path"),
   status: text("status").notNull().default("pending"),
-  cornNuts: integer("corn_nuts"),
+  kornNutzRating: integer("corn_nuts"),
   createdBy: text("created_by").notNull().default("cob"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
