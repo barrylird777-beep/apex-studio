@@ -20,11 +20,12 @@ if (database.pathname.length <= 1) {
 const bucket = String(
   process.env.APEX_BACKUP_OBJECT_BUCKET ||
   process.env.APEX_OBJECT_STORE_BUCKET ||
+  process.env.APEX_OBJECT_STORAGE_BUCKET ||
   process.env.S3_BUCKET ||
   ""
 ).trim();
 if (!bucket) {
-  throw new Error("APEX_BACKUP_OBJECT_BUCKET or APEX_OBJECT_STORE_BUCKET/S3_BUCKET is required.");
+  throw new Error("APEX_BACKUP_OBJECT_BUCKET/APEX_OBJECT_STORE_BUCKET/APEX_OBJECT_STORAGE_BUCKET/S3_BUCKET is required.");
 }
 
 const prefix = (process.env.APEX_BACKUP_OBJECT_PREFIX || "postgres-backups/")
@@ -109,7 +110,7 @@ const digest = hash.digest("hex");
 await s3.send(new PutObjectCommand({
   Bucket: bucket,
   Key: manifestKey,
-  Body: `${digest}  ${key.split("/").pop()}\\n`,
+  Body: `${digest}  ${key.split("/").pop()}\n`,
   ContentType: "text/plain; charset=utf-8"
 }));
 
