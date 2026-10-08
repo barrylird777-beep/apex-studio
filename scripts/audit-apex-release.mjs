@@ -52,9 +52,13 @@ async function collect(entry){
 }
 for(const entry of runtimeFiles) await collect(entry);
 const forbiddenHits=FORBIDDEN_CANON_NAMES.filter(name=>sources.some(source=>source.includes(name)));
-const forbiddenRuntimeFiles=FORBIDDEN_RUNTIME_FILES.filter(file=>{
-  try { return Boolean(fs.stat(file)); } catch { return false; }
-});
+const forbiddenRuntimeFiles=[];
+for (const file of FORBIDDEN_RUNTIME_FILES) {
+  try {
+    await fs.stat(file);
+    forbiddenRuntimeFiles.push(file);
+  } catch {}
+}
 
 const ready =
   results.every(item=>item.exists && item.bytes>0) &&
