@@ -391,6 +391,44 @@ app.get('/api/canon/trajectory', async (_req, res) => {
   }
 });
 
+app.post('/api/canon/handoff', async (req, res) => {
+  try {
+    const { publishCanonicalHandoff } = await import('./src/apps/canonical-handoff-bus.mjs');
+    const event = publishCanonicalHandoff({
+      from: req.body?.from,
+      to: req.body?.to,
+      payload: req.body?.payload,
+      correlationId: req.body?.correlationId
+    });
+    return res.status(202).json({ success: true, event });
+  } catch (error) {
+    const message = String(error?.message || error);
+    const status = /Invalid canonical handoff|Unknown Apex app/.test(message) ? 400 : 422;
+    return res.status(status).json({ success: false, error: message });
+  }
+});
+
+app.get('/api/canon/handoff', async (req, res) => {
+  try {
+    const { listCanonicalHandoffs } = await import('./src/apps/canonical-handoff-bus.mjs');
+    return res.json({ success: true, events: listCanonicalHandoffs({
+      appId: req.query?.appId || null,
+      limit: req.query?.limit
+    }) });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.get('/api/canon/handoff/status', async (_req, res) => {
+  try {
+    const { canonicalHandoffStatus } = await import('./src/apps/canonical-handoff-bus.mjs');
+    return res.json({ success: true, ...canonicalHandoffStatus() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: 'Canonical handoff status unavailable' });
+  }
+});
+
 app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
   try {
     const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
