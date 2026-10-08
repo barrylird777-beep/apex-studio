@@ -1,4 +1,5 @@
 import { GARDEN_OF_APEX, createGarden } from "../core/garden-of-apex.mjs";
+import { BIBLE_STUDY_ROOM, bibleStudyRoomStatus, createBibleStudyRoom } from "../core/bible-study-room.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
 const APP = getApexApp("garden-of-apex");
@@ -23,6 +24,8 @@ export function createGardenApp(options = {}) {
     }
   });
 }
+
+export { BIBLE_STUDY_ROOM, bibleStudyRoomStatus, createBibleStudyRoom };
 
 export function gardenStatus(itemCount = 0) {
   return {
