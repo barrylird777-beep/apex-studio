@@ -6,7 +6,7 @@ import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../s
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
 import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
-import { createWorkerAccount, createMarketOrder, clearMarket, createSystemicEvent, runAdversarialRound, koinKobStatus } from "../src/apps/koin-kob.mjs";
+import { createWorkerAccount, createMarketOrder, clearMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
 
@@ -45,6 +45,11 @@ test("KoinKob clears a market and supports systemic events",()=>{
   const market=clearMarket(orders); assert.equal(market.trades.length,1); assert.equal(market.trades[0].quantity,1);
   const round=runAdversarialRound({workers:[buyer,seller],orders,events:[createSystemicEvent({type:"demand-spike"})]});
   assert.equal(round.workerCount,2); assert.equal(koinKobStatus().app.name,"KoinKob");
+  const world=buildWorkerEconomy({workerCount:2000});
+  assert.equal(world.workerCount,2000);
+  const simulation=runWorkerEconomySimulation({workerCount:2000,events:[createSystemicEvent({type:"infrastructure-breakdown",severity:.8})]});
+  assert.equal(simulation.workerCount,2000);
+  assert.ok(simulation.researchQuestion.includes("2,000 workers"));
 });
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
