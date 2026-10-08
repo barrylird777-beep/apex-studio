@@ -1,1 +1,38 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=/shield-apex.html"><link rel="canonical" href="/shield-apex.html"><title>Apex redirect</title></head><body><p>Opening <a href="/shield-apex.html">/shield-apex.html</a>…</p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XShield · Apex</title>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#07090c;color:#f2f5f8;font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1050px;margin:auto;padding:30px 20px 70px}a{color:#a9cbff}.top{border-bottom:1px solid #2a3139;padding-bottom:24px}.eyebrow{color:#87919e;font-size:12px;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(44px,8vw,80px);line-height:.9;margin:8px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px}.card{border:1px solid #2a3139;border-radius:16px;background:#10141a;padding:18px}.metric{font-size:28px;font-weight:800}.good{color:#8be3aa}.bad{color:#ff8f8f}.muted{color:#9da6b1}pre{white-space:pre-wrap;overflow:auto;max-height:600px;font-size:12px}.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.links a{border:1px solid #3b4550;border-radius:999px;padding:8px 12px;text-decoration:none}
+</style>
+</head>
+<body><main>
+<header class="top"><div class="eyebrow">Apex application surface</div><h1>XShield</h1><p class="muted">Ad blocking, tracker blocking and network filtering.</p><div class="links"><a href="/">ApexStudio</a><a href="/shield-apex.html">ShieldApex security surface</a><a href="/api/network/adblock/profile">Mobile profile</a></div></header>
+<section class="grid">
+<article class="card"><div class="eyebrow">Application</div><div id="appState" class="metric">Loading…</div><p id="appDetail" class="muted">Reading XShield's operational contract.</p></article>
+<article class="card"><div class="eyebrow">Network filter</div><div id="networkState" class="metric">Loading…</div><p id="networkDetail" class="muted">Reading the active filtering subsystem.</p></article>
+</section>
+<section class="card" style="margin-top:18px"><div class="eyebrow">Evidence</div><pre id="output">Loading…</pre></section>
+<script>
+async function load(){
+ try{
+  const [appResponse,networkResponse]=await Promise.all([fetch('/api/apex/apps/xshield/status',{cache:'no-store'}),fetch('/api/network/adblock/status',{cache:'no-store'})]);
+  const app=await appResponse.json(); const network=await networkResponse.json();
+  if(!appResponse.ok) throw new Error(app.error||'XShield status unavailable');
+  document.getElementById('appState').textContent=app.app?.name||'XShield';
+  document.getElementById('appDetail').textContent=(app.filtering?'Filtering active':'Filtering not active')+' · '+(app.firstPartyPolicy||'policy unavailable');
+  document.getElementById('networkState').textContent=network.enabled===false?'DEGRADED':'ACTIVE';
+  document.getElementById('networkState').className='metric '+(network.enabled===false?'bad':'good');
+  document.getElementById('networkDetail').textContent='Safari rules: '+(app.safariRules??'n/a');
+  document.getElementById('output').textContent=JSON.stringify({app,network},null,2);
+ }catch(error){
+  document.getElementById('appState').textContent='UNAVAILABLE';
+  document.getElementById('appDetail').textContent=error.message||String(error);
+  document.getElementById('output').textContent=error.message||String(error);
+ }
+}
+load();setInterval(load,30000);
+</script>
+</main></body></html>
