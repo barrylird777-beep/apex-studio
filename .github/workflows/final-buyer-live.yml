@@ -22,9 +22,13 @@ jobs:
           test "$code" = "200"
           curl -fsSL --max-time 20 "$url/apexus-buyer.html" -o /tmp/page
           grep -qi "Apexus" /tmp/page
-          curl -fsSL --max-time 20 "$url/api/apexus/buyer" -o /tmp/buyer
+          code=$(curl -sS -o /tmp/buyer -w '%{http_code}' --max-time 20 "$url/api/apexus/buyer" || true)
+          echo "buyer=$code"
+          test "$code" = "200"
           grep -q '"product":"Apexus"' /tmp/buyer
           grep -q '"episodes":2785' /tmp/buyer
-          curl -fsSL --max-time 20 "$url/api/apex/readiness" -o /tmp/readiness
+          code=$(curl -sS -o /tmp/readiness -w '%{http_code}' --max-time 20 "$url/api/apex/readiness" || true)
+          echo "readiness=$code"
+          test "$code" = "200"
           grep -q '"Apexus"' /tmp/readiness
           echo "APEXUS_BUYER_READINESS_VERIFIED=1"
