@@ -6,7 +6,7 @@ import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../s
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
 import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
-import { createWorkerAccount, createMarketOrder, clearMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
+import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
 
@@ -43,6 +43,15 @@ test("KoinKob clears a market and supports systemic events",()=>{
   const buyer=createWorkerAccount({workerId:"buyer",balance:100}),seller=createWorkerAccount({workerId:"seller",inventory:{service:1}});
   const orders=[createMarketOrder({workerId:buyer.workerId,side:"buy",asset:"service",quantity:1,price:10}),createMarketOrder({workerId:seller.workerId,side:"sell",asset:"service",quantity:1,price:8})];
   const market=clearMarket(orders); assert.equal(market.trades.length,1); assert.equal(market.trades[0].quantity,1);
+  const differentAsset=clearMarket([
+    createMarketOrder({workerId:buyer.workerId,side:"buy",asset:"energy",quantity:1,price:100}),
+    createMarketOrder({workerId:seller.workerId,side:"sell",asset:"food",quantity:1,price:1})
+  ]);
+  assert.equal(differentAsset.trades.length,0);
+  const settled=settleMarket([buyer,seller],market);
+  assert.equal(settled.settled.length,1);
+  assert.equal(settled.rejected.length,0);
+  assert.equal(settled.accounts.find(account=>account.workerId==="buyer").inventory.service,1);
   const round=runAdversarialRound({workers:[buyer,seller],orders,events:[createSystemicEvent({type:"demand-spike"})]});
   assert.equal(round.workerCount,2); assert.equal(koinKobStatus().app.name,"KoinKob");
   const world=buildWorkerEconomy({workerCount:2000});
@@ -50,6 +59,16 @@ test("KoinKob clears a market and supports systemic events",()=>{
   const simulation=runWorkerEconomySimulation({workerCount:2000,events:[createSystemicEvent({type:"infrastructure-breakdown",severity:.8})]});
   assert.equal(simulation.workerCount,2000);
   assert.ok(simulation.researchQuestion.includes("2,000 workers"));
+  assert.ok(Array.isArray(simulation.eventMatrix));
+  const baseline=runWorkerEconomySimulation({workerCount:20});
+  assert.ok(baseline.settlement.settledTrades > 0);
+  assert.ok(baseline.volume >= 0);
+});
+test("canonical status aggregator reports all six apps",async()=>{
+  const { canonicalAppsStatus } = await import("../src/apps/canonical-six.mjs");
+  const statuses = await canonicalAppsStatus();
+  assert.equal(statuses.length,6);
+  assert.deepEqual(statuses.map(status=>status.app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
 });
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
