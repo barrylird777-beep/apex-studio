@@ -12,11 +12,17 @@ if (!url) {
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const dir = path.join(root, "postgres", "migrations");
+let databaseHost = "";
+try { databaseHost = new URL(url).hostname; } catch {}
+const isLocalDatabase = databaseHost === "localhost" || databaseHost === "127.0.0.1" || databaseHost === "::1";
+const sslSetting = process.env.APEX_PG_SSL === "false" || isLocalDatabase
+  ? false
+  : { rejectUnauthorized: false };
 const pool = new Pool({
   connectionString: url,
   connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
-  ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false }
+  ssl: sslSetting
 });
 
 async function runMigrationFile(file) {
