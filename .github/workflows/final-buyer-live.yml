@@ -1,8 +1,7 @@
 name: Final Buyer Readiness Verification
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   verify:
