@@ -924,7 +924,7 @@ export function validateFinishedProduction({
   protocob,
   registry,
   requiredEvidenceTypes = [
-    EVIDENCE_TYPES.SCRIPTURE,
+    EVIDENCE_TYPES.SOURCE,
     EVIDENCE_TYPES.ASSET,
     EVIDENCE_TYPES.REVIEW,
     EVIDENCE_TYPES.INSPECTION
