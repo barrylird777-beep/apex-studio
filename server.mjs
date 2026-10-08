@@ -14,7 +14,7 @@ import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './s
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -236,11 +236,12 @@ process.on('unhandledRejection', (reason) => {
   console.error('[apex][unhandledRejection]', reason);
 });
 
-app.get('/health', (_req, res) => {
+async function buildHealthSnapshot() {
   const memory = process.memoryUsage();
-  res.status(200).json({
+  const durable = await durableWorkerHealth();
+  return {
     ok: true,
-    status: runtimeFault ? 'degraded' : 'ok',
+    status: runtimeFault || (durable.configured && !durable.available) ? 'degraded' : 'ok',
     uptime: process.uptime(),
     pid: process.pid,
     memory: {
@@ -250,26 +251,41 @@ app.get('/health', (_req, res) => {
       external: memory.external,
       arrayBuffers: memory.arrayBuffers
     },
+    durable,
     runtimeFault
-  });
+  };
+}
+
+app.get('/health', async (_req, res) => {
+  try {
+    res.status(200).json(await buildHealthSnapshot());
+  } catch (error) {
+    res.status(200).json({
+      ok: true,
+      status: 'degraded',
+      uptime: process.uptime(),
+      pid: process.pid,
+      error: 'health probe degraded',
+      runtimeFault,
+      durable: { configured: durableWorkerEnabled(), available: false, status: 'unavailable' }
+    });
+  }
 });
 
-app.get('/api/health', (_req, res) => {
-  const memory = process.memoryUsage();
-  res.status(200).json({
-    ok: true,
-    status: runtimeFault ? 'degraded' : 'ok',
-    uptime: process.uptime(),
-    pid: process.pid,
-    memory: {
-      rss: memory.rss,
-      heapTotal: memory.heapTotal,
-      heapUsed: memory.heapUsed,
-      external: memory.external,
-      arrayBuffers: memory.arrayBuffers
-    },
-    runtimeFault
-  });
+app.get('/api/health', async (_req, res) => {
+  try {
+    res.status(200).json(await buildHealthSnapshot());
+  } catch (error) {
+    res.status(200).json({
+      ok: true,
+      status: 'degraded',
+      uptime: process.uptime(),
+      pid: process.pid,
+      error: 'health probe degraded',
+      runtimeFault,
+      durable: { configured: durableWorkerEnabled(), available: false, status: 'unavailable' }
+    });
+  }
 });
 
 
