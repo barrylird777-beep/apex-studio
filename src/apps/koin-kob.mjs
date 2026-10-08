@@ -192,15 +192,27 @@ export function runWorkerEconomySimulation({
   events = []
 } = {}) {
   const world = buildWorkerEconomy({ workerCount, factions, governanceModels });
-  const generatedOrders = Array.isArray(orders) && orders.length
-    ? orders.map(order => ({ ...order }))
-    : Array.from({ length: Math.min(world.workerCount, 400) }, (_, index) => createMarketOrder({
-      workerId: world.workers[index].workerId,
-      side: index % 2 === 0 ? "buy" : "sell",
-      asset: ["service", "energy", "media", "food"][index % 4],
-      quantity: 1 + (index % 3),
-      price: 5 + (index % 11)
-    }));
+  let generatedOrders;
+  if (Array.isArray(orders) && orders.length) {
+    generatedOrders = orders.map(order => ({ ...order }));
+  } else {
+    generatedOrders = [];
+    const assets = ["service", "energy", "media", "food"];
+    const count = Math.min(world.workerCount, 400);
+    for (let index = 0; index < count; index++) {
+      const asset = assets[index % assets.length];
+      const side = index % 2 === 0 ? "buy" : "sell";
+      const quantity = 1 + (index % 3);
+      if (side === "sell") world.workers[index].inventory[asset] = quantity;
+      generatedOrders.push(createMarketOrder({
+        workerId: world.workers[index].workerId,
+        side,
+        asset,
+        quantity,
+        price: 5 + (index % 11)
+      }));
+    }
+  }
   const result = runAdversarialRound({ workers: world.workers, orders: generatedOrders, events });
   const appliedOrders = applyEvents(generatedOrders, events).orders;
   const accounts = settleMarket(world.workers, clearMarket(appliedOrders));
