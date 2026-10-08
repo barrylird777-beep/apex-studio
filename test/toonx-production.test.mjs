@@ -37,7 +37,8 @@ test("broadcast readiness requires QC, master, catalog and schedule", () => {
     state: "SCHEDULED",
     scheduled: true,
     catalogRegistered: true,
-    statuses: { ...episode.statuses, qc: "passed", master: "approved" }
+    statuses: { ...episode.statuses, qc: "passed", master: "approved" },
+    inspectionApproved: true
   };
   assert.deepEqual(validateBroadcastReadiness(ready), { ready: true, errors: [] });
 });
@@ -58,7 +59,7 @@ test("production job graph covers every real production stage in order", () => {
     "toonx.episode.story", "toonx.episode.script", "toonx.episode.storyboard",
     "toonx.episode.voice", "toonx.episode.audio", "toonx.episode.visual-development",
     "toonx.episode.animation", "toonx.episode.edit", "toonx.episode.qc",
-    "toonx.episode.master", "toonx.episode.catalog", "toonx.episode.schedule"
+    "toonx.episode.master", "toonx.episode.inspection", "toonx.episode.catalog", "toonx.episode.schedule"
   ]);
   assert.equal(new Set(jobs.map(j => j.dedupeKey)).size, jobs.length);
 });
