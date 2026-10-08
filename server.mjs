@@ -137,14 +137,11 @@ app.use('/api/toonx/production', createTOONXProductionRouter({ enqueue: enqueueW
 app.get('/api/apex/readiness', (_req, res) => {
   res.status(200).json({
     success: true,
-    releaseTrain: 'Apex six-surface release',
+    releaseTrain: 'Apex three-system release',
     surfaces: [
-      { id: 'KORNKNOB', name: 'KORNKNOB', role: 'ears', state: 'foundation-ready', entry: '/korn-knob' },
-      { id: 'ApexStudios', name: 'ApexStudios', role: 'eyes', state: 'foundation-ready', entry: '/' },
-      { id: 'GardenOfApex', name: 'GardenOfApex', role: 'brain', state: 'foundation-ready', entry: '/garden-of-apex.html' },
-      { id: 'EngineApex', name: 'EngineApex', role: 'money', state: 'foundation-ready', entry: '/engine-apex.html' },
-      { id: 'TOONX', name: 'TOONX', role: 'network', state: 'production-readying', entry: '/toonx-buyer.html' },
-      { id: 'ShieldApex', name: 'ShieldApex', role: 'shield', state: 'foundation-ready', entry: '/shield-apex.html' }
+      { id: 'apex-studio', name: 'Apex Studio', role: 'production', state: 'foundation-ready', entry: '/' },
+      { id: 'garden-of-apex', name: 'Garden of Apex', role: 'knowledge', state: 'foundation-ready', entry: '/garden-of-apex.html' },
+      { id: 'kornknob', name: 'KORNKNOB', role: 'capability', state: 'foundation-ready', entry: '/korn-knob.html' }
     ],
     commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
     checkedAt: new Date().toISOString()
