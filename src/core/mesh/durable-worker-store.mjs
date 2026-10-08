@@ -74,7 +74,7 @@ function postgresSslConfig() {
   }
 }
 
-function getPool() {
+export function getPool() {
   if (!durableWorkerEnabled()) return null;
   if (!pool) {
     pool = new Pool({
