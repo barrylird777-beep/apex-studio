@@ -13,7 +13,7 @@ export const APEX_SURFACES = Object.freeze({
 export const APEX_UNIVERSAL_CAPABILITIES = Object.freeze([
   "local_ai","cloud_ai","scripture_research","music_intelligence","visual_generation",
   "audio_generation","video_generation","media_processing","trend_intelligence",
-  "orchestration","automation","analytics","storage","provenance","monetization","network_protection"
+  "orchestration","automation","analytics","storage","provenance","monetization","network_protection","opportunity_intelligence","security_enforcement"
 ]);
 
 export const APEX_EXECUTION_POLICY = Object.freeze({
