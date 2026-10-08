@@ -9,7 +9,7 @@ export const TOONX_LANES = Object.freeze([
 export const TOONX_STATES = Object.freeze([
   "IDEA","STORY","SCRIPT","STORYBOARD","VOICE","AUDIO",
   "VISUAL_DEVELOPMENT","ANIMATION","EDIT","QC","MASTER","INSPECTION",
-  "SCHEDULED","BROADCAST","CATALOG"
+  "CATALOG","SCHEDULED","BROADCAST"
 ]);
 
 const prerequisites = Object.freeze({
