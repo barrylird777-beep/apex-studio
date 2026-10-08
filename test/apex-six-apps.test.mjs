@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { access } from "node:fs/promises";
+import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
 import { evaluatePayPex, payPexSnapshot, payPexStatus } from "../src/apps/paypex.mjs";
 import { teeveeStatus } from "../src/apps/teevee.mjs";
@@ -13,6 +15,12 @@ test("Apex exposes exactly six canonical apps", () => {
   assert.equal(assertSixAppInvariant(), true);
   assert.equal(Object.keys(APEX_APPS).length, 6);
   assert.deepEqual(Object.values(APEX_APPS).map(app => app.name), ["KornKnob","TeeVee","PayPex","ApexStudio","GardenOfApex","XShield"]);
+});
+  
+test("all six app entries exist", async () => {
+  for (const app of Object.values(APEX_APPS)) {
+    await access(resolve(process.cwd(), "public", app.entry.replace(/^\//, "")));
+  }
 });
 
 test("six app boundaries resolve to their locked systems", () => {
