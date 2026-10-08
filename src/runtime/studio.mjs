@@ -161,7 +161,22 @@ export function createStudio(options={}) {
     .register("editor.restore",input=>restoreEditor(input.project,input.snapshot))
     .register("editor.export.plan",input=>createExportPlan(input.project,input))
     .register("editor.validate",project=>validateEditorProject(project))
-    .register("command.center",()=>({version:studio.version,projects:studio.projects.list().length,jobs:studio.jobs.list().length,renders:studio.render.list().length,research:studio.research.list().length,assets:studio.assets.assets.size,growthExperiments:studio.growthExperiments.size,humanAuthority:{finalDecisionRequired:true}}));
+    .register("command.center",()=>({
+    version:studio.version,
+    projects:studio.projects.list().length,
+    jobs:studio.jobs.list().length,
+    renders:studio.render.list().length,
+    research:studio.research.list().length,
+    assets:studio.assets.assets.size,
+    growthExperiments:studio.growthExperiments.size,
+    intelligence:{
+      available:typeof studio.intelligence?.run==="function",
+      durableSubmission:typeof studio.intelligence?.enqueueDurable==="function",
+      specialistCount:studio.intelligence?.specialists?.length ?? 0,
+      verifierCount:studio.intelligence?.verifiers?.length ?? 0
+    },
+    humanAuthority:{finalDecisionRequired:true}
+  }));
   studio._baseSnapshot=()=>({
     projects:studio.projects.snapshot(),memories:studio.memory.items,agents:studio.agents.list(),
     assets:[...studio.assets.assets.values()],world:studio.world.snapshot(),jobs:studio.jobs.list(),
