@@ -7,8 +7,10 @@ const REQUIRED = Object.freeze([
   ["KORNKNOB","public/korn-knob.html"],
   ["TOONX","public/toonx-buyer.html"],
   ["Apex Overseer","public/overseer.html"],
-  ["Engine Apex","src/core/engine-apex.mjs"],
-  ["ShieldApex","src/core/shield-apex.mjs"]
+  ["Engine Apex","public/engine-apex.html"],
+  ["ShieldApex","public/shield-apex.html"],
+  ["Engine Apex core","src/core/engine-apex.mjs"],
+  ["ShieldApex core","src/core/shield-apex.mjs"]
 ]);
 
 const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
