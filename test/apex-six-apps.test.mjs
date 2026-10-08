@@ -49,8 +49,9 @@ test("KoinKob clears a market and supports systemic events",()=>{
   ]);
   assert.equal(differentAsset.trades.length,0);
   const settled=settleMarket([buyer,seller],market);
-  assert.equal(settled.settled.length,0);
-  assert.equal(settled.rejected[0].reason,"insufficient-inventory");
+  assert.equal(settled.settled.length,1);
+  assert.equal(settled.rejected.length,0);
+  assert.equal(settled.accounts.find(account=>account.workerId==="buyer").inventory.service,1);
   const round=runAdversarialRound({workers:[buyer,seller],orders,events:[createSystemicEvent({type:"demand-spike"})]});
   assert.equal(round.workerCount,2); assert.equal(koinKobStatus().app.name,"KoinKob");
   const world=buildWorkerEconomy({workerCount:2000});
