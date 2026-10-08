@@ -7,7 +7,7 @@ export const SYSTEMS = Object.freeze({
 });
 
 export const SURFACES = Object.freeze({
-  TOONX: "toonx",
+  TeeVee: "teevee",
   SPECIAL_SEARCH: "special-search"
 });
 
@@ -803,7 +803,7 @@ export function assertNoFourthSystem(value) {
   if (typeof value === "string") {
     if (value === "special-search-system" ||
         value === "garden-special-search" ||
-        value === "toonx-system") {
+        value === "teevee-system") {
       throw new Error(`BLACK-PEN violation: ${value} would create a forbidden fourth system`);
     }
     return true;
