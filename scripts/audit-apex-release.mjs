@@ -12,6 +12,16 @@ const REQUIRED = Object.freeze([
 ]);
 
 const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
+const FORBIDDEN_RUNTIME_FILES = Object.freeze([
+  "public/apexus-buyer.html",
+  "scripts/prepare-apexus-2785.mjs",
+  "scripts/schedule-apexus-network.mjs",
+  "scripts/audit-apexus-buyer-ready.mjs",
+  "test/apexus-production.test.mjs",
+  "test/apexus-production-api.test.mjs",
+  "test/apexus-network-scheduler.test.mjs",
+  "test/apexus-broadcast-controller.test.mjs"
+]);
 const results=[];
 
 for (const [surface,file] of REQUIRED) {
@@ -42,17 +52,22 @@ async function collect(entry){
 }
 for(const entry of runtimeFiles) await collect(entry);
 const forbiddenHits=FORBIDDEN_CANON_NAMES.filter(name=>sources.some(source=>source.includes(name)));
+const forbiddenRuntimeFiles=FORBIDDEN_RUNTIME_FILES.filter(file=>{
+  try { return Boolean(fs.stat(file)); } catch { return false; }
+});
 
 const ready =
   results.every(item=>item.exists && item.bytes>0) &&
   Object.values(scripts).every(Boolean) &&
-  forbiddenHits.length===0;
+  forbiddenHits.length===0 &&
+  forbiddenRuntimeFiles.length===0;
 
 console.log(JSON.stringify({
   product:"Apex",
   surfaces:results,
   requiredScripts:scripts,
   forbiddenCanonHits:forbiddenHits,
+  forbiddenRuntimeFiles,
   buyerGate:"payment-ready-not-live",
   ready
 },null,2));
