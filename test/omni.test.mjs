@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { parseProsody } from "../src/core/prosody.mjs";
 import { monoCompatibleWidth } from "../src/core/stereo.mjs";
 import { inspectUntrusted } from "../src/core/omni-sanitize.mjs";
@@ -101,24 +102,39 @@ test("SE-X rejects non-HTTPS sources before network access",async()=>{
   assert.match(run.results[0].error,/protocol is not permitted/);
 });
 
-test("OMNI persistence uses relational SQLite timeline tables",async()=>{
-  const db="./apex-omni-test-"+Date.now()+"-"+Math.random().toString(16).slice(2)+".sqlite";
-  const store=new OmniStore(db);
+test("OMNI persistence is PostgreSQL-backed and contains no SQLite implementation",()=>{
+  const source=fs.readFileSync(new URL("../src/core/omni-store.mjs",import.meta.url),"utf8");
+  assert.doesNotMatch(source,/sqlite3|apex-omni\.sqlite|new sqlite/i);
+  assert.match(source,/from "pg"/);
+  assert.match(source,/DATABASE_URL/);
+});
+
+test("OMNI PostgreSQL persistence round-trips timeline and mutation records",{
+  skip:!process.env.APEX_OMNI_INTEGRATION || !process.env.DATABASE_URL
+},async()=>{
+  const store=new OmniStore();
+  const suffix=Date.now().toString(36);
   const node=await store.createProductionTimeline({
-    nodeId:"node-1", sceneLabel:"Opening", timecode:"00:00:12:00",
-    aestheticProfile:"mature-shonen", prompt:"Hero enters the city.",
+    nodeId:"node-"+suffix,
+    sceneLabel:"Opening",
+    timecode:"00:00:12:00",
+    aestheticProfile:"mature-shonen",
+    prompt:"Hero enters the city.",
     audioTags:["breath","impact"]
   });
-  assert.equal(node.nodeId,"node-1");
+  assert.equal(node.nodeId,"node-"+suffix);
   assert.deepEqual(node.audioTags,["breath","impact"]);
+
   const mutation=await store.createTimelineMutation({
-    parentNodeId:"node-1", branchId:"branch-a",
-    alteredVisual:[{shot:"wide"}], alteredVocal:[{emotion:"urgent"}]
+    parentNodeId:node.nodeId,
+    branchId:"branch-"+suffix,
+    alteredVisual:[{shot:"wide"}],
+    alteredVocal:[{emotion:"urgent"}]
   });
-  assert.equal(mutation.parentNodeId,"node-1");
+  assert.equal(mutation.parentNodeId,node.nodeId);
   assert.deepEqual(mutation.alteredVisual,[{shot:"wide"}]);
   assert.deepEqual(mutation.alteredVocal,[{emotion:"urgent"}]);
-  assert.equal((await store.listProductionTimelines()).length,1);
-  assert.equal((await store.listTimelineMutations("node-1")).length,1);
+  assert.equal((await store.listProductionTimelines()).some(x=>x.nodeId===node.nodeId),true);
+  assert.equal((await store.listTimelineMutations(node.nodeId)).length,1);
   await store.close();
 });

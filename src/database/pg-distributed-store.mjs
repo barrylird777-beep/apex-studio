@@ -16,6 +16,7 @@ export class EnterpriseDistributedStore {
   async connect(){await this.pool.query("SELECT 1");return this;}
   async initEnterpriseSchema(){
     await this.pool.query(`
+      CREATE EXTENSION IF NOT EXISTS pgcrypto;
       CREATE TABLE IF NOT EXISTS production_jobs (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         type TEXT NOT NULL,
@@ -45,7 +46,6 @@ export class EnterpriseDistributedStore {
         payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
-      CREATE EXTENSION IF NOT EXISTS pgcrypto;
     `);
   }
   async enqueueJob(type,payload={},priority=0){

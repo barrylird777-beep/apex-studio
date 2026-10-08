@@ -74,7 +74,7 @@ function postgresSslConfig() {
   }
 }
 
-function getPool() {
+export function getPool() {
   if (!durableWorkerEnabled()) return null;
   if (!pool) {
     pool = new Pool({
@@ -337,9 +337,6 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const refill = Math.max(0.0001, Number(refillPerSecond) || (10 / 60));
   const wait = Math.max(50, Number(retryMs) || 300);
   const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
-  await db.query(`CREATE TABLE IF NOT EXISTS rate_limits (
-    key TEXT PRIMARY KEY, tokens DOUBLE PRECISION NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
   await db.query(`INSERT INTO rate_limits(key,tokens) VALUES($1,$2) ON CONFLICT(key) DO NOTHING`, [key, cap]);
   for (;;) {
     const r = await db.query(

@@ -1,149 +1,85 @@
-import sqlite3 from "sqlite3";
-import path from "node:path";
+import pg from "pg";
 
-const DEFAULT_DB = process.env.APEX_OMNI_DB_FILE ?? "./apex-omni.sqlite";
+const { Pool } = pg;
 
-function asJson(value, fallback = null) {
+function jsonOrFallback(value, fallback) {
   if (value == null) return fallback;
-  return JSON.stringify(value);
+  return value;
 }
 
-function parseJson(value, fallback = null) {
-  if (value == null || value === "") return fallback;
-  try { return JSON.parse(value); } catch { return fallback; }
+function databaseSsl(connectionString) {
+  const explicit = String(process.env.APEX_PG_SSL || "").trim().toLowerCase();
+  if (explicit === "false" || explicit === "0") return false;
+  if (explicit === "true" || explicit === "1") return { rejectUnauthorized: false };
+
+  try {
+    const hostname = new URL(connectionString).hostname;
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname)
+      ? false
+      : { rejectUnauthorized: false };
+  } catch {
+    return false;
+  }
 }
 
 export class OmniStore {
-  constructor(file = DEFAULT_DB) {
-    this.file = path.resolve(file);
-    this.db = null;
+  constructor(options = {}) {
+    if (typeof options === "string") {
+      throw new TypeError("OmniStore no longer accepts SQLite database paths; pass a PostgreSQL pool/options instead");
+    }
+
+    const connectionString = options.connectionString || process.env.DATABASE_URL;
+    if (!options.pool && !connectionString) {
+      throw new Error("DATABASE_URL is required for PostgreSQL OmniStore");
+    }
+
+    this.pool = options.pool || new Pool({
+      connectionString,
+      max: Number(options.max ?? process.env.APEX_DB_POOL_MAX ?? 20),
+      idleTimeoutMillis: Number(options.idleTimeoutMillis ?? process.env.APEX_DB_IDLE_TIMEOUT_MS ?? 30000),
+      connectionTimeoutMillis: Number(options.connectionTimeoutMillis ?? process.env.APEX_DB_CONNECTION_TIMEOUT_MS ?? 10000),
+      ssl: options.ssl ?? databaseSsl(connectionString)
+    });
+    this.ownsPool = !options.pool;
     this.ready = null;
+
+    this.pool.on("error", error => {
+      console.error("[OmniStore] PostgreSQL pool error:", error?.message || error);
+    });
   }
 
   async init() {
     if (this.ready) return this.ready;
-
-    this.ready = new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(this.file, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, error => {
-        if (error) return reject(error);
-        this.db.exec(`
-          PRAGMA journal_mode=WAL;
-          PRAGMA synchronous=NORMAL;
-          PRAGMA foreign_keys=ON;
-          PRAGMA busy_timeout=5000;
-
-          CREATE TABLE IF NOT EXISTS production_timelines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            node_id TEXT NOT NULL UNIQUE,
-            scene_label TEXT NOT NULL,
-            timecode TEXT NOT NULL,
-            aesthetic_profile TEXT,
-            prompt TEXT,
-            audio_tags TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_production_timelines_scene
-            ON production_timelines(scene_label);
-          CREATE INDEX IF NOT EXISTS idx_production_timelines_timecode
-            ON production_timelines(timecode);
-          CREATE INDEX IF NOT EXISTS idx_production_timelines_node
-            ON production_timelines(node_id);
-
-          CREATE TABLE IF NOT EXISTS timeline_mutations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            parent_node_id TEXT NOT NULL,
-            branch_id TEXT NOT NULL,
-            altered_visual TEXT NOT NULL DEFAULT '[]',
-            altered_vocal TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(parent_node_id)
-              REFERENCES production_timelines(node_id)
-              ON UPDATE CASCADE
-              ON DELETE CASCADE
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_timeline_mutations_parent
-            ON timeline_mutations(parent_node_id);
-          CREATE INDEX IF NOT EXISTS idx_timeline_mutations_branch
-            ON timeline_mutations(branch_id);
-
-          CREATE TABLE IF NOT EXISTS search_runs (
-            id TEXT PRIMARY KEY,
-            query TEXT NOT NULL,
-            mode TEXT,
-            started_at TEXT,
-            finished_at TEXT,
-            status TEXT,
-            fragments TEXT,
-            sources TEXT,
-            results TEXT
-          );
-
-          CREATE TABLE IF NOT EXISTS search_results (
-            id TEXT PRIMARY KEY,
-            run_id TEXT NOT NULL,
-            url TEXT NOT NULL,
-            status INTEGER,
-            content_type TEXT,
-            text TEXT,
-            created_at TEXT,
-            FOREIGN KEY(run_id) REFERENCES search_runs(id) ON DELETE CASCADE
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_search_results_run
-            ON search_results(run_id);
-
-          CREATE TABLE IF NOT EXISTS narrative_tracks (
-            id TEXT PRIMARY KEY,
-            project_id TEXT,
-            branch_id TEXT,
-            timeline_id TEXT,
-            blocks TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT
-          );
-
-          CREATE TABLE IF NOT EXISTS voice_assets (
-            id TEXT PRIMARY KEY,
-            track_id TEXT,
-            filepath TEXT,
-            metadata TEXT,
-            created_at TEXT
-          );
-        `, error => error ? reject(error) : resolve(this));
+    this.ready = this.pool.query("SELECT 1")
+      .then(() => this)
+      .catch(error => {
+        this.ready = null;
+        throw error;
       });
-    });
-
     return this.ready;
   }
 
   async close() {
-    await this.init();
-    return new Promise((resolve, reject) => {
-      this.db.close(error => error ? reject(error) : resolve());
-    });
+    if (this.ownsPool) await this.pool.end();
   }
 
-  run(sql, params = []) {
-    return this.init().then(() => new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(error) {
-        if (error) return reject(error);
-        resolve({ changes: this.changes, lastID: this.lastID });
-      });
-    }));
+  async run(sql, params = []) {
+    const result = await this.init().then(() => this.pool.query(sql, params));
+    return {
+      changes: result.rowCount,
+      lastID: result.rows[0]?.id ?? null,
+      rows: result.rows
+    };
   }
 
-  get(sql, params = []) {
-    return this.init().then(() => new Promise((resolve, reject) => {
-      this.db.get(sql, params, (error, row) => error ? reject(error) : resolve(row ?? null));
-    }));
+  async get(sql, params = []) {
+    const result = await this.init().then(() => this.pool.query(sql, params));
+    return result.rows[0] ?? null;
   }
 
-  all(sql, params = []) {
-    return this.init().then(() => new Promise((resolve, reject) => {
-      this.db.all(sql, params, (error, rows) => error ? reject(error) : resolve(rows ?? []));
-    }));
+  async all(sql, params = []) {
+    const result = await this.init().then(() => this.pool.query(sql, params));
+    return result.rows;
   }
 
   async append(table, record) {
@@ -151,44 +87,85 @@ export class OmniStore {
       await this.run(
         `INSERT INTO search_runs
           (id, query, mode, started_at, finished_at, status, fragments, sources, results)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT(id) DO UPDATE SET
            query=excluded.query, mode=excluded.mode,
            started_at=excluded.started_at, finished_at=excluded.finished_at,
            status=excluded.status, fragments=excluded.fragments,
            sources=excluded.sources, results=excluded.results`,
-        [record.id, record.query, record.mode, record.startedAt, record.finishedAt,
-          record.status, asJson(record.fragments, []), asJson(record.sources, []), asJson(record.results, [])]
+        [
+          record.id,
+          record.query,
+          record.mode,
+          record.startedAt,
+          record.finishedAt,
+          record.status,
+          jsonOrFallback(record.fragments, []),
+          jsonOrFallback(record.sources, []),
+          jsonOrFallback(record.results, [])
+        ]
       );
       return record;
     }
 
     if (table === "search_results") {
       await this.run(
-        `INSERT OR REPLACE INTO search_results
+        `INSERT INTO search_results
           (id, run_id, url, status, content_type, text, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [record.id, record.runId, record.url, record.status, record.contentType, record.text, record.createdAt]
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT(id) DO UPDATE SET
+           run_id=excluded.run_id, url=excluded.url, status=excluded.status,
+           content_type=excluded.content_type, text=excluded.text,
+           created_at=excluded.created_at`,
+        [
+          record.id,
+          record.runId,
+          record.url,
+          record.status,
+          record.contentType,
+          record.text,
+          record.createdAt
+        ]
       );
       return record;
     }
 
     if (table === "narrative_tracks") {
       await this.run(
-        `INSERT OR REPLACE INTO narrative_tracks
+        `INSERT INTO narrative_tracks
           (id, project_id, branch_id, timeline_id, blocks, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [record.id, record.projectId, record.branchId, record.timelineId, asJson(record.blocks, []), record.createdAt]
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT(id) DO UPDATE SET
+           project_id=excluded.project_id, branch_id=excluded.branch_id,
+           timeline_id=excluded.timeline_id, blocks=excluded.blocks,
+           created_at=excluded.created_at`,
+        [
+          record.id,
+          record.projectId,
+          record.branchId,
+          record.timelineId,
+          jsonOrFallback(record.blocks, []),
+          record.createdAt
+        ]
       );
       return record;
     }
 
     if (table === "voice_assets") {
       await this.run(
-        `INSERT OR REPLACE INTO voice_assets
+        `INSERT INTO voice_assets
           (id, track_id, filepath, metadata, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [record.id, record.trackId, record.filepath, asJson(record.metadata, {}), record.createdAt]
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT(id) DO UPDATE SET
+           track_id=excluded.track_id, filepath=excluded.filepath,
+           metadata=excluded.metadata, created_at=excluded.created_at`,
+        [
+          record.id,
+          record.trackId,
+          record.filepath,
+          jsonOrFallback(record.metadata, {}),
+          record.createdAt
+        ]
       );
       return record;
     }
@@ -200,21 +177,41 @@ export class OmniStore {
     const n = Math.max(1, Math.min(5000, Number(limit) || 500));
 
     const queries = {
-      search_runs: [`SELECT * FROM search_runs ORDER BY rowid DESC LIMIT ?`, row => ({
-        ...row,
-        fragments: parseJson(row.fragments, []),
-        sources: parseJson(row.sources, []),
-        results: parseJson(row.results, [])
-      })],
-      search_results: [`SELECT * FROM search_results ORDER BY rowid DESC LIMIT ?`, row => row],
-      narrative_tracks: [`SELECT * FROM narrative_tracks ORDER BY rowid DESC LIMIT ?`, row => ({
-        ...row,
-        blocks: parseJson(row.blocks, [])
-      })],
-      voice_assets: [`SELECT * FROM voice_assets ORDER BY rowid DESC LIMIT ?`, row => ({
-        ...row,
-        metadata: parseJson(row.metadata, {})
-      })]
+      search_runs: [
+        `SELECT * FROM search_runs
+         ORDER BY COALESCE(finished_at, started_at, 'epoch'::timestamptz) DESC
+         LIMIT $1`,
+        row => ({
+          ...row,
+          fragments: jsonOrFallback(row.fragments, []),
+          sources: jsonOrFallback(row.sources, []),
+          results: jsonOrFallback(row.results, [])
+        })
+      ],
+      search_results: [
+        `SELECT * FROM search_results
+         ORDER BY created_at DESC, id DESC
+         LIMIT $1`,
+        row => row
+      ],
+      narrative_tracks: [
+        `SELECT * FROM narrative_tracks
+         ORDER BY created_at DESC, id DESC
+         LIMIT $1`,
+        row => ({
+          ...row,
+          blocks: jsonOrFallback(row.blocks, [])
+        })
+      ],
+      voice_assets: [
+        `SELECT * FROM voice_assets
+         ORDER BY created_at DESC, id DESC
+         LIMIT $1`,
+        row => ({
+          ...row,
+          metadata: jsonOrFallback(row.metadata, {})
+        })
+      ]
     };
 
     const entry = queries[table];
@@ -241,9 +238,15 @@ export class OmniStore {
     await this.run(
       `INSERT INTO production_timelines
         (node_id, scene_label, timecode, aesthetic_profile, prompt, audio_tags)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [record.nodeId, record.sceneLabel, record.timecode,
-        record.aestheticProfile, record.prompt, asJson(record.audioTags, [])]
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        record.nodeId,
+        record.sceneLabel,
+        record.timecode,
+        record.aestheticProfile,
+        record.prompt,
+        record.audioTags
+      ]
     );
 
     return this.getProductionTimeline(record.nodeId);
@@ -252,22 +255,25 @@ export class OmniStore {
   async listProductionTimelines(limit = 500) {
     const n = Math.max(1, Math.min(5000, Number(limit) || 500));
     const rows = await this.all(
-      `SELECT * FROM production_timelines ORDER BY id ASC LIMIT ?`,
+      `SELECT * FROM production_timelines
+       ORDER BY id ASC
+       LIMIT $1`,
       [n]
     );
+
     return rows.map(row => ({
       ...row,
       nodeId: row.node_id,
       sceneLabel: row.scene_label,
       timecode: row.timecode,
       aestheticProfile: row.aesthetic_profile,
-      audioTags: parseJson(row.audio_tags, [])
+      audioTags: jsonOrFallback(row.audio_tags, [])
     }));
   }
 
   async getProductionTimeline(nodeId) {
     const row = await this.get(
-      `SELECT * FROM production_timelines WHERE node_id = ?`,
+      `SELECT * FROM production_timelines WHERE node_id = $1`,
       [String(nodeId)]
     );
     if (!row) return null;
@@ -278,7 +284,7 @@ export class OmniStore {
       sceneLabel: row.scene_label,
       timecode: row.timecode,
       aestheticProfile: row.aesthetic_profile,
-      audioTags: parseJson(row.audio_tags, [])
+      audioTags: jsonOrFallback(row.audio_tags, [])
     };
   }
 
@@ -290,19 +296,20 @@ export class OmniStore {
       throw new Error("parentNodeId and branchId are required");
     }
 
-    const result = await this.run(
+    const result = await this.pool.query(
       `INSERT INTO timeline_mutations
         (parent_node_id, branch_id, altered_visual, altered_vocal)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
       [
         parentNodeId,
         branchId,
-        asJson(Array.isArray(input.alteredVisual) ? input.alteredVisual : [], []),
-        asJson(Array.isArray(input.alteredVocal) ? input.alteredVocal : [], [])
+        Array.isArray(input.alteredVisual) ? input.alteredVisual : [],
+        Array.isArray(input.alteredVocal) ? input.alteredVocal : []
       ]
     );
 
-    return this.getTimelineMutation(result.lastID);
+    return this.getTimelineMutation(result.rows[0].id);
   }
 
   async listTimelineMutations(parentNodeId = null, limit = 500) {
@@ -311,13 +318,15 @@ export class OmniStore {
     const rows = parentNodeId
       ? await this.all(
           `SELECT * FROM timeline_mutations
-           WHERE parent_node_id = ?
-           ORDER BY id DESC LIMIT ?`,
+           WHERE parent_node_id = $1
+           ORDER BY id DESC
+           LIMIT $2`,
           [String(parentNodeId), n]
         )
       : await this.all(
           `SELECT * FROM timeline_mutations
-           ORDER BY id DESC LIMIT ?`,
+           ORDER BY id DESC
+           LIMIT $1`,
           [n]
         );
 
@@ -325,14 +334,14 @@ export class OmniStore {
       ...row,
       parentNodeId: row.parent_node_id,
       branchId: row.branch_id,
-      alteredVisual: parseJson(row.altered_visual, []),
-      alteredVocal: parseJson(row.altered_vocal, [])
+      alteredVisual: jsonOrFallback(row.altered_visual, []),
+      alteredVocal: jsonOrFallback(row.altered_vocal, [])
     }));
   }
 
   async getTimelineMutation(id) {
     const row = await this.get(
-      `SELECT * FROM timeline_mutations WHERE id = ?`,
+      `SELECT * FROM timeline_mutations WHERE id = $1`,
       [Number(id)]
     );
     if (!row) return null;
@@ -341,8 +350,8 @@ export class OmniStore {
       ...row,
       parentNodeId: row.parent_node_id,
       branchId: row.branch_id,
-      alteredVisual: parseJson(row.altered_visual, []),
-      alteredVocal: parseJson(row.altered_vocal, [])
+      alteredVisual: jsonOrFallback(row.altered_visual, []),
+      alteredVocal: jsonOrFallback(row.altered_vocal, [])
     };
   }
 }
@@ -354,13 +363,13 @@ export const OMNI_SCHEMA = Object.freeze({
     timecode: "TEXT NOT NULL",
     aesthetic_profile: "TEXT",
     prompt: "TEXT",
-    audio_tags: "JSON TEXT"
+    audio_tags: "JSONB NOT NULL DEFAULT []"
   },
   timeline_mutations: {
     parent_node_id: "TEXT NOT NULL REFERENCES production_timelines(node_id)",
     branch_id: "TEXT NOT NULL",
-    altered_visual: "JSON TEXT NOT NULL",
-    altered_vocal: "JSON TEXT NOT NULL"
+    altered_visual: "JSONB NOT NULL DEFAULT []",
+    altered_vocal: "JSONB NOT NULL DEFAULT []"
   },
   search_runs: ["id", "query", "mode", "started_at", "finished_at", "status"],
   search_results: ["id", "run_id", "url", "status", "content_type", "text", "created_at"],

@@ -80,7 +80,9 @@ export function createStudio(options={}) {
       return value;
     }
   });
-  void studio.omniStore.init();
+  void studio.omniStore.init().catch(error => {
+    events.emit("omni.database.unavailable", { error: String(error?.message || error).slice(0, 500) });
+  });
   studio.search=(query,limit=30)=>universalSearch(query,[
     {type:"projects",items:studio.projects.list()},
     {type:"memories",items:studio.memory.items},

@@ -12,7 +12,7 @@ Main landing page showing all Bible-story projects.
   - Number of scenes
   - Number of linked characters (or 0 if none)
   - Next shoot day (if any exist)
-- Data must persist via the Drizzle SQLite database
+- Data must persist via the existing PostgreSQL/Drizzle database
 - Clean, helpful empty state when no projects exist
 
 ## Acceptance Criteria
