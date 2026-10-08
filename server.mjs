@@ -151,6 +151,23 @@ app.get('/api/apexus/buyer', (_req, res) => {
   });
 });
 
+app.get('/api/apex/readiness', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    releaseTrain: 'Apex six-surface release',
+    surfaces: [
+      { id: 'KORNKNOB', name: 'KORNKNOB', role: 'ears', state: 'foundation-ready', entry: '/korn-knob' },
+      { id: 'ApexStudios', name: 'ApexStudios', role: 'eyes', state: 'foundation-ready', entry: '/' },
+      { id: 'GardenOfApex', name: 'GardenOfApex', role: 'brain', state: 'foundation-ready', entry: '/garden-of-apex.html' },
+      { id: 'EngineApex', name: 'EngineApex', role: 'money', state: 'foundation-ready', entry: '/engine-apex.html' },
+      { id: 'Apexus', name: 'Apexus', role: 'network', state: 'production-readying', entry: '/apexus-buyer.html' },
+      { id: 'ShieldApex', name: 'ShieldApex', role: 'shield', state: 'foundation-ready', entry: '/shield-apex.html' }
+    ],
+    commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
+    checkedAt: new Date().toISOString()
+  });
+});
+
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
 app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
