@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-
 import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
-import { evaluatePaypex } from "../src/apps/paypex.mjs";
+import { evaluatePayPex } from "../src/apps/paypex.mjs";
 import { teeveeStatus } from "../src/apps/teevee.mjs";
 import { gardenStatus } from "../src/apps/garden-of-apex.mjs";
 import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
@@ -12,17 +11,7 @@ import { xshieldStatus } from "../src/apps/xshield.mjs";
 test("Apex exposes exactly six canonical apps", () => {
   assert.equal(assertSixAppInvariant(), true);
   assert.equal(Object.keys(APEX_APPS).length, 6);
-  assert.deepEqual(
-    Object.values(APEX_APPS).map(app => app.name),
-    [
-      "KornKnob",
-      "TeeVee",
-      "Paypex",
-      "ApexStudio",
-      "GardenOfApex",
-      "XShield"
-    ]
-  );
+  assert.deepEqual(Object.values(APEX_APPS).map(app => app.name), ["KornKnob","TeeVee","PayPex","ApexStudio","GardenOfApex","XShield"]);
 });
 
 test("six app boundaries resolve to their locked systems", () => {
@@ -34,28 +23,17 @@ test("six app boundaries resolve to their locked systems", () => {
   assert.equal(getApexApp("xshield").system, "apex-studio");
 });
 
-test("opportunity engine evaluates without owning production", () => {
-  const result = evaluateOpportunity({
-    demand: 1,
-    evidence: 1,
-    audienceFit: 1,
-    revenuePotential: 1,
-    speedToMarket: 1,
-    repeatability: 1,
-    novelty: 1,
-    risk: 0,
-    productionCost: 0
-  });
-  assert.equal(result.engine, "Paypex");
+test("PayPex evaluates money-making opportunities deterministically", () => {
+  const result = evaluatePayPex({ demand: 1, evidence: 1, audienceFit: 1, revenuePotential: 1, speedToMarket: 1, repeatability: 1, novelty: 1, risk: 0, productionCost: 0 });
+  assert.equal(result.engine, "PayPex");
   assert.ok(result.score >= 0 && result.score <= 100);
 });
 
-test("rapid production contract preserves commercial output", () => {
+test("TeeVee is a continuous 24/7 TV network", () => {
   const result = teeveeStatus();
-  assert.equal(result.priceUsd, 25);
-  assert.equal(result.previewSeconds, 10);
-  assert.equal(result.paidOutputSeconds, 30);
-  assert.equal(result.aspectRatio, "9:16");
+  assert.equal(result.product, "24/7 TV show/network");
+  assert.equal(result.mode, "continuous-linear-programming");
+  assert.equal(result.continuousScheduling, true);
 });
 
 test("Garden, KornKnob, Studio and XShield expose operational status", () => {
