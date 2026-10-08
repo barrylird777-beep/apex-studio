@@ -6,7 +6,7 @@ export const APEX_SYSTEMS = Object.freeze({
 });
 
 export const APEX_SURFACES = Object.freeze({
-  TOONX: { id: "toonx", owner: "apex-studio", domain: "original animated entertainment production and audience experience" },
+  TeeVee: { id: "teevee", owner: "apex-studio", domain: "original animated entertainment production and audience experience" },
   SPECIAL_SEARCH: { id: "special-search", owner: "apex-studio", domain: "specialized search" }
 });
 
