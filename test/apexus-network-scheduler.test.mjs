@@ -33,3 +33,19 @@ test("Apexus schedule IDs are deterministic", () => {
   const b = buildNetworkSchedule({episodes:catalog(), startAt:"2026-10-08T00:00:00Z", horizonMinutes:60});
   assert.deepEqual(a, b);
 });
+
+test("Apexus scheduler terminates when an episode exceeds a block", () => {
+  const rows = buildNetworkSchedule({
+    episodes: [{
+      id: "oversized",
+      episode_code: "APX-OVERSIZED",
+      audience_lane: "Apexus Family",
+      runtime_target_seconds: 900
+    }],
+    startAt: "2026-10-08T00:00:00Z",
+    horizonMinutes: 10
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].startsAt, "2026-10-08T00:00:00.000Z");
+  assert.equal(rows[0].endsAt, "2026-10-08T00:15:00.000Z");
+});
