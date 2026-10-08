@@ -64,6 +64,12 @@ test("KoinKob clears a market and supports systemic events",()=>{
   assert.ok(baseline.settlement.settledTrades > 0);
   assert.ok(baseline.volume >= 0);
 });
+test("canonical status aggregator reports all six apps",async()=>{
+  const { canonicalAppsStatus } = await import("../src/apps/canonical-six.mjs");
+  const statuses = await canonicalAppsStatus();
+  assert.equal(statuses.length,6);
+  assert.deepEqual(statuses.map(status=>status.app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+});
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
   assert.equal(calculateCashBalance(entries),75);
