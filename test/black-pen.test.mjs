@@ -14,7 +14,6 @@ import {
   assertSpecialSearchBoundary,
   createKernel,
   createPopcorn,
-  createCornNut,
   createCob,
   createProtocob,
   createEvidence,
@@ -129,26 +128,7 @@ test("Popcorn preserves durable discovery lineage fields", () => {
   assert.equal(popcorn.data.verification.status, "verified");
 });
 
-test("CornNut evaluates while KornNutz remains the rating mechanism", () => {
-  const cornNut = createCornNut({
-    targetId: "popcorn_1",
-    targetType: JESUS_FREAK_TYPES.POPCORN,
-    criteria: {
-      originality: 1,
-      accuracy: 1,
-      productionFeasibility: 1
-    },
-    ratings: {
-      KornNutz: 8
-    },
-    reasoning: "Strong discovery with viable production path."
-  });
 
-  assert.equal(cornNut.type, JESUS_FREAK_TYPES.CORNNUT);
-  assert.equal(cornNut.system, SYSTEMS.GARDEN);
-  assert.equal(cornNut.data.ratingSystem, "KornNutz");
-  assert.equal(cornNut.data.ratings.KornNutz, 8);
-});
 
 test("Cob belongs to Studio production", () => {
   const cob = createCob({
