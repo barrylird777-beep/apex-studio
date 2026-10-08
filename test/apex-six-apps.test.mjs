@@ -60,6 +60,9 @@ test("KoinKob clears a market and supports systemic events",()=>{
   assert.equal(simulation.workerCount,2000);
   assert.ok(simulation.researchQuestion.includes("2,000 workers"));
   assert.ok(Array.isArray(simulation.eventMatrix));
+  const baseline=runWorkerEconomySimulation({workerCount:20});
+  assert.ok(baseline.settlement.settledTrades > 0);
+  assert.ok(baseline.volume >= 0);
 });
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
