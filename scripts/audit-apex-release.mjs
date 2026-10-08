@@ -34,7 +34,7 @@ async function collect(entry){
     for(const child of await fs.readdir(entry)) await collect(entry+"/"+child);
     return;
   }
-  if(/\\.(mjs|js|html|json)$/.test(entry)){
+  if(/\.(mjs|js|html|json)$/.test(entry)){
     sources.push(await fs.readFile(entry,"utf8"));
   }
 }
