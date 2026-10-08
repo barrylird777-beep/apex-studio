@@ -173,6 +173,25 @@ if (!workerOnly) {
   if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const dbRetryMaxMs = Math.max(5000, Number(process.env.APEX_WORKER_DB_RETRY_MAX_MS || 30000));
+  let dbFailures = 0;
+  const waitForDatabase = async () => {
+    while (!stopping) {
+      try {
+        await import("./src/core/mesh/durable-worker-store.mjs").then(({ getPool }) => getPool().query("SELECT 1"));
+        if (dbFailures) console.log("[apex-worker] PostgreSQL recovered");
+        dbFailures = 0;
+        return true;
+      } catch (error) {
+        dbFailures = Math.min(dbFailures + 1, 8);
+        const base = Math.min(dbRetryMaxMs, 1000 * 2 ** (dbFailures - 1));
+        const jitter = Math.floor(Math.random() * Math.max(100, base * 0.25));
+        console.error("[apex-worker] PostgreSQL unavailable; durable work is paused:", error?.message || error);
+        await sleep(base + jitter);
+      }
+    }
+    return false;
+  };
   const leaseMs = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 45000));
   const pollMs = Math.max(250, Number(process.env.APEX_WORKER_POLL_MS || 1000));
   const concurrency = Math.max(1, Math.min(100, Number(process.env.APEX_WORKER_CONCURRENCY || 32)));
@@ -261,11 +280,11 @@ if (!workerOnly) {
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
   while (!stopping) {
-    await requeueExpiredWorkerTasks().catch(error => {
-      console.error("[apex-worker] reclaim failed:", error?.message || error);
-    });
+    const ready = await waitForDatabase();
+    if (!ready) break;
 
     try {
+      await requeueExpiredWorkerTasks();
       const available = Math.max(0, concurrency - inFlight.size);
       if (!available) {
         await sleep(100);
