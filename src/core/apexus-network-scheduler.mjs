@@ -48,7 +48,12 @@ export function buildNetworkSchedule({ episodes, startAt, horizonMinutes = 1440 
     while (cursor < blockEnd) {
       const episode = pool[index % pool.length];
       const duration = Math.max(1, Number(episode.runtime_target_seconds || 180));
-      const slotEnd = Math.min(blockEnd, cursor + duration * 1000);
+      const proposedEnd = cursor + duration * 1000;
+      // Never split an episode across programming blocks. If the next episode
+      // does not fit, close this block early and let the next block begin
+      // immediately at the same cursor. Continuity beats arbitrary block math.
+      if (proposedEnd > blockEnd && cursor > start.getTime()) break;
+      const slotEnd = proposedEnd;
       const startsAt = new Date(cursor).toISOString();
       rows.push({
         id: stableId(block.name, episode.id, startsAt),
