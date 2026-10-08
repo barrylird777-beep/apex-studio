@@ -5,8 +5,7 @@ import { createBibleProductionStore } from '../core/bible-production-pg.mjs';
 
 const router=express.Router();
 const db=createBibleProductionStore();
-const ready=db.ready();
-const use=f=>ready.then(()=>f(db));
+const use=f=>db.ready().then(()=>f(db));
 
 const arr=x=>Array.isArray(x)?x:[];const dec=x=>{if(Array.isArray(x))return x;try{return JSON.parse(x||'[]')}catch{return[]}};const chr=x=>({...x,aliases:dec(x.aliases),primaryStories:dec(x.primary_stories),relationships:dec(x.relationships),keyTraits:dec(x.key_traits),scriptureReferences:dec(x.scripture_references)});const scn=x=>({...x,charactersPresent:dec(x.characters_present)});const sheet=x=>({...x,crew:dec(x.crew),cast:dec(x.cast),locations:dec(x.locations),characters:dec(x.characters),callTimes:dec(x.call_times),sceneIds:dec(x.scene_ids)});const ref=x=>/^[1-3]?\s?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?$/.test(String(x||'').trim());const use=f=>ready.then(f);
 router.get('/projects',async(q,s)=>{try{s.json(await use(d=>d.all('SELECT p.*,COUNT(DISTINCT sc.id) scene_count,COUNT(DISTINCT sd.id) shoot_day_count FROM projects p LEFT JOIN scenes sc ON sc.project_id=p.id LEFT JOIN shoot_days sd ON sd.project_id=p.id GROUP BY p.id ORDER BY p.updated_at DESC')))}catch(e){s.status(500).json({error:e.message})}});
