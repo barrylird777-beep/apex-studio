@@ -43,11 +43,23 @@ import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMet
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTOONXProductionRouter } from './src/api/toonx-production-api.mjs';
+import { createShieldApex } from './src/core/shield-apex.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+
+const shieldApex = createShieldApex({
+  allowedOrigins: String(process.env.APEX_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean),
+  apiKeys: String(process.env.APEX_SHIELD_API_KEYS || "")
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean)
+});
 
 app.use(express.json({
   limit: CAPACITY.jsonBody,
@@ -138,6 +150,16 @@ const infiniteBroadcast = createInfiniteBroadcast({
 });
 
 app.use('/api/toonx/production', createTOONXProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
+
+app.get('/api/shield-apex/status', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    system: 'apex-studio',
+    capability: 'ShieldApex',
+    role: 'network_security',
+    ...shieldApex.status()
+  });
+});
 
 app.get('/api/apex/readiness', (_req, res) => {
   res.status(200).json({
@@ -2209,7 +2231,7 @@ app.get('/api/engine-apex/status', async (_req, res) => {
       engine: 'EngineApex',
       state: snapshot.state,
       opportunityCount: snapshot.opportunities.length,
-      handoffs: ['TOONX', 'ApexStudios'],
+      handoffs: ['TOONX', 'Apex Studio'],
       productionSeparated: true,
       checkedAt: new Date().toISOString()
     });
