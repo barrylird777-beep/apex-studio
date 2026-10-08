@@ -48,4 +48,9 @@ async function benchmark(){const b=$("benchBtn"),out=$("benchmark");b.disabled=t
 async function loadControl(){const t=$("token").value.trim()||sessionStorage.getItem(tokenKey)||"";if(!t){$("control").textContent="No session token supplied.";return}sessionStorage.setItem(tokenKey,t);try{$("control").textContent=JSON.stringify(await json("/api/mobile/status",{headers:{"authorization":"Bearer "+t}}),null,2)}catch(e){$("control").textContent="CONTROL PLANE: "+(e.message||String(e))}}
 function clearToken(){sessionStorage.removeItem(tokenKey);$("token").value="";$("control").textContent="Session token cleared."}
 (function(){const t=sessionStorage.getItem(tokenKey);if(t)$("token").value="";refreshAll()})(); window.addEventListener("online",refreshAll);window.addEventListener("offline",refreshAll);
-</script></body></html>
+</script><script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+}
+</script>
+</body></html>
