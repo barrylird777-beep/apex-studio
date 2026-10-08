@@ -60,16 +60,16 @@ test("system capabilities cannot cross ownership boundaries", () => {
   );
 });
 
-test("TOONX is a surface and not a fourth system", () => {
-  assert.equal(SURFACES.TOONX, "toonx");
+test("TeeVee is a surface and not a fourth system", () => {
+  assert.equal(SURFACES.TeeVee, "teevee");
 
   assert.doesNotThrow(() => assertNoFourthSystem({
     system: SYSTEMS.STUDIO,
-    surface: SURFACES.TOONX
+    surface: SURFACES.TeeVee
   }));
 
   assert.throws(
-    () => assertNoFourthSystem({ system: "toonx-system" }),
+    () => assertNoFourthSystem({ system: "teevee-system" }),
     /Unknown Apex system|forbidden fourth system/
   );
 });
@@ -145,7 +145,7 @@ test("Protocob does not begin as a finished production", () => {
   const protocob = createProtocob({
     popcornId: "popcorn_1",
     title: "Test Production",
-    format: "toonx"
+    format: "teevee"
   });
 
   assert.equal(protocob.type, JESUS_FREAK_TYPES.PROTOCOB);
@@ -157,7 +157,7 @@ test("Protocob does not begin as a finished production", () => {
 test("invalid Protocob transitions are rejected", () => {
   const protocob = createProtocob({
     title: "Test",
-    format: "toonx"
+    format: "teevee"
   });
 
   assert.equal(
@@ -178,7 +178,7 @@ test("invalid Protocob transitions are rejected", () => {
 test("production transitions preserve evidence", () => {
   const protocob = createProtocob({
     title: "Evidence Test",
-    format: "toonx"
+    format: "teevee"
   });
 
   const evidence = createEvidence({
@@ -291,7 +291,7 @@ test("lineage remains traceable through the object registry", () => {
 test("finished Protocob requires King Cob inspection", () => {
   const protocob = createProtocob({
     title: "Final Test",
-    format: "toonx",
+    format: "teevee",
     state: PROTOCOB_STATES.RELEASE_READY
   });
 
@@ -311,7 +311,7 @@ test("finished Protocob requires King Cob inspection", () => {
 test("finished production requires evidence of required classes", () => {
   const protocob = createProtocob({
     title: "Validated Production",
-    format: "toonx",
+    format: "teevee",
     state: PROTOCOB_STATES.RELEASE_READY
   });
 
@@ -370,7 +370,7 @@ test("finished production requires evidence of required classes", () => {
 test("finished original production defaults to source evidence", () => {
   const protocob = createProtocob({
     title: "Original Animation",
-    format: "toonx",
+    format: "teevee",
     state: PROTOCOB_STATES.RELEASE_READY
   });
 
@@ -421,7 +421,7 @@ test("object validation rejects forbidden systems", () => {
   const invalid = {
     id: "bad_1",
     type: "unknown",
-    system: "toonx-system",
+    system: "teevee-system",
     data: {}
   };
 
