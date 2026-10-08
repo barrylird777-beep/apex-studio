@@ -664,8 +664,21 @@ const throughputWindows = new Map();
 const throughputWindowMs = 60_000;
 const throughputMaxRequestsPerWindow = Math.max(1, Number(process.env.APEX_NETWORK_BENCHMARK_REQUESTS || 4));
 
+function pruneThroughputWindows(now) {
+  for (const [ip, state] of throughputWindows) {
+    if (now - state.startedAt >= throughputWindowMs) throughputWindows.delete(ip);
+  }
+  if (throughputWindows.size > 10_000) {
+    for (const ip of throughputWindows.keys()) {
+      throughputWindows.delete(ip);
+      if (throughputWindows.size <= 8_000) break;
+    }
+  }
+}
+
 function allowThroughputProbe(ip) {
   const now = Date.now();
+  pruneThroughputWindows(now);
   const current = throughputWindows.get(ip);
   if (!current || now - current.startedAt >= throughputWindowMs) {
     throughputWindows.set(ip, { startedAt: now, count: 1 });
@@ -709,12 +722,33 @@ app.post('/api/network/client-telemetry', (req, res) => {
   res.set('Cache-Control','no-store').json({ok:true,receivedAt:latestClientNetworkTelemetry.reportedAt});
 });
 
+let networkStatusCache = { expiresAt: 0, value: null };
+let networkStatusInFlight = null;
+const networkStatusCacheMs = Math.max(1000, Number(process.env.APEX_NETWORK_STATUS_CACHE_MS || 5000));
+
+async function getNetworkFabric() {
+  const now = Date.now();
+  if (networkStatusCache.value && now < networkStatusCache.expiresAt) return networkStatusCache.value;
+  if (networkStatusInFlight) return networkStatusInFlight;
+  networkStatusInFlight = (async () => {
+    const { selectNetworkPath } = await import('./src/network/path-selector.mjs');
+    const value = await selectNetworkPath();
+    networkStatusCache = { value, expiresAt: Date.now() + networkStatusCacheMs };
+    return value;
+  })();
+  try {
+    return await networkStatusInFlight;
+  } finally {
+    networkStatusInFlight = null;
+  }
+}
+
 app.get('/api/network/status', async (_req,res)=>{
   try {
-    const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
-    const fabric = await selectNetworkPath();
+    const { buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
+    const fabric = await getNetworkFabric();
     const healthy = fabric.candidates.filter(p => p.healthy);
-    const runtimeObserved = fabric.source === 'railway-runtime-interface-observation' && fabric.candidates.length > 0;
+    const runtimeObserved = fabric.candidates.length > 0;
     res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:latestClientNetworkTelemetry?(latestClientNetworkTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:latestClientNetworkTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:latestClientNetworkTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(latestClientNetworkTelemetry?.type)),starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
