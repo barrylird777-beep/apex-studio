@@ -1,14 +1,32 @@
 #!/usr/bin/env node
 
-import { createReadStream } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { chmod, mkdir, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 const databaseUrl = String(process.env.DATABASE_URL || "").trim();
 if (!databaseUrl) {
   console.error("DATABASE_URL is required for a PostgreSQL backup.");
+  process.exit(2);
+}
+
+let database;
+try {
+  database = new URL(databaseUrl);
+} catch {
+  console.error("DATABASE_URL is not a valid PostgreSQL connection URL.");
+  process.exit(2);
+}
+
+if (!["postgres:", "postgresql:"].includes(database.protocol)) {
+  console.error("DATABASE_URL must use the postgres:// or postgresql:// scheme.");
+  process.exit(2);
+}
+
+if (database.pathname.length <= 1) {
+  console.error("DATABASE_URL must include a database name.");
   process.exit(2);
 }
 
@@ -18,16 +36,36 @@ const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const output = join(backupRoot, `apex-postgres-${stamp}.dump`);
 const manifestPath = `${output}.sha256`;
 
-await mkdir(dirname(output), { recursive: true });
+const pgEnv = { ...process.env };
+pgEnv.PGHOST = database.hostname;
+if (database.port) pgEnv.PGPORT = database.port;
+if (database.username) pgEnv.PGUSER = decodeURIComponent(database.username);
+if (database.password) pgEnv.PGPASSWORD = decodeURIComponent(database.password);
+pgEnv.PGDATABASE = decodeURIComponent(database.pathname.slice(1));
 
-const args = ["--format=custom", "--no-password", "--file", output, databaseUrl];
+const sslmode = database.searchParams.get("sslmode");
+if (sslmode) pgEnv.PGSSLMODE = sslmode;
+
+await mkdir(dirname(output), { recursive: true, mode: 0o700 });
+
+const args = [
+  "--format=custom",
+  "--no-password",
+  "--file",
+  output
+];
 
 const exitCode = await new Promise((resolveExit) => {
-  const child = spawn(pgDump, args, { stdio: ["ignore", "inherit", "inherit"], env: process.env });
+  const child = spawn(pgDump, args, {
+    stdio: ["ignore", "inherit", "inherit"],
+    env: pgEnv
+  });
+
   child.once("error", (error) => {
     console.error(`Unable to execute ${pgDump}: ${error.message}`);
     resolveExit(127);
   });
+
   child.once("exit", (code, signal) => {
     if (signal) {
       console.error(`pg_dump terminated by signal ${signal}`);
@@ -39,6 +77,8 @@ const exitCode = await new Promise((resolveExit) => {
 });
 
 if (exitCode !== 0) {
+  await unlink(output).catch(() => {});
+  await unlink(manifestPath).catch(() => {});
   console.error(`pg_dump failed with exit code ${exitCode}; no backup is considered valid.`);
   process.exit(exitCode);
 }
@@ -52,7 +92,10 @@ await new Promise((resolveHash, rejectHash) => {
 });
 
 const digest = hash.digest("hex");
-await writeFile(manifestPath, `${digest}  ${output.split("/").pop()}\n`, "utf8");
+const fileName = basename(output);
+
+await chmod(output, 0o600);
+await writeFile(manifestPath, `${digest}  ${fileName}\n`, { encoding: "utf8", mode: 0o600 });
 
 console.log(JSON.stringify({
   status: "complete",
