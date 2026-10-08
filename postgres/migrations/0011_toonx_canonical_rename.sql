@@ -20,7 +20,15 @@ BEGIN
 END
 $$;
 
-ALTER TRIGGER IF EXISTS apexus_episodes_touch ON toonx_episodes RENAME TO toonx_episodes_touch;
+DO $
+BEGIN
+  IF to_regclass('public.toonx_episodes') IS NOT NULL THEN
+    ALTER TRIGGER apexus_episodes_touch ON toonx_episodes RENAME TO toonx_episodes_touch;
+  END IF;
+EXCEPTION WHEN undefined_object THEN
+  NULL;
+END
+$;
 
 UPDATE durable_jobs
 SET type = replace(type, 'apexus.', 'toonx.'),
@@ -54,6 +62,3 @@ WHERE audience_lane LIKE '%Apexus%'
    OR visual_style LIKE '%apexus%'
    OR series_id LIKE '%APEXUS%';
 
-ALTER TABLE toonx_episode_assets
-  ALTER CONSTRAINT IF EXISTS toonx_episode_assets_episode_id_fkey
-  DEFERRABLE INITIALLY IMMEDIATE;
