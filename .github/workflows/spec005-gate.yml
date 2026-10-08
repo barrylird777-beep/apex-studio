@@ -47,7 +47,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
         run: |
-          (PORT=3000 npm start > /tmp/apex-server.log 2>&1 & echo $! > /tmp/apex-server.pid)
+          (PORT=3000 npm run dev -- --dev > /tmp/apex-server.log 2>&1 & echo $! > /tmp/apex-server.pid)
           for i in $(seq 1 30); do
             curl -s -o /dev/null localhost:3000/api/projects && exit 0
             sleep 1
