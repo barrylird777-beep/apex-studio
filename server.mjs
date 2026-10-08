@@ -556,7 +556,7 @@ app.disable('x-powered-by');
 app.use(cors());
 // Serve the standalone public app pages before API routes.
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rapid-video.html')));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/api/network/adblock/content/status', (_req, res) => {
   return res.json(contentFilterStatus(studioAdBlockStatus().blockedDomains));
 });
