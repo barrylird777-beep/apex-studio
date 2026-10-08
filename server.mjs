@@ -2258,6 +2258,58 @@ if (durableWorkerEnabled()) {
 
 
 // EngineApex decision layer: opportunity intelligence stays separate from production.
+app.get('/api/korn-knob/status', async (_req, res) => {
+  try {
+    const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
+    return res.json({ success: true, ...kornKnobStatus() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/korn-knob/ideas', async (req, res) => {
+  try {
+    const { createKornKnobIdea } = await import('./src/apps/korn-knob.mjs');
+    const idea = createKornKnobIdea(req.body || {});
+    return res.status(201).json({ success: true, idea });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/korn-knob/ideas/evaluate', async (req, res) => {
+  try {
+    const { createKornKnobIdea } = await import('./src/apps/korn-knob.mjs');
+    const idea = createKornKnobIdea(req.body || {});
+    return res.status(200).json({
+      success: true,
+      idea,
+      rating: {
+        system: "KornKnob",
+        type: "movie-potential",
+        percent: idea.moviePotentialPercent
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/korn-knob/worker-job', async (req, res) => {
+  try {
+    const { enqueueWorkerTask } = await import('./src/core/mesh/durable-worker-store.mjs');
+    const payload = req.body || {};
+    const task = await enqueueWorkerTask({
+      task: "kornknob.idea.evaluate",
+      role: "kornknob",
+      payload
+    });
+    return res.status(202).json({ success: true, task });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/engine-apex/chat-runtime/state', async (req, res) => {
   try {
     const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
