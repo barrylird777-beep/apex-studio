@@ -36,3 +36,10 @@ test("unsafe bypasses are never enabled while artificial execution ceilings rema
   assert.equal(APEX_EXECUTION_POLICY.unrestrictedIosDaemon, false);
   assert.equal(APEX_EXECUTION_POLICY.artificialExecutionCeilings, false);
 });
+test("Studio-owned operational surfaces remain inside the three-system boundary", () => {
+  const studio = APEX_SYSTEMS.APEX_STUDIO.id;
+  assert.equal(APEX_SURFACES.TOONX.owner, studio);
+  assert.equal(APEX_SURFACES.SPECIAL_SEARCH.owner, studio);
+  assertCanonicalBoundary({ system: studio, surface: "toonx" });
+  assertCanonicalBoundary({ system: studio, surface: "special-search" });
+});
