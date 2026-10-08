@@ -94,13 +94,14 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
       "INSERT INTO toonx_catalog(id,episode_id,master_asset_id,duration_seconds,qc_passed_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT (episode_id) DO UPDATE SET master_asset_id=EXCLUDED.master_asset_id,duration_seconds=EXCLUDED.duration_seconds,qc_passed_at=EXCLUDED.qc_passed_at",
       [randomUUID(),episode.id,master.rows[0].id,episode.runtime_target_seconds]
     );
+    await pool.query("UPDATE toonx_episodes SET metadata=metadata||$2::jsonb WHERE id=$1",[episode.id,JSON.stringify({catalogRegistered:true})]);
   }
   if(stage==="schedule"){
     // Schedule rows are owned by the global network scheduler. Individual
     // episode jobs must never invent independent wall-clock slots.
     await pool.query(
       "UPDATE toonx_episodes SET metadata=metadata||$2::jsonb WHERE id=$1",
-      [episode.id,JSON.stringify({scheduleReady:true})]
+      [episode.id,JSON.stringify({scheduleReady:true,scheduled:true})]
     );
   }
 }
