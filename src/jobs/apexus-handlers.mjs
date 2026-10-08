@@ -63,7 +63,7 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     qc:"qc_status", master:"master_status", catalog:"programming_status"
   }[stage];
   if(stage==="story"){
-    const generated=await generateText(`${base}\\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
+    const generated=await generateText(`${base}\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
     metadata.provider=generated.provider;
     file=await writeText(code,stage,"story.md",generated.text);
   }else if(stage==="script"){
@@ -79,8 +79,8 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     }));
     file=await writeJson(code,stage,"storyboard.json",{episode:code,scenes,totalDurationSeconds:scenes.reduce((sum,scene)=>sum+scene.durationSeconds,0)});
   }else if(stage==="voice"){
-    const text=`This is ${episode.title}. ${episode.logline||"A new Apexus story begins."}`;
-    file=await tts(text,path.join(stagePath(code,stage),"narration.wav"));
+    const script=await fs.readFile(path.join(stagePath(code,"script"),"script.md"),"utf8");
+    file=await tts(script.slice(0,60000),path.join(stagePath(code,stage),"narration.wav"));
   }else if(stage==="audio"){
     const narration=path.join(stagePath(code,"voice"),"narration.wav");
     file=await makeAudioBed(narration,path.join(stagePath(code,stage),"episode-audio.m4a"),episode.runtime_target_seconds);
