@@ -1,15 +1,13 @@
 import fs from "node:fs/promises";
 
 const REQUIRED = Object.freeze([
+  ["Apex Studio","public/index.html"],
+  ["Garden of Apex","public/garden-of-apex.html"],
   ["KORNKNOB","public/korn-knob.html"],
-  ["ApexStudios","public/index.html"],
-  ["GardenOfApex","public/garden-of-apex.html"],
-  ["EngineApex","public/engine-apex.html"],
-  ["Apexus","public/apexus-buyer.html"],
-  ["ShieldApex","public/shield-apex.html"]
+  ["TOONX","public/toonx-buyer.html"]
 ]);
 
-const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB"];
+const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS","EngineApex","ShieldApex"];
 const results=[];
 
 for (const [surface,file] of REQUIRED) {
@@ -22,7 +20,7 @@ for (const [surface,file] of REQUIRED) {
 }
 
 const packageJson=JSON.parse(await fs.readFile("package.json","utf8"));
-const requiredScripts=["apexus:bootstrap","apexus:prepare","apexus:schedule","apexus:worker","apexus:buyer-audit"];
+const requiredScripts=["toonx:bootstrap","toonx:prepare","toonx:schedule","toonx:worker"];
 const scripts=Object.fromEntries(requiredScripts.map(name=>[name,typeof packageJson.scripts?.[name]==="string"]));
 
 const runtimeFiles=["server.mjs","src","public","test"];
