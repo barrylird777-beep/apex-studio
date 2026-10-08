@@ -14,7 +14,6 @@ export const SURFACES = Object.freeze({
 export const JESUS_FREAK_TYPES = Object.freeze({
   KERNEL: "kernel",
   POPCORN: "popcorn",
-  CORNNUT: "cornnut",
   COB: "cob",
   PROTOCOB: "protocob"
 });
@@ -48,7 +47,6 @@ export const PROTOCOB_STATES = Object.freeze({
 
 export const WORKER_AUTHORITIES = Object.freeze({
   KERNEL: "kernel",
-  CORNNUT: "cornnut",
   COB: "cob",
   REVIEWER: "reviewer",
   KING_COB: "king_cob",
@@ -128,7 +126,6 @@ const OWNERSHIP = Object.freeze({
     "creative_ecosystem",
     "kernel",
     "popcorn",
-    "cornnut",
     "development"
   ]),
   [SYSTEMS.KORNKNOB]: new Set([
@@ -428,50 +425,6 @@ export function assertPopcorn(popcorn) {
   assertObject(popcorn, "popcorn");
   if (popcorn.type !== JESUS_FREAK_TYPES.POPCORN) throw new Error("Object is not Popcorn");
   if (popcorn.system !== SYSTEMS.GARDEN) throw new Error("Popcorn must belong to Garden of Apex");
-  return true;
-}
-
-export function createCornNut({
-  targetId,
-  targetType,
-  criteria = {},
-  ratings = {},
-  reasoning = "",
-  evaluatorId = null,
-  evidenceIds = []
-}) {
-  assertString(targetId, "targetId");
-  assertString(targetType, "targetType");
-  assertObject(criteria, "criteria");
-  assertObject(ratings, "ratings");
-
-  if (typeof reasoning !== "string") throw new TypeError("reasoning must be a string");
-  if (evaluatorId !== null) assertString(evaluatorId, "evaluatorId");
-
-  return createObject({
-    type: JESUS_FREAK_TYPES.CORNNUT,
-    system: SYSTEMS.GARDEN,
-    state: "evaluated",
-    data: {
-      targetId,
-      targetType,
-      criteria: clone(criteria),
-      ratings: clone(ratings),
-      ratingSystem: "KornNutz",
-      reasoning,
-      evaluatorId,
-      evidenceIds: [...new Set(evidenceIds)]
-    }
-  });
-}
-
-export function assertCornNut(cornNut) {
-  assertObject(cornNut, "cornNut");
-  if (cornNut.type !== JESUS_FREAK_TYPES.CORNNUT) throw new Error("Object is not a CornNut");
-  if (cornNut.system !== SYSTEMS.GARDEN) throw new Error("CornNuts must belong to Garden of Apex");
-  if (cornNut.data?.ratingSystem !== "KornPops") {
-    throw new Error("CornNuts must use the KornNutz rating system");
-  }
   return true;
 }
 
