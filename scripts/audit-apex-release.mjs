@@ -9,7 +9,7 @@ const REQUIRED = Object.freeze([
   ["ShieldApex","public/shield-apex.html"]
 ]);
 
-const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker"];
+const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB"];
 const results=[];
 
 for (const [surface,file] of REQUIRED) {
