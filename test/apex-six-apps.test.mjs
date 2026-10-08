@@ -51,3 +51,22 @@ test("Garden, KornKnob, Studio and XShield expose operational status", () => {
   assert.equal(studioStatus().app.id, "apex-studio");
   assert.equal(xshieldStatus().app.id, "xshield");
 });
+
+test("all six app modules expose the same canonical app identity", async () => {
+  const modules = [
+    ["korn-knob", "../src/apps/korn-knob.mjs", "kornKnobStatus"],
+    ["teevee", "../src/apps/teevee.mjs", "teeveeStatus"],
+    ["paypex", "../src/apps/paypex.mjs", "payPexStatus"],
+    ["apex-studio", "../src/apps/apex-studio.mjs", "studioStatus"],
+    ["garden-of-apex", "../src/apps/garden-of-apex.mjs", "gardenStatus"],
+    ["xshield", "../src/apps/xshield.mjs", "xshieldStatus"]
+  ];
+  for (const [id, path, fn] of modules) {
+    const mod = await import(path);
+    const status = fn === "payPexStatus"
+      ? mod[fn]()
+      : mod[fn]();
+    assert.equal(status.app.id, id);
+    assert.equal(status.app.name, getApexApp(id).name);
+  }
+});
