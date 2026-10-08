@@ -2210,6 +2210,82 @@ if (durableWorkerEnabled()) {
 
 
 // EngineApex decision layer: opportunity intelligence stays separate from production.
+app.get('/api/engine-apex/chat-runtime/state', async (req, res) => {
+  try {
+    const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
+    return res.json({ success: true, ...(await getChatRuntimeState(req.query?.scope || 'default')) });
+  } catch (error) {
+    console.error('[engine-apex-chat-runtime-state]', error);
+    return res.status(503).json({ success: false, error: 'Chat runtime state unavailable' });
+  }
+});
+
+app.patch('/api/engine-apex/chat-runtime/state', async (req, res) => {
+  try {
+    const { updateChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
+    const result = await updateChatRuntimeState({
+      scope: req.body?.scope || 'default',
+      patch: req.body?.patch || {},
+      expectedVersion: req.body?.expectedVersion ?? null,
+      actor: req.body?.actor || 'engine-apex'
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    const status = error?.code === 'RUNTIME_VERSION_CONFLICT' ? 409 : 503;
+    return res.status(status).json({
+      success: false,
+      error: error?.message || 'Chat runtime state update failed',
+      ...(error?.currentVersion != null ? { currentVersion: error.currentVersion } : {})
+    });
+  }
+});
+
+app.get('/api/engine-apex/chat-runtime/events', async (req, res) => {
+  try {
+    const { listChatRuntimeEvents } = await import('./src/core/engine-apex-chat-runtime.mjs');
+    return res.json({ success: true, ...(await listChatRuntimeEvents(req.query?.scope || 'default', req.query?.limit)) });
+  } catch (error) {
+    console.error('[engine-apex-chat-runtime-events]', error);
+    return res.status(503).json({ success: false, error: 'Chat runtime events unavailable' });
+  }
+});
+
+app.post('/api/engine-apex/chat-runtime/events', async (req, res) => {
+  try {
+    const { recordChatRuntimeEvent } = await import('./src/core/engine-apex-chat-runtime.mjs');
+    return res.status(201).json({
+      success: true,
+      ...(await recordChatRuntimeEvent({
+        scope: req.body?.scope || 'default',
+        eventType: req.body?.eventType || 'runtime.event',
+        payload: req.body?.payload || {},
+        actor: req.body?.actor || 'engine-apex'
+      }))
+    });
+  } catch (error) {
+    console.error('[engine-apex-chat-runtime-event]', error);
+    return res.status(503).json({ success: false, error: 'Chat runtime event unavailable' });
+  }
+});
+
+app.get('/api/engine-apex/chat-runtime/status', async (_req, res) => {
+  try {
+    const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
+    const snapshot = await getChatRuntimeState('default');
+    return res.json({
+      success: true,
+      engine: 'EngineApex',
+      runtime: 'chat',
+      durable: snapshot.durable,
+      stateVersion: snapshot.version ?? 0,
+      stateUpdatedAt: snapshot.updatedAt ?? null,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({ success: false, engine: 'EngineApex', runtime: 'chat', durable: false, error: 'Chat runtime unavailable', checkedAt: new Date().toISOString() });
+  }
+});
+
 app.get('/api/engine-apex/snapshot', async (_req, res) => {
   try {
     const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
