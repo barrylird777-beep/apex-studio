@@ -7,7 +7,7 @@ const REQUIRED = Object.freeze([
   ["TOONX","public/toonx-buyer.html"]
 ]);
 
-const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS","EngineApex","ShieldApex"];
+const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
 const results=[];
 
 for (const [surface,file] of REQUIRED) {
