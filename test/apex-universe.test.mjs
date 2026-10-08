@@ -6,8 +6,8 @@ test("Apex has exactly three canonical systems", () => {
   assert.deepEqual(Object.keys(APEX_SYSTEMS), ["APEX_STUDIO","GARDEN_OF_APEX","KORNKNOB"]);
 });
 
-test("TOONX and Special Search are Apex Studio surfaces", () => {
-  assert.equal(APEX_SURFACES.TOONX.owner, "apex-studio");
+test("TeeVee and Special Search are Apex Studio surfaces", () => {
+  assert.equal(APEX_SURFACES.TeeVee.owner, "apex-studio");
   assert.equal(APEX_SURFACES.SPECIAL_SEARCH.owner, "apex-studio");
   assert.doesNotThrow(() => assertCanonicalBoundary({system:"apex-studio",surface:"special-search"}));
   assert.throws(() => assertCanonicalBoundary({system:"garden-of-apex",surface:"special-search"}), /Special Search/);
@@ -23,10 +23,10 @@ test("all canonical systems can use the universal capability plane", () => {
   }
 });
 
-test("TOONX resolves to Apex Studio", () => {
-  const envelope = buildApexExecutionEnvelope({surface:"toonx"});
+test("TeeVee resolves to Apex Studio", () => {
+  const envelope = buildApexExecutionEnvelope({surface:"teevee"});
   assert.equal(envelope.system, "apex-studio");
-  assert.equal(envelope.surface, "toonx");
+  assert.equal(envelope.surface, "teevee");
 });
 
 test("unsafe bypasses are never enabled while artificial execution ceilings remain forbidden", () => {
@@ -38,8 +38,8 @@ test("unsafe bypasses are never enabled while artificial execution ceilings rema
 });
 test("Studio-owned operational surfaces remain inside the three-system boundary", () => {
   const studio = APEX_SYSTEMS.APEX_STUDIO.id;
-  assert.equal(APEX_SURFACES.TOONX.owner, studio);
+  assert.equal(APEX_SURFACES.TeeVee.owner, studio);
   assert.equal(APEX_SURFACES.SPECIAL_SEARCH.owner, studio);
-  assertCanonicalBoundary({ system: studio, surface: "toonx" });
+  assertCanonicalBoundary({ system: studio, surface: "teevee" });
   assertCanonicalBoundary({ system: studio, surface: "special-search" });
 });
