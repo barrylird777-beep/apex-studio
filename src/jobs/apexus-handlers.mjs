@@ -161,8 +161,9 @@ async function handle(stage, job){
   const base=`Apexus original animated entertainment network. Episode ${code}. Title: ${episode.title}. Lane: ${episode.audience_lane}. Runtime target: ${episode.runtime_target_seconds}s. Visual DNA: dark fantasy anime, sharp cel shading, high-contrast cinematic lighting, highly detailed. Make it original, entertaining, memorable, and suitable for its stated maturity lane.`;
   let file, metadata={provider:"deterministic"};
   if(stage==="story"){
-    let generated; try{generated=await generateText(`${base}\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`); metadata.provider=generated.provider; file=await writeText(code,stage,"story.md",generated.text);}
-    catch{file=await writeText(code,stage,"story.md",`# ${code}\n\nOriginal story development slot.\n\n30-second hook: Establish a striking mystery, immediate stakes, and a visual question that demands an answer.\n`);}
+    const generated=await generateText(`${base}\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
+    metadata.provider=generated.provider;
+    file=await writeText(code,stage,"story.md",generated.text);
   }else if(stage==="script"){
     const generated=await generateText(`${base}\nUsing the existing story artifact for ${code}, write a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
