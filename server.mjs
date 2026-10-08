@@ -273,12 +273,14 @@ app.get('/api/apex/apps', async (_req, res) => {
   try {
     const { listApexApps, assertSixAppInvariant } = await import('./src/apps/apex-six-apps.mjs');
     assertSixAppInvariant();
-    return res.json({ success: true, apps: listApexApps(), checkedAt: new Date().toISOString() });
+    const apps = listApexApps();
+    return res.json({ success: true, count: apps.length, apps, checkedAt: new Date().toISOString() });
   } catch (error) {
     console.error('[apex-apps]', error);
     return res.status(503).json({ success: false, error: 'Apex app registry unavailable' });
   }
 });
+
 
 app.get('/api/apex/apps/:appId/status', async (req, res) => {
   const id = String(req.params.appId || '').trim();
