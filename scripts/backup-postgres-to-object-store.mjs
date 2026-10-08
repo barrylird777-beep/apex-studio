@@ -43,13 +43,16 @@ pgEnv.PGDATABASE = decodeURIComponent(database.pathname.slice(1));
 const sslmode = database.searchParams.get("sslmode");
 if (sslmode) pgEnv.PGSSLMODE = sslmode;
 
-const region = process.env.AWS_REGION || process.env.S3_REGION || "auto";
-const endpoint = process.env.APEX_OBJECT_STORE_ENDPOINT || process.env.S3_ENDPOINT || "";
-const forcePathStyle = /^(1|true|yes)$/i.test(process.env.APEX_S3_FORCE_PATH_STYLE || "true");
+const region = process.env.AWS_REGION || process.env.APEX_OBJECT_STORAGE_REGION || process.env.S3_REGION || "auto";
+const endpoint = process.env.APEX_OBJECT_STORE_ENDPOINT || process.env.APEX_OBJECT_STORAGE_ENDPOINT || process.env.S3_ENDPOINT || "";
+const forcePathStyle = /^(1|true|yes)$/i.test(process.env.APEX_S3_FORCE_PATH_STYLE || "false");
+const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.APEX_OBJECT_STORAGE_ACCESS_KEY_ID || "";
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY || "";
 const s3 = new S3Client({
   region,
   endpoint: endpoint || undefined,
-  forcePathStyle
+  forcePathStyle,
+  ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {})
 });
 
 const tee = new PassThrough();
