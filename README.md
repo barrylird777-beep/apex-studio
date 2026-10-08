@@ -78,3 +78,9 @@ The three systems are exactly:
 - KORNKNOB: AI/model/media/computational capability.
 
 TOONX production is PostgreSQL-backed and uses the durable worker system for queued execution, leases, fencing, retries, recovery, deduplication, and horizontal worker scaling.
+
+### Apex Studio internal capabilities
+
+- **EngineApex** provides Studio opportunity, growth, business, and monetization intelligence. It decides what is worth pursuing and why; it does not own production execution.
+- **ShieldApex** provides Studio network-security boundaries, least-privilege enforcement, auditability, origin/API-key authorization, and fail-closed capability checks.
+- Both are internal Apex Studio capabilities, not additional Apex systems.
