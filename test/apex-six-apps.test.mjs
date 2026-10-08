@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
-import { evaluateOpportunity } from "../src/apps/apex-opportunity-engine.mjs";
-import { rapidProductionStatus } from "../src/apps/apex-rapid-production.mjs";
+import { evaluateOpportunity } from "../src/apps/paypex.mjs";
+import { teeveeStatus } from "../src/apps/teevee.mjs";
 import { gardenStatus } from "../src/apps/garden-of-apex.mjs";
 import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
 import { studioStatus } from "../src/apps/apex-studio.mjs";
-import { forgeStatus } from "../src/apps/forge-processing-engine.mjs";
+import { xshieldStatus } from "../src/apps/xshield.mjs";
 
 test("Apex exposes exactly six canonical apps", () => {
   assert.equal(assertSixAppInvariant(), true);
@@ -16,22 +16,22 @@ test("Apex exposes exactly six canonical apps", () => {
     Object.values(APEX_APPS).map(app => app.name),
     [
       "KornKnob",
-      "ApexRapidProduction",
-      "ApexOpportunityEngine",
+      "TeeVee",
+      "Paypex",
       "ApexStudio",
       "GardenOfApex",
-      "ForgeProcessingEngine"
+      "XShield"
     ]
   );
 });
 
 test("six app boundaries resolve to their locked systems", () => {
   assert.equal(getApexApp("korn-knob").system, "kornknob");
-  assert.equal(getApexApp("apex-rapid-production").system, "apex-studio");
-  assert.equal(getApexApp("apex-opportunity-engine").system, "apex-studio");
+  assert.equal(getApexApp("teevee").system, "apex-studio");
+  assert.equal(getApexApp("paypex").system, "apex-studio");
   assert.equal(getApexApp("apex-studio").system, "apex-studio");
   assert.equal(getApexApp("garden-of-apex").system, "garden-of-apex");
-  assert.equal(getApexApp("forge-processing-engine").system, "apex-studio");
+  assert.equal(getApexApp("xshield").system, "apex-studio");
 });
 
 test("opportunity engine evaluates without owning production", () => {
@@ -46,12 +46,12 @@ test("opportunity engine evaluates without owning production", () => {
     risk: 0,
     productionCost: 0
   });
-  assert.equal(result.engine, "ApexOpportunityEngine");
+  assert.equal(result.engine, "Paypex");
   assert.ok(result.score >= 0 && result.score <= 100);
 });
 
 test("rapid production contract preserves commercial output", () => {
-  const result = rapidProductionStatus();
+  const result = teeveeStatus();
   assert.equal(result.priceUsd, 25);
   assert.equal(result.previewSeconds, 10);
   assert.equal(result.paidOutputSeconds, 30);
@@ -62,5 +62,5 @@ test("Garden, KornKnob, Studio and Forge expose operational status", () => {
   assert.equal(gardenStatus().app.id, "garden-of-apex");
   assert.equal(kornKnobStatus().app.id, "korn-knob");
   assert.equal(studioStatus().app.id, "apex-studio");
-  assert.equal(forgeStatus().app.id, "forge-processing-engine");
+  assert.equal(xshieldStatus().app.id, "xshield");
 });
