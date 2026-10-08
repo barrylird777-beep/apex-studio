@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 const DEFAULT_RESTART_MS=2000;
 const DEFAULT_PROBE_TIMEOUT_MS=10000;
-const VIDEO_COPY_CODECS=new Set(['h264']);
+const VIDEO_COPY_CODECS=new Set(['h264','hevc']);
 const AUDIO_COPY_CODECS=new Set(['aac','mp3']);
 
 function required(value,name){if(!value)throw new TypeError(name+' is required');}
