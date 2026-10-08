@@ -17,7 +17,7 @@ test("streamAssetToStorage writes without buffering and returns SHA-256", async 
     assert.equal((await readFile(result.path)).toString(), data.toString());
     assert.match(result.sha256, /^[a-f0-9]{64}$/);
     assert.ok(result.transfer.parallelStreams >= 1);
-    assert.equal(typeof result.transfer.lastMbps, "number");
+    assert.equal(typeof result.averageMbps, "number");
   } finally {
     if (previous === undefined) delete process.env.STORAGE_DIR;
     else process.env.STORAGE_DIR = previous;
