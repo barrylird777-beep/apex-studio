@@ -253,6 +253,54 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+
+// Canonical six-app surface registry. These are application surfaces, not additional Apex systems.
+app.get('/api/apex/apps', async (_req, res) => {
+  try {
+    const { listApexApps, assertSixAppInvariant } = await import('./src/apps/apex-six-apps.mjs');
+    assertSixAppInvariant();
+    return res.json({ success: true, apps: listApexApps(), checkedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[apex-apps]', error);
+    return res.status(503).json({ success: false, error: 'Apex app registry unavailable' });
+  }
+});
+
+app.get('/api/apex/apps/:appId/status', async (req, res) => {
+  const id = String(req.params.appId || '').trim();
+  try {
+    if (id === 'korn-knob') {
+      const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
+      return res.json({ success: true, ...kornKnobStatus() });
+    }
+    if (id === 'apex-rapid-production') {
+      const { rapidProductionStatus } = await import('./src/apps/apex-rapid-production.mjs');
+      return res.json({ success: true, ...rapidProductionStatus() });
+    }
+    if (id === 'apex-opportunity-engine') {
+      const { opportunitySnapshot, opportunityStatus } = await import('./src/apps/apex-opportunity-engine.mjs');
+      const snapshot = await opportunitySnapshot();
+      return res.json({ success: true, ...opportunityStatus(snapshot), snapshot });
+    }
+    if (id === 'apex-studio') {
+      const { studioStatus } = await import('./src/apps/apex-studio.mjs');
+      return res.json({ success: true, ...studioStatus() });
+    }
+    if (id === 'garden-of-apex') {
+      const { gardenStatus } = await import('./src/apps/garden-of-apex.mjs');
+      return res.json({ success: true, ...gardenStatus() });
+    }
+    if (id === 'forge-processing-engine') {
+      const { forgeStatus } = await import('./src/apps/forge-processing-engine.mjs');
+      return res.json({ success: true, ...forgeStatus() });
+    }
+    return res.status(404).json({ success: false, error: 'Unknown Apex app' });
+  } catch (error) {
+    console.error('[apex-app-status]', id, error);
+    return res.status(503).json({ success: false, appId: id, error: 'Apex app status unavailable' });
+  }
+});
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
 });
