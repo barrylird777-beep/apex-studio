@@ -17,7 +17,6 @@
     {"id":"garden:Protocobs","type":"garden:JesusFreakLifeStage","name":"Protocobs","PROTOCOB_EVOLVES_TO":"garden:Cobs"},
     {"id":"garden:Cobs","type":"garden:JesusFreakLifeStage","name":"Cobs"},
     {"id":"garden:Popcorn","type":"garden:JesusFreakLifeStage","name":"Popcorn"},
-    {"id":"garden:CornNuts","type":"garden:JesusFreakLifeStage","name":"CornNuts"},
     {"id":"garden:KornYtunes","type":"garden:CreativeDomain","name":"KornYtunes","KORNYTUNE_OF":"garden:JesusFreaks"},
     {"id":"garden:JesusFreaks","type":"garden:Collective","name":"Jesus Freaks","HAS_LIFE_STAGE":"garden:Kernels"},
     {"id":"garden:ThroneOfKobs","type":"garden:Place","name":"ThroneOfKobs"}
