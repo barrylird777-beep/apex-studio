@@ -129,9 +129,10 @@ test("ApexIntelligence can submit durable work without executing it inline", asy
 });
 
 
-test("createStudio exposes the upgraded Apex Intelligence runtime", async () => {
+test("createStudio exposes the upgraded Apex Intelligence runtime", async t => {
   const { createStudio } = await import("../src/runtime/studio.mjs");
   const studio = createStudio({ persistenceFile: "/tmp/apex-intelligence-test-state.json" });
+  t.after(async () => { await studio.omniStore.close(); });
   assert.equal(typeof studio.intelligence?.run, "function");
   assert.equal(typeof studio.intelligence?.enqueueDurable, "function");
   assert.equal(typeof await studio.command("intelligence.queue", {
