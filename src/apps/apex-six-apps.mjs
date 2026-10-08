@@ -7,7 +7,20 @@ export const APEX_APPS = Object.freeze({
   KERNELDIES: Object.freeze({ id:"kernelodies", name:"Kernelodies", role:"music, sound, audio creation and audio identity", entry:"/kernelodies.html", module:"../apps/kernelodies.mjs" })
 });
 export const APEX_APP_IDS = Object.freeze(Object.values(APEX_APPS).map(app=>app.id));
-export function getApexApp(id){ return Object.values(APEX_APPS).find(app=>app.id===String(id)) ?? null; }
+
+const LEGACY_SUPPORT_APPS = Object.freeze({
+  "korn-knob": Object.freeze({ id:"korn-knob", name:"KornKnob", role:"legacy capability surface", entry:"/korn-knob.html" }),
+  "teevee": Object.freeze({ id:"teevee", name:"TeeVee", role:"legacy production surface", entry:"/teevee-buyer.html" }),
+  "paypex": Object.freeze({ id:"paypex", name:"PayPex", role:"legacy opportunity intelligence surface", entry:"/paypex.html" }),
+  "apex-studio": Object.freeze({ id:"apex-studio", name:"ApexStudio", role:"supporting production system surface", entry:"/" }),
+  "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", role:"supporting knowledge system surface", entry:"/garden-of-apex.html" }),
+  "xshield": Object.freeze({ id:"xshield", name:"XShield", role:"legacy network protection surface", entry:"/xshield.html" })
+});
+
+export function getApexApp(id){
+  const value=String(id);
+  return Object.values(APEX_APPS).find(app=>app.id===value) ?? LEGACY_SUPPORT_APPS[value] ?? null;
+}
 export function assertApexApp(id){ const app=getApexApp(id); if(!app) throw new Error("Unknown Apex app: "+id); return app; }
 export function listApexApps(){ return Object.values(APEX_APPS).map(app=>({...app})); }
 export function assertSixAppInvariant(){
