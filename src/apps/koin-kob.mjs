@@ -8,6 +8,7 @@ const n = (value, fallback = 0) => {
 };
 const uid = () => crypto.randomUUID();
 const clone = value => structuredClone(value);
+const workerIdOf = value => String(value ?? '').trim().slice(0, 256);
 
 export function createWorkerAccount(input = {}) {
   return {
