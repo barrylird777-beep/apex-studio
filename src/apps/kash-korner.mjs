@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
 
 const APP = getApexApp("kash-korner");
+const currencyOf = value => String(value || 'USD').trim().toUpperCase();
 const n = (value, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -25,6 +26,7 @@ export function recordCashEntry(input = {}) {
 }
 
 export function calculateCashBalance(entries = [], currency = null) {
+  const wanted = currency == null ? null : currencyOf(currency);
   return (Array.isArray(entries) ? entries : [])
     .filter(entry => !currency || String(entry.currency || "USD").toUpperCase() === String(currency).toUpperCase())
     .reduce((sum, entry) => sum + n(entry.amount), 0);
