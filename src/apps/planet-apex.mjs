@@ -43,7 +43,7 @@ export function addPlanetEntity(planet, input = {}) {
   if (!Array.isArray(next.entities)) next.entities = [];
   if (next.entities.some(entity => entity.id === id)) throw new Error("PlanetApeX entity already exists: " + id);
   const regionId = input.regionId ? safeId(input.regionId) : null;
-  if (regionId && !Array.isArray(next.regions) || regionId && !next.regions.some(region => region.id === regionId)) {
+  if (regionId && (!Array.isArray(next.regions) || !next.regions.some(region => region.id === regionId))) {
     throw new Error("PlanetApeX entity references an unknown region: " + regionId);
   }
   next.entities.push({
