@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
-import { evaluateOpportunity } from "../src/apps/paypex.mjs";
+import { evaluatePaypex } from "../src/apps/paypex.mjs";
 import { teeveeStatus } from "../src/apps/teevee.mjs";
 import { gardenStatus } from "../src/apps/garden-of-apex.mjs";
 import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
@@ -58,7 +58,7 @@ test("rapid production contract preserves commercial output", () => {
   assert.equal(result.aspectRatio, "9:16");
 });
 
-test("Garden, KornKnob, Studio and Forge expose operational status", () => {
+test("Garden, KornKnob, Studio and XShield expose operational status", () => {
   assert.equal(gardenStatus().app.id, "garden-of-apex");
   assert.equal(kornKnobStatus().app.id, "korn-knob");
   assert.equal(studioStatus().app.id, "apex-studio");
