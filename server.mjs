@@ -381,8 +381,10 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
 
 app.get('/api/canon/trajectory', async (_req, res) => {
   try {
-    const { canonicalTrajectory } = await import('./src/apps/canonical-trajectory.mjs');
-    return res.json({ success: true, trajectory: canonicalTrajectory() });
+    const { canonicalTrajectory, validateCanonicalTrajectory } = await import('./src/apps/canonical-trajectory.mjs');
+    const trajectory = canonicalTrajectory();
+    validateCanonicalTrajectory(trajectory);
+    return res.json({ success: true, trajectory });
   } catch (error) {
     console.error('[canonical-trajectory]', error);
     return res.status(503).json({ success: false, error: 'Canonical trajectory unavailable' });
