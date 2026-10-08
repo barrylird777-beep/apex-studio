@@ -1,6 +1,6 @@
-# TOONX Buyer Readiness
+# APEXUS Buyer Readiness
 
-TOONX is a 24/7 original animated entertainment network, not a single video-generation utility.
+Apexus is a 24/7 original animated entertainment network, not a single video-generation utility.
 
 The production target is 2,785 deterministic episode slots, APX-0001 through APX-2785, flowing through story, script, storyboard, voice, audio, visual development, animation, edit, QC, master, catalog, and schedule.
 
@@ -19,10 +19,10 @@ A buyer should be able to inspect:
 3. QC evidence.
 4. Catalog registration.
 5. 24/7 schedule continuity.
-6. Live TOONX broadcast status.
+6. Live Apexus broadcast status.
 7. The buyer-readiness audit.
 
-Run `npm run apex:release-audit`.
+Run `npm run apexus:buyer-audit`.
 
 The audit only reports `buyerReady: true` when all 2,785 episode records, catalog records, and scheduled records exist and no episode is missing either catalog or scheduled placement.
 

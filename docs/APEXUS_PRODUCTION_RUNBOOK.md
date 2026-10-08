@@ -1,6 +1,6 @@
-# TOONX Production Runbook
+# Apexus Production Runbook
 
-TOONX is the 24/7 original animated entertainment network.
+Apexus is the 24/7 original animated entertainment network.
 
 ## Production inventory
 
@@ -36,10 +36,10 @@ Text generation tries configured OpenRouter, Groq, then OpenAI credentials.
    npm run db:migrate:postgres
 
 2. Seed all 2,785 episode slots and the first production wave:
-   npm run toonx:bootstrap
+   npm run apexus:bootstrap
 
-3. Run the durable TOONX worker:
-   npm run toonx:worker
+3. Run the durable Apexus worker:
+   npm run apexus:worker
 
 The worker can be scaled horizontally. Durable leases, fencing, retries, dedupe keys, and FOR UPDATE SKIP LOCKED prevent duplicate claims.
 
@@ -47,7 +47,7 @@ The worker can be scaled horizontally. Durable leases, fencing, retries, dedupe 
 
 Default production artifacts are written beneath:
 
-./data/toonx/APX-####/
+./data/apexus/APX-####/
 
 Each episode receives stage-specific artifacts and provenance records.
 

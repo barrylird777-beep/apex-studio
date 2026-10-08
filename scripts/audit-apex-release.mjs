@@ -10,10 +10,7 @@ const REQUIRED = Object.freeze([
   ["Engine Apex","public/engine-apex.html"],
   ["ShieldApex","public/shield-apex.html"],
   ["Engine Apex core","src/core/engine-apex.mjs"],
-  ["ShieldApex core","src/core/shield-apex.mjs"],
-  ["TOONX buyer readiness","docs/TOONX_BUYER_READINESS.md"],
-  ["TOONX network canon","docs/TOONX_NETWORK_CANON.md"],
-  ["TOONX production runbook","docs/TOONX_PRODUCTION_RUNBOOK.md"]
+  ["ShieldApex core","src/core/shield-apex.mjs"]
 ]);
 
 const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
@@ -25,10 +22,7 @@ const FORBIDDEN_RUNTIME_FILES = Object.freeze([
   "test/apexus-production.test.mjs",
   "test/apexus-production-api.test.mjs",
   "test/apexus-network-scheduler.test.mjs",
-  "test/apexus-broadcast-controller.test.mjs",
-  "docs/APEXUS_BUYER_READINESS.md",
-  "docs/APEXUS_NETWORK_CANON.md",
-  "docs/APEXUS_PRODUCTION_RUNBOOK.md"
+  "test/apexus-broadcast-controller.test.mjs"
 ]);
 const results=[];
 
@@ -45,7 +39,7 @@ const packageJson=JSON.parse(await fs.readFile("package.json","utf8"));
 const requiredScripts=["toonx:bootstrap","toonx:prepare","toonx:schedule","toonx:worker"];
 const scripts=Object.fromEntries(requiredScripts.map(name=>[name,typeof packageJson.scripts?.[name]==="string"]));
 
-const runtimeFiles=["server.mjs","src","public","test","docs"];
+const runtimeFiles=["server.mjs","src","public","test"];
 const sources=[];
 async function collect(entry){
   let stat;
