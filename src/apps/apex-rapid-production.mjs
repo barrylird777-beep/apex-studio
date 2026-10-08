@@ -1,7 +1,7 @@
 import { executeRapidVideoOrder, executeRapidVideoPreview } from "../workers/rapid-video-worker.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
-const APP = getApexApp("apex-rapid-production");
+const APP = getApexApp("teevee");
 
 export async function createPreview(payload = {}) {
   return {
