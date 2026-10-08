@@ -21,5 +21,19 @@ export async function canonicalAppStatus(id){
   return {success:true,...result};
 }
 export async function canonicalAppsStatus(){
-  return Promise.all(listApexApps().map(app=>canonicalAppStatus(app.id)));
+  const results = await Promise.allSettled(listApexApps().map(app => canonicalAppStatus(app.id)));
+  return results.map((result, index) => {
+    const app = listApexApps()[index];
+    if (result.status === "fulfilled") return result.value;
+    return {
+      success: false,
+      app: { ...app },
+      role: app.role,
+      canonical: true,
+      status: "degraded",
+      capabilities: [],
+      error: String(result.reason?.message || result.reason || "App status unavailable"),
+      checkedAt: new Date().toISOString()
+    };
+  });
 }
