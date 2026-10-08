@@ -49,6 +49,11 @@ const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
+app.use(express.json({
+  limit: CAPACITY.jsonBody,
+  type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
+}));
+
 function timingSafeSecret(expected, supplied) {
   if (!expected || !supplied) return false;
   const a = Buffer.from(String(expected));
@@ -277,7 +282,6 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
   }
 });
 
-app.use(express.json({ limit: CAPACITY.jsonBody }));
 
 if (durableWorkerEnabled()) {
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
