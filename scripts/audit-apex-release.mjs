@@ -16,6 +16,16 @@ const REQUIRED = Object.freeze([
   ["ShieldApex core","src/core/shield-apex.mjs"]
 ]);
 
+const CANONICAL_APP_MODULES = Object.freeze([
+  ["KornKnob","src/apps/korn-knob.mjs"],
+  ["TeeVee","src/apps/teevee.mjs"],
+  ["PayPex","src/apps/paypex.mjs"],
+  ["ApexStudio","src/apps/apex-studio.mjs"],
+  ["GardenOfApex","src/apps/garden-of-apex.mjs"],
+  ["XShield","src/apps/xshield.mjs"],
+  ["canonical app registry","src/apps/apex-six-apps.mjs"]
+]);
+
 const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
 const FORBIDDEN_RUNTIME_FILES = Object.freeze([
   "public/apexus-buyer.html",
@@ -27,9 +37,9 @@ const FORBIDDEN_RUNTIME_FILES = Object.freeze([
   "test/apexus-network-scheduler.test.mjs",
   "test/apexus-broadcast-controller.test.mjs"
 ]);
-const results=[];
 
-for (const [surface,file] of REQUIRED) {
+const results=[];
+for (const [surface,file] of [...REQUIRED, ...CANONICAL_APP_MODULES]) {
   try {
     const stat=await fs.stat(file);
     results.push({surface,file,exists:true,bytes:stat.size});
@@ -51,18 +61,14 @@ async function collect(entry){
     for(const child of await fs.readdir(entry)) await collect(entry+"/"+child);
     return;
   }
-  if(/\.(mjs|js|html|json)$/.test(entry)){
-    sources.push(await fs.readFile(entry,"utf8"));
-  }
+  if(/\.(mjs|js|html|json)$/.test(entry)) sources.push(await fs.readFile(entry,"utf8"));
 }
 for(const entry of runtimeFiles) await collect(entry);
+
 const forbiddenHits=FORBIDDEN_CANON_NAMES.filter(name=>sources.some(source=>source.includes(name)));
 const forbiddenRuntimeFiles=[];
 for (const file of FORBIDDEN_RUNTIME_FILES) {
-  try {
-    await fs.stat(file);
-    forbiddenRuntimeFiles.push(file);
-  } catch {}
+  try{await fs.stat(file); forbiddenRuntimeFiles.push(file)}catch{}
 }
 
 const ready =
@@ -73,6 +79,7 @@ const ready =
 
 console.log(JSON.stringify({
   product:"Apex",
+  canonicalAppCount:6,
   surfaces:results,
   requiredScripts:scripts,
   forbiddenCanonHits:forbiddenHits,
