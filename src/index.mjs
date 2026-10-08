@@ -12,6 +12,7 @@ export * from "./core/retrieval.mjs";
 export * from "./core/research.mjs";
 export * from "./agents/orchestrator.mjs";
 export * from "./agents/apex-intelligence.mjs";
+export * from "./agents/apex-intelligence-runtime.mjs";
 export * from "./agents/registry.mjs";
 export * from "./agents/tool-registry.mjs";
 export * from "./agents/specialists.mjs";
