@@ -2220,7 +2220,7 @@ app.get('/api/engine-apex/status', async (_req, res) => {
       engine: 'EngineApex',
       state: snapshot.state,
       opportunityCount: snapshot.opportunities.length,
-      handoffs: ['Apexus', 'ApexStudio'],
+      handoffs: ['Apexus', 'ApexStudios'],
       productionSeparated: true,
       checkedAt: new Date().toISOString()
     });
