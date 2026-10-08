@@ -63,7 +63,7 @@ app.use(cors({
     return callback(new Error('CORS origin not allowed'));
   },
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id'],
   maxAge: 600
 }));
 
@@ -623,8 +623,6 @@ const permanentWorkerHeartbeat = setInterval(() => {
 permanentWorkerHeartbeat.unref?.();
 
 
-app.disable('x-powered-by');
-app.use(cors());
 // Serve the standalone public app pages before API routes.
 app.get('/api/teevee/buyer', (_req, res) => {
   res.status(200).json({
@@ -780,7 +778,7 @@ app.get('/api/network/status', async (req,res)=>{
     const clientTelemetry = clientId ? clientNetworkTelemetry.get(clientId) || null : null;
     const healthy = fabric.candidates.filter(p => p.healthy);
     const runtimeObserved = fabric.candidates.length > 0;
-    res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:Boolean(fabric.verification?.starlinkVerified),sixGObserved:Boolean(fabric.verification?.sixGVerified)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
+    res.set('Cache-Control', 'no-store').json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:Boolean(fabric.verification?.starlinkVerified),sixGObserved:Boolean(fabric.verification?.sixGVerified)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
 app.use('/api/studio/audio', createAudioStationRouter());
