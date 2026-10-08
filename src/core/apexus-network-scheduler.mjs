@@ -43,7 +43,7 @@ export function buildNetworkSchedule({ episodes, startAt, horizonMinutes = 1440 
     const blockEnd = Math.min(endAt, cursor + block.minutes * 60000);
     const eligible = pools.get(block.lane) || [];
     const pool = eligible.length ? eligible : episodes;
-    const index = indexes.get(block.lane) || 0;
+    let index = indexes.get(block.lane) || 0;
 
     while (cursor < blockEnd) {
       const episode = pool[index % pool.length];
@@ -60,7 +60,8 @@ export function buildNetworkSchedule({ episodes, startAt, horizonMinutes = 1440 
         status: "scheduled"
       });
       cursor = slotEnd;
-      indexes.set(block.lane, index + 1);
+      index++;
+      indexes.set(block.lane, index);
     }
     blockIndex++;
   }
