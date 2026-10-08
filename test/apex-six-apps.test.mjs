@@ -16,10 +16,11 @@ test("Apex exposes exactly six canonical apps", () => {
   assert.equal(Object.keys(APEX_APPS).length, 6);
   assert.deepEqual(Object.values(APEX_APPS).map(app => app.name), ["KornKnob","TeeVee","PayPex","ApexStudio","GardenOfApex","XShield"]);
 });
-  
-test("all six app entries exist", async () => {
+
+test("all six app entries and implementation modules exist", async () => {
   for (const app of Object.values(APEX_APPS)) {
     await access(resolve(process.cwd(), "public", app.entry.replace(/^\//, "")));
+    await access(resolve(process.cwd(), "src/apps", app.module.replace(/^\.\.\/apps\//, "")));
   }
 });
 
@@ -72,9 +73,7 @@ test("all six app modules expose the same canonical app identity", async () => {
   ];
   for (const [id, path, fn] of modules) {
     const mod = await import(path);
-    const status = fn === "payPexStatus"
-      ? mod[fn]()
-      : mod[fn]();
+    const status = fn === "payPexStatus" ? mod[fn]() : mod[fn]();
     assert.equal(status.app.id, id);
     assert.equal(status.app.name, getApexApp(id).name);
   }
