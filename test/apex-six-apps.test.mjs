@@ -115,12 +115,14 @@ test("canonical app identities are internally consistent",async()=>{
 
 
 test("canonical trajectory forms a closed six-app contract",async()=>{
-  const { canonicalTrajectory, canonicalNeighbors } = await import("../src/apps/canonical-trajectory.mjs");
+  const { canonicalTrajectory, canonicalNeighbors, validateCanonicalTrajectory } = await import("../src/apps/canonical-trajectory.mjs");
   const trajectory=canonicalTrajectory();
   assert.equal(trajectory.contractVersion,"apex-canonical-trajectory.v1");
   assert.equal(trajectory.apps.length,6);
   assert.equal(trajectory.handoffs.length,6);
   assert.equal(trajectory.closedLoop,true);
   assert.equal(canonicalNeighbors("planet-apex").length,2);
+  assert.equal(validateCanonicalTrajectory(trajectory),true);
+  assert.throws(()=>validateCanonicalTrajectory({...trajectory,apps:trajectory.apps.slice(0,5)}),/exactly six apps/);
   assert.throws(()=>canonicalNeighbors("not-an-app"),/Unknown Apex app/);
 });
