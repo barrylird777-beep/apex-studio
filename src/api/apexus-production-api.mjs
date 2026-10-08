@@ -1,4 +1,5 @@
 import express from "express";
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { episodeCode } from "../core/apexus-production.mjs";
 
@@ -59,7 +60,7 @@ export function createApexusProductionRouter({ enqueue, requireAuth } = {}) {
           return res.status(200).json({success:true,episodeCode:code,status:"already-queued",jobId:existing.rows[0].id});
         }
         const job=await enqueue({
-          id:episode.id,
+          id:randomUUID(),
           workerId:"apexus-production-api",
           role:"apexus",
           task:"apexus.episode.story",
