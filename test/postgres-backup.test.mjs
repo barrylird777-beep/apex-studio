@@ -44,7 +44,7 @@ for arg in "$@"; do
   case "$arg" in
     --file) next_is_file=1 ;;
     *)
-      if [ "${next_is_file:-0}" = "1" ]; then
+      if [ "\${next_is_file:-0}" = "1" ]; then
         output="$arg"
         next_is_file=0
       fi
