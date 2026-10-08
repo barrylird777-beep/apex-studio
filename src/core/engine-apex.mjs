@@ -70,8 +70,9 @@ export async function getEngineSnapshot() {
 
   return {
     engine: "EngineApex",
-    ownerSystem: "apex-studio",
-    role: "opportunity, growth, business and monetization intelligence",
+    system: "apex-studio",
+    role: "studio_decision_engine",
+    purpose: "opportunity, growth, business and monetization intelligence",
     state: state.channel ? "evidence-backed" : "awaiting-evidence",
     source: "Apex channel intelligence",
     lifetime: summary.lifetime || null,
@@ -80,15 +81,16 @@ export async function getEngineSnapshot() {
       id: randomUUID(),
       opportunityId: item.id,
       action: "build-brief",
-      handoff: "Apex Studio",
+      handoff: "TOONX",
+      ownerSystem: "apex-studio",
       status: "proposed"
     })),
     separation: {
-      EngineApex: "decides what is worth pursuing and why",
-      ApexStudio: "executes production, social and infrastructure",
-      GardenOfApex: "supplies world and research knowledge where applicable",
-      KORNKNOB: "supplies models, media and computational capabilities",
-      ShieldApex: "protects Studio boundaries and enforces security policy"
+      EngineApex: "Studio decision and opportunity intelligence",
+      ApexStudio: "production, mastering, QC, delivery and infrastructure",
+      TOONX: "Studio production surface for original animated entertainment",
+      GardenOfApex: "knowledge and research source where applicable",
+      KORNKNOB: "AI, model, media and computational capability"
     },
     generatedAt: new Date().toISOString()
   };
@@ -100,13 +102,13 @@ export function buildEngineBrief(input = {}) {
   return {
     id: randomUUID(),
     engine: "EngineApex",
-    ownerSystem: "apex-studio",
+    system: "apex-studio",
     topic,
     objective: text(input.objective) || "Test the highest-value opportunity with the smallest credible production.",
     audience: text(input.audience) || "existing Apex audience",
     monetization: text(input.monetization) || "attention → audience growth → downstream revenue",
     evidenceRequired: true,
-    handoff: text(input.handoff) || "Apex Studio",
+    handoff: text(input.handoff) || "TOONX",
     createdAt: new Date().toISOString()
   };
 }
