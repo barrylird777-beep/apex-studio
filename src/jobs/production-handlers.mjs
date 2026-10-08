@@ -4,6 +4,7 @@ import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 import { createDurableJobsStore } from "./durable-jobs-store.mjs";
 import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
 import { buildUniversalExecutionEnvelope } from "../core/apex-universal-capabilities.mjs";
+import { createKornKnobIdea } from "../core/korn-knob.mjs";
 
 const { Pool } = pg;
 const pool = process.env.DATABASE_URL
@@ -79,9 +80,21 @@ async function renderTrend(job) {
   return executeRapidTrendRender(job.payload || {});
 }
 
+async function evaluateKornKnobIdea(job) {
+  const payload = job.payload || {};
+  const idea = createKornKnobIdea(payload);
+  return {
+    ...idea,
+    ownerApp: "KornKnob",
+    productionOwner: "ApexStudio",
+    durableEvaluation: true
+  };
+}
+
 export const handlers = {
   "trend.analyze": analyzeTrend,
-  "rapid.trend.render": renderTrend
+  "rapid.trend.render": renderTrend,
+  "kornknob.idea.evaluate": evaluateKornKnobIdea
 };
 
 export async function closeProductionHandlers() {
