@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import path from "node:path";
 import pg from "pg";
 import ffmpeg from "fluent-ffmpeg";
@@ -72,8 +73,9 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     await pool.query("UPDATE toonx_episodes SET state=$2,metadata=metadata||$3::jsonb WHERE id=$1",[episode.id,state,JSON.stringify({[stage+"Artifact"]:file})]);
   }
   const assetId=await recordAsset(episode,stage,file,metadata);
-  const bytes=await fs.readFile(file);
-  const sha256=createHash("sha256").update(bytes).digest("hex");
+  const digest=createHash("sha256");
+  for await (const chunk of createReadStream(file)) digest.update(chunk);
+  const sha256=digest.digest("hex");
   await pool.query(
     `INSERT INTO asset_provenance(run_id,kind,status,artifact_id,path,sha256,labels,sources,spec,metadata)
      VALUES($1,$2,'approved',$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb)`,
