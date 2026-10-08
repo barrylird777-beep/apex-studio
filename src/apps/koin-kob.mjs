@@ -86,8 +86,8 @@ export function settleMarket(accounts = [], market = { trades: [] }) {
     const quantity = n(trade.quantity);
     const price = n(trade.price);
     const total = quantity * price;
-    if (!buyer || !seller || quantity <= 0 || price < 0 || buyer.balance < total) {
-      rejected.push({ ...trade, reason: "insufficient-account-state" });
+    if (!buyer || !seller || buyer.workerId === seller.workerId || quantity <= 0 || price < 0 || buyer.balance < total) {
+      rejected.push({ ...trade, reason: buyer?.workerId === seller?.workerId ? "self-trade" : "insufficient-account-state" });
       continue;
     }
     const inventory = Math.max(0, n(seller.inventory?.[trade.asset]));
