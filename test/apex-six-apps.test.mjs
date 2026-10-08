@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
-import { evaluatePayPex } from "../src/apps/paypex.mjs";
+import { evaluatePayPex, payPexSnapshot, payPexStatus } from "../src/apps/paypex.mjs";
 import { teeveeStatus } from "../src/apps/teevee.mjs";
 import { gardenStatus } from "../src/apps/garden-of-apex.mjs";
 import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
@@ -27,6 +27,15 @@ test("PayPex evaluates money-making opportunities deterministically", () => {
   const result = evaluatePayPex({ demand: 1, evidence: 1, audienceFit: 1, revenuePotential: 1, speedToMarket: 1, repeatability: 1, novelty: 1, risk: 0, productionCost: 0 });
   assert.equal(result.engine, "PayPex");
   assert.ok(result.score >= 0 && result.score <= 100);
+});
+
+test("PayPex status uses the implemented snapshot/status contract", async () => {
+  const snapshot = await payPexSnapshot();
+  const status = payPexStatus(snapshot);
+  assert.equal(status.app.id, "paypex");
+  assert.equal(status.engine, "PayPex");
+  assert.equal(status.productionSeparated, true);
+  assert.equal(status.evidenceBacked, snapshot.state === "evidence-backed");
 });
 
 test("TeeVee is a continuous 24/7 TV network", () => {
