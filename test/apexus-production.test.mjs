@@ -11,6 +11,7 @@ import {
   buildLaunchManifest,
   buildEpisodeProductionJobs
 } from "../src/core/apexus-production.mjs";
+import { buildAnimationPlan } from "../src/jobs/apexus-handlers.mjs";
 
 test("Apexus has exactly 2,785 deterministic episode slots", () => {
   assert.equal(APEXUS_EPISODE_COUNT, 2785);
@@ -60,4 +61,15 @@ test("production job graph covers every real production stage in order", () => {
     "apexus.episode.master", "apexus.episode.catalog", "apexus.episode.schedule"
   ]);
   assert.equal(new Set(jobs.map(j => j.dedupeKey)).size, jobs.length);
+});
+
+
+test("Apexus animation planning covers the complete episode runtime", () => {
+  const plan = buildAnimationPlan(180);
+  assert.equal(plan.length, 30);
+  assert.equal(plan.reduce((sum, scene) => sum + scene.durationSeconds, 0), 180);
+  const odd = buildAnimationPlan(181);
+  assert.equal(odd.length, 31);
+  assert.equal(odd.at(-1).durationSeconds, 1);
+  assert.equal(odd.reduce((sum, scene) => sum + scene.durationSeconds, 0), 181);
 });
