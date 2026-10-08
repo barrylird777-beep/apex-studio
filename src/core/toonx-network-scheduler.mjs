@@ -49,11 +49,14 @@ export function buildNetworkSchedule({ episodes, startAt, horizonMinutes = 1440 
       const episode = pool[index % pool.length];
       const duration = Math.max(1, Number(episode.runtime_target_seconds || 180));
       const proposedEnd = cursor + duration * 1000;
-      // Never split an episode across programming blocks. If the next episode
-      // does not fit, close this block early and let the next block begin
-      // immediately at the same cursor. Continuity beats arbitrary block math.
-      // Episodes are atomic broadcast units. Never truncate or stall the network
-    // merely because an episode crosses a nominal programming-block boundary.
+      const remainingInBlock = blockEnd - cursor;
+      // Episodes are atomic broadcast units. A normal episode that does not fit
+      // in the remaining block is deferred to the next block at the same cursor.
+      // An episode larger than the entire nominal block is allowed to overrun
+      // because truncating it would violate the atomic-content rule.
+      if (proposedEnd > blockEnd && duration * 1000 <= block.minutes * 60000) {
+        break;
+      }
       const slotEnd = proposedEnd;
       const startsAt = new Date(cursor).toISOString();
       rows.push({
