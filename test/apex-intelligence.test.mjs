@@ -127,3 +127,15 @@ test("ApexIntelligence can submit durable work without executing it inline", asy
   assert.equal(submitted.role, "intelligence");
   assert.equal(submitted.payload.goal, "Research Psalm 23");
 });
+
+
+test("createStudio exposes the upgraded Apex Intelligence runtime", async () => {
+  const { createStudio } = await import("../src/runtime/studio.mjs");
+  const studio = createStudio({ persistenceFile: "/tmp/apex-intelligence-test-state.json" });
+  assert.equal(typeof studio.intelligence?.run, "function");
+  assert.equal(typeof studio.intelligence?.enqueueDurable, "function");
+  assert.equal(typeof await studio.command("intelligence.queue", {
+    goal: "test durable intelligence",
+    context: { dedupeKey: "test-intelligence-dedupe" }
+  }).then(result => result.durable), "boolean");
+});
