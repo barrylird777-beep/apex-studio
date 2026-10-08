@@ -1,6 +1,6 @@
 import { createInfiniteBroadcast } from "./infinite-broadcast.mjs";
-import { buildNetworkSchedule } from "./toonx-network-scheduler.mjs";
-import { broadcastStatus, currentScheduleWindow, isScheduleContinuous } from "./toonx-broadcast-controller.mjs";
+import { buildNetworkSchedule } from "./teevee-network-scheduler.mjs";
+import { broadcastStatus, currentScheduleWindow, isScheduleContinuous } from "./teevee-broadcast-controller.mjs";
 import { getApexApp } from "../apps/apex-six-apps.mjs";
 
 const APP = getApexApp("teevee");
