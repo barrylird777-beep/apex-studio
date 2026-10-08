@@ -315,6 +315,30 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
   }
 });
 
+
+// Canonical six-app runtime API. Historical legacy app routes remain separate.
+app.get('/api/canon/apps', async (_req, res) => {
+  try {
+    const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
+    return res.json({ success: true, apps: canonicalAppsStatus(), checkedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[canonical-apps]', error);
+    return res.status(503).json({ success: false, error: 'Canonical app registry unavailable' });
+  }
+});
+
+app.get('/api/canon/apps/:appId/status', async (req, res) => {
+  try {
+    const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
+    return res.json(canonicalAppStatus(req.params.appId));
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
+    console.error('[canonical-app-status]', error);
+    return res.status(503).json({ success: false, error: 'Canonical app status unavailable' });
+  }
+});
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
 });
