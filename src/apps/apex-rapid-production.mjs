@@ -19,7 +19,7 @@ export async function createProduction(payload = {}) {
   };
 }
 
-export function rapidProductionStatus() {
+export function teeveeStatus() {
   return {
     app: { ...APP },
     priceUsd: 25,
