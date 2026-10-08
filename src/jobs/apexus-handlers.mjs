@@ -241,11 +241,11 @@ async function handle(stage, job){
     await new Promise((resolve,reject)=>ffmpeg(video).input(audio)
       .outputOptions(["-map","0:v:0","-map","1:a:0","-c:v","copy","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart"])
       .save(file).on("end",resolve).on("error",reject));
-  }  }else if(stage==="qc"){
+  }else if(stage==="qc"){
     const required=[
       path.join(stagePath(code,"voice"),"narration.wav"),
       path.join(stagePath(code,"audio"),"episode-audio.m4a"),
-      path.join(stagePath(code,"animation"),"scene-01.mp4"),
+      path.join(stagePath(code,"animation"),"full-episode.mp4"),
       path.join(stagePath(code,"edit"),"episode-edit.mp4")
     ];
     const checks=[];
