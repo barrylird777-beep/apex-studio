@@ -171,7 +171,12 @@ app.get('/api/apex/readiness', (_req, res) => {
     surfaces: [
       { id: 'apex-studio', name: 'Apex Studio', role: 'production', state: 'foundation-ready', entry: '/' },
       { id: 'garden-of-apex', name: 'Garden of Apex', role: 'knowledge', state: 'foundation-ready', entry: '/garden-of-apex.html' },
-      { id: 'kornknob', name: 'KORNKNOB', role: 'capability', state: 'foundation-ready', entry: '/korn-knob.html' }
+      { id: 'kornknob', name: 'KORNKNOB', role: 'capability', state: 'foundation-ready', entry: '/korn-knob.html' },
+      { id: 'special-search', name: 'Special Search', role: 'specialized-search', ownerSystem: 'apex-studio', state: 'integrated' },
+      { id: 'toonx', name: 'TOONX', role: 'original-animated-entertainment', ownerSystem: 'apex-studio', state: 'production-surface', entry: '/toonx-buyer.html' },
+      { id: 'engine-apex', name: 'Engine Apex', role: 'decision-intelligence', ownerSystem: 'apex-studio', state: 'integrated', entry: '/engine-apex.html' },
+      { id: 'shield-apex', name: 'ShieldApex', role: 'security', ownerSystem: 'apex-studio', state: 'integrated', entry: '/shield-apex.html' },
+      { id: 'apex-overseer', name: 'Apex Overseer', role: 'worker-orchestration', ownerSystem: 'apex-studio', state: 'integrated', entry: '/overseer.html' }
     ],
     commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
     checkedAt: new Date().toISOString()
