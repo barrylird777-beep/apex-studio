@@ -851,6 +851,7 @@ app.get('/korn-knob', async (_req, res) => {
     return res.status(500).send('KORN-KNOB UI unavailable');
   }
 });
+app.get('/rapid-video.html', (_req, res) => res.redirect(308, '/apexus-buyer.html'));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
 // storage module validates all filenames before they are written, while
