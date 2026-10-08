@@ -2,9 +2,13 @@ import fs from "node:fs/promises";
 
 const REQUIRED = Object.freeze([
   ["Apex Studio","public/index.html"],
+  ["Apex Rapid Production","public/rapid-video.html"],
   ["Garden of Apex","public/garden-of-apex.html"],
   ["KORNKNOB","public/korn-knob.html"],
-  ["TOONX","public/toonx-buyer.html"]
+  ["TOONX","public/toonx-buyer.html"],
+  ["Apex Overseer","public/overseer.html"],
+  ["Engine Apex","src/core/engine-apex.mjs"],
+  ["ShieldApex","src/core/shield-apex.mjs"]
 ]);
 
 const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
