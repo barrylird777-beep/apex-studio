@@ -34,6 +34,7 @@ import { createReleasePackage, buildYouTubeDescription, buildSubtitleCues } from
 import { createRetentionOpening, buildRetentionPrompt } from "../core/retention.mjs";
 import { createProductionJob, planProductionJobs, runnableJobs, startJob, completeJob, failJob, blockPlan, auditProductionPlan, orchestratorDecision } from "../core/production-orchestrator.mjs";
 import { createArtifact, addArtifactCheck, validateArtifact, promoteArtifact, artifactLineage, auditArtifactGraph } from "../core/artifact-provenance.mjs";
+import { createApexIntelligenceRuntime } from "../agents/apex-intelligence-runtime.mjs";
 import { createAgent, createCrew, createHandoff, queueHandoff, completeHandoff, availableAgents, requestHumanApproval, approveCrewDecision, revokeCrewApproval, canRelease, auditCrew } from "../core/agent-crew.mjs";
 import { createPackagingVariant, createGrowthExperiment, recordGrowthMetrics, recordGrowthObservation, growthLearningReport, buildGrowthPrompt } from "../core/growth-engine.mjs";
 import { SexEngine } from "../core/se-x.mjs";
@@ -55,6 +56,7 @@ export function createStudio(options={}) {
     agents:new AgentRegistry(),orchestrator:new AgentOrchestrator(),
     sources:new SourceRegistry(),knowledgeBase:new KnowledgeBase(),research:new ResearchEngine(),
     assets:new AssetRegistry(),world:new WorldState(),jobs:new JobQueue(events),
+    intelligence:null,
     providers:new ProviderRegistry(),tools:new ToolRegistry(),sessions:new SessionManager(),
     persistence:new JsonStore(options.persistenceFile??process.env.APEX_STATE_FILE??"./data/runtime/state.json"),
     commands:new CommandLog(),commandsRouter:new CommandRouter(),metrics:new Metrics(),render:new RenderQueue(),
@@ -65,6 +67,19 @@ export function createStudio(options={}) {
     buildYouTubeDescription,buildSubtitleCues
   };
   studio.sex=new SexEngine({egress:studio.egress,store:studio.omniStore,events});
+  studio.intelligence=createApexIntelligenceRuntime({
+    memory:studio.memory,
+    events,
+    persistence: async value => {
+      studio.memory.remember({
+        type: "intelligence-run",
+        projectId: value?.plan?.context?.projectId ?? null,
+        content: JSON.stringify(value),
+        importance: value?.status === "complete" ? 0.9 : 0.65
+      });
+      return value;
+    }
+  });
   void studio.omniStore.init();
   studio.search=(query,limit=30)=>universalSearch(query,[
     {type:"projects",items:studio.projects.list()},
@@ -79,6 +94,8 @@ export function createStudio(options={}) {
   studio.command=async(name,args={})=>studio.commandsRouter.dispatch(name,args);
   studio.commandsRouter
     .register("search",({query,limit=30})=>studio.search(query,limit))
+    .register("intelligence.run",({goal,context={}})=>studio.intelligence.run(goal,context))
+    .register("intelligence.queue",({goal,context={}})=>studio.intelligence.enqueueDurable(goal,context))
     .register("omni.risk",input=>buildRiskReport(input))
     .register("omni.prosody",input=>parseProsody(input.text))
     .register("omni.stereo",input=>monoCompatibleWidth(input))
