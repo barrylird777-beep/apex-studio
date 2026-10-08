@@ -25,8 +25,21 @@ const packageJson=JSON.parse(await fs.readFile("package.json","utf8"));
 const requiredScripts=["apexus:bootstrap","apexus:prepare","apexus:schedule","apexus:worker","apexus:buyer-audit"];
 const scripts=Object.fromEntries(requiredScripts.map(name=>[name,typeof packageJson.scripts?.[name]==="string"]));
 
-const source=(await fs.readFile("README.md","utf8")).replace(/\s+/g," ");
-const forbiddenHits=FORBIDDEN_CANON_NAMES.filter(name=>source.includes(name));
+const runtimeFiles=["server.mjs","src","public","test"];
+const sources=[];
+async function collect(entry){
+  let stat;
+  try{stat=await fs.stat(entry)}catch{return}
+  if(stat.isDirectory){
+    for(const child of await fs.readdir(entry)) await collect(entry+"/"+child);
+    return;
+  }
+  if(/\\.(mjs|js|html|json)$/.test(entry)){
+    sources.push(await fs.readFile(entry,"utf8"));
+  }
+}
+for(const entry of runtimeFiles) await collect(entry);
+const forbiddenHits=FORBIDDEN_CANON_NAMES.filter(name=>sources.some(source=>source.includes(name)));
 
 const ready =
   results.every(item=>item.exists && item.bytes>0) &&
