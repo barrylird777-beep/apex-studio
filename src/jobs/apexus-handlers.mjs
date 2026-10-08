@@ -112,16 +112,20 @@ async function generateText(prompt){
     ["GROQ_API_KEY","https://api.groq.com/openai/v1/chat/completions",process.env.GROQ_MODEL||"llama-3.3-70b-versatile"],
     ["OPENAI_API_KEY","https://api.openai.com/v1/chat/completions",process.env.OPENAI_MODEL||"gpt-5.6"]
   ];
+  const failures=[];
   for(const [key,url,model] of providers){
     if(!process.env[key]) continue;
-    const r=await fetch(url,{method:"POST",headers:{"Authorization":`Bearer ${process.env[key]}`,"Content-Type":"application/json"},body:JSON.stringify({
-      model,messages:[{role:"system",content:"You are the Apexus original-animation writers room. Create original material only. Do not imitate living artists. Return production-ready text, concise and concrete."},{role:"user",content:prompt}],temperature:.8
-    })});
-    if(!r.ok) continue;
-    const data=await r.json(); const text=data?.choices?.[0]?.message?.content;
-    if(text) return {text,provider:key};
+    try{
+      const r=await fetch(url,{method:"POST",headers:{"Authorization":`Bearer ${process.env[key]}`,"Content-Type":"application/json"},body:JSON.stringify({
+        model,messages:[{role:"system",content:"You are the Apexus original-animation writers room. Create original material only. Do not imitate living artists. Return production-ready text, concise and concrete."},{role:"user",content:prompt}],temperature:.8
+      })});
+      if(!r.ok){ failures.push(`${key}: HTTP ${r.status}`); continue; }
+      const data=await r.json(); const text=data?.choices?.[0]?.message?.content;
+      if(text) return {text,provider:key};
+      failures.push(`${key}: empty response`);
+    }catch(error){ failures.push(`${key}: ${error?.message || error}`); }
   }
-  throw new Error("No configured text-generation provider");
+  throw new Error(failures.length ? `All configured text providers failed: ${failures.join("; ")}` : "No configured text-generation provider");
 }
 
 async function makeAudioBed(narrationPath, output){
@@ -165,14 +169,15 @@ async function handle(stage, job){
     metadata.provider=generated.provider;
     file=await writeText(code,stage,"story.md",generated.text);
   }else if(stage==="script"){
-    const generated=await generateText(`${base}\nUsing the existing story artifact for ${code}, write a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Keep it original.`);
+    const story=await fs.readFile(path.join(stagePath(code,"story"),"story.md"),"utf8");
+    const generated=await generateText(`${base}\nHere is the story development for ${code}:\n${story.slice(0,24000)}\n\nTurn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
   }else if(stage==="storyboard"){
     const scenes=Array.from({length:Math.max(6,Math.ceil(episode.runtime_target_seconds/60))},(_,i)=>({scene:i+1,durationSeconds:Math.min(60,episode.runtime_target_seconds),camera:i%3===0?"wide cinematic":i%3===1?"tracking medium":"close dramatic",purpose:i===0?"retention hook":"story progression",visualPrompt:`${base} scene ${i+1}, cinematic 16:9 animation frame`}));
     file=await writeJson(code,stage,"storyboard.json",{episode:code,scenes}); 
   }else if(stage==="voice"){
-    const text=`This is ${episode.title}. ${episode.logline||"A new Apexus story begins."}`;
-    file=await tts(text,path.join(stagePath(code,stage),"narration.wav"));
+    const script=await fs.readFile(path.join(stagePath(code,"script"),"script.md"),"utf8");
+    file=await tts(script.slice(0,60000),path.join(stagePath(code,stage),"narration.wav"));
   }else if(stage==="audio"){
     const narration=path.join(stagePath(code,"voice"),"narration.wav");
     file=await makeAudioBed(narration,path.join(stagePath(code,stage),"episode-audio.m4a"));
