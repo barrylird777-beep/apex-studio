@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
 import ffmpeg from "fluent-ffmpeg";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { buildEpisodeProductionJobs } from "../core/toonx-production.mjs";
 
 const { Pool } = pg;
@@ -72,6 +72,13 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     await pool.query("UPDATE toonx_episodes SET state=$2,metadata=metadata||$3::jsonb WHERE id=$1",[episode.id,state,JSON.stringify({[stage+"Artifact"]:file})]);
   }
   const assetId=await recordAsset(episode,stage,file,metadata);
+  const bytes=await fs.readFile(file);
+  const sha256=createHash("sha256").update(bytes).digest("hex");
+  await pool.query(
+    `INSERT INTO asset_provenance(run_id,kind,status,artifact_id,path,sha256,labels,sources,spec,metadata)
+     VALUES($1,$2,'approved',$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb)`,
+    [episode.id,stage,String(assetId),file,sha256,JSON.stringify(["TOONX",stage]),JSON.stringify([episode.episode_code]),JSON.stringify({stage,episodeCode:episode.episode_code}),JSON.stringify(metadata)]
+  );
   if(stage==="catalog"){
     const master=await pool.query(
       "SELECT id FROM toonx_episode_assets WHERE episode_id=$1 AND asset_type='episode.master' ORDER BY version DESC LIMIT 1",
