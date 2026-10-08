@@ -11,7 +11,7 @@ test('copy route accepts H264 plus AAC',()=>{
  assert(buildPassThroughArgs({ingest:'in',dest:'out'}).includes('copy'));
 });
 
-test('copy route accepts HEVC plus MP3',()=>assert.equal(canCopyProbe(probe('hevc','mp3')),true));
+test('copy route accepts HEVC plus MP3',()=>assert.equal(canCopyProbe(probe('hevc','mp3'),{enhancedRtmp:true}),true));
 
 test('incompatible codecs select CPU fallback',()=>{
  const r=selectRelayMode(probe('vp9','opus'));
