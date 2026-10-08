@@ -7,11 +7,24 @@ import { randomUUID, createHash } from "node:crypto";
 import { buildEpisodeProductionJobs } from "../core/toonx-production.mjs";
 
 const { Pool } = pg;
+
+function postgresSslConfig() {
+  const explicit = String(process.env.APEX_PG_SSL || "").trim().toLowerCase();
+  if (explicit === "false" || explicit === "0") return false;
+  if (explicit === "true" || explicit === "1") return { rejectUnauthorized: false };
+  try {
+    const hostname = new URL(process.env.DATABASE_URL).hostname;
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname) ? false : { rejectUnauthorized: false };
+  } catch {
+    return false;
+  }
+}
+
 const pool = process.env.DATABASE_URL ? new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 4,
   connectionTimeoutMillis: 10000,
-  ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false }
+  ssl: postgresSslConfig()
 }) : null;
 
 const ROOT = process.env.TOONX_OUTPUT_DIR || "./data/toonx";
