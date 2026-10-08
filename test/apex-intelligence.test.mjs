@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ApexIntelligence } from "../src/agents/apex-intelligence.mjs";
+import { closeWorkerStore } from "../src/core/mesh/durable-worker-store.mjs";
 
 test("ApexIntelligence completes through diagnose, execute, and verify", async () => {
   const phases = [];
@@ -132,7 +133,7 @@ test("ApexIntelligence can submit durable work without executing it inline", asy
 test("createStudio exposes the upgraded Apex Intelligence runtime", async t => {
   const { createStudio } = await import("../src/runtime/studio.mjs");
   const studio = createStudio({ persistenceFile: "/tmp/apex-intelligence-test-state.json" });
-  t.after(async () => { await studio.omniStore.close(); });
+  t.after(async () => { await studio.omniStore.close(); await closeWorkerStore(); });
   assert.equal(typeof studio.intelligence?.run, "function");
   assert.equal(typeof studio.intelligence?.enqueueDurable, "function");
   assert.equal(typeof await studio.command("intelligence.queue", {
