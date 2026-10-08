@@ -790,8 +790,8 @@ app.get('/api/studio/omni/events', async (req, res) => {
 app.use('/api/phone', createPhoneControlPlane({
   getHealth: async () => ({ ok: true, uptime: process.uptime() }),
   getNetwork: async () => {
-    const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
-    const fabric = await selectNetworkPath();
+    const { buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
+    const fabric = await getNetworkFabric();
     const healthy = fabric.candidates.filter(path => path.healthy);
     return {
       status: fabric.selected ? 'connected' : 'offline',
@@ -803,7 +803,9 @@ app.use('/api/phone', createPhoneControlPlane({
       verified: {
         runtimeInterfacesObserved: Boolean(fabric.selected || fabric.candidates.length),
         clientWifiObserved: false,
-        clientCellularObserved: false
+        clientCellularObserved: false,
+        starlinkObserved: Boolean(fabric.verification?.starlinkVerified),
+        sixGObserved: Boolean(fabric.verification?.sixGVerified)
       },
       checkedAt: new Date().toISOString()
     };
@@ -846,14 +848,14 @@ app.use('/api/mobile', createMobileControlPlane({
   getWorkers: async () => ({permanent:fleetStatus(permanentWorkerFleet),supervisor:permanentWorkerSupervisor.status(),durable:await queueStats(),aiCrew:aiCrew.status()}),
   getOverseer: async () => overseerStatus(apexOverseer, permanentWorkerFleet),
   getNetwork: async () => {
-    const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
-    const fabric = await selectNetworkPath(); const healthy = fabric.candidates.filter(path => path.healthy);
+    const { buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
+    const fabric = await getNetworkFabric(); const healthy = fabric.candidates.filter(path => path.healthy);
     return {status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),verified:{
       runtimeInterfacesObserved:Boolean(fabric.selected || fabric.candidates.length),
       clientWifiObserved:false,
       clientCellularObserved:false,
-      starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),
-      sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)
+      starlinkObserved:Boolean(fabric.verification?.starlinkVerified),
+      sixGObserved:Boolean(fabric.verification?.sixGVerified)
     },checkedAt:new Date().toISOString()};
   },
   generateAi: payload => generateUnifiedAi(payload),
