@@ -60,7 +60,7 @@ tee.on("data", chunk => {
   bytes += chunk.length;
 });
 
-const child = spawn(pgDump, ["--format=custom", "--no-password"], {
+const child = spawn(pgDump, ["--format=custom", "--no-owner", "--no-password"], {
   stdio: ["ignore", "pipe", "inherit"],
   env: pgEnv
 });
