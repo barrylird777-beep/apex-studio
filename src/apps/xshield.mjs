@@ -13,8 +13,8 @@ export function createXShieldProcessor(options = {}) {
       return worker.available();
     },
     async render(job, plan) {
-      if (!job || typeof job !== "object") throw new TypeError("Forge job is required");
-      if (!plan || typeof plan !== "object") throw new TypeError("Forge render plan is required");
+      if (!job || typeof job !== "object") throw new TypeError("XShield job is required");
+      if (!plan || typeof plan !== "object") throw new TypeError("XShield render plan is required");
       return worker.render(job, plan);
     },
     timelinePlan(input = {}) {
