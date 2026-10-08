@@ -7,6 +7,12 @@ const SIX_G_HINT = process.env.APEX_6G_INTERFACE || '6g';
 const WIFI_HINT = process.env.APEX_WIFI_INTERFACE || 'wlan';
 const CELLULAR_HINT = process.env.APEX_CELLULAR_INTERFACE || 'wwan';
 const APPLY_ROUTES = process.env.APEX_NETWORK_APPLY_ROUTES === 'true';
+const VERIFIED_NETWORK_CAPABILITIES = new Set(
+  String(process.env.APEX_VERIFIED_NETWORK_CAPABILITIES || '')
+    .split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)
+);
 
 async function interfaces() {
   try {
@@ -94,13 +100,18 @@ export async function selectNetworkPath() {
     failover,
     candidates,
     route: selected && selected.device !== 'runtime' ? await applyPriority(selected.device) : { applied: false, reason: selected?.device === 'runtime' ? 'runtime connectivity fallback; route mutation not applicable' : 'no selected path' },
+    verification: {
+      sixGVerified: VERIFIED_NETWORK_CAPABILITIES.has('6g'),
+      starlinkVerified: VERIFIED_NETWORK_CAPABILITIES.has('starlink'),
+      verificationSource: VERIFIED_NETWORK_CAPABILITIES.size ? 'explicit-runtime-configuration' : 'none'
+    },
     policy: {
       sixGHint: SIX_G_HINT,
       starlinkHint: STARLINK_HINT,
       wifiHint: WIFI_HINT,
       cellularHint: CELLULAR_HINT,
       applyRoutes: APPLY_ROUTES,
-      policy: 'health-first; 6G preferred when an actual 6G interface is present; Starlink next; Wi-Fi/cellular fallback'
+      policy: 'health-first; interface names are routing hints only; specialized network capabilities require explicit verification'
     }
   };
 }
