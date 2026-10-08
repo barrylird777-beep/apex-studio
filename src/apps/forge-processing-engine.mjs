@@ -3,7 +3,7 @@ import { buildTimelineFfmpegPlan } from "../core/ffmpeg.mjs";
 import { masterSoundtrack, masterFinalVideo } from "../core/mastering.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
-const APP = getApexApp("forge-processing-engine");
+const APP = getApexApp("xshield");
 
 export function createForgeProcessor(options = {}) {
   const worker = new RenderWorker(options);
