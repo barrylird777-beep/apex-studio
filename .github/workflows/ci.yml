@@ -81,7 +81,7 @@ jobs:
       - name: Start server for SPEC-005 HTTP smoke
         run: |
           set -euo pipefail
-          PORT=3001 npm start > /tmp/apex-server.log 2>&1 &
+          PORT=3001 npm run dev -- --dev > /tmp/apex-server.log 2>&1 &
           echo $! > /tmp/apex-server.pid
           for i in {1..45}; do
             if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3001/api/projects >/dev/null; then
