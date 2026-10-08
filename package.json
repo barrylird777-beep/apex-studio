@@ -30,8 +30,7 @@
     "toonx:bootstrap": "node scripts/bootstrap-toonx-2785.mjs",
     "toonx:prepare": "node scripts/prepare-toonx-2785.mjs",
     "toonx:schedule": "node scripts/schedule-toonx-network.mjs",
-    "toonx:worker": "APEX_JOB_HANDLER_MODULE=./src/jobs/toonx-handlers.mjs npm run durable:worker",
-    "toonx:buyer-audit": "node scripts/audit-toonx-buyer-ready.mjs"
+    "toonx:worker": "APEX_JOB_HANDLER_MODULE=./src/jobs/toonx-handlers.mjs npm run durable:worker"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
