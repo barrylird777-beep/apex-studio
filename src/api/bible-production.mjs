@@ -1,27 +1,14 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import sqlite3 from 'sqlite3';
-import path from 'node:path';
-import { mkdir } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { BIBLE_CHARACTER_SEEDS } from '../data/bible-characters.mjs';
+import { createBibleProductionStore } from '../core/bible-production-pg.mjs';
+
 const router=express.Router();
-const dir=path.dirname(fileURLToPath(import.meta.url));
-const dbDir=process.env.APEX_BIBLE_DB_DIR||path.join(dir,'../../data');
-const dbFile=process.env.APEX_BIBLE_DB||path.join(dbDir,'apex-bible.sqlite');
-const ready=(async()=>{await mkdir(dbDir,{recursive:true});const db=new sqlite3.Database(dbFile);const run=(s,p=[])=>new Promise((a,b)=>db.run(s,p,function(e){e?b(e):a({id:this.lastID,changes:this.changes})}));const all=(s,p=[])=>new Promise((a,b)=>db.all(s,p,(e,r)=>e?b(e):a(r)));const get=(s,p=[])=>new Promise((a,b)=>db.get(s,p,(e,r)=>e?b(e):a(r)));await run('PRAGMA foreign_keys=ON');
-for(const s of [
- 'CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,description TEXT,primary_scripture TEXT,status TEXT DEFAULT \'development\',created_at TEXT DEFAULT CURRENT_TIMESTAMP,updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
- 'CREATE TABLE IF NOT EXISTS characters(id INTEGER PRIMARY KEY AUTOINCREMENT,canonical_name TEXT NOT NULL UNIQUE,aliases TEXT DEFAULT \'[]\',primary_stories TEXT DEFAULT \'[]\',relationships TEXT DEFAULT \'[]\',key_traits TEXT DEFAULT \'[]\',notes TEXT,scripture_references TEXT DEFAULT \'[]\')',
- 'CREATE TABLE IF NOT EXISTS scenes(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,scene_number INTEGER,title TEXT,scripture_ref TEXT NOT NULL,location TEXT,characters_present TEXT DEFAULT \'[]\',action_summary TEXT,emotional_beat TEXT,production_notes TEXT,estimated_pages REAL,day_or_night TEXT)',
- 'CREATE TABLE IF NOT EXISTS shoot_days(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,date TEXT NOT NULL,unit TEXT DEFAULT \'1st Unit\',notes TEXT)',
- 'CREATE TABLE IF NOT EXISTS scene_shoot_days(scene_id INTEGER NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,shoot_day_id INTEGER NOT NULL REFERENCES shoot_days(id) ON DELETE CASCADE,PRIMARY KEY(scene_id,shoot_day_id))',
- 'CREATE TABLE IF NOT EXISTS call_sheets(id INTEGER PRIMARY KEY AUTOINCREMENT,shoot_day_id INTEGER REFERENCES shoot_days(id) ON DELETE CASCADE,project_id INTEGER,shoot_date TEXT,general_call_time TEXT,weather_notes TEXT,special_requirements TEXT,crew TEXT DEFAULT \'[]\',cast TEXT DEFAULT \'[]\',locations TEXT DEFAULT \'[]\',characters TEXT DEFAULT \'[]\',call_times TEXT DEFAULT \'{}\',scene_ids TEXT DEFAULT \'[]\',created_at TEXT DEFAULT CURRENT_TIMESTAMP,updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
- 'CREATE TABLE IF NOT EXISTS budget_items(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,category TEXT NOT NULL,description TEXT NOT NULL,estimated REAL DEFAULT 0,actual REAL DEFAULT 0,notes TEXT)',
- 'CREATE TABLE IF NOT EXISTS script_notes(id INTEGER PRIMARY KEY AUTOINCREMENT,project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,scene_id INTEGER REFERENCES scenes(id) ON DELETE SET NULL,scripture_ref TEXT NOT NULL,dialogue TEXT,version_notes TEXT)'
-] )await run(s);
-const n=await get('SELECT COUNT(*) n FROM characters');if(!Number(n.n))for(const c of BIBLE_CHARACTER_SEEDS)await run('INSERT OR IGNORE INTO characters(canonical_name,aliases,primary_stories,relationships,key_traits,notes,scripture_references) VALUES(?,?,?,?,?,?,?)',[c.canonicalName,JSON.stringify(c.aliases),JSON.stringify(c.primaryStories),JSON.stringify(c.relationships),JSON.stringify(c.keyTraits),c.notes,JSON.stringify(c.scriptureReferences)]);return{run,all,get}})();
-const arr=x=>Array.isArray(x)?x:[];const dec=x=>{try{return JSON.parse(x||'[]')}catch{return[]}};const chr=x=>({...x,aliases:dec(x.aliases),primaryStories:dec(x.primary_stories),relationships:dec(x.relationships),keyTraits:dec(x.key_traits),scriptureReferences:dec(x.scripture_references)});const scn=x=>({...x,charactersPresent:dec(x.characters_present)});const sheet=x=>({...x,crew:dec(x.crew),cast:dec(x.cast),locations:dec(x.locations),characters:dec(x.characters),callTimes:dec(x.call_times),sceneIds:dec(x.scene_ids)});const ref=x=>/^[1-3]?\s?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?$/.test(String(x||'').trim());const use=f=>ready.then(f);
+const db=createBibleProductionStore();
+const ready=db.ready();
+const use=f=>ready.then(()=>f(db));
+
+const arr=x=>Array.isArray(x)?x:[];const dec=x=>{if(Array.isArray(x))return x;try{return JSON.parse(x||'[]')}catch{return[]}};const chr=x=>({...x,aliases:dec(x.aliases),primaryStories:dec(x.primary_stories),relationships:dec(x.relationships),keyTraits:dec(x.key_traits),scriptureReferences:dec(x.scripture_references)});const scn=x=>({...x,charactersPresent:dec(x.characters_present)});const sheet=x=>({...x,crew:dec(x.crew),cast:dec(x.cast),locations:dec(x.locations),characters:dec(x.characters),callTimes:dec(x.call_times),sceneIds:dec(x.scene_ids)});const ref=x=>/^[1-3]?\s?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?$/.test(String(x||'').trim());const use=f=>ready.then(f);
 router.get('/projects',async(q,s)=>{try{s.json(await use(d=>d.all('SELECT p.*,COUNT(DISTINCT sc.id) scene_count,COUNT(DISTINCT sd.id) shoot_day_count FROM projects p LEFT JOIN scenes sc ON sc.project_id=p.id LEFT JOIN shoot_days sd ON sd.project_id=p.id GROUP BY p.id ORDER BY p.updated_at DESC')))}catch(e){s.status(500).json({error:e.message})}});
 router.post('/projects',async(q,s)=>{try{if(!String(q.body.title||'').trim())return s.status(400).json({error:'title is required'});const r=await use(d=>d.run('INSERT INTO projects(title,description,primary_scripture,status) VALUES(?,?,?,?)',[String(q.body.title).trim(),String(q.body.description||''),String(q.body.primaryScripture||''),String(q.body.status||'development')]));s.status(201).json(await use(d=>d.get('SELECT * FROM projects WHERE id=?',[r.id])))}catch(e){s.status(400).json({error:e.message})}});
 router.put('/projects/:id',async(q,s)=>{try{const r=await use(d=>d.run('UPDATE projects SET title=?,description=?,primary_scripture=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',[String(q.body.title||'').trim(),String(q.body.description||''),String(q.body.primaryScripture||''),String(q.body.status||'development'),q.params.id]));if(!r.changes)return s.status(404).json({error:'Project not found'});s.json(await use(d=>d.get('SELECT * FROM projects WHERE id=?',[q.params.id])))}catch(e){s.status(400).json({error:e.message})}});
