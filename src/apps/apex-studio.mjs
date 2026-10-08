@@ -25,7 +25,7 @@ export function studioStatus() {
       "delivery",
       "infrastructure",
       "special-search",
-      "toonx",
+      "teevee",
       "engine-apex",
       "shield-apex"
     ],
