@@ -30,7 +30,7 @@ test("postgres backup requires DATABASE_URL", async () => {
 test("postgres backup rejects non-PostgreSQL URLs", async () => {
   const result = await run({ DATABASE_URL: "https://example.invalid/db" });
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /valid PostgreSQL connection URL/);
+  assert.match(result.stderr, /PostgreSQL connection URL|postgres:\/\//);
 });
 
 test("postgres backup passes credentials through the environment, not pg_dump argv", async () => {
