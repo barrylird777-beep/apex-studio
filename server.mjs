@@ -336,6 +336,33 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
   }
 });
 
+app.get('/api/koin-kob/status', async (_req, res) => {
+  try {
+    const { koinKobStatus } = await import('./src/apps/koin-kob.mjs');
+    return res.json({ success: true, ...koinKobStatus() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { runWorkerEconomySimulation, createSystemicEvent } = await import('./src/apps/koin-kob.mjs');
+    const events = Array.isArray(req.body?.events)
+      ? req.body.events.map(event => createSystemicEvent(event))
+      : [];
+    const result = runWorkerEconomySimulation({
+      workerCount: req.body?.workerCount ?? 2000,
+      factions: req.body?.factions,
+      governanceModels: req.body?.governanceModels,
+      events
+    });
+    return res.status(202).json({ success: true, simulation: result });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
 app.get('/api/canon/apps', async (_req, res) => {
   try {
     const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
