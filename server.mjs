@@ -379,6 +379,28 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
   }
 });
 
+app.get('/api/canon/trajectory', async (_req, res) => {
+  try {
+    const { canonicalTrajectory } = await import('./src/apps/canonical-trajectory.mjs');
+    return res.json({ success: true, trajectory: canonicalTrajectory() });
+  } catch (error) {
+    console.error('[canonical-trajectory]', error);
+    return res.status(503).json({ success: false, error: 'Canonical trajectory unavailable' });
+  }
+});
+
+app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
+  try {
+    const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
+    return res.json({ success: true, appId: req.params.appId, neighbors: canonicalNeighbors(req.params.appId) });
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
+    console.error('[canonical-neighbors]', error);
+    return res.status(503).json({ success: false, error: 'Canonical app neighbors unavailable' });
+  }
+});
+
 app.get('/api/canon/apps', async (_req, res) => {
   try {
     const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
