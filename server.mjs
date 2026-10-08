@@ -42,6 +42,7 @@ import { FrictionlessResearchEngine } from './src/core/research/frictionless-res
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
+import { createApexusProductionRouter } from './src/api/apexus-production-api.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -150,6 +151,8 @@ app.get('/api/apexus/buyer', (_req, res) => {
     checkedAt: new Date().toISOString()
   });
 });
+
+app.use('/api/apexus/production', createApexusProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
 
 app.get('/api/apex/readiness', (_req, res) => {
   res.status(200).json({
