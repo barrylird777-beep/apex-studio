@@ -7,10 +7,19 @@ function jsonOrFallback(value, fallback) {
   return value;
 }
 
-function databaseSsl() {
-  return process.env.APEX_PG_SSL === "false"
-    ? false
-    : { rejectUnauthorized: false };
+function databaseSsl(connectionString) {
+  const explicit = String(process.env.APEX_PG_SSL || "").trim().toLowerCase();
+  if (explicit === "false" || explicit === "0") return false;
+  if (explicit === "true" || explicit === "1") return { rejectUnauthorized: false };
+
+  try {
+    const hostname = new URL(connectionString).hostname;
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname)
+      ? false
+      : { rejectUnauthorized: false };
+  } catch {
+    return false;
+  }
 }
 
 export class OmniStore {
@@ -20,7 +29,7 @@ export class OmniStore {
     }
 
     const connectionString = options.connectionString || process.env.DATABASE_URL;
-    if (!connectionString) {
+    if (!options.pool && !connectionString) {
       throw new Error("DATABASE_URL is required for PostgreSQL OmniStore");
     }
 
@@ -29,7 +38,7 @@ export class OmniStore {
       max: Number(options.max ?? process.env.APEX_DB_POOL_MAX ?? 20),
       idleTimeoutMillis: Number(options.idleTimeoutMillis ?? process.env.APEX_DB_IDLE_TIMEOUT_MS ?? 30000),
       connectionTimeoutMillis: Number(options.connectionTimeoutMillis ?? process.env.APEX_DB_CONNECTION_TIMEOUT_MS ?? 10000),
-      ssl: options.ssl ?? databaseSsl()
+      ssl: options.ssl ?? databaseSsl(connectionString)
     });
     this.ownsPool = !options.pool;
     this.ready = null;
