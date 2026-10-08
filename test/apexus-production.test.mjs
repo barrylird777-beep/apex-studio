@@ -8,7 +8,8 @@ import {
   canAdvanceEpisode,
   validateBroadcastReadiness,
   buildInitialProductionBatch,
-  buildLaunchManifest
+  buildLaunchManifest,
+  buildEpisodeProductionJobs
 } from "../src/core/apexus-production.mjs";
 
 test("Apexus has exactly 2,785 deterministic episode slots", () => {
@@ -47,4 +48,16 @@ test("initial batch creates the complete deterministic launch inventory", () => 
   assert.equal(batch.at(-1).episodeCode, "APX-2785");
   assert.equal(new Set(batch.map(e => e.episodeCode)).size, 2785);
   assert.equal(buildLaunchManifest().episodeCount, 2785);
+});
+
+
+test("production job graph covers every real production stage in order", () => {
+  const jobs = buildEpisodeProductionJobs(buildEpisode(1, { title: "Pilot" }));
+  assert.deepEqual(jobs.map(j => j.type), [
+    "apexus.episode.story", "apexus.episode.script", "apexus.episode.storyboard",
+    "apexus.episode.voice", "apexus.episode.audio", "apexus.episode.visual-development",
+    "apexus.episode.animation", "apexus.episode.edit", "apexus.episode.qc",
+    "apexus.episode.master", "apexus.episode.catalog", "apexus.episode.schedule"
+  ]);
+  assert.equal(new Set(jobs.map(j => j.dedupeKey)).size, jobs.length);
 });
