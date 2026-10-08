@@ -387,6 +387,56 @@ test("finished production requires evidence of required classes", () => {
   }));
 });
 
+test("finished original production defaults to source evidence", () => {
+  const protocob = createProtocob({
+    title: "Original Animation",
+    format: "toonx",
+    state: PROTOCOB_STATES.RELEASE_READY
+  });
+
+  const sourceEvidence = createEvidence({
+    type: EVIDENCE_TYPES.SOURCE,
+    objectId: protocob.id
+  });
+  const assetEvidence = createEvidence({
+    type: EVIDENCE_TYPES.ASSET,
+    objectId: protocob.id
+  });
+  const reviewEvidence = createEvidence({
+    type: EVIDENCE_TYPES.REVIEW,
+    objectId: protocob.id
+  });
+  const inspectionEvidence = createEvidence({
+    type: EVIDENCE_TYPES.INSPECTION,
+    objectId: protocob.id
+  });
+
+  protocob.data.inspections.push({
+    id: "inspection_original",
+    authority: WORKER_AUTHORITIES.KING_COB,
+    result: "approved",
+    evidenceIds: [
+      sourceEvidence.id,
+      assetEvidence.id,
+      reviewEvidence.id,
+      inspectionEvidence.id
+    ]
+  });
+
+  const registry = new Map([
+    [sourceEvidence.id, sourceEvidence],
+    [assetEvidence.id, assetEvidence],
+    [reviewEvidence.id, reviewEvidence],
+    [inspectionEvidence.id, inspectionEvidence],
+    [protocob.id, protocob]
+  ]);
+
+  assert.doesNotThrow(() => validateFinishedProduction({
+    protocob,
+    registry
+  }));
+});
+
 test("object validation rejects forbidden systems", () => {
   const invalid = {
     id: "bad_1",
