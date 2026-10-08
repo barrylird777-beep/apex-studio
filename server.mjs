@@ -273,12 +273,12 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
       const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
       return res.json({ success: true, ...kornKnobStatus() });
     }
-    if (id === 'apex-rapid-production') {
-      const { rapidProductionStatus } = await import('./src/apps/apex-rapid-production.mjs');
-      return res.json({ success: true, ...rapidProductionStatus() });
+    if (id === 'teevee') {
+      const { teeveeStatus } = await import('./src/apps/teevee.mjs');
+      return res.json({ success: true, ...teeveeStatus() });
     }
-    if (id === 'apex-opportunity-engine') {
-      const { opportunitySnapshot, opportunityStatus } = await import('./src/apps/apex-opportunity-engine.mjs');
+    if (id === 'paypex') {
+      const { opportunitySnapshot, opportunityStatus } = await import('./src/apps/paypex.mjs');
       const snapshot = await opportunitySnapshot();
       return res.json({ success: true, ...opportunityStatus(snapshot), snapshot });
     }
@@ -290,9 +290,9 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
       const { gardenStatus } = await import('./src/apps/garden-of-apex.mjs');
       return res.json({ success: true, ...gardenStatus() });
     }
-    if (id === 'forge-processing-engine') {
-      const { forgeStatus } = await import('./src/apps/forge-processing-engine.mjs');
-      return res.json({ success: true, ...forgeStatus() });
+    if (id === 'xshield') {
+      const { xshieldStatus } = await import('./src/apps/xshield.mjs');
+      return res.json({ success: true, ...xshieldStatus() });
     }
     return res.status(404).json({ success: false, error: 'Unknown Apex app' });
   } catch (error) {
