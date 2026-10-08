@@ -1,50 +1,34 @@
-import { RenderWorker } from "../core/render-worker.mjs";
-import { buildTimelineFfmpegPlan } from "../core/ffmpeg.mjs";
-import { masterSoundtrack, masterFinalVideo } from "../core/mastering.mjs";
+import { handleStudioAdBlockDoH, initializeStudioAdBlock, studioAdBlockStatus } from "../network/studio-adblock-doh.mjs";
+import { studioAdBlockMobileConfig } from "../network/studio-adblock-profile.mjs";
+import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from "../network/apex-content-filter.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
 const APP = getApexApp("xshield");
 
-export function createXShieldProcessor(options = {}) {
-  const worker = new RenderWorker(options);
-  return Object.freeze({
-    app: { ...APP },
-    async available() {
-      return worker.available();
-    },
-    async render(job, plan) {
-      if (!job || typeof job !== "object") throw new TypeError("XShield job is required");
-      if (!plan || typeof plan !== "object") throw new TypeError("XShield render plan is required");
-      return worker.render(job, plan);
-    },
-    timelinePlan(input = {}) {
-      return buildTimelineFfmpegPlan(input);
-    },
-    async masterAudio(items, bgmPath, outputPath) {
-      return masterSoundtrack(items, bgmPath, outputPath);
-    },
-    async masterVideo(videoPath, audioPath, outputPath, options = {}) {
-      return masterFinalVideo(videoPath, audioPath, outputPath, options);
-    },
-    status() {
-      return {
-        app: { ...APP },
-        renderer: "RenderWorker",
-        ffmpeg: worker.ffmpegPath,
-        outputDir: worker.outputDir,
-        checkedAt: new Date().toISOString()
-      };
-    }
-  });
+export async function initializeXShield() {
+  await initializeStudioAdBlock();
+  return xshieldStatus();
 }
 
-export function xshieldStatus(options = {}) {
-  const worker = new RenderWorker(options);
+export function xshieldStatus() {
   return {
     app: { ...APP },
-    renderer: "RenderWorker",
-    ffmpeg: worker.ffmpegPath,
-    outputDir: worker.outputDir,
+    product: "ad blocker",
+    dns: studioAdBlockStatus(),
+    contentFilter: contentFilterStatus(),
+    safariRules: buildSafariContentBlockerRules().length,
+    filtering: true,
+    firstPartyPolicy: "always-allow",
     checkedAt: new Date().toISOString()
   };
 }
+
+export function classifyXShieldRequest(url, options = {}) {
+  return classifyNetworkRequest(url, options);
+}
+
+export function xshieldMobileConfig() {
+  return studioAdBlockMobileConfig();
+}
+
+export { handleStudioAdBlockDoH };
