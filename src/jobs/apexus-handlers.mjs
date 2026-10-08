@@ -128,12 +128,12 @@ async function generateText(prompt){
   throw new Error(failures.length ? `All configured text providers failed: ${failures.join("; ")}` : "No configured text-generation provider");
 }
 
-async function makeAudioBed(narrationPath, output){
+async function makeAudioBed(narrationPath, output, runtimeSeconds){
   await fs.mkdir(path.dirname(output),{recursive:true});
   return new Promise((resolve,reject)=>ffmpeg(narrationPath)
     .input("anullsrc=r=48000:cl=stereo").inputFormat("lavfi")
-    .complexFilter("[0:a]volume=0.16[voice];[1:a]volume=0.035[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=2[mix]")
-    .outputOptions(["-map","[mix]","-c:a","aac","-b:a","192k","-shortest"])
+    .complexFilter("[0:a]volume=0.16,apad[voice];[1:a]volume=0.035[bed];[voice][bed]amix=inputs=2:duration=longest:dropout_transition=2[mix]")
+    .outputOptions(["-map","[mix]","-c:a","aac","-b:a","192k","-t",String(runtimeSeconds)])
     .save(output).on("end",()=>resolve(output)).on("error",reject));
 }
 
@@ -218,7 +218,7 @@ async function handle(stage, job){
     file=await tts(script.slice(0,60000),path.join(stagePath(code,stage),"narration.wav"));
   }else if(stage==="audio"){
     const narration=path.join(stagePath(code,"voice"),"narration.wav");
-    file=await makeAudioBed(narration,path.join(stagePath(code,stage),"episode-audio.m4a"));
+    file=await makeAudioBed(narration,path.join(stagePath(code,stage),"episode-audio.m4a"),episode.runtime_target_seconds);
   }else if(stage==="visual-development"){
     file=await media("image",`${base} character and environment keyframe, original designs, no logos, no existing franchise likenesses`,path.join(stagePath(code,stage),"keyframe.png"));
   }else if(stage==="animation"){
@@ -239,7 +239,7 @@ async function handle(stage, job){
     file=path.join(stagePath(code,stage),"episode-edit.mp4");
     await fs.mkdir(path.dirname(file),{recursive:true});
     await new Promise((resolve,reject)=>ffmpeg(video).input(audio)
-      .outputOptions(["-map","0:v:0","-map","1:a:0","-c:v","copy","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart"])
+      .outputOptions(["-map","0:v:0","-map","1:a:0","-c:v","copy","-c:a","aac","-b:a","192k","-t",String(episode.runtime_target_seconds),"-movflags","+faststart"])
       .save(file).on("end",resolve).on("error",reject));
   }else if(stage==="qc"){
     const required=[
