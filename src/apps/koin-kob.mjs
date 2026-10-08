@@ -202,7 +202,8 @@ export function runWorkerEconomySimulation({
       price: 5 + (index % 11)
     }));
   const result = runAdversarialRound({ workers: world.workers, orders: generatedOrders, events });
-  const accounts = settleMarket(world.workers, clearMarket(generatedOrders));
+  const appliedOrders = applyEvents(generatedOrders, events).orders;
+  const accounts = settleMarket(world.workers, clearMarket(appliedOrders));
   return {
     simulationId: world.id,
     workerCount: world.workerCount,
