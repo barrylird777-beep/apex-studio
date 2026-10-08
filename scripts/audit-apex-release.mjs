@@ -1,0 +1,45 @@
+import fs from "node:fs/promises";
+
+const REQUIRED = Object.freeze([
+  ["KORNKNOB","public/korn-knob.html"],
+  ["ApexStudios","public/index.html"],
+  ["GardenOfApex","public/garden-of-apex.html"],
+  ["EngineApex","public/engine-apex.html"],
+  ["Apexus","public/apexus-buyer.html"],
+  ["ShieldApex","public/shield-apex.html"]
+]);
+
+const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker"];
+const results=[];
+
+for (const [surface,file] of REQUIRED) {
+  try {
+    const stat=await fs.stat(file);
+    results.push({surface,file,exists:true,bytes:stat.size});
+  } catch {
+    results.push({surface,file,exists:false,bytes:0});
+  }
+}
+
+const packageJson=JSON.parse(await fs.readFile("package.json","utf8"));
+const requiredScripts=["apexus:bootstrap","apexus:prepare","apexus:schedule","apexus:worker","apexus:buyer-audit"];
+const scripts=Object.fromEntries(requiredScripts.map(name=>[name,typeof packageJson.scripts?.[name]==="string"]));
+
+const source=(await fs.readFile("README.md","utf8")).replace(/\s+/g," ");
+const forbiddenHits=FORBIDDEN_CANON_NAMES.filter(name=>source.includes(name));
+
+const ready =
+  results.every(item=>item.exists && item.bytes>0) &&
+  Object.values(scripts).every(Boolean) &&
+  forbiddenHits.length===0;
+
+console.log(JSON.stringify({
+  product:"Apex",
+  surfaces:results,
+  requiredScripts:scripts,
+  forbiddenCanonHits:forbiddenHits,
+  buyerGate:"payment-ready-not-live",
+  ready
+},null,2));
+
+if (!ready) process.exitCode=2;
