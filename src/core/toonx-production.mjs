@@ -8,7 +8,7 @@ export const TOONX_LANES = Object.freeze([
 
 export const TOONX_STATES = Object.freeze([
   "IDEA","STORY","SCRIPT","STORYBOARD","VOICE","AUDIO",
-  "VISUAL_DEVELOPMENT","ANIMATION","EDIT","QC","MASTER",
+  "VISUAL_DEVELOPMENT","ANIMATION","EDIT","QC","MASTER","INSPECTION",
   "SCHEDULED","BROADCAST","CATALOG"
 ]);
 
@@ -25,7 +25,8 @@ const prerequisites = Object.freeze({
   MASTER: ["qc"],
   SCHEDULED: ["master","catalog"],
   BROADCAST: ["scheduled"],
-  CATALOG: ["master","qc"]
+  INSPECTION: ["master"],
+  CATALOG: ["master","qc","inspection"]
 });
 
 export function episodeCode(globalEpisodeNumber) {
@@ -74,6 +75,7 @@ export function buildEpisode(globalEpisodeNumber, input = {}) {
 
 function hasArtifact(episode, key) {
   if (key === "creative_brief") return Object.keys(episode.creativeBrief ?? {}).length > 0;
+  if (key === "inspection") return episode.inspectionApproved === true;
   if (key === "catalog") return episode.catalogRegistered === true;
   if (key === "master") return episode.statuses?.master === "approved";
   if (key === "qc") return episode.statuses?.qc === "passed";
@@ -104,6 +106,7 @@ export function validateBroadcastReadiness(episode) {
   if (episode?.statuses?.qc !== "passed") errors.push("QC has not passed");
   if (episode?.statuses?.master !== "approved") errors.push("master is not approved");
   if (episode?.catalogRegistered !== true) errors.push("catalog asset is not registered");
+  if (episode?.inspectionApproved !== true) errors.push("King Cob inspection has not been approved");
   if (!episode?.scheduled) errors.push("broadcast slot is missing");
   return { ready: errors.length === 0, errors };
 }
@@ -123,7 +126,7 @@ export function buildLaunchManifest() {
 
 export function buildEpisodeProductionJobs(episode) {
   const id = episode.id;
-  const stages = ["story","script","storyboard","voice","audio","visual-development","animation","edit","qc","master","catalog","schedule"];
+  const stages = ["story","script","storyboard","voice","audio","visual-development","animation","edit","qc","master","inspection","catalog","schedule"];
   return stages.map((stage, index) => ({
     id: randomUUID(),
     type: `toonx.episode.${stage}`,
