@@ -47,9 +47,8 @@ export function createShieldApex({allowedOrigins=[],apiKeys=[],clock=()=>Date.no
   function authorizeCapability(grants,capability){
     if(!(grants instanceof Set)&&!Array.isArray(grants)) return false;
     const requested=String(capability??'').trim();
-    return requested.length>0&&grants.includes
-      ? grants.includes(requested)
-      : grants instanceof Set && grants.has(requested);
+    if(!requested) return false;
+    return grants instanceof Set ? grants.has(requested) : grants.includes(requested);
   }
 
   return {
