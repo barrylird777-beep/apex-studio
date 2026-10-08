@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayPex · Apex</title>
+<style>
+body{margin:0;background:#080a0f;color:#f2f4f7;font:16px/1.5 system-ui,sans-serif}main{max-width:1000px;margin:auto;padding:32px 20px}a{color:#9cc8ff}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}.card{border:1px solid #303640;border-radius:14px;padding:18px;background:#10141b}input,textarea,button{box-sizing:border-box;width:100%;margin-top:8px;padding:10px;border-radius:9px;border:1px solid #46505f;background:#0c1017;color:#fff}button{cursor:pointer}pre{white-space:pre-wrap;overflow:auto}.score{font-size:28px;font-weight:700}
+</style></head>
+<body><main>
+<p><a href="/">ApexStudio</a> · PayPex</p>
+<h1>PayPex</h1>
+<p>Money-making stock, market, business and monetization intelligence. PayPex proposes opportunities; ApexStudio owns production.</p>
+<section class="card"><h2>Current intelligence</h2><pre id="status">Loading…</pre></section>
+<h2>Build a brief</h2>
+<section class="card">
+<label>Topic<input id="topic" maxlength="240" required></label>
+<label>Objective<textarea id="objective" maxlength="1000"></textarea></label>
+<label>Audience<input id="audience" maxlength="240"></label>
+<button id="build">Create evidence-backed brief</button>
+<pre id="result"></pre>
+</section>
+<script>
+async function load(){
+ const r=await fetch("/api/apex/apps/paypex/status"); const d=await r.json();
+ document.getElementById("status").textContent=JSON.stringify(d,null,2);
+}
+document.getElementById("build").onclick=async()=>{
+ const topic=document.getElementById("topic").value.trim(), result=document.getElementById("result");
+ if(!topic){result.textContent="Topic is required.";return}
+ result.textContent="Creating…";
+ try{
+  const r=await fetch("/api/paypex/brief",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({topic,objective:document.getElementById("objective").value,audience:document.getElementById("audience").value})});
+  const d=await r.json(); result.textContent=JSON.stringify(d,null,2);
+ }catch(e){result.textContent=e.message}
+};
+load();
+</script></main></body></html>
