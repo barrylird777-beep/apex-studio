@@ -1,1 +1,52 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GardenOfApex | Apex</title><style>body{margin:0;background:#080808;color:#eee;font:16px system-ui;line-height:1.6}main{max-width:850px;margin:auto;padding:48px 22px}h1{font-size:clamp(42px,8vw,76px);margin:0}.tag{color:#aaa}.card{margin-top:28px;padding:22px;border:1px solid #333;border-radius:14px;background:#111}a{color:#fff}</style></head><body><main><p class="tag">BRAIN · APEX SURFACE</p><h1>GardenOfApex</h1><div class="card"><p>Research, Scripture, knowledge, Korn World, studies, histories, timelines and creative discovery. Garden researches and understands. It does not pretend unknown facts are known.</p><p><b>Surface ID:</b> GardenOfApex</p><p><a href="/api/apex/readiness">View Apex readiness manifest</a></p></div></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080808">
+<title>Garden of Apex</title>
+<style>
+:root{--bg:#080808;--panel:#111;--line:#303030;--text:#eee;--muted:#aaa;--good:#82e2aa}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 50% 0%,rgba(255,255,255,.08),transparent 40%),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+main{max-width:1000px;margin:auto;padding:32px 22px 80px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:55px}
+nav a{color:var(--text);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px}
+nav a:hover{background:#181818}
+.tag{color:#aaa;font-size:12px;font-weight:800;letter-spacing:.15em;text-transform:uppercase}
+h1{font-size:clamp(48px,9vw,88px);line-height:.9;letter-spacing:-.07em;margin:10px 0 20px}
+.lead{max-width:700px;color:#bbb;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:30px}
+.card{padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#151515,#101010)}
+.card h2{margin-top:0}.card p{color:#aaa}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--good)}
+.status i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+pre{white-space:pre-wrap;overflow:auto;background:#080808;border:1px solid var(--line);border-radius:12px;padding:14px;font-size:12px;color:#aaa}
+@media(max-width:650px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="/">Apex Studio</a><a href="/korn-knob.html">KORNKNOB</a><a href="/rapid-video.html">Apex Rapid Production</a><a href="/engine-apex.html">EngineApex</a><a href="/shield-apex.html">ShieldApex</a></nav>
+<p class="tag">Garden of Apex · Knowledge and Creative Ecosystem</p>
+<h1>Garden of Apex</h1>
+<p class="lead">A living knowledge and research environment for verified discoveries, Scripture, histories, timelines, textual traditions, world knowledge, creative development and the Jesus Freak ecosystem.</p>
+<div class="status"><i></i><span id="status">Checking Apex readiness…</span></div>
+<div class="grid">
+<section class="card"><h2>Research</h2><p>Investigate sources, preserve provenance, distinguish evidence from interpretation, and maintain uncertainty where evidence is incomplete.</p></section>
+<section class="card"><h2>Jesus Freaks</h2><p>Kernels develop expertise and roam the Garden. Popcorn preserve discoveries. CornNuts evaluate them. Cobs produce. Protocobs carry productions forward.</p></section>
+<section class="card"><h2>Kornification</h2><p>Knowledge can retain its transformation lineage from source material through extraction, verification, transformation and creative application.</p></section>
+<section class="card"><h2>Boundary</h2><p>Garden of Apex owns knowledge, research and the creative ecosystem. Apex Studio owns production. KORNKNOB supplies computational and media capability.</p></section>
+</div>
+<section class="card" style="margin-top:12px"><h2>Readiness</h2><pre id="readiness">Loading…</pre></section>
+</main>
+<script>
+const status=document.getElementById("status"),readiness=document.getElementById("readiness");
+async function load(){
+try{const response=await fetch("/api/apex/readiness",{cache:"no-store"});const data=await response.json();if(!response.ok)throw new Error(data.error||"Readiness request failed");status.textContent="Apex readiness available";readiness.textContent=JSON.stringify(data,null,2);}
+catch(error){status.textContent="Readiness unavailable";readiness.textContent=error instanceof Error?error.message:String(error);}
+}
+load();setInterval(load,30000);
+</script>
+</body>
+</html>
