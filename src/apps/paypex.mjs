@@ -1,4 +1,4 @@
-import { getEngineSnapshot, buildEngineBrief, scoreOpportunity } from "../core/engine-apex.mjs";
+import { getPaypexSnapshot, buildPaypexBrief, scoreOpportunity } from "../core/paypex-core.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
 const APP = getApexApp("paypex");
@@ -9,7 +9,7 @@ export async function paypexSnapshot() {
     app: { ...APP },
     ...snapshot,
     engine: "Paypex",
-    decisionCore: "EngineApex",
+    decisionCore: "Paypex",
     productionExecutionOwnedBy: "ApexStudio"
   };
 }
