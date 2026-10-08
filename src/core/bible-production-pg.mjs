@@ -40,7 +40,7 @@ export function createBibleProductionStore(options = {}) {
     let normalized = normalizeSql(original);
     const ignored = hasIgnore(original);
     const isInsert = /^\s*INSERT\s+/i.test(normalized);
-    const returnsId = isInsert && !/\bRETURNING\b/i.test(normalized) && !/scene_shoot_days/i.test(normalized);
+    const returnsId = isInsert && !ignored && !/\bRETURNING\b/i.test(normalized) && !/scene_shoot_days/i.test(normalized);
 
     if (returnsId) normalized += " RETURNING id";
     if (ignored && !/\bON\s+CONFLICT\b/i.test(normalized)) normalized += " ON CONFLICT DO NOTHING";
