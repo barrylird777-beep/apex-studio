@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { access } from "node:fs/promises";
+import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
 import { evaluatePayPex, payPexSnapshot, payPexStatus } from "../src/apps/paypex.mjs";
 import { teeveeStatus } from "../src/apps/teevee.mjs";
@@ -79,4 +81,15 @@ test("PayPex creates a production handoff brief", () => {
   assert.equal(brief.evidenceRequired, true);
   assert.equal(brief.handoff, "TeeVee");
   assert.ok(brief.id);
+});
+
+test("entry paths point to reachable public surfaces", async () => {
+  for (const app of Object.values(APEX_APPS)) {
+    const relative = app.entry === "/"
+      ? "public/index.html"
+      : "public" + app.entry;
+    await access(resolve(relative));
+  }
+  await access(resolve("public/teevee.html"));
+  await access(resolve("public/xshield.html"));
 });
