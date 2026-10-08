@@ -535,7 +535,6 @@ permanentWorkerHeartbeat.unref?.();
 app.disable('x-powered-by');
 app.use(cors());
 // Serve the standalone public app pages before API routes.
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 app.get('/api/apexus/buyer', (_req, res) => {
   res.status(200).json({
     success: true,
@@ -545,6 +544,8 @@ app.get('/api/apexus/buyer', (_req, res) => {
     payment: { state: 'payment-ready-not-live', processor: 'Stripe', activation: 'requires business-side Stripe setup and operating policy' }
   });
 });
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/api/network/adblock/content/status', (_req, res) => {
   return res.json(contentFilterStatus(studioAdBlockStatus().blockedDomains));
