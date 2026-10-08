@@ -1,11 +1,11 @@
 import { APEX_SYSTEMS } from "../core/apex-universe.mjs";
 
 export const APEX_APPS = Object.freeze({
-  KORN_KNOB: Object.freeze({ id: "korn-knob", name: "KornKnob", system: APEX_SYSTEMS.KORNKNOB.id, role: "audio and music capability", entry: "/korn-knob.html", module: "../core/korn-knob.mjs" }),
-  TEEVEE: Object.freeze({ id: "teevee", name: "TeeVee", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "24/7 television network and continuous programming", entry: "/teevee.html", module: "../core/teevee-broadcast.mjs" }),
-  PAYPEX: Object.freeze({ id: "paypex", name: "PayPex", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "money-making stock, market, business and monetization intelligence", entry: "/paypex.html", module: "../core/paypex-core.mjs" }),
-  STUDIO: Object.freeze({ id: "apex-studio", name: "ApexStudio", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "creative production, editing, mastering, QC and delivery", entry: "/", module: "../core/apex-universe.mjs" }),
-  GARDEN: Object.freeze({ id: "garden-of-apex", name: "GardenOfApex", system: APEX_SYSTEMS.GARDEN_OF_APEX.id, role: "knowledge, Scripture, research and creative world", entry: "/garden-of-apex.html", module: "../core/garden-of-apex.mjs" }),
+  KORN_KNOB: Object.freeze({ id: "korn-knob", name: "KornKnob", system: APEX_SYSTEMS.KORNKNOB.id, role: "audio and music capability", entry: "/korn-knob.html", module: "../apps/korn-knob.mjs" }),
+  TEEVEE: Object.freeze({ id: "teevee", name: "TeeVee", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "24/7 television network and continuous programming", entry: "/teevee.html", module: "../apps/teevee.mjs" }),
+  PAYPEX: Object.freeze({ id: "paypex", name: "PayPex", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "money-making stock, market, business and monetization intelligence", entry: "/paypex.html", module: "../apps/paypex.mjs" }),
+  STUDIO: Object.freeze({ id: "apex-studio", name: "ApexStudio", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "creative production, editing, mastering, QC and delivery", entry: "/", module: "../apps/apex-studio.mjs" }),
+  GARDEN: Object.freeze({ id: "garden-of-apex", name: "GardenOfApex", system: APEX_SYSTEMS.GARDEN_OF_APEX.id, role: "knowledge, Scripture, research and creative world", entry: "/garden-of-apex.html", module: "../apps/garden-of-apex.mjs" }),
   XSHIELD: Object.freeze({ id: "xshield", name: "XShield", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "ad blocking, tracker blocking and network filtering", entry: "/xshield.html", module: "../apps/xshield.mjs" })
 });
 
