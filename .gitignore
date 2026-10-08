@@ -6,6 +6,7 @@ node_modules/
 apex-production.sqlite
 apex-production.sqlite-*
 uploads/
+backups/postgres/
 
 # Gemini CLI settings and runtime artifacts
 .gemini/
