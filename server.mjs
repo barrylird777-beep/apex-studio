@@ -2507,6 +2507,8 @@ async function runInlineRapidTask(task) {
 if (durableWorkerEnabled()) {
   const rapidInlineLoop = async () => {
     const roles = ['rapid-preview', 'rapid-video'];
+    let dbFailureBackoffMs = 1000;
+    const maxDbFailureBackoffMs = 30000;
     while (true) {
       try {
         let claimedAny = false;
@@ -2516,10 +2518,13 @@ if (durableWorkerEnabled()) {
           claimedAny = true;
           await runInlineRapidTask(tasks[0]);
         }
+        dbFailureBackoffMs = 1000;
         if (!claimedAny) await new Promise(resolve => setTimeout(resolve, 1500));
       } catch (error) {
-        console.error('[rapid-inline-worker] poll failed:', error?.message || error);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.error('[rapid-inline-worker] poll failed; backing off:', error?.message || error);
+        const jitter = Math.floor(Math.random() * Math.max(250, dbFailureBackoffMs * 0.25));
+        await new Promise(resolve => setTimeout(resolve, Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter));
+        dbFailureBackoffMs = Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs * 2);
       }
     }
   };
