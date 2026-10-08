@@ -1,33 +1,28 @@
-import { executeRapidVideoOrder, executeRapidVideoPreview } from "../workers/rapid-video-worker.mjs";
+import { createTeeVeeBroadcast, buildTeeVeeSchedule, teeveeScheduleStatus } from "../core/teevee-broadcast.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
 const APP = getApexApp("teevee");
 
-export async function createTeeVeePreview(payload = {}) {
-  return {
-    app: { ...APP },
-    ...(await executeRapidVideoPreview(payload)),
-    appId: APP.id
-  };
+export function createTeeVeeBroadcastSurface(options = {}) {
+  return createTeeVeeBroadcast(options);
 }
 
-export async function createTeeVeeProduction(payload = {}) {
-  return {
-    app: { ...APP },
-    ...(await executeRapidVideoOrder(payload)),
-    appId: APP.id
-  };
+export function buildTeeVeeProgramming(input = {}) {
+  return buildTeeVeeSchedule(input);
+}
+
+export function getTeeVeeScheduleStatus(rows = [], now = new Date()) {
+  return teeveeScheduleStatus(rows, now);
 }
 
 export function teeveeStatus() {
   return {
     app: { ...APP },
-    priceUsd: 25,
-    previewSeconds: 10,
-    paidOutputSeconds: 30,
-    aspectRatio: "9:16",
-    output: "MP4 H.264/AAC",
-    execution: "durable-worker-capable",
+    product: "24/7 TV show/network",
+    mode: "continuous-linear-programming",
+    scheduling: "durable schedule",
+    broadcast: "RTMP/FFmpeg capable",
+    continuousScheduling: true,
     checkedAt: new Date().toISOString()
   };
 }
