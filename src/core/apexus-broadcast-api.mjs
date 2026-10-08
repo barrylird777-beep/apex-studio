@@ -13,7 +13,7 @@ export async function getApexusBroadcastStatus(now = new Date()) {
   if (!pool) throw new Error("DATABASE_URL is required for Apexus broadcast status");
   const [schedule, catalog] = await Promise.all([
     pool.query(
-      'SELECT s.id,s.episode_id,e.episode_code,e.title,e.audience_lane,s.block_name,s.starts_at,s.ends_at,s.status FROM apexus_schedule s JOIN apexus_episodes e ON e.id=s.episode_id WHERE s.status=''scheduled'' AND s.ends_at >= $1 ORDER BY s.starts_at ASC LIMIT 50',
+      "SELECT s.id,s.episode_id,e.episode_code,e.title,e.audience_lane,s.block_name,s.starts_at,s.ends_at,s.status FROM apexus_schedule s JOIN apexus_episodes e ON e.id=s.episode_id WHERE s.status='scheduled' AND s.ends_at >= $1 ORDER BY s.starts_at ASC LIMIT 50",
       [now]
     ),
     pool.query('SELECT COUNT(*)::int AS count FROM apexus_catalog')
