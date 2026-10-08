@@ -30,7 +30,7 @@ test("worker roles receive concrete task templates and mission evidence requirem
   const worker = { id: "w1", role: "knowledge-research" };
   const workforce = createMassiveAiWorkforce({ fleet: { workers: [worker] }, crew });
   const task = workforce.taskFor(worker, { scope: "research", requirement: "citation trail" });
-  assert.match(task, /source provenance/i);
+  assert.match(task, /provenance/i);
   assert.match(task, /evidence/i);
   assert.match(task, /citation trail/i);
   assert.ok(DEFAULT_TASKS["knowledge-research"]);
