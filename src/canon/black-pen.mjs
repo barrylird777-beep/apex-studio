@@ -457,7 +457,7 @@ export function createCornNut({
       targetType,
       criteria: clone(criteria),
       ratings: clone(ratings),
-      ratingSystem: "KornPops",
+      ratingSystem: "KornNutz",
       reasoning,
       evaluatorId,
       evidenceIds: [...new Set(evidenceIds)]
@@ -470,7 +470,7 @@ export function assertCornNut(cornNut) {
   if (cornNut.type !== JESUS_FREAK_TYPES.CORNNUT) throw new Error("Object is not a CornNut");
   if (cornNut.system !== SYSTEMS.GARDEN) throw new Error("CornNuts must belong to Garden of Apex");
   if (cornNut.data?.ratingSystem !== "KornPops") {
-    throw new Error("CornNuts must use the KornPops rating system");
+    throw new Error("CornNuts must use the KornNutz rating system");
   }
   return true;
 }
