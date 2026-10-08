@@ -686,7 +686,7 @@ export function createRealZeroStopProxy({
 
   const start = async () => {
     if (startPromise) return startPromise;
-    startPromise = Promise.resolve().then(() => {
+    startPromise = Promise.resolve().then(async () => {
       stopping = false;
       if (fallbackFile && !activeFallbackMedia.length) {
         activeFallbackMedia = await loadFlvFallbackMedia(fallbackFile);
