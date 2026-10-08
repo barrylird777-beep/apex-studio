@@ -178,26 +178,23 @@ app.get('/api/shield-apex/status', (_req, res) => {
   });
 });
 
-app.get('/api/apex/readiness', async (_req, res) => {
-  try {
-    const { assertSixAppInvariant, listApexApps } = await import('./src/apps/apex-six-apps.mjs');
-    assertSixAppInvariant();
-    return res.status(200).json({
-      success: true,
-      releaseTrain: 'Apex canonical six-app release',
-      surfaces: listApexApps().map(app => ({
-        id: app.id,
-        name: app.name,
-        role: app.role,
-        entry: app.entry,
-        state: 'runtime-surface'
-      })),
-      checkedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('[apex-readiness]', error);
-    return res.status(503).json({ success: false, error: 'Apex readiness unavailable' });
-  }
+app.get('/api/apex/readiness', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    releaseTrain: 'Apex three-system release',
+    surfaces: [
+      { id: 'apex-studio', name: 'Apex Studio', role: 'production', state: 'foundation-ready', entry: '/' },
+      { id: 'garden-of-apex', name: 'Garden of Apex', role: 'knowledge', state: 'foundation-ready', entry: '/garden-of-apex.html' },
+      { id: 'kornknob', name: 'KORNKNOB', role: 'capability', state: 'foundation-ready', entry: '/korn-knob.html' },
+      { id: 'special-search', name: 'Special Search', role: 'specialized-search', ownerSystem: 'apex-studio', state: 'integrated' },
+      { id: 'teevee', name: 'TeeVee', role: 'original-animated-entertainment', ownerSystem: 'apex-studio', state: 'production-surface', entry: '/teevee-buyer.html' },
+      { id: 'engine-apex', name: 'Engine Apex', role: 'decision-intelligence', ownerSystem: 'apex-studio', state: 'integrated', entry: '/engine-apex.html' },
+      { id: 'shield-apex', name: 'ShieldApex', role: 'security', ownerSystem: 'apex-studio', state: 'integrated', entry: '/shield-apex.html' },
+      { id: 'apex-overseer', name: 'Apex Overseer', role: 'worker-orchestration', ownerSystem: 'apex-studio', state: 'integrated', entry: '/overseer.html' }
+    ],
+    commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
+    checkedAt: new Date().toISOString()
+  });
 });
 
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
@@ -286,11 +283,6 @@ app.get('/api/apex/apps', async (_req, res) => {
 app.get('/api/apex/apps/:appId/status', async (req, res) => {
   const id = String(req.params.appId || '').trim();
   try {
-    const { getApexApp } = await import('./src/apps/apex-six-apps.mjs');
-    if (getApexApp(id)) {
-      const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
-      return res.json(canonicalAppStatus(id));
-    }
     if (id === 'korn-knob') {
       const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
       return res.json({ success: true, ...kornKnobStatus() });
@@ -300,9 +292,9 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
       return res.json({ success: true, ...teeveeStatus() });
     }
     if (id === 'paypex') {
-      const { opportunitySnapshot, opportunityStatus } = await import('./src/apps/paypex.mjs');
-      const snapshot = await opportunitySnapshot();
-      return res.json({ success: true, ...opportunityStatus(snapshot), snapshot });
+      const { payPexSnapshot, payPexStatus } = await import('./src/apps/paypex.mjs');
+      const snapshot = await payPexSnapshot();
+      return res.json({ success: true, ...payPexStatus(snapshot), snapshot });
     }
     if (id === 'apex-studio') {
       const { studioStatus } = await import('./src/apps/apex-studio.mjs');
@@ -320,30 +312,6 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
   } catch (error) {
     console.error('[apex-app-status]', id, error);
     return res.status(503).json({ success: false, appId: id, error: 'Apex app status unavailable' });
-  }
-});
-
-
-// Canonical six-app runtime API. Historical legacy app routes remain separate.
-app.get('/api/canon/apps', async (_req, res) => {
-  try {
-    const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
-    return res.json({ success: true, apps: canonicalAppsStatus(), checkedAt: new Date().toISOString() });
-  } catch (error) {
-    console.error('[canonical-apps]', error);
-    return res.status(503).json({ success: false, error: 'Canonical app registry unavailable' });
-  }
-});
-
-app.get('/api/canon/apps/:appId/status', async (req, res) => {
-  try {
-    const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
-    return res.json(canonicalAppStatus(req.params.appId));
-  } catch (error) {
-    const message = String(error?.message || error);
-    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
-    console.error('[canonical-app-status]', error);
-    return res.status(503).json({ success: false, error: 'Canonical app status unavailable' });
   }
 });
 
