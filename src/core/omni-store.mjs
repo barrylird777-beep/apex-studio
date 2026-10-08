@@ -19,8 +19,13 @@ export class OmniStore {
       throw new TypeError("OmniStore no longer accepts SQLite database paths; pass a PostgreSQL pool/options instead");
     }
 
+    const connectionString = options.connectionString || process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("DATABASE_URL is required for PostgreSQL OmniStore");
+    }
+
     this.pool = options.pool || new Pool({
-      connectionString: options.connectionString || process.env.DATABASE_URL,
+      connectionString,
       max: Number(options.max ?? process.env.APEX_DB_POOL_MAX ?? 20),
       idleTimeoutMillis: Number(options.idleTimeoutMillis ?? process.env.APEX_DB_IDLE_TIMEOUT_MS ?? 30000),
       connectionTimeoutMillis: Number(options.connectionTimeoutMillis ?? process.env.APEX_DB_CONNECTION_TIMEOUT_MS ?? 10000),
@@ -28,11 +33,20 @@ export class OmniStore {
     });
     this.ownsPool = !options.pool;
     this.ready = null;
+
+    this.pool.on("error", error => {
+      console.error("[OmniStore] PostgreSQL pool error:", error?.message || error);
+    });
   }
 
   async init() {
     if (this.ready) return this.ready;
-    this.ready = this.pool.query("SELECT 1").then(() => this);
+    this.ready = this.pool.query("SELECT 1")
+      .then(() => this)
+      .catch(error => {
+        this.ready = null;
+        throw error;
+      });
     return this.ready;
   }
 
