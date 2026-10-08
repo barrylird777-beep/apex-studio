@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07090d"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><title>Apex Phone</title>
+<style>
+:root{--bg:#05070b;--panel:#10141c;--line:#252c38;--text:#f5f7fb;--muted:#98a2b1;--good:#72e0a0;--warn:#ffd27a;--bad:#ff8585;--accent:#dfe6ef}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:15px -apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif}
+body{min-height:100vh;background:radial-gradient(700px 360px at 50% -10%,#1b2432 0,transparent 65%),linear-gradient(#080a0f,#040508);padding-bottom:32px}
+header{position:sticky;top:0;z-index:10;padding:14px 16px;border-bottom:1px solid var(--line);background:#07090ddd;backdrop-filter:blur(22px);display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:900;letter-spacing:.12em}.status{font-size:12px;font-weight:800}.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+main{max-width:760px;margin:auto;padding:18px 14px}.hero h1{font-size:34px;line-height:1;margin:4px 0 9px}.hero p{color:var(--muted);line-height:1.5;margin:0}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}.card{background:linear-gradient(145deg,#151a23,#0b0e14);border:1px solid var(--line);border-radius:20px;padding:15px;box-shadow:0 16px 38px #0005}.wide{grid-column:1/-1}
+h2{font-size:17px;margin:0 0 12px}.label{color:var(--muted);font-size:12px}.value{font-size:22px;font-weight:850;margin-top:4px}.small{font-size:12px;color:var(--muted);line-height:1.45}
+button,a{font:inherit}button{border:1px solid var(--line);background:#ffffff0b;color:var(--text);border-radius:14px;min-height:46px;padding:10px 13px;font-weight:800}button.primary{background:var(--accent);color:#090b0f;border-color:#fff8}button:disabled{opacity:.45}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.apps{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.app{display:block;text-decoration:none;color:var(--text);padding:14px;border:1px solid var(--line);border-radius:15px;background:#ffffff06}.app b{display:block}.app span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #ffffff0d}.row:last-child{border-bottom:0}.mono{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow:auto;max-height:260px;background:#06080c;border:1px solid var(--line);border-radius:12px;padding:11px;color:#cbd3de}
+input{width:100%;min-height:46px;border-radius:13px;border:1px solid var(--line);background:#0005;color:var(--text);padding:10px 12px;margin:7px 0 9px}
+.notice{padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#ffffff05;color:var(--muted);line-height:1.45}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.hero h1{font-size:30px}.actions{grid-template-columns:1fr}.apps{grid-template-columns:1fr 1fr}}
+</style></head>
+<body>
+<header><div class="brand">APEX / PHONE</div><div id="topStatus" class="status">CHECKING</div></header>
+<main>
+<section class="hero"><div class="label">PERSONAL PHONE CONTROL</div><h1>Apex Phone</h1><p>One clean mobile surface for the six apps, live Apex reachability, network diagnostics, and authenticated control-plane access. No fake modem control, because physics remains annoyingly real.</p></section>
+<section class="grid">
+<div class="card"><div class="label">DEVICE</div><div id="deviceState" class="value">Checking</div><div id="deviceDetail" class="small">Browser connectivity</div></div>
+<div class="card"><div class="label">APEX</div><div id="apexState" class="value">Checking</div><div id="apexDetail" class="small">Live health endpoint</div></div>
+<div class="card wide"><h2>Network truth</h2><div class="notice">Apex separates phone telemetry from server-side observations. “Connected” means the phone reached Apex. It does not claim Apex controls Wi-Fi, cellular, carrier routing, or iPhone modem bonding.</div><div class="row"><span>Phone → Apex RTT</span><b id="rtt">—</b></div><div class="row"><span>Browser network API</span><b id="netApi">—</b></div><div class="row"><span>Apex server path</span><b id="serverPath">—</b></div><div class="row"><span>Multipath</span><b id="multipath">Not verified</b></div></div>
+<div class="card wide"><h2>Live diagnostics</h2><div class="actions"><button class="primary" id="refreshBtn" onclick="refreshAll()">Refresh</button><button id="benchBtn" onclick="benchmark()">Test 8 MiB</button></div><div id="benchmark" class="notice" style="margin-top:9px">No throughput test run.</div><div id="diag" class="mono" style="margin-top:9px">Waiting for diagnostics…</div></div>
+<div class="card wide"><h2>Six apps</h2><div class="apps">
+<a class="app" href="/planet-apex.html"><b>PlanetApeX</b><span>World builder</span></a>
+<a class="app" href="/ko-blocks.html"><b>KoBlocks</b><span>Execution graphs</span></a>
+<a class="app" href="/kernel-vision.html"><b>KernelVision</b><span>Presentation</span></a>
+<a class="app" href="/koin-kob.html"><b>KoinKob</b><span>Worker economy</span></a>
+<a class="app" href="/kash-korner.html"><b>KashKorner</b><span>Ledger</span></a>
+<a class="app" href="/kernelodies.html"><b>Kernelodies</b><span>Music identity</span></a>
+</div></div>
+<div class="card wide"><h2>Authenticated phone control</h2><div class="small">The control plane stays protected. The token is kept in this browser session only and is sent as an authorization header. It is not placed in the URL.</div><input id="token" type="password" autocomplete="off" placeholder="APEX_SHORTCUT_TOKEN"><div class="actions"><button class="primary" onclick="loadControl()">Check control plane</button><button onclick="clearToken()">Clear session token</button></div><div id="control" class="mono" style="margin-top:9px">Not checked.</div></div>
+</section></main>
+<script>
+const $=id=>document.getElementById(id); const tokenKey="apex.phone.sessionToken";
+function getClientId(){try{let x=sessionStorage.getItem("apex.phone.clientId");if(!x){x=crypto.randomUUID();sessionStorage.setItem("apex.phone.clientId",x)}return x}catch{return crypto.randomUUID()}}
+function headers(){return {"x-apex-client-id":getClientId()}}
+async function json(url,opts={}){const r=await fetch(url,{cache:"no-store",...opts});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||("HTTP "+r.status));return d}
+async function refreshAll(){const b=$("refreshBtn");b.disabled=true;b.textContent="Checking…";try{const started=performance.now(),online=navigator.onLine; $("deviceState").textContent=online?"Online":"Offline";$("deviceState").className="value "+(online?"good":"bad");const nc=navigator.connection||navigator.mozConnection||navigator.webkitConnection;$("netApi").textContent=nc?(nc.effectiveType||nc.type||"available"):"Unavailable on this iPhone";const h=await json("/health?phone="+Date.now(),{headers:headers()});const rtt=performance.now()-started;$("apexState").textContent=h.ok?"Reachable":"Degraded";$("apexState").className="value "+(h.ok?"good":"warn");$("rtt").textContent=rtt.toFixed(1)+" ms";const n=await json("/api/network/status",{headers:headers()});$("serverPath").textContent=n.selected?(n.selected.device+" · "+(n.selected.network||"network")):"Server path not selected";$("multipath").textContent=n.speed?.mode||"Not verified";const client=n.planes?.clientDevice?.telemetry;$("deviceDetail").textContent=client?((client.type||"unknown")+" · "+(client.effectiveType||"unknown")):"Client telemetry received";$("diag").textContent=JSON.stringify({checkedAt:new Date().toISOString(),phone:{online:online,navigatorConnection:nc?{type:nc.type||null,effectiveType:nc.effectiveType||null,downlinkMbps:nc.downlink??null,rttMs:nc.rtt??null,saveData:!!nc.saveData}:null},apex:{health:h.ok,rttMs:Number(rtt.toFixed(1))},network:{status:n.status,source:n.source,selected:n.selected||null,failover:n.failover||[],speed:n.speed||null,clientDevice:n.planes?.clientDevice||null,limitations:n.limitations||[]}},null,2);$("topStatus").textContent=h.ok?"● ONLINE":"● DEGRADED";$("topStatus").className="status "+(h.ok?"good":"warn")}catch(e){$("topStatus").textContent="● ERROR";$("topStatus").className="status bad";$("diag").textContent="DIAGNOSTICS FAILED: "+(e.message||String(e))}finally{b.disabled=false;b.textContent="Refresh"}}
+async function benchmark(){const b=$("benchBtn"),out=$("benchmark");b.disabled=true;out.textContent="Downloading 8 MiB…";try{const start=performance.now(),r=await fetch("/api/network/throughput?mib=8",{cache:"no-store"});if(!r.ok||!r.body)throw Error("HTTP "+r.status);const reader=r.body.getReader();let bytes=0;for(;;){const q=await reader.read();if(q.done)break;bytes+=q.value?.byteLength||0}const ms=Math.max(1,performance.now()-start);out.innerHTML="<b>"+((bytes*8)/(ms/1000)/1e6).toFixed(2)+" Mbps</b> measured from this iPhone to Apex · "+(bytes/1048576).toFixed(1)+" MiB · "+(ms/1000).toFixed(2)+" s"}catch(e){out.textContent="Benchmark failed: "+(e.message||String(e))}finally{b.disabled=false}}
+async function loadControl(){const t=$("token").value.trim()||sessionStorage.getItem(tokenKey)||"";if(!t){$("control").textContent="No session token supplied.";return}sessionStorage.setItem(tokenKey,t);try{$("control").textContent=JSON.stringify(await json("/api/mobile/status",{headers:{"authorization":"Bearer "+t}}),null,2)}catch(e){$("control").textContent="CONTROL PLANE: "+(e.message||String(e))}}
+function clearToken(){sessionStorage.removeItem(tokenKey);$("token").value="";$("control").textContent="Session token cleared."}
+(function(){const t=sessionStorage.getItem(tokenKey);if(t)$("token").value="";refreshAll()})(); window.addEventListener("online",refreshAll);window.addEventListener("offline",refreshAll);
+</script></body></html>

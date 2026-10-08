@@ -85,11 +85,10 @@ export async function selectNetworkPath() {
     const network = classify(device);
     return { device, network, ...result, score: score(device, result), source: 'server-interface-observation' };
   }));
+  // Never turn the server's own internet connection into a fake iPhone path.
+  // A server probe can prove Apex has internet access, not which radio/path the
+  // user's phone is using. Client telemetry is handled separately by the API.
   const candidates = results;
-  if (!candidates.some(candidate => candidate.healthy)) {
-    const fallback = await probe('runtime');
-    if (fallback.healthy) candidates.push({ device: 'runtime', network: 'runtime', ...fallback, score: score('runtime', fallback), source: 'runtime-connectivity-fallback' });
-  }
   candidates.sort((a, b) => b.score - a.score);
   const selected = candidates[0] || null;
   const failover = candidates.slice(1, 4).map(({ device, network, score: pathScore, healthy }) => ({ device, network, score: pathScore, healthy }));
@@ -173,10 +172,12 @@ export function buildNetworkSchedulerPolicy({ paths = [], bandwidthMbps = 0, rtt
 }
 
 
-export function buildConnectionPolicy({ speed = 'maximum', multipleConnections = true, failover = true, adaptive = true } = {}) {
+export function buildConnectionPolicy({ speed = 'maximum', multipleConnections = true, failover = true, adaptive = true, clientVerifiedPaths = 0 } = {}) {
   const maximum = speed === 'maximum';
+  const verifiedPaths = Math.max(0, Number(clientVerifiedPaths) || 0);
+  const multipathVerified = verifiedPaths > 1;
   return Object.freeze({
-    mode: maximum && multipleConnections ? 'multipath' : maximum ? 'single-path-maximum' : 'adaptive',
+    mode: multipathVerified ? 'multipath-verified' : maximum && multipleConnections ? 'multipath' : maximum ? 'single-path-maximum' : 'adaptive',
     preconnect: true,
     keepAlive: true,
     reuseConnections: true,
@@ -184,7 +185,7 @@ export function buildConnectionPolicy({ speed = 'maximum', multipleConnections =
     automaticFailover: Boolean(failover),
     adaptiveSpeed: Boolean(adaptive),
     artificialSpeedLimitMbps: null,
-    maxLanes: maximum && multipleConnections ? 16 : 1
+    maxLanes: multipathVerified ? 16 : maximum && multipleConnections ? 16 : 1
   });
 }
 
