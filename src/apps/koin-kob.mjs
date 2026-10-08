@@ -43,7 +43,7 @@ export function clearMarket(orders = []) {
   for (const raw of Array.isArray(orders) ? orders : []) {
     if (!raw || !["buy", "sell"].includes(raw.side)) continue;
     const order = { ...raw, quantity: n(raw.quantity), price: n(raw.price), asset: String(raw.asset || "service") };
-    if (order.quantity <= 0 || order.price < 0) continue;
+    if (!order.workerId || order.quantity <= 0 || order.price < 0) continue;
     if (!byAsset.has(order.asset)) byAsset.set(order.asset, { buys: [], sells: [] });
     byAsset.get(order.asset)[order.side === "buy" ? "buys" : "sells"].push(order);
   }
