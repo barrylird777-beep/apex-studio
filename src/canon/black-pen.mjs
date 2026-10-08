@@ -835,7 +835,6 @@ export function validateObject(object) {
 
   if (object.type === JESUS_FREAK_TYPES.KERNEL) assertKernel(object);
   if (object.type === JESUS_FREAK_TYPES.POPCORN) assertPopcorn(object);
-  if (object.type === JESUS_FREAK_TYPES.CORNNUT) assertCornNut(object);
   if (object.type === JESUS_FREAK_TYPES.COB) assertCob(object);
   if (object.type === JESUS_FREAK_TYPES.PROTOCOB) assertProtocob(object);
 
