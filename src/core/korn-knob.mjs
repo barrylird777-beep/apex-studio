@@ -42,3 +42,72 @@ export function createKornKnob({providers={},timeoutMs=DEFAULT_TIMEOUT_MS}={}) {
     status(){return {domains:[...KORNKNOB_DOMAINS],providers:[...registry.keys()],stats:{...stats}}}
   };
 }
+
+
+export const KORNKNOB_IDEA_DOMAINS = Object.freeze([
+  "story",
+  "characters",
+  "visuals",
+  "audio",
+  "hook",
+  "audience",
+  "originality",
+  "production-feasibility"
+]);
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) * 10) / 10));
+}
+
+function scoreIdeaDimension(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new TypeError("KornKnob idea scores must be numeric");
+  return clampPercent(number);
+}
+
+export function scoreKornKnobMoviePotential(input = {}) {
+  const ratings = input.ratings && typeof input.ratings === "object" ? input.ratings : {};
+  const values = KORNKNOB_IDEA_DOMAINS.map(domain => scoreIdeaDimension(ratings[domain])).filter(value => value !== null);
+  if (!values.length) return null;
+  return clampPercent(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+export function createKornKnobIdea({
+  id = null,
+  title,
+  concept,
+  source = "in-app",
+  ratings = {},
+  reasoning = "",
+  evidenceIds = [],
+  handoff = null
+} = {}) {
+  const normalizedTitle = String(title ?? "").trim();
+  const normalizedConcept = String(concept ?? "").trim();
+  if (!normalizedTitle) throw new TypeError("KornKnob idea title is required");
+  if (!normalizedConcept) throw new TypeError("KornKnob idea concept is required");
+
+  const normalizedRatings = {};
+  for (const domain of KORNKNOB_IDEA_DOMAINS) {
+    const value = scoreIdeaDimension(ratings?.[domain]);
+    if (value !== null) normalizedRatings[domain] = value;
+  }
+
+  const moviePotential = scoreKornKnobMoviePotential({ ratings: normalizedRatings });
+
+  return Object.freeze({
+    id: String(id || `korn-knob-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+    type: "korn-knob-idea",
+    name: "KornKnob",
+    title: normalizedTitle,
+    concept: normalizedConcept,
+    source: String(source || "in-app"),
+    ratings: Object.freeze(normalizedRatings),
+    moviePotentialPercent: moviePotential,
+    reasoning: String(reasoning || ""),
+    evidenceIds: Object.freeze([...new Set((Array.isArray(evidenceIds) ? evidenceIds : []).map(String))]),
+    handoff: handoff && typeof handoff === "object" ? structuredClone(handoff) : null,
+    createdAt: new Date().toISOString()
+  });
+}
