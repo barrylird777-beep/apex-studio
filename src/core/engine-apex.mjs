@@ -81,14 +81,14 @@ export async function getEngineSnapshot() {
       id: randomUUID(),
       opportunityId: item.id,
       action: "build-brief",
-      handoff: "TOONX",
+      handoff: "TeeVee",
       ownerSystem: "apex-studio",
       status: "proposed"
     })),
     separation: {
       EngineApex: "Studio decision and opportunity intelligence",
       ApexStudio: "production, mastering, QC, delivery and infrastructure",
-      TOONX: "Studio production surface for original animated entertainment",
+      TeeVee: "Studio production surface for original animated entertainment",
       GardenOfApex: "knowledge and research source where applicable",
       KORNKNOB: "AI, model, media and computational capability"
     },
@@ -108,7 +108,7 @@ export function buildEngineBrief(input = {}) {
     audience: text(input.audience) || "existing Apex audience",
     monetization: text(input.monetization) || "attention → audience growth → downstream revenue",
     evidenceRequired: true,
-    handoff: text(input.handoff) || "TOONX",
+    handoff: text(input.handoff) || "TeeVee",
     createdAt: new Date().toISOString()
   };
 }
