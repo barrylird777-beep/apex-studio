@@ -84,10 +84,12 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     );
   }
   if(stage==="schedule"){
-    await pool.query("DELETE FROM apexus_schedule WHERE episode_id=$1 AND status='scheduled'",[episode.id]);
-    const start=new Date(Date.now()+365*24*60*60*1000);
-    const end=new Date(start.getTime()+Number(episode.runtime_target_seconds)*1000);
-    await pool.query("INSERT INTO apexus_schedule(id,episode_id,starts_at,ends_at,block_name,status) VALUES($1,$2,$3,$4,$5,'scheduled')",[randomUUID(),episode.id,start,end,episode.audience_lane]);
+    // Schedule rows are owned by the global network scheduler. Individual
+    // episode jobs must never invent independent wall-clock slots.
+    await pool.query(
+      "UPDATE apexus_episodes SET metadata=metadata||$2::jsonb WHERE id=$1",
+      [episode.id,JSON.stringify({scheduleReady:true})]
+    );
   }
 }
 
