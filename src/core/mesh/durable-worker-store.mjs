@@ -14,7 +14,7 @@ function postgresSslConfig() {
   if (explicit === "true" || explicit === "1") return { rejectUnauthorized: false };
   try {
     const hostname = new URL(process.env.DATABASE_URL).hostname;
-    return /^(localhost|127(?:\.\d{1,3}){3}|::1)$/.test(hostname) ? false : { rejectUnauthorized: false };
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname) ? false : { rejectUnauthorized: false };
   } catch {
     return false;
   }
