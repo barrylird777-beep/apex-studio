@@ -50,6 +50,9 @@ const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
+app.disable('x-powered-by');
+app.use(cors());
+
 const shieldApex = createShieldApex({
   allowedOrigins: String(process.env.APEX_ALLOWED_ORIGINS || "")
     .split(",")
