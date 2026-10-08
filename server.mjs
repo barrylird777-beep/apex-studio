@@ -401,7 +401,7 @@ const crewRoles = [
   ["story", "Audit opening hooks, retention, pacing, narrative architecture, and episode structure for one concrete improvement."],
   ["visuals", "Audit cinematic visual generation, continuity, shot planning, style consistency, and 16:9 production readiness."],
   ["audio", "Audit narration, music, SFX, mixing, mastering, synchronization, and KornKnob handoffs."],
-  ["rapid", "Audit ApexRapid against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
+  ["rapid", "Audit Apexus against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
   ["engine", "Audit EngineApex against current final conclusions, opportunity evidence, scoring, economics, growth, monetization, and handoffs."],
   ["studio", "Audit ApexStudio as the complete production system, Bible-first then Korn, from planning through mastering and delivery."],
   ["garden", "Audit GardenOfApex as the research/knowledge/world-development surface, preserving its separation from ApexStudio."],
@@ -414,7 +414,7 @@ const crewRoles = [
   ["payments", "Audit Rapid checkout/webhook idempotency, signature verification, price/currency enforcement, and order state."],
   ["provider-routing", "Audit AI provider selection, free-first policy, explicit provider contracts, retries, and no silent paid fallback."],
   ["qa-hostile", "Act as hostile final QA. Find one reproducible defect, missing test, or false-positive readiness signal."],
-  ["integration", "Audit boundaries among GardenOfApex, ApexStudio, KORNKNOB, EngineApex, ApexRapid, and ShieldApex."],
+  ["integration", "Audit boundaries among GardenOfApex, ApexStudios, KORNKNOB, EngineApex, Apexus, and ShieldApex."],
   ["documentation", "Audit runtime/config/deployment documentation against actual code and remove misleading operational claims."],
   ["cleanup", "Find dead, duplicated, stale, or contradictory code/config that can damage runtime correctness and define the safest cleanup."],
 ]
@@ -2220,7 +2220,7 @@ app.get('/api/engine-apex/status', async (_req, res) => {
       engine: 'EngineApex',
       state: snapshot.state,
       opportunityCount: snapshot.opportunities.length,
-      handoffs: ['ApexRapid', 'ApexStudio'],
+      handoffs: ['Apexus', 'ApexStudio'],
       productionSeparated: true,
       checkedAt: new Date().toISOString()
     });
