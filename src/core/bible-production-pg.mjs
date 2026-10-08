@@ -42,14 +42,8 @@ export function createBibleProductionStore(options = {}) {
     const isInsert = /^\s*INSERT\s+/i.test(normalized);
     const returnsId = isInsert && !/\bRETURNING\b/i.test(normalized) && !/scene_shoot_days/i.test(normalized);
 
-    if (ignored) {
-      const valuesIndex = normalized.toUpperCase().indexOf(" VALUES ");
-      if (valuesIndex >= 0) {
-        normalized = normalized.slice(0, valuesIndex) + " ON CONFLICT DO NOTHING" + normalized.slice(valuesIndex);
-      }
-    }
-
     if (returnsId) normalized += " RETURNING id";
+    if (ignored && !/\bON\s+CONFLICT\b/i.test(normalized)) normalized += " ON CONFLICT DO NOTHING";
 
     const result = await pool.query(toPostgresPlaceholders(normalized), params);
     return {
