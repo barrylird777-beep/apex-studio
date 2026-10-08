@@ -9,6 +9,6 @@ export function kornPopzAppStatus() {
       name: "ApexStudio",
       role: "creative production, editing, mastering, QC and delivery"
     },
-    ...kornNutzStatus()
+    ...kornPopzStatus()
   };
 }

@@ -10,6 +10,7 @@ import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
 import { studioStatus } from "../src/apps/apex-studio.mjs";
 import { xshieldStatus } from "../src/apps/xshield.mjs";
 import { createPayPexBrief } from "../src/apps/paypex.mjs";
+import { kornPopzAppStatus } from "../src/apps/korn-popz.mjs";
 
 test("Apex exposes exactly six canonical apps", () => {
   assert.equal(assertSixAppInvariant(), true);
@@ -46,6 +47,12 @@ test("TeeVee is a continuous 24/7 TV network", () => {
   assert.equal(result.product, "24/7 TV show/network");
   assert.equal(result.mode, "continuous-linear-programming");
   assert.equal(result.continuousScheduling, true);
+});
+
+test("KornPopz exposes its canonical evaluator status", () => {
+  const status = kornPopzAppStatus();
+  assert.equal(status.ratingSystem, "KornPopz");
+  assert.equal(status.active, true);
 });
 
 test("Garden, KornKnob, Studio and XShield expose operational status", () => {
