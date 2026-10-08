@@ -42,7 +42,7 @@ import { FrictionlessResearchEngine } from './src/core/research/frictionless-res
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
-import { createApexusProductionRouter } from './src/api/apexus-production-api.mjs';
+import { createTOONXProductionRouter } from './src/api/toonx-production-api.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -132,7 +132,7 @@ const infiniteBroadcast = createInfiniteBroadcast({
   ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg'
 });
 
-app.use('/api/apexus/production', createApexusProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
+app.use('/api/toonx/production', createTOONXProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
 
 app.get('/api/apex/readiness', (_req, res) => {
   res.status(200).json({
@@ -143,7 +143,7 @@ app.get('/api/apex/readiness', (_req, res) => {
       { id: 'ApexStudios', name: 'ApexStudios', role: 'eyes', state: 'foundation-ready', entry: '/' },
       { id: 'GardenOfApex', name: 'GardenOfApex', role: 'brain', state: 'foundation-ready', entry: '/garden-of-apex.html' },
       { id: 'EngineApex', name: 'EngineApex', role: 'money', state: 'foundation-ready', entry: '/engine-apex.html' },
-      { id: 'Apexus', name: 'Apexus', role: 'network', state: 'production-readying', entry: '/apexus-buyer.html' },
+      { id: 'TOONX', name: 'TOONX', role: 'network', state: 'production-readying', entry: '/toonx-buyer.html' },
       { id: 'ShieldApex', name: 'ShieldApex', role: 'shield', state: 'foundation-ready', entry: '/shield-apex.html' }
     ],
     commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
@@ -381,7 +381,7 @@ const crewRoles = [
   ["story", "Audit opening hooks, retention, pacing, narrative architecture, and episode structure for one concrete improvement."],
   ["visuals", "Audit cinematic visual generation, continuity, shot planning, style consistency, and 16:9 production readiness."],
   ["audio", "Audit narration, music, SFX, mixing, mastering, synchronization, and KornKnob handoffs."],
-  ["rapid", "Audit Apexus against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
+  ["rapid", "Audit TOONX against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
   ["engine", "Audit EngineApex against current final conclusions, opportunity evidence, scoring, economics, growth, monetization, and handoffs."],
   ["studio", "Audit ApexStudio as the complete production system, Bible-first then Korn, from planning through mastering and delivery."],
   ["garden", "Audit GardenOfApex as the research/knowledge/world-development surface, preserving its separation from ApexStudio."],
@@ -394,7 +394,7 @@ const crewRoles = [
   ["payments", "Audit Rapid checkout/webhook idempotency, signature verification, price/currency enforcement, and order state."],
   ["provider-routing", "Audit AI provider selection, free-first policy, explicit provider contracts, retries, and no silent paid fallback."],
   ["qa-hostile", "Act as hostile final QA. Find one reproducible defect, missing test, or false-positive readiness signal."],
-  ["integration", "Audit boundaries among GardenOfApex, ApexStudios, KORNKNOB, EngineApex, Apexus, and ShieldApex."],
+  ["integration", "Audit boundaries among GardenOfApex, ApexStudios, KORNKNOB, EngineApex, TOONX, and ShieldApex."],
   ["documentation", "Audit runtime/config/deployment documentation against actual code and remove misleading operational claims."],
   ["cleanup", "Find dead, duplicated, stale, or contradictory code/config that can damage runtime correctness and define the safest cleanup."],
 ]
@@ -535,10 +535,10 @@ permanentWorkerHeartbeat.unref?.();
 app.disable('x-powered-by');
 app.use(cors());
 // Serve the standalone public app pages before API routes.
-app.get('/api/apexus/buyer', (_req, res) => {
+app.get('/api/toonx/buyer', (_req, res) => {
   res.status(200).json({
     success: true,
-    product: 'Apexus',
+    product: 'TOONX',
     category: '24/7 original animated entertainment network',
     productionTarget: { episodes: 2785, firstEpisode: 'APX-0001', lastEpisode: 'APX-2785' },
     payment: { state: 'payment-ready-not-live', processor: 'Stripe', activation: 'requires business-side Stripe setup and operating policy' }
@@ -844,7 +844,7 @@ app.get('/korn-knob', async (_req, res) => {
     return res.status(500).send('KORN-KNOB UI unavailable');
   }
 });
-app.get('/rapid-video.html', (_req, res) => res.redirect(308, '/apexus-buyer.html'));
+app.get('/rapid-video.html', (_req, res) => res.redirect(308, '/toonx-buyer.html'));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
 // storage module validates all filenames before they are written, while
@@ -2210,7 +2210,7 @@ app.get('/api/engine-apex/status', async (_req, res) => {
       engine: 'EngineApex',
       state: snapshot.state,
       opportunityCount: snapshot.opportunities.length,
-      handoffs: ['Apexus', 'ApexStudios'],
+      handoffs: ['TOONX', 'ApexStudios'],
       productionSeparated: true,
       checkedAt: new Date().toISOString()
     });
