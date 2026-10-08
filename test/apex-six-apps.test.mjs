@@ -66,11 +66,18 @@ test("all six app modules expose the same canonical app identity", async () => {
   ];
   for (const [id, path, fn] of modules) {
     const mod = await import(path);
-    const status = fn === "payPexStatus"
-      ? mod[fn]()
-      : mod[fn]();
+    const status = fn === "payPexStatus" ? mod[fn]() : mod[fn]();
     assert.equal(status.app.id, id);
     assert.equal(status.app.name, getApexApp(id).name);
+  }
+});
+
+test("all six registry entries point to existing public surfaces and app modules", async () => {
+  for (const app of Object.values(APEX_APPS)) {
+    const publicPath = app.entry === "/" ? "public/index.html" : "public" + app.entry;
+    const modulePath = resolve(process.cwd(), "src/apps", app.module.replace(/^\.\.\/apps\//, ""));
+    await access(resolve(process.cwd(), publicPath));
+    await access(modulePath);
   }
 });
 
@@ -83,23 +90,11 @@ test("PayPex creates a production handoff brief", () => {
   assert.ok(brief.id);
 });
 
-test("entry paths point to reachable public surfaces", async () => {
-  for (const app of Object.values(APEX_APPS)) {
-    const relative = app.entry === "/"
-      ? "public/index.html"
-      : "public" + app.entry;
-    await access(resolve(relative));
-  }
-  await access(resolve("public/teevee.html"));
-  await access(resolve("public/xshield.html"));
-});
-
-
 test("registry module metadata matches app locations", () => {
-  assert.equal(getApexApp("korn-knob").module, "../core/korn-knob.mjs");
-  assert.equal(getApexApp("teevee").module, "../core/teevee-broadcast.mjs");
-  assert.equal(getApexApp("paypex").module, "../core/paypex-core.mjs");
-  assert.equal(getApexApp("apex-studio").module, "../core/apex-universe.mjs");
-  assert.equal(getApexApp("garden-of-apex").module, "../core/garden-of-apex.mjs");
-  assert.equal(getApexApp("xshield").module, "./xshield.mjs");
+  assert.equal(getApexApp("korn-knob").module, "../apps/korn-knob.mjs");
+  assert.equal(getApexApp("teevee").module, "../apps/teevee.mjs");
+  assert.equal(getApexApp("paypex").module, "../apps/paypex.mjs");
+  assert.equal(getApexApp("apex-studio").module, "../apps/apex-studio.mjs");
+  assert.equal(getApexApp("garden-of-apex").module, "../apps/garden-of-apex.mjs");
+  assert.equal(getApexApp("xshield").module, "../apps/xshield.mjs");
 });
