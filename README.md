@@ -10,16 +10,16 @@ Apex consists of exactly three primary systems:
 
 ## Canonical application layer
 
-The six canonical apps are application surfaces inside those three systems, not additional Apex systems:
+The six canonical apps are application surfaces inside the Apex ecosystem, not additional Apex systems:
 
-1. **KornKnob** — audio and music capability.
-2. **TeeVee** — 24/7 television network and continuous programming.
-3. **PayPex** — money-making stock, market, business and monetization intelligence.
-4. **ApexStudio** — creative production, editing, mastering, QC and delivery.
-5. **GardenOfApex** — knowledge, Scripture, research and creative world.
-6. **XShield** — ad blocking, tracker blocking and network filtering.
+1. **PlanetApeX** — the world and planetary Apex environment.
+2. **KoBlocks** — modular building and reusable Apex blocks.
+3. **KernelVision** — finished-work viewing through KernelVision Theatre and the Kornmax cinematic display experience.
+4. **KoinKob** — economy, value, barter and autonomous worker markets.
+5. **KashKorner** — cash, ledger and financial state.
+6. **Kernelodies** — music, sound, audio creation and audio identity.
 
-These six names are the product-level ownership contract. Implementation modules may retain legacy filenames temporarily when they provide existing capability, but legacy module names are not additional apps or systems.
+These six names are the current product-level ownership contract. Existing implementation surfaces such as TeeVee, PayPex, KornKnob, ApexStudio, GardenOfApex and XShield remain available where their underlying capabilities are still used, but they are not the locked identities of this six-app layer.
 
 ## Apex Studio
 
@@ -94,11 +94,11 @@ TeeVee production is PostgreSQL-backed and uses the durable worker system for qu
 
 ### Application ownership
 
-- **PayPex** owns opportunity, growth, business, stock/market and monetization intelligence. It decides what is worth pursuing and why; it does not own production execution.
-- **TeeVee** owns continuous television programming and broadcast orchestration.
-- **XShield** owns ad blocking, tracker blocking and network filtering.
-- **ApexStudio** owns production execution, mastering, QC, delivery and infrastructure.
-- **GardenOfApex** owns knowledge and research.
-- **KornKnob** owns audio/music and the broader AI/model/media capability layer.
+- **PlanetApeX** owns the world-level container and world-state boundary.
+- **KoBlocks** owns reusable building blocks and their composition/validation.
+- **KernelVision** owns finished-work viewing through KernelVision Theatre and Kornmax.
+- **KoinKob** owns worker economy primitives, barter, market clearing, systemic events and adversarial economic rounds.
+- **KashKorner** owns cash-ledger primitives and financial state.
+- **Kernelodies** owns the music/audio application layer while reusing the existing Apex music-production and local-audio contracts.
 
-Existing implementation modules such as EngineApex, Rapid Video worker paths, RenderWorker, Forge routes, and ShieldApex may remain as implementation components while their product ownership is governed by the six-app contract. They are not additional Apex systems or canonical application identities.
+Existing implementation systems and legacy product surfaces may remain as underlying capabilities. They do not silently replace the locked six identities.

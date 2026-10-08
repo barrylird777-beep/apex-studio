@@ -2,106 +2,68 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
-import { APEX_APPS, assertSixAppInvariant, getApexApp } from "../src/apps/apex-six-apps.mjs";
-import { evaluatePayPex, payPexSnapshot, payPexStatus } from "../src/apps/paypex.mjs";
-import { teeveeStatus } from "../src/apps/teevee.mjs";
-import { gardenStatus } from "../src/apps/garden-of-apex.mjs";
-import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
-import { studioStatus } from "../src/apps/apex-studio.mjs";
-import { xshieldStatus } from "../src/apps/xshield.mjs";
-import { createPayPexBrief } from "../src/apps/paypex.mjs";
-import { kornPopzAppStatus } from "../src/apps/korn-popz.mjs";
+import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
+import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
+import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
+import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
+import { createWorkerAccount, createMarketOrder, clearMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
+import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
+import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
 
-test("Apex exposes exactly six canonical apps", () => {
-  assert.equal(assertSixAppInvariant(), true);
-  assert.equal(Object.keys(APEX_APPS).length, 6);
-  assert.deepEqual(Object.values(APEX_APPS).map(app => app.name), ["KornKnob","TeeVee","PayPex","ApexStudio","GardenOfApex","XShield"]);
+test("Apex exposes the six locked canonical apps",()=>{
+  assert.equal(assertSixAppInvariant(),true);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+  assert.equal(Object.keys(APEX_APPS).length,6);
 });
-
-test("six app boundaries resolve to their locked systems", () => {
-  assert.equal(getApexApp("korn-knob").system, "kornknob");
-  assert.equal(getApexApp("teevee").system, "apex-studio");
-  assert.equal(getApexApp("paypex").system, "apex-studio");
-  assert.equal(getApexApp("apex-studio").system, "apex-studio");
-  assert.equal(getApexApp("garden-of-apex").system, "garden-of-apex");
-  assert.equal(getApexApp("xshield").system, "apex-studio");
-});
-
-test("PayPex evaluates money-making opportunities deterministically", () => {
-  const result = evaluatePayPex({ demand: 1, evidence: 1, audienceFit: 1, revenuePotential: 1, speedToMarket: 1, repeatability: 1, novelty: 1, risk: 0, productionCost: 0 });
-  assert.equal(result.engine, "PayPex");
-  assert.ok(result.score >= 0 && result.score <= 100);
-});
-
-test("PayPex status uses the implemented snapshot/status contract", async () => {
-  const snapshot = await payPexSnapshot();
-  const status = payPexStatus(snapshot);
-  assert.equal(status.app.id, "paypex");
-  assert.equal(status.engine, "PayPex");
-  assert.equal(status.productionSeparated, true);
-  assert.equal(status.evidenceBacked, snapshot.state === "evidence-backed");
-});
-
-test("TeeVee is a continuous 24/7 TV network", () => {
-  const result = teeveeStatus();
-  assert.equal(result.product, "24/7 TV show/network");
-  assert.equal(result.mode, "continuous-linear-programming");
-  assert.equal(result.continuousScheduling, true);
-});
-
-test("KornPopz exposes its canonical evaluator status", () => {
-  const status = kornPopzAppStatus();
-  assert.equal(status.ratingSystem, "KornPopz");
-  assert.equal(status.active, true);
-});
-
-test("Garden, KornKnob, Studio and XShield expose operational status", () => {
-  assert.equal(gardenStatus().app.id, "garden-of-apex");
-  assert.equal(kornKnobStatus().app.id, "korn-knob");
-  assert.equal(studioStatus().app.id, "apex-studio");
-  assert.equal(xshieldStatus().app.id, "xshield");
-});
-
-test("all six app modules expose the same canonical app identity", async () => {
-  const modules = [
-    ["korn-knob", "../src/apps/korn-knob.mjs", "kornKnobStatus"],
-    ["teevee", "../src/apps/teevee.mjs", "teeveeStatus"],
-    ["paypex", "../src/apps/paypex.mjs", "payPexStatus"],
-    ["apex-studio", "../src/apps/apex-studio.mjs", "studioStatus"],
-    ["garden-of-apex", "../src/apps/garden-of-apex.mjs", "gardenStatus"],
-    ["xshield", "../src/apps/xshield.mjs", "xshieldStatus"]
-  ];
-  for (const [id, path, fn] of modules) {
-    const mod = await import(path);
-    const status = fn === "payPexStatus" ? mod[fn]() : mod[fn]();
-    assert.equal(status.app.id, id);
-    assert.equal(status.app.name, getApexApp(id).name);
+test("all canonical registry entries point to real surfaces and modules",async()=>{
+  for(const app of Object.values(APEX_APPS)){
+    await access(resolve(process.cwd(),"public",app.entry.slice(1)));
+    await access(resolve(process.cwd(),"src/apps",app.module.replace("../apps/","")));
   }
 });
-
-test("all six registry entries point to existing public surfaces and app modules", async () => {
-  for (const app of Object.values(APEX_APPS)) {
-    const publicPath = app.entry === "/" ? "public/index.html" : "public" + app.entry;
-    const modulePath = resolve(process.cwd(), "src/apps", app.module.replace(/^\.\.\/apps\//, ""));
-    await access(resolve(process.cwd(), publicPath));
-    await access(modulePath);
-  }
+test("PlanetApeX builds world state",()=>{
+  let planet=createPlanet({id:"earth",name:"Test World"});
+  planet=addPlanetRegion(planet,{id:"r1",name:"Region One"});
+  planet=addPlanetEntity(planet,{id:"e1",name:"Entity One",regionId:"r1"});
+  assert.equal(planet.regions.length,1); assert.equal(planet.entities[0].regionId,"r1");
+  assert.equal(planetApexStatus().app.name,"PlanetApeX");
 });
-
-test("PayPex creates a production handoff brief", () => {
-  const brief = createPayPexBrief({ topic: "Biblical short-form series", objective: "Test a small production", audience: "Bible story viewers" });
-  assert.equal(brief.engine, "PayPex");
-  assert.equal(brief.system, "apex-studio");
-  assert.equal(brief.evidenceRequired, true);
-  assert.equal(brief.handoff, "TeeVee");
-  assert.ok(brief.id);
+test("KoBlocks composes and validates reusable blocks",()=>{
+  const a=defineKoBlock({id:"a",outputs:["out"]}),b=defineKoBlock({id:"b",inputs:["in"]});
+  const graph=composeKoBlocks([a,b],[{from:"a",to:"b",port:"out"}]);
+  assert.deepEqual(validateKoBlockGraph(graph),{valid:true,blockCount:2,edgeCount:1});
+  assert.equal(koBlocksStatus().app.name,"KoBlocks");
 });
-
-test("registry module metadata matches app locations", () => {
-  assert.equal(getApexApp("korn-knob").module, "../apps/korn-knob.mjs");
-  assert.equal(getApexApp("teevee").module, "../apps/teevee.mjs");
-  assert.equal(getApexApp("paypex").module, "../apps/paypex.mjs");
-  assert.equal(getApexApp("apex-studio").module, "../apps/apex-studio.mjs");
-  assert.equal(getApexApp("garden-of-apex").module, "../apps/garden-of-apex.mjs");
-  assert.equal(getApexApp("xshield").module, "../apps/xshield.mjs");
+test("KernelVision creates Theatre and Kornmax viewing sessions",()=>{
+  const item=createTheatreItem({id:"film-1",title:"Finished Work"}),session=createViewingSession({item});
+  assert.equal(session.theatre,"KernelVision Theatre"); assert.equal(session.display,"Kornmax");
+  assert.equal(kernelVisionStatus().app.name,"KernelVision");
+});
+test("KoinKob clears a market and supports systemic events",()=>{
+  const buyer=createWorkerAccount({workerId:"buyer",balance:100}),seller=createWorkerAccount({workerId:"seller",inventory:{service:1}});
+  const orders=[createMarketOrder({workerId:buyer.workerId,side:"buy",asset:"service",quantity:1,price:10}),createMarketOrder({workerId:seller.workerId,side:"sell",asset:"service",quantity:1,price:8})];
+  const market=clearMarket(orders); assert.equal(market.trades.length,1); assert.equal(market.trades[0].quantity,1);
+  const round=runAdversarialRound({workers:[buyer,seller],orders,events:[createSystemicEvent({type:"demand-spike"})]});
+  assert.equal(round.workerCount,2); assert.equal(koinKobStatus().app.name,"KoinKob");
+  const world=buildWorkerEconomy({workerCount:2000});
+  assert.equal(world.workerCount,2000);
+  const simulation=runWorkerEconomySimulation({workerCount:2000,events:[createSystemicEvent({type:"infrastructure-breakdown",severity:.8})]});
+  assert.equal(simulation.workerCount,2000);
+  assert.ok(simulation.researchQuestion.includes("2,000 workers"));
+});
+test("KashKorner computes cash state",()=>{
+  const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
+  assert.equal(calculateCashBalance(entries),75);
+  assert.deepEqual(cashFlowSummary(entries),{currency:"USD",inflow:100,outflow:-25,balance:75});
+  assert.equal(kashKornerStatus().app.name,"KashKorner");
+});
+test("Kernelodies uses the existing music provenance contract",async()=>{
+  const track=createMusicTrack({title:"Test",contentDomain:"original",role:"music",provenance:{source:"studio"}});
+  const plan=buildMusicProductionPlan({projectId:"p1",contentDomain:"original",tracks:[track]});
+  assert.equal(plan.contractVersion,"apex-music-production.v1"); assert.equal((await kernelodiesStatus()).app.name,"Kernelodies");
+});
+test("canonical app identities are internally consistent",async()=>{
+  for(const [id,fn] of [["planet-apex",planetApexStatus],["ko-blocks",koBlocksStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
+  assert.equal((await kernelodiesStatus()).app.id,"kernelodies");
+  for(const app of Object.values(APEX_APPS))assert.equal(getApexApp(app.id).name,app.name);
 });
