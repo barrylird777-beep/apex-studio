@@ -8,6 +8,18 @@ export function durableWorkerEnabled() {
   return Boolean(String(process.env.DATABASE_URL || "").trim());
 }
 
+function postgresSslConfig() {
+  const explicit = String(process.env.APEX_PG_SSL || "").trim().toLowerCase();
+  if (explicit === "false" || explicit === "0") return false;
+  if (explicit === "true" || explicit === "1") return { rejectUnauthorized: false };
+  try {
+    const hostname = new URL(process.env.DATABASE_URL).hostname;
+    return /^(localhost|127(?:\\.\\d{1,3}){3}|::1)$/.test(hostname) ? false : { rejectUnauthorized: false };
+  } catch {
+    return false;
+  }
+}
+
 function getPool() {
   if (!durableWorkerEnabled()) return null;
   if (!pool) {
@@ -16,7 +28,7 @@ function getPool() {
       max: Math.max(5, Math.min(10, Number(process.env.APEX_WORKER_DB_POOL_MAX || 8))),
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
-      ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false }
+      ssl: postgresSslConfig()
     });
   }
   return pool;
