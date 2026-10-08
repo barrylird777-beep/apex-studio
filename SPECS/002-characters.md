@@ -10,13 +10,14 @@ Searchable, editable database of biblical characters with continuity across stor
 - Ability to view character detail
 - Seed the database with the 40+ characters from src/db/seed.ts
 - Clean empty state
+- Data persists through the existing PostgreSQL/Drizzle database
 
 ## Acceptance Criteria
 - User can create, edit, and delete characters
 - Search returns correct results
 - Character detail page shows all fields
 - Seed data loads successfully
-- Data persists in SQLite via Drizzle
+- Data persists in PostgreSQL via Drizzle
 
 ## Out of Scope
 - Linking characters to scenes (that comes later)
