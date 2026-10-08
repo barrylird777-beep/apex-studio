@@ -33,3 +33,15 @@ test("Apexus schedule IDs are deterministic", () => {
   const b = buildNetworkSchedule({episodes:catalog(), startAt:"2026-10-08T00:00:00Z", horizonMinutes:60});
   assert.deepEqual(a, b);
 });
+
+test("Apexus scheduler rotates episodes instead of repeating one episode", () => {
+  const rows = buildNetworkSchedule({
+    episodes: [
+      { id:"a", episode_code:"APX-0001", audience_lane:"Apexus Family", runtime_target_seconds:180 },
+      { id:"b", episode_code:"APX-0002", audience_lane:"Apexus Family", runtime_target_seconds:180 }
+    ],
+    startAt:"2026-10-08T00:00:00Z",
+    horizonMinutes:10
+  });
+  assert.deepEqual(rows.map(row => row.episodeCode), ["APX-0001","APX-0002","APX-0001","APX-0002"]);
+});
