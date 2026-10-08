@@ -13,8 +13,8 @@ export const BIBLE_STUDY_ROOM = Object.freeze({
     "source-provenance",
     "study-notes",
     "discoveries",
-    "popcorn-candidates",
-    "cornnut-evaluation",
+    "production-candidates",
+    "evaluation",
     "apexstudio-production-handoff"
   ])
 });
@@ -61,7 +61,7 @@ export function createBibleStudyRoom({ store = new Map() } = {}) {
       theology: note.theology ? clone(note.theology) : null,
       discovery: note.discovery ? clone(note.discovery) : null,
       popcornCandidate: Boolean(note.popcornCandidate),
-      cornnutEvaluationId: note.cornnutEvaluationId ?? null,
+      evaluationId: note.evaluationId ?? null,
       productionHandoff: note.productionHandoff ? clone(note.productionHandoff) : null,
       updatedAt: new Date().toISOString()
     };
