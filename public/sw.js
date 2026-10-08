@@ -21,14 +21,15 @@ self.addEventListener("fetch",e=>{
   if(e.request.method!=="GET") return;
   const url=new URL(e.request.url);
   if(url.origin!==self.location.origin) return;
+
   const isShellAsset=ASSETS.includes(url.pathname);
-  if(!isShellAsset && !e.request.mode==="navigate") return;
-  if(!isShellAsset && e.request.mode!=="navigate") return;
+  const isNavigation=e.request.mode==="navigate";
+  if(!isShellAsset && !isNavigation) return;
 
   e.respondWith(
     fetch(e.request)
       .then(r=>{
-        if(r.ok && (isShellAsset || e.request.mode==="navigate")){
+        if(r.ok){
           const copy=r.clone();
           caches.open(CACHE).then(c=>c.put(e.request,copy));
         }
