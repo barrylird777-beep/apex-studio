@@ -42,7 +42,7 @@ import { FrictionlessResearchEngine } from './src/core/research/frictionless-res
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
-import { createTOONXProductionRouter } from './src/api/toonx-production-api.mjs';
+import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -152,7 +152,7 @@ const infiniteBroadcast = createInfiniteBroadcast({
   ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg'
 });
 
-app.use('/api/toonx/production', createTOONXProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
+app.use('/api/teevee/production', createTeeVeeProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
 
 app.get('/api/shield-apex/status', (_req, res) => {
   res.status(200).json({
@@ -173,7 +173,7 @@ app.get('/api/apex/readiness', (_req, res) => {
       { id: 'garden-of-apex', name: 'Garden of Apex', role: 'knowledge', state: 'foundation-ready', entry: '/garden-of-apex.html' },
       { id: 'kornknob', name: 'KORNKNOB', role: 'capability', state: 'foundation-ready', entry: '/korn-knob.html' },
       { id: 'special-search', name: 'Special Search', role: 'specialized-search', ownerSystem: 'apex-studio', state: 'integrated' },
-      { id: 'toonx', name: 'TOONX', role: 'original-animated-entertainment', ownerSystem: 'apex-studio', state: 'production-surface', entry: '/toonx-buyer.html' },
+      { id: 'teevee', name: 'TeeVee', role: 'original-animated-entertainment', ownerSystem: 'apex-studio', state: 'production-surface', entry: '/teevee-buyer.html' },
       { id: 'engine-apex', name: 'Engine Apex', role: 'decision-intelligence', ownerSystem: 'apex-studio', state: 'integrated', entry: '/engine-apex.html' },
       { id: 'shield-apex', name: 'ShieldApex', role: 'security', ownerSystem: 'apex-studio', state: 'integrated', entry: '/shield-apex.html' },
       { id: 'apex-overseer', name: 'Apex Overseer', role: 'worker-orchestration', ownerSystem: 'apex-studio', state: 'integrated', entry: '/overseer.html' }
@@ -460,7 +460,7 @@ const crewRoles = [
   ["story", "Audit opening hooks, retention, pacing, narrative architecture, and episode structure for one concrete improvement."],
   ["visuals", "Audit cinematic visual generation, continuity, shot planning, style consistency, and 16:9 production readiness."],
   ["audio", "Audit narration, music, SFX, mixing, mastering, synchronization, and KornKnob handoffs."],
-  ["rapid", "Audit TOONX against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
+  ["rapid", "Audit TeeVee against current final conclusions, customer fulfillment, preview flow, payment/order integrity, and delivery."],
   ["studio", "Audit ApexStudio as the complete production system, Bible-first then Korn, from planning through mastering and delivery."],
   ["garden", "Audit GardenOfApex as the research/knowledge/world-development surface, preserving its separation from ApexStudio."],
   ["kornknob", "Audit KORNKNOB as the audio/music intelligence surface and its capability contracts to other systems."],
@@ -471,7 +471,7 @@ const crewRoles = [
   ["payments", "Audit Rapid checkout/webhook idempotency, signature verification, price/currency enforcement, and order state."],
   ["provider-routing", "Audit AI provider selection, free-first policy, explicit provider contracts, retries, and no silent paid fallback."],
   ["qa-hostile", "Act as hostile final QA. Find one reproducible defect, missing test, or false-positive readiness signal."],
-  ["integration", "Audit boundaries among Garden of Apex, Apex Studio, KORNKNOB, TOONX, and Special Search."],
+  ["integration", "Audit boundaries among Garden of Apex, Apex Studio, KORNKNOB, TeeVee, and Special Search."],
   ["documentation", "Audit runtime/config/deployment documentation against actual code and remove misleading operational claims."],
   ["cleanup", "Find dead, duplicated, stale, or contradictory code/config that can damage runtime correctness and define the safest cleanup."],
 ]
@@ -612,10 +612,10 @@ permanentWorkerHeartbeat.unref?.();
 app.disable('x-powered-by');
 app.use(cors());
 // Serve the standalone public app pages before API routes.
-app.get('/api/toonx/buyer', (_req, res) => {
+app.get('/api/teevee/buyer', (_req, res) => {
   res.status(200).json({
     success: true,
-    product: 'TOONX',
+    product: 'TeeVee',
     category: '24/7 original animated entertainment network',
     productionTarget: { episodes: 2785, firstEpisode: 'APX-0001', lastEpisode: 'APX-2785' },
     payment: { state: 'payment-ready-not-live', processor: 'Stripe', activation: 'requires business-side Stripe setup and operating policy' }
@@ -921,7 +921,7 @@ app.get('/korn-knob', async (_req, res) => {
     return res.status(500).send('KORN-KNOB UI unavailable');
   }
 });
-app.get('/rapid-video.html', (_req, res) => res.redirect(308, '/toonx-buyer.html'));
+app.get('/rapid-video.html', (_req, res) => res.redirect(308, '/teevee-buyer.html'));
 app.use(express.static(path.join(__dirname, 'public')));
 // Persistent SE-X assets are served through a dedicated static mount. The
 // storage module validates all filenames before they are written, while
@@ -2415,7 +2415,7 @@ app.get('/api/engine-apex/status', async (_req, res) => {
       engine: 'EngineApex',
       state: snapshot.state,
       opportunityCount: snapshot.opportunities.length,
-      handoffs: ['TOONX', 'Apex Studio'],
+      handoffs: ['TeeVee', 'Apex Studio'],
       productionSeparated: true,
       checkedAt: new Date().toISOString()
     });
