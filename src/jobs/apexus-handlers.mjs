@@ -63,11 +63,165 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     qc:"qc_status", master:"master_status", catalog:"programming_status"
   }[stage];
   if(stage==="story"){
+    await pool.query("UPDATE apexus_episodes SET state=$2,creative_brief=creative_brief||$3::jsonb WHERE id=$1",[episode.id,state,JSON.stringify({storyArtifact:file})]);
+  }else if(statusColumn){
+    const status=stage==="qc"?"passed":stage==="master"?"approved":"approved";
+    await pool.query(`UPDATE apexus_episodes SET state=$2,${statusColumn}=$3,metadata=metadata||$4::jsonb WHERE id=$1`,
+      [episode.id,state,status,JSON.stringify({[stage+"Artifact"]:file})]);
+  }else{
+    await pool.query("UPDATE apexus_episodes SET state=$2,metadata=metadata||$3::jsonb WHERE id=$1",[episode.id,state,JSON.stringify({[stage+"Artifact"]:file})]);
+  }
+  const assetId=await recordAsset(episode,stage,file,metadata);
+  if(stage==="catalog"){
+    const master=await pool.query(
+      "SELECT id FROM apexus_episode_assets WHERE episode_id=$1 AND asset_type='episode.master' ORDER BY version DESC LIMIT 1",
+      [episode.id]
+    );
+    if(!master.rowCount) throw new Error("Catalog cannot register without a master asset");
+    await pool.query(
+      "INSERT INTO apexus_catalog(id,episode_id,master_asset_id,duration_seconds,qc_passed_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT (episode_id) DO UPDATE SET master_asset_id=EXCLUDED.master_asset_id,duration_seconds=EXCLUDED.duration_seconds,qc_passed_at=EXCLUDED.qc_passed_at",
+      [randomUUID(),episode.id,master.rows[0].id,episode.runtime_target_seconds]
+    );
+  }
+  if(stage==="schedule"){
+    await pool.query("DELETE FROM apexus_schedule WHERE episode_id=$1 AND status='scheduled'",[episode.id]);
+    const start=new Date(Date.now()+365*24*60*60*1000);
+    const end=new Date(start.getTime()+Number(episode.runtime_target_seconds)*1000);
+    await pool.query("INSERT INTO apexus_schedule(id,episode_id,starts_at,ends_at,block_name,status) VALUES($1,$2,$3,$4,$5,'scheduled')",[randomUUID(),episode.id,start,end,episode.audience_lane]);
+  }
+}
+
+async function enqueueNext(episode, stage){
+  const i=STAGES.indexOf(stage); if(i<0 || i>=STAGES.length-1) return null;
+  const next=STAGES[i+1];
+  const jobs=buildEpisodeProductionJobs(episode);
+  const template=jobs.find(j=>j.type===`apexus.episode.${next}`);
+  if(!template) return null;
+  await pool.query(
+    `INSERT INTO durable_jobs(id,type,payload,status,run_at,max_attempts,dedupe_key,priority,created_at,updated_at)
+     VALUES($1,$2,$3::jsonb,'queued',NOW(),8,$4,$5,NOW(),NOW())
+     ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL AND status IN ('queued','running') DO NOTHING`,
+    [randomUUID(),template.type,JSON.stringify(template.payload),template.dedupeKey,template.priority]
+  );
+  return next;
+}
+
+async function fetchWithRetry(url,options={},label="provider"){
+  let lastError;
+  for(let attempt=1;attempt<=5;attempt++){
+    try{
+      const response=await fetch(url,options);
+      if(response.ok) return response;
+      if(![408,425,429,500,502,503,504].includes(response.status)) return response;
+      const retryAfter=Number(response.headers.get("retry-after")||0);
+      const delay=Math.min(30000,retryAfter>0?retryAfter*1000:500*2**(attempt-1)+Math.floor(Math.random()*250));
+      if(attempt<5) await new Promise(resolve=>setTimeout(resolve,delay));
+      lastError=new Error(`${label} returned ${response.status}`);
+    }catch(error){
+      lastError=error;
+      if(attempt<5) await new Promise(resolve=>setTimeout(resolve,Math.min(30000,500*2**(attempt-1)+Math.floor(Math.random()*250))));
+    }
+  }
+  throw lastError||new Error(`${label} request failed`);
+}
+
+async function generateText(prompt){
+  const providers=[
+    ["OPENROUTER_API_KEY","https://openrouter.ai/api/v1/chat/completions",process.env.OPENROUTER_MODEL||"openai/gpt-5-mini"],
+    ["GROQ_API_KEY","https://api.groq.com/openai/v1/chat/completions",process.env.GROQ_MODEL||"llama-3.3-70b-versatile"],
+    ["OPENAI_API_KEY","https://api.openai.com/v1/chat/completions",process.env.OPENAI_MODEL||"gpt-5.6"]
+  ];
+  const failures=[];
+  for(const [key,url,model] of providers){
+    if(!process.env[key]) continue;
+    try{
+      const r=await fetchWithRetry(url,{method:"POST",headers:{"Authorization":`Bearer ${process.env[key]}`,"Content-Type":"application/json"},body:JSON.stringify({
+        model,messages:[{role:"system",content:"You are the Apexus original-animation writers room. Create original material only. Do not imitate living artists. Return production-ready text, concise and concrete."},{role:"user",content:prompt}],temperature:.8
+      })});
+      if(!r.ok){ failures.push(`${key}: HTTP ${r.status}`); continue; }
+      const data=await r.json(); const text=data?.choices?.[0]?.message?.content;
+      if(text) return {text,provider:key};
+      failures.push(`${key}: empty response`);
+    }catch(error){ failures.push(`${key}: ${error?.message || error}`); }
+  }
+  throw new Error(failures.length ? `All configured text providers failed: ${failures.join("; ")}` : "No configured text-generation provider");
+}
+
+async function makeAudioBed(narrationPath, output, runtimeSeconds){
+  await fs.mkdir(path.dirname(output),{recursive:true});
+  return new Promise((resolve,reject)=>ffmpeg(narrationPath)
+    .input("anullsrc=r=48000:cl=stereo").inputFormat("lavfi")
+    .complexFilter("[0:a]volume=0.16,apad[voice];[1:a]volume=0.035[bed];[voice][bed]amix=inputs=2:duration=longest:dropout_transition=2[mix]")
+    .outputOptions(["-map","[mix]","-c:a","aac","-b:a","192k","-t",String(runtimeSeconds)])
+    .save(output).on("end",()=>resolve(output)).on("error",reject));
+}
+
+async function tts(text, output){
+  if(!process.env.HF_TOKEN) throw new Error("HF_TOKEN is required for Apexus voice generation");
+  const model=process.env.HF_TTS_MODEL||"espnet/kan-bayashi_ljspeech_vits";
+  const r=await fetchWithRetry(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`,{
+    method:"POST",headers:{Authorization:`Bearer ${process.env.HF_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({inputs:text})
+  });
+  if(!r.ok) throw new Error("Hugging Face TTS returned "+r.status);
+  const type=r.headers.get("content-type")||"";
+  if(!type.includes("audio")) throw new Error("TTS provider did not return audio");
+  const buf=Buffer.from(await r.arrayBuffer()); await fs.mkdir(path.dirname(output),{recursive:true}); await fs.writeFile(output,buf); return output;
+}
+
+export function buildAnimationPlan(runtimeSeconds){
+  const runtime=Math.max(1,Math.ceil(Number(runtimeSeconds)||180));
+  const sceneCount=Math.ceil(runtime/6);
+  return Array.from({length:sceneCount},(_,i)=>({
+    scene:i+1,
+    durationSeconds:i===sceneCount-1 ? runtime-(sceneCount-1)*6 : 6
+  }));
+}
+
+function concatQuote(file){
+  return "file '"+file.replace(/'/g,"'\\''")+"'";
+}
+
+async function concatAnimation(sceneFiles, output, runtimeSeconds){
+  const dir=path.dirname(output);
+  await fs.mkdir(dir,{recursive:true});
+  const list=path.join(dir,"concat.txt");
+  await fs.writeFile(list,sceneFiles.map(concatQuote).join("\n")+"\n");
+  try{
+    await new Promise((resolve,reject)=>ffmpeg()
+      .input(list)
+      .inputOptions(["-f","concat","-safe","0"])
+      .outputOptions(["-an","-c:v","libx264","-preset","medium","-pix_fmt","yuv420p","-t",String(runtimeSeconds),"-movflags","+faststart"])
+      .save(output).on("end",resolve).on("error",reject));
+  }finally{
+    await fs.rm(list,{force:true});
+  }
+  const stat=await fs.stat(output).catch(()=>null);
+  if(!stat || stat.size<=0) throw new Error("Animation assembly produced an empty artifact");
+  return output;
+}
+
+async function media(kind,prompt,output){
+  if(!process.env.POLLINATIONS_API_KEY) throw new Error("POLLINATIONS_API_KEY is required for Apexus "+kind+" generation");
+  const base=kind==="video"?"https://gen.pollinations.ai/video/":"https://gen.pollinations.ai/image/";
+  const model=kind==="video"?(process.env.POLLINATIONS_VIDEO_MODEL||"alibaba/wan-2.2-fast"):(process.env.POLLINATIONS_IMAGE_MODEL||"flux");
+  const params=kind==="video"?new URLSearchParams({model,duration:"6",aspectRatio:"16:9"}):new URLSearchParams({model,width:"1280",height:"720",nologo:"true"});
+  const r=await fetchWithRetry(base+encodeURIComponent(prompt)+"?"+params,{headers:{Authorization:`Bearer ${process.env.POLLINATIONS_API_KEY}`}},"Pollinations "+kind);
+  if(!r.ok) throw new Error(`Pollinations ${kind} returned ${r.status}`);
+  const buf=Buffer.from(await r.arrayBuffer()); if(!buf.length) throw new Error("Empty media response");
+  await fs.mkdir(path.dirname(output),{recursive:true}); await fs.writeFile(output,buf); return output;
+}
+
+async function handle(stage, job){
+  const p=job.payload||job; const episode=await getEpisode(p.episodeId); const code=episode.episode_code;
+  const base=`Apexus original animated entertainment network. Episode ${code}. Title: ${episode.title}. Lane: ${episode.audience_lane}. Runtime target: ${episode.runtime_target_seconds}s. Visual DNA: dark fantasy anime, sharp cel shading, high-contrast cinematic lighting, highly detailed. Make it original, entertaining, memorable, and suitable for its stated maturity lane.`;
+  let file, metadata={provider:"deterministic"};
+  if(stage==="story"){
     const generated=await generateText(`${base}\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
     metadata.provider=generated.provider;
     file=await writeText(code,stage,"story.md",generated.text);
   }else if(stage==="script"){
-    const generated=await generateText(`${base}\nUsing the existing story artifact for ${code}, write a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Keep it original.`);
+    const story=await fs.readFile(path.join(stagePath(code,"story"),"story.md"),"utf8");
+    const generated=await generateText(`${base}\nHere is the story development for ${code}:\n${story.slice(0,24000)}\n\nTurn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
   }else if(stage==="storyboard"){
     const plan=buildAnimationPlan(episode.runtime_target_seconds);
@@ -97,6 +251,7 @@ audio:"audio_status", "visual-development":"visual_development_status", animatio
     )));
     file=await concatAnimation(sceneFiles,path.join(stagePath(code,stage),"full-episode.mp4"),episode.runtime_target_seconds);
     metadata.sceneCount=sceneFiles.length;
+    metadata.sceneFiles=sceneFiles;
   }else if(stage==="edit"){
     const video=path.join(stagePath(code,"animation"),"full-episode.mp4");
     const audio=path.join(stagePath(code,"audio"),"episode-audio.m4a");
