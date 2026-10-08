@@ -136,7 +136,7 @@ async function makeAudioBed(narrationPath, output, runtimeSeconds){
 async function tts(text, output){
   if(!process.env.HF_TOKEN) throw new Error("HF_TOKEN is required for Apexus voice generation");
   const model=process.env.HF_TTS_MODEL||"espnet/kan-bayashi_ljspeech_vits";
-  const r=await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`,{
+  const r=await fetchWithRetry(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`,{
     method:"POST",headers:{Authorization:`Bearer ${process.env.HF_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({inputs:text})
   });
   if(!r.ok) throw new Error("Hugging Face TTS returned "+r.status);
@@ -170,12 +170,31 @@ async function concatAnimation(sceneFiles, output, runtimeSeconds){
   return output;
 }
 
+async function fetchWithRetry(url,options={},label="provider"){
+  let lastError;
+  for(let attempt=1;attempt<=5;attempt++){
+    try{
+      const response=await fetch(url,options);
+      if(response.ok) return response;
+      if(![408,425,429,500,502,503,504].includes(response.status)) return response;
+      const retryAfter=Number(response.headers.get("retry-after")||0);
+      const delay=Math.min(30000,retryAfter>0?retryAfter*1000:500*2**(attempt-1)+Math.floor(Math.random()*250));
+      if(attempt<5) await new Promise(resolve=>setTimeout(resolve,delay));
+      lastError=new Error(`${label} returned ${response.status}`);
+    }catch(error){
+      lastError=error;
+      if(attempt<5) await new Promise(resolve=>setTimeout(resolve,Math.min(30000,500*2**(attempt-1)+Math.floor(Math.random()*250))));
+    }
+  }
+  throw lastError||new Error(`${label} request failed`);
+}
+
 async function media(kind,prompt,output){
   if(!process.env.POLLINATIONS_API_KEY) throw new Error("POLLINATIONS_API_KEY is required for Apexus "+kind+" generation");
   const base=kind==="video"?"https://gen.pollinations.ai/video/":"https://gen.pollinations.ai/image/";
   const model=kind==="video"?(process.env.POLLINATIONS_VIDEO_MODEL||"alibaba/wan-2.2-fast"):(process.env.POLLINATIONS_IMAGE_MODEL||"flux");
   const params=kind==="video"?new URLSearchParams({model,duration:"6",aspectRatio:"16:9"}):new URLSearchParams({model,width:"1280",height:"720",nologo:"true"});
-  const r=await fetch(base+encodeURIComponent(prompt)+"?"+params,{headers:{Authorization:`Bearer ${process.env.POLLINATIONS_API_KEY}`}});
+  const r=await fetchWithRetry(base+encodeURIComponent(prompt)+"?"+params,{headers:{Authorization:`Bearer ${process.env.POLLINATIONS_API_KEY}`}},"Pollinations "+kind);
   if(!r.ok) throw new Error(`Pollinations ${kind} returned ${r.status}`);
   const buf=Buffer.from(await r.arrayBuffer()); if(!buf.length) throw new Error("Empty media response");
   await fs.mkdir(path.dirname(output),{recursive:true}); await fs.writeFile(output,buf); return output;
