@@ -5,6 +5,7 @@ import { createDurableJobsStore } from "./durable-jobs-store.mjs";
 import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
 import { buildUniversalExecutionEnvelope } from "../core/apex-universal-capabilities.mjs";
 import { createKornKnobIdea } from "../core/korn-knob.mjs";
+import { permanentHealth } from "./permanent-health-handler.mjs";
 
 const { Pool } = pg;
 const pool = process.env.DATABASE_URL
@@ -92,6 +93,7 @@ async function evaluateKornKnobIdea(job) {
 }
 
 export const handlers = {
+  "permanent-health": permanentHealth,
   "trend.analyze": analyzeTrend,
   "rapid.trend.render": renderTrend,
   "kornknob.idea.evaluate": evaluateKornKnobIdea

@@ -556,8 +556,12 @@ const permanentWorkerFleet = createPermanentWorkerFleet();
 const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
 for (const worker of permanentWorkerFleet.workers) {
   Object.assign(worker, startPermanentWorker(worker), {
+    status: 'idle',
     nextRunAt: new Date(Date.now() + (Number(worker.id.replace(/\D/g, '').slice(-3) || 0) % 30) * 1000).toISOString(),
     taskStartedAt: null,
+    taskProgressAt: null,
+    taskToken: null,
+    durableTaskId: null,
     lastCompletedAt: null
   });
 }
@@ -727,27 +731,66 @@ const permanentWorkerInFlight = new Set();
 const permanentWorkerRunEveryMs = Math.max(30000, Number(process.env.APEX_PERMANENT_WORKER_RUN_MS || 60000));
 const permanentWorkerMaxConcurrent = Math.max(1, Number(process.env.APEX_PERMANENT_WORKER_CONCURRENCY || 64));
 
+async function waitForDurableWorkerTask(id, worker, taskToken) {
+  const pollMs = Math.max(250, Number(process.env.APEX_PERMANENT_WORKER_STATUS_POLL_MS || 1000));
+  while (worker.durableTaskId === id) {
+    let job;
+    try {
+      job = await getWorkerTask(id);
+    } catch (error) {
+      if (worker.taskToken === taskToken) worker.lastQueuePollError = String(error?.message || error).slice(0, 500);
+      await new Promise(resolve => setTimeout(resolve, pollMs));
+      continue;
+    }
+    if (!job) {
+      await new Promise(resolve => setTimeout(resolve, pollMs));
+      continue;
+    }
+    if (['completed', 'dead', 'failed'].includes(job.status)) return job;
+    const updatedAt = Date.parse(job.updated_at || job.updatedAt || '');
+    if (worker.taskToken === taskToken && job.status === 'running' && Number.isFinite(updatedAt)) {
+      const previousProgress = Date.parse(worker.taskProgressAt || '');
+      if (!Number.isFinite(previousProgress) || updatedAt > previousProgress) {
+        worker.taskProgressAt = new Date(updatedAt).toISOString();
+        worker.lastHeartbeatAt = worker.taskProgressAt;
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, pollMs));
+  }
+  return { status: 'superseded' };
+}
+
 const permanentWorkerHeartbeat = setInterval(() => {
   const nowMs = Date.now();
   for (const worker of permanentWorkerFleet.workers) {
-    const taskStartedMs = Date.parse(worker.taskStartedAt || '');
+    const taskProgressMs = Date.parse(worker.taskProgressAt || worker.taskStartedAt || '');
     const taskTimedOut = permanentWorkerInFlight.has(worker.id)
-      && Number.isFinite(taskStartedMs)
-      && nowMs - taskStartedMs > apexOverseer.staleAfterMs;
+      && Number.isFinite(taskProgressMs)
+      && nowMs - taskProgressMs > apexOverseer.staleAfterMs;
 
     if (taskTimedOut) {
       const staleToken = worker.taskToken;
       permanentWorkerInFlight.delete(worker.id);
-      Object.assign(worker, failPermanentWorkerTask(worker, new Error('Worker task lease expired')));
-      worker.lastError = 'Worker task lease expired';
-      worker.taskStartedAt = null;
-      worker.taskToken = null;
+      Object.assign(worker, failPermanentWorkerTask(worker, new Error('Worker task made no progress before its lease expired')), {
+        status: 'idle',
+        lastError: 'Worker task made no progress before its lease expired',
+        taskStartedAt: null,
+        taskProgressAt: null,
+        taskToken: null,
+        recoveryState: 'restart_requested',
+        recoveryRequestedAt: new Date().toISOString()
+      });
+      worker.nextRunAt = new Date(nowMs).toISOString();
       if (staleToken) worker.lastStaleTaskToken = staleToken;
     }
 
-    if (permanentWorkerInFlight.has(worker.id) || permanentWorkerInFlight.size >= permanentWorkerMaxConcurrent) {
-      Object.assign(worker, heartbeatPermanentWorker(worker, worker.currentTask));
-      continue;
+    if (worker.durableTaskId) continue;
+    if (permanentWorkerInFlight.has(worker.id) || permanentWorkerInFlight.size >= permanentWorkerMaxConcurrent) continue;
+
+    if (worker.recoveryState === 'restart_requested') {
+      worker.nextRunAt = new Date(nowMs).toISOString();
+      worker.recoveryState = 'recovered';
+      worker.recoveredAt = new Date().toISOString();
     }
 
     const nextRun = Date.parse(worker.nextRunAt || '');
@@ -755,36 +798,73 @@ const permanentWorkerHeartbeat = setInterval(() => {
 
     const task = overseerTaskFor(worker);
     const taskToken = crypto.randomUUID();
+    const durableTaskId = crypto.randomUUID();
+    let trackedTaskId = durableTaskId;
     worker.taskToken = taskToken;
     worker.taskStartedAt = new Date(nowMs).toISOString();
+    worker.taskProgressAt = worker.taskStartedAt;
+    worker.durableTaskId = durableTaskId;
     worker.nextRunAt = new Date(nowMs + permanentWorkerRunEveryMs).toISOString();
     Object.assign(worker, heartbeatPermanentWorker(worker, task));
     permanentWorkerInFlight.add(worker.id);
-    const durableTaskId = crypto.randomUUID();
 
     const taskPayload = { type: 'permanent-health', workerId: worker.id, role: worker.role, task };
-    void enqueueWorkerTask({
-      id: durableTaskId,
-      workerId: worker.id,
-      role: worker.role,
-      task,
-      payload: taskPayload
-    }).catch(async () => {
-      // Keep the swarm alive when durable persistence is unavailable.
-      // The durable queue resumes distribution automatically when it returns.
-      await permanentWorkerSupervisor.dispatch(taskPayload);
-    }).then(() => {
-      worker.taskStartedAt = null;
-      worker.taskToken = null;
-      worker.lastQueuedAt = new Date().toISOString();
-      permanentWorkerInFlight.delete(worker.id);
-    }).catch(error => {
-      permanentWorkerInFlight.delete(worker.id);
+    void (async () => {
+      let queued;
+      try {
+        queued = await enqueueWorkerTask({
+          id: durableTaskId,
+          workerId: worker.id,
+          role: worker.role,
+          task: 'permanent-health',
+          payload: taskPayload,
+          maxAttempts: 3
+        });
+      } catch (enqueueError) {
+        const existing = await getWorkerTask(durableTaskId).catch(() => null);
+        if (!existing) throw enqueueError;
+        queued = { durable: true, id: durableTaskId };
+      }
+
+      if (queued?.durable) {
+        trackedTaskId = String(queued.id || durableTaskId);
+        worker.durableTaskId = trackedTaskId;
+        const outcome = await waitForDurableWorkerTask(trackedTaskId, worker, taskToken);
+        if (outcome.status === 'superseded' || worker.taskToken !== taskToken) return;
+        if (outcome.status !== 'completed') {
+          throw new Error(`Durable permanent-health task ${trackedTaskId} ended with ${outcome.status}: ${outcome.last_error || outcome.lastError || 'no error details'}`);
+        }
+        Object.assign(worker, completePermanentWorkerTask(worker), {
+          status: 'idle',
+          lastCompletedAt: outcome.completed_at ? new Date(outcome.completed_at).toISOString() : new Date().toISOString(),
+          lastTaskResult: outcome.result ?? null,
+          recoveryState: 'healthy'
+        });
+      } else {
+        const result = await permanentWorkerSupervisor.dispatch(taskPayload);
+        if (worker.taskToken !== taskToken) return;
+        Object.assign(worker, completePermanentWorkerTask(worker), {
+          status: 'idle',
+          lastCompletedAt: new Date().toISOString(),
+          lastTaskResult: result ?? null,
+          recoveryState: 'healthy'
+        });
+      }
+    })().catch(error => {
       if (worker.taskToken !== taskToken) return;
-      Object.assign(worker, failPermanentWorkerTask(worker, error));
-      worker.lastError = String(error?.message || error);
-      worker.taskStartedAt = null;
-      worker.taskToken = null;
+      Object.assign(worker, failPermanentWorkerTask(worker, error), {
+        status: 'idle',
+        lastError: String(error?.message || error),
+        recoveryState: 'failed'
+      });
+    }).finally(() => {
+      if (worker.durableTaskId === trackedTaskId) worker.durableTaskId = null;
+      if (worker.taskToken === taskToken) {
+        worker.taskStartedAt = null;
+        worker.taskProgressAt = null;
+        worker.taskToken = null;
+        permanentWorkerInFlight.delete(worker.id);
+      }
     });
   }
   Object.assign(apexOverseer, overseerCycle(apexOverseer, permanentWorkerFleet));
