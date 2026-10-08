@@ -1,30 +1,36 @@
 {
-  "version": 1,
+  "version": 2,
   "concurrency": 6,
   "surfaces": [
     {
+      "id": "korn-knob",
+      "name": "KornKnob",
+      "goal": "audio and music capability"
+    },
+    {
+      "id": "teevee",
+      "name": "TeeVee",
+      "goal": "24/7 television network and continuous programming"
+    },
+    {
+      "id": "paypex",
+      "name": "PayPex",
+      "goal": "money-making stock, market, business and monetization intelligence"
+    },
+    {
       "id": "apex-studio",
-      "goal": "production studio, infinite broadcast, visual/media pipeline"
-    },
-    {
-      "id": "kornknob",
-      "goal": "audio and music intelligence"
-    },
-    {
-      "id": "apex-rapid",
-      "goal": "rapid paid vertical video fulfillment"
-    },
-    {
-      "id": "engine-apex",
-      "goal": "opportunity, growth, business and monetization intelligence"
+      "name": "ApexStudio",
+      "goal": "creative production, editing, mastering, QC and delivery"
     },
     {
       "id": "garden-of-apex",
-      "goal": "living world, research, scripture, knowledge and civilization"
+      "name": "GardenOfApex",
+      "goal": "knowledge, Scripture, research and creative world"
     },
     {
-      "id": "shield-apex",
-      "goal": "network, security and execution-environment protection"
+      "id": "xshield",
+      "name": "XShield",
+      "goal": "ad blocking, tracker blocking and network filtering"
     }
   ]
-}\n
+}
