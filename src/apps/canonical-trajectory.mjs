@@ -27,9 +27,29 @@ export function canonicalTrajectory() {
   };
 }
 
+export function validateCanonicalTrajectory(trajectory = canonicalTrajectory()) {
+  if (!trajectory || trajectory.contractVersion !== "apex-canonical-trajectory.v1") {
+    throw new Error("Invalid canonical trajectory contract");
+  }
+  const ids = new Set(trajectory.apps.map(app => app.id));
+  if (ids.size !== 6 || ids.size !== Object.keys(APEX_APPS).length) {
+    throw new Error("Canonical trajectory must contain exactly six apps");
+  }
+  for (const handoff of trajectory.handoffs) {
+    if (!ids.has(handoff.from) || !ids.has(handoff.to) || handoff.from === handoff.to) {
+      throw new Error("Canonical trajectory contains an invalid handoff");
+    }
+    if (!String(handoff.purpose || "").trim()) {
+      throw new Error("Canonical trajectory handoff requires a purpose");
+    }
+  }
+  return true;
+}
+
 export function canonicalNeighbors(appId) {
   const id = String(appId ?? "");
   const known = Object.values(APEX_APPS).some(app => app.id === id);
   if (!known) throw new Error("Unknown Apex app: " + id);
   return HANDOFFS.filter(h => h.from === id || h.to === id).map(h => ({ ...h }));
+}
 }
