@@ -6,7 +6,7 @@ export const APEX_APPS = Object.freeze({
   PAYPEX: Object.freeze({ id: "paypex", name: "PayPex", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "money-making stock, market, business and monetization intelligence", entry: "/paypex.html", module: "../core/paypex-core.mjs" }),
   STUDIO: Object.freeze({ id: "apex-studio", name: "ApexStudio", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "creative production, editing, mastering, QC and delivery", entry: "/", module: "../core/apex-universe.mjs" }),
   GARDEN: Object.freeze({ id: "garden-of-apex", name: "GardenOfApex", system: APEX_SYSTEMS.GARDEN_OF_APEX.id, role: "knowledge, Scripture, research and creative world", entry: "/garden-of-apex.html", module: "../core/garden-of-apex.mjs" }),
-  XSHIELD: Object.freeze({ id: "xshield", name: "XShield", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "ad blocking, tracker blocking and network filtering", entry: "/shield-apex.html", module: "../apps/xshield.mjs" })
+  XSHIELD: Object.freeze({ id: "xshield", name: "XShield", system: APEX_SYSTEMS.APEX_STUDIO.id, role: "ad blocking, tracker blocking and network filtering", entry: "/shield-apex.html", module: "./xshield.mjs" })
 });
 
 export const APEX_APP_IDS = Object.freeze(Object.values(APEX_APPS).map(app => app.id));
