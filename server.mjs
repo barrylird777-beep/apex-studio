@@ -714,12 +714,41 @@ app.get('/api/network/throughput', async (req, res) => {
   res.end();
 });
 
-let latestClientNetworkTelemetry = null;
+const clientNetworkTelemetry = new Map();
+const clientTelemetryMaxEntries = 5000;
+const clientTelemetryTtlMs = Math.max(60_000, Number(process.env.APEX_CLIENT_NETWORK_TELEMETRY_TTL_MS || 15 * 60_000));
+
+function normalizeClientId(value) {
+  const id = String(value || '').trim();
+  return /^[A-Za-z0-9._:-]{8,128}$/.test(id) ? id : null;
+}
+
+function pruneClientNetworkTelemetry(now = Date.now()) {
+  for (const [id, entry] of clientNetworkTelemetry) {
+    if (now - entry.receivedAtMs > clientTelemetryTtlMs) clientNetworkTelemetry.delete(id);
+  }
+  while (clientNetworkTelemetry.size > clientTelemetryMaxEntries) {
+    clientNetworkTelemetry.delete(clientNetworkTelemetry.keys().next().value);
+  }
+}
 
 app.post('/api/network/client-telemetry', (req, res) => {
+  const clientId = normalizeClientId(req.get('x-apex-client-id'));
+  if (!clientId) return res.status(400).json({ ok: false, error: 'X-Apex-Client-Id is required' });
   const body = req.body || {};
-  latestClientNetworkTelemetry = { online:Boolean(body.online), type:String(body.type||'unknown').slice(0,32), effectiveType:String(body.effectiveType||'unknown').slice(0,32), downlinkMbps:Number.isFinite(Number(body.downlinkMbps))?Number(body.downlinkMbps):null, rttMs:Number.isFinite(Number(body.rttMs))?Number(body.rttMs):null, saveData:Boolean(body.saveData), reportedAt:new Date().toISOString() };
-  res.set('Cache-Control','no-store').json({ok:true,receivedAt:latestClientNetworkTelemetry.reportedAt});
+  const telemetry = {
+    online:Boolean(body.online),
+    type:String(body.type||'unknown').slice(0,32),
+    effectiveType:String(body.effectiveType||'unknown').slice(0,32),
+    downlinkMbps:Number.isFinite(Number(body.downlinkMbps))?Number(body.downlinkMbps):null,
+    rttMs:Number.isFinite(Number(body.rttMs))?Number(body.rttMs):null,
+    saveData:Boolean(body.saveData),
+    reportedAt:new Date().toISOString(),
+    receivedAtMs:Date.now()
+  };
+  pruneClientNetworkTelemetry(telemetry.receivedAtMs);
+  clientNetworkTelemetry.set(clientId, telemetry);
+  res.set('Cache-Control','no-store').json({ok:true,receivedAt:telemetry.reportedAt});
 });
 
 let networkStatusCache = { expiresAt: 0, value: null };
@@ -743,13 +772,15 @@ async function getNetworkFabric() {
   }
 }
 
-app.get('/api/network/status', async (_req,res)=>{
+app.get('/api/network/status', async (req,res)=>{
   try {
     const { buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
     const fabric = await getNetworkFabric();
+    const clientId = normalizeClientId(req.get('x-apex-client-id'));
+    const clientTelemetry = clientId ? clientNetworkTelemetry.get(clientId) || null : null;
     const healthy = fabric.candidates.filter(p => p.healthy);
     const runtimeObserved = fabric.candidates.length > 0;
-    res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:latestClientNetworkTelemetry?(latestClientNetworkTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:latestClientNetworkTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:latestClientNetworkTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(latestClientNetworkTelemetry?.type)),starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
+    res.json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
 app.use('/api/studio/audio', createAudioStationRouter());
