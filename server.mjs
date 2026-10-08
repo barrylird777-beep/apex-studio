@@ -299,8 +299,8 @@ app.get('/api/apex/apps', async (_req, res) => {
 app.get('/api/apex/apps/:appId/status', async (req, res) => {
   const id = String(req.params.appId || '').trim();
   try {
-    const { getApexApp } = await import('./src/apps/apex-six-apps.mjs');
-    if (getApexApp(id)) {
+    const { APEX_APP_IDS } = await import('./src/apps/apex-six-apps.mjs');
+    if (APEX_APP_IDS.includes(id)) {
       const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
       return res.json(await canonicalAppStatus(id));
     }
