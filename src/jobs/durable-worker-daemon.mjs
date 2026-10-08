@@ -24,9 +24,13 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: Math.max(5, Number(process.env.APEX_PG_POOL_SIZE || 20)),
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: Math.max(1000, Number(process.env.APEX_PG_CONNECTION_TIMEOUT_MS || 5000)),
   idleTimeoutMillis: 30000,
   ssl: process.env.APEX_PG_SSL === 'false' ? false : { rejectUnauthorized: false }
+});
+
+pool.on('error', error => {
+  console.error('[WORKER] PostgreSQL pool error', error?.message || error);
 });
 const store = createDurableJobsStore(pool);
 const renderPool = createRenderPool({ concurrency: renderConcurrency });
@@ -123,49 +127,74 @@ async function recover() {
   if (rows.length) console.log('[WORKER] recovered', rows.length);
 }
 
+async function waitForDatabase() {
+  let failures = 0;
+  while (!stopping) {
+    try {
+      await pool.query('SELECT 1');
+      if (failures) console.log('[WORKER] PostgreSQL recovered');
+      return true;
+    } catch (error) {
+      failures = Math.min(failures + 1, 8);
+      const base = Math.min(30000, 1000 * 2 ** (failures - 1));
+      const jitter = Math.floor(Math.random() * Math.max(100, base * 0.25));
+      console.error('[WORKER] PostgreSQL unavailable; durable work is paused', error?.message || error);
+      await sleep(base + jitter);
+    }
+  }
+  return false;
+}
+
 async function main() {
-  await pool.query('SELECT 1');
-  console.log('[WORKER] online', workerId);
+  console.log('[WORKER] starting', workerId);
 
   while (!stopping) {
-    if (Date.now() >= nextTrendPoll) {
-      nextTrendPoll = Date.now() + trendPollMs;
-      void pollTrendSwarm()
-        .then(result => console.log('[SWARM] trend poll', result))
-        .catch(error => console.error('[SWARM] trend poll failed', error));
+    const ready = await waitForDatabase();
+    if (!ready) break;
+
+    try {
+      if (Date.now() >= nextTrendPoll) {
+        nextTrendPoll = Date.now() + trendPollMs;
+        void pollTrendSwarm()
+          .then(result => console.log('[SWARM] trend poll', result))
+          .catch(error => console.error('[SWARM] trend poll failed', error));
+      }
+
+      await recover();
+
+      const capacity = concurrency - active.size;
+      if (capacity <= 0) {
+        await sleep(25);
+        continue;
+      }
+
+      if (claimJitterMs > 0) {
+        await sleep(Math.floor(Math.random() * claimJitterMs));
+      }
+
+      const jobs = await store.claimBatch({
+        workerId,
+        now: new Date(),
+        leaseMs,
+        batchSize: Math.min(batchSize, capacity)
+      });
+
+      if (!jobs.length) {
+        await sleep(Math.max(pollMs, idlePollMs));
+        continue;
+      }
+
+      for (const job of jobs) {
+        const task = runJob(job);
+        active.add(task);
+        task.finally(() => active.delete(task)).catch(() => {});
+      }
+
+      if (active.size) await Promise.race([...active]);
+    } catch (error) {
+      console.error('[WORKER] PostgreSQL queue operation failed; pausing durable execution', error?.message || error);
+      await waitForDatabase();
     }
-
-    await recover();
-
-    const capacity = concurrency - active.size;
-    if (capacity <= 0) {
-      await sleep(25);
-      continue;
-    }
-
-    if (claimJitterMs > 0) {
-      await sleep(Math.floor(Math.random() * claimJitterMs));
-    }
-
-    const jobs = await store.claimBatch({
-      workerId,
-      now: new Date(),
-      leaseMs,
-      batchSize: Math.min(batchSize, capacity)
-    });
-
-    if (!jobs.length) {
-      await sleep(Math.max(pollMs, idlePollMs));
-      continue;
-    }
-
-    for (const job of jobs) {
-      const task = runJob(job);
-      active.add(task);
-      task.finally(() => active.delete(task)).catch(() => {});
-    }
-
-    if (active.size) await Promise.race([...active]);
   }
 }
 
