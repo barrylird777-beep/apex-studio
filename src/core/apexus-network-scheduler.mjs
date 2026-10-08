@@ -52,7 +52,8 @@ export function buildNetworkSchedule({ episodes, startAt, horizonMinutes = 1440 
       // Never split an episode across programming blocks. If the next episode
       // does not fit, close this block early and let the next block begin
       // immediately at the same cursor. Continuity beats arbitrary block math.
-      if (proposedEnd > blockEnd && cursor > start.getTime()) break;
+      // Episodes are atomic broadcast units. Never truncate or stall the network
+    // merely because an episode crosses a nominal programming-block boundary.
       const slotEnd = proposedEnd;
       const startsAt = new Date(cursor).toISOString();
       rows.push({
