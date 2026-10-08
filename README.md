@@ -68,15 +68,13 @@ npm install
 npm start
 ```
 
-## Apex Universe — Six Surfaces / One Capability Plane
+## Canonical production surface
 
-The Apex universe is six distinct product surfaces sharing the same maximum-capability foundation. Apexus replaces the former ApexRapid concept:
+TOONX is the canonical original-animation production surface inside Apex Studio. It is not a fourth Apex system.
 
-- **KORNKNOB — EARS:** music, sound, audio discovery and intelligence.
-- **ApexStudios — EYES:** production, visual/media creation and distribution.
-- **GardenOfApex — BRAIN:** Korn World, scripture, research and knowledge.
-- **EngineApex:** opportunity, growth, monetization and business intelligence.
-- **Apexus:** 24/7 original animated entertainment network, programming, broadcast and audience experience.
-- **ShieldApex:** network, security and execution-environment protection.
+The three systems are exactly:
+- Apex Studio: production, social, network/infrastructure, and Special Search.
+- Garden of Apex: knowledge, research, and creative ecosystem.
+- KORNKNOB: AI/model/media/computational capability.
 
-All six surfaces can use the same AI, automation, analytics, storage, provenance, media, orchestration and network capability plane. Ownership boundaries remain separate.
+TOONX production is PostgreSQL-backed and uses the durable worker system for queued execution, leases, fencing, retries, recovery, deduplication, and horizontal worker scaling.
