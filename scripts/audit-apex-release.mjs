@@ -5,7 +5,7 @@ const REQUIRED = Object.freeze([
   ["Apex Rapid Production","public/rapid-video.html"],
   ["Garden of Apex","public/garden-of-apex.html"],
   ["KORNKNOB","public/korn-knob.html"],
-  ["TOONX","public/toonx-buyer.html"],
+  ["TeeVee","public/teevee-buyer.html"],
   ["Apex Overseer","public/overseer.html"],
   ["Engine Apex","public/engine-apex.html"],
   ["ShieldApex","public/shield-apex.html"],
@@ -36,7 +36,7 @@ for (const [surface,file] of REQUIRED) {
 }
 
 const packageJson=JSON.parse(await fs.readFile("package.json","utf8"));
-const requiredScripts=["toonx:bootstrap","toonx:prepare","toonx:schedule","toonx:worker"];
+const requiredScripts=["teevee:bootstrap","teevee:prepare","teevee:schedule","teevee:worker"];
 const scripts=Object.fromEntries(requiredScripts.map(name=>[name,typeof packageJson.scripts?.[name]==="string"]));
 
 const runtimeFiles=["server.mjs","src","public","test"];
