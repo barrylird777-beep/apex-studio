@@ -93,3 +93,13 @@ test("entry paths point to reachable public surfaces", async () => {
   await access(resolve("public/teevee.html"));
   await access(resolve("public/xshield.html"));
 });
+
+
+test("registry module metadata matches app locations", () => {
+  assert.equal(getApexApp("korn-knob").module, "../core/korn-knob.mjs");
+  assert.equal(getApexApp("teevee").module, "../core/teevee-broadcast.mjs");
+  assert.equal(getApexApp("paypex").module, "../core/paypex-core.mjs");
+  assert.equal(getApexApp("apex-studio").module, "../core/apex-universe.mjs");
+  assert.equal(getApexApp("garden-of-apex").module, "../core/garden-of-apex.mjs");
+  assert.equal(getApexApp("xshield").module, "./xshield.mjs");
+});
