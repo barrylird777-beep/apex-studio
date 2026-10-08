@@ -9,21 +9,21 @@ export const APEX_APPS = Object.freeze({
     entry: "/korn-knob.html",
     module: "../core/korn-knob.mjs"
   }),
-  RAPID: Object.freeze({
+  TEEVEE: Object.freeze({
     id: "teevee",
     name: "TeeVee",
     system: APEX_SYSTEMS.APEX_STUDIO.id,
-    role: "rapid commercial video fulfillment",
-    entry: "/rapid-video.html",
-    module: "../workers/rapid-video-worker.mjs"
+    role: "24/7 television network and continuous programming",
+    entry: "/teevee.html",
+    module: "../core/teevee-broadcast.mjs"
   }),
-  OPPORTUNITY: Object.freeze({
+  PAYPEX: Object.freeze({
     id: "paypex",
     name: "Paypex",
     system: APEX_SYSTEMS.APEX_STUDIO.id,
-    role: "opportunity, growth, business and conversion intelligence",
-    entry: "/engine-apex.html",
-    module: "../core/engine-apex.mjs"
+    role: "money-making opportunity, business, market and monetization intelligence",
+    entry: "/paypex.html",
+    module: "../core/paypex-core.mjs"
   }),
   STUDIO: Object.freeze({
     id: "apex-studio",
@@ -41,13 +41,13 @@ export const APEX_APPS = Object.freeze({
     entry: "/garden-of-apex.html",
     module: "../core/garden-of-apex.mjs"
   }),
-  FORGE: Object.freeze({
+  XSHIELD: Object.freeze({
     id: "xshield",
     name: "XShield",
     system: APEX_SYSTEMS.APEX_STUDIO.id,
-    role: "deterministic media processing and rendering",
-    entry: "/production.html",
-    module: "../core/render-worker.mjs"
+    role: "ad blocking, tracker blocking and network filtering",
+    entry: "/xshield.html",
+    module: "../apps/xshield.mjs"
   })
 });
 
