@@ -132,6 +132,14 @@ const infiniteBroadcast = createInfiniteBroadcast({
 });
 
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
+app.get('/api/apexus/broadcast/status', async (_req, res) => {
+  try {
+    const { getApexusBroadcastStatus } = await import('./src/core/apexus-broadcast-api.mjs');
+    return res.status(200).json({ success: true, ...(await getApexusBroadcastStatus()) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
 app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
   catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
