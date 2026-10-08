@@ -38,7 +38,7 @@ export function createForgeProcessor(options = {}) {
   });
 }
 
-export function forgeStatus(options = {}) {
+export function xshieldStatus(options = {}) {
   const worker = new RenderWorker(options);
   return {
     app: { ...APP },
