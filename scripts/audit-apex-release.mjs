@@ -4,11 +4,17 @@ const REQUIRED = Object.freeze([
   ["Apex Studio","public/index.html"],
   ["Apex Rapid Production","public/rapid-video.html"],
   ["Garden of Apex","public/garden-of-apex.html"],
-  ["KORNKNOB","public/korn-knob.html"],
-  ["TeeVee app","public/teevee.html"],
+  ["KORNKNOB legacy capability surface","public/korn-knob.html"],
+  ["TeeVee legacy production surface","public/teevee.html"],
   ["TeeVee buyer","public/teevee-buyer.html"],
-  ["PayPex","public/paypex.html"],
-  ["XShield","public/xshield.html"],
+  ["PayPex legacy intelligence surface","public/paypex.html"],
+  ["XShield legacy network surface","public/xshield.html"],
+  ["PlanetApeX","public/planet-apex.html"],
+  ["KoBlocks","public/ko-blocks.html"],
+  ["KernelVision","public/kernel-vision.html"],
+  ["KoinKob","public/koin-kob.html"],
+  ["KashKorner","public/kash-korner.html"],
+  ["Kernelodies","public/kernelodies.html"],
   ["Apex Overseer","public/overseer.html"],
   ["Engine Apex","public/engine-apex.html"],
   ["ShieldApex","public/shield-apex.html"],
@@ -17,13 +23,14 @@ const REQUIRED = Object.freeze([
 ]);
 
 const CANONICAL_APP_MODULES = Object.freeze([
-  ["KornKnob","src/apps/korn-knob.mjs"],
-  ["TeeVee","src/apps/teevee.mjs"],
-  ["PayPex","src/apps/paypex.mjs"],
-  ["ApexStudio","src/apps/apex-studio.mjs"],
-  ["GardenOfApex","src/apps/garden-of-apex.mjs"],
-  ["XShield","src/apps/xshield.mjs"],
-  ["canonical app registry","src/apps/apex-six-apps.mjs"]
+  ["PlanetApeX","src/apps/planet-apex.mjs"],
+  ["KoBlocks","src/apps/ko-blocks.mjs"],
+  ["KernelVision","src/apps/kernel-vision.mjs"],
+  ["KoinKob","src/apps/koin-kob.mjs"],
+  ["KashKorner","src/apps/kash-korner.mjs"],
+  ["Kernelodies","src/apps/kernelodies.mjs"],
+  ["canonical six-app registry","src/apps/apex-six-apps.mjs"],
+  ["canonical six-app runtime","src/apps/canonical-six.mjs"]
 ]);
 
 const FORBIDDEN_CANON_NAMES = ["ApexOpportunity","ApexAdBlocker","ApexRapid","KORNKOB","Apexus","APEXUS"];
