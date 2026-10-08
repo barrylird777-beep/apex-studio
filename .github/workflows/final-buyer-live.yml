@@ -29,5 +29,7 @@ jobs:
           code=$(curl -sS -o /tmp/readiness -w '%{http_code}' --max-time 20 "$url/api/apex/readiness" || true)
           echo "readiness=$code"
           test "$code" = "200"
-          grep -q '"TOONX"' /tmp/readiness
+          grep -q '"apex-studio"' /tmp/readiness
+          grep -q '"garden-of-apex"' /tmp/readiness
+          grep -q '"kornknob"' /tmp/readiness
           echo "TOONX_BUYER_READINESS_VERIFIED=1"
