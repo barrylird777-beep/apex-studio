@@ -149,6 +149,38 @@ async function tts(text, output){
   const buf=Buffer.from(await r.arrayBuffer()); await fs.mkdir(path.dirname(output),{recursive:true}); await fs.writeFile(output,buf); return output;
 }
 
+export function buildAnimationPlan(runtimeSeconds){
+  const runtime=Math.max(1,Math.ceil(Number(runtimeSeconds)||180));
+  const sceneCount=Math.ceil(runtime/6);
+  return Array.from({length:sceneCount},(_,i)=>({
+    scene:i+1,
+    durationSeconds:i===sceneCount-1 ? runtime-(sceneCount-1)*6 : 6
+  }));
+}
+
+function concatQuote(file){
+  return "file '"+file.replace(/'/g,"'\\''")+"'";
+}
+
+async function concatAnimation(sceneFiles, output, runtimeSeconds){
+  const dir=path.dirname(output);
+  await fs.mkdir(dir,{recursive:true});
+  const list=path.join(dir,"concat.txt");
+  await fs.writeFile(list,sceneFiles.map(concatQuote).join("\n")+"\n");
+  try{
+    await new Promise((resolve,reject)=>ffmpeg()
+      .input(list)
+      .inputOptions(["-f","concat","-safe","0"])
+      .outputOptions(["-an","-c:v","libx264","-preset","medium","-pix_fmt","yuv420p","-t",String(runtimeSeconds),"-movflags","+faststart"])
+      .save(output).on("end",resolve).on("error",reject));
+  }finally{
+    await fs.rm(list,{force:true});
+  }
+  const stat=await fs.stat(output).catch(()=>null);
+  if(!stat || stat.size<=0) throw new Error("Animation assembly produced an empty artifact");
+  return output;
+}
+
 async function media(kind,prompt,output){
   if(!process.env.POLLINATIONS_API_KEY) throw new Error("POLLINATIONS_API_KEY is required for Apexus "+kind+" generation");
   const base=kind==="video"?"https://gen.pollinations.ai/video/":"https://gen.pollinations.ai/image/";
@@ -173,17 +205,14 @@ async function handle(stage, job){
     const generated=await generateText(`${base}\nHere is the story development for ${code}:\n${story.slice(0,24000)}\n\nTurn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
   }else if(stage==="storyboard"){
-    const sceneCount=Math.max(6,Math.ceil(episode.runtime_target_seconds/30));
-    const baseDuration=Math.floor(episode.runtime_target_seconds/sceneCount);
-    const remainder=episode.runtime_target_seconds-(baseDuration*sceneCount);
-    const scenes=Array.from({length:sceneCount},(_,i)=>({
-      scene:i+1,
-      durationSeconds:baseDuration+(i<remainder?1:0),
-      camera:i%3===0?"wide cinematic":i%3===1?"tracking medium":"close dramatic",
-      purpose:i===0?"retention hook":"story progression",
-      visualPrompt:`${base} scene ${i+1}, cinematic 16:9 animation frame`
+    const plan=buildAnimationPlan(episode.runtime_target_seconds);
+    const scenes=plan.map(scene=>({
+      ...scene,
+      camera:scene.scene%3===1?"wide cinematic":scene.scene%3===2?"tracking medium":"close dramatic",
+      purpose:scene.scene===1?"retention hook":"story progression",
+      visualPrompt:`${base} scene ${scene.scene}, cinematic 16:9 animation frame`
     }));
-    file=await writeJson(code,stage,"storyboard.json",{episode:code,scenes,totalDurationSeconds:scenes.reduce((sum,scene)=>sum+scene.durationSeconds,0)}); 
+    file=await writeJson(code,stage,"storyboard.json",{episode:code,scenes,totalDurationSeconds:scenes.reduce((sum,scene)=>sum+scene.durationSeconds,0)});
   }else if(stage==="voice"){
     const script=await fs.readFile(path.join(stagePath(code,"script"),"script.md"),"utf8");
     file=await tts(script.slice(0,60000),path.join(stagePath(code,stage),"narration.wav"));
@@ -193,16 +222,26 @@ async function handle(stage, job){
   }else if(stage==="visual-development"){
     file=await media("image",`${base} character and environment keyframe, original designs, no logos, no existing franchise likenesses`,path.join(stagePath(code,stage),"keyframe.png"));
   }else if(stage==="animation"){
-    file=await media("video",`${base} animated scene, original characters and world, dramatic camera movement, polished 16:9 anime sequence`,path.join(stagePath(code,stage),"scene-01.mp4"));
+    const storyboard=JSON.parse(await fs.readFile(path.join(stagePath(code,"storyboard"),"storyboard.json"),"utf8"));
+    const scenes=Array.isArray(storyboard.scenes) ? storyboard.scenes : [];
+    if(!scenes.length) throw new Error("Animation requires a storyboard with scenes");
+    const sceneFiles=await Promise.all(scenes.map(scene=>media(
+      "video",
+      `${base} animated scene ${scene.scene}, duration target ${scene.durationSeconds}s, camera: ${scene.camera}, purpose: ${scene.purpose}, original characters and world, dramatic camera movement, polished 16:9 anime sequence`,
+      path.join(stagePath(code,stage),`scene-${String(scene.scene).padStart(4,"0")}.mp4`)
+    )));
+    file=await concatAnimation(sceneFiles,path.join(stagePath(code,stage),"full-episode.mp4"),episode.runtime_target_seconds);
+    metadata.sceneCount=sceneFiles.length;
+    metadata.sceneFiles=sceneFiles;
   }else if(stage==="edit"){
-    const video=path.join(stagePath(code,"animation"),"scene-01.mp4");
+    const video=path.join(stagePath(code,"animation"),"full-episode.mp4");
     const audio=path.join(stagePath(code,"audio"),"episode-audio.m4a");
     file=path.join(stagePath(code,stage),"episode-edit.mp4");
     await fs.mkdir(path.dirname(file),{recursive:true});
     await new Promise((resolve,reject)=>ffmpeg(video).input(audio)
       .outputOptions(["-map","0:v:0","-map","1:a:0","-c:v","copy","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart"])
       .save(file).on("end",resolve).on("error",reject));
-  }else if(stage==="qc"){
+  }  }else if(stage==="qc"){
     const required=[
       path.join(stagePath(code,"voice"),"narration.wav"),
       path.join(stagePath(code,"audio"),"episode-audio.m4a"),
