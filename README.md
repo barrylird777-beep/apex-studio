@@ -4,9 +4,22 @@
 
 Apex consists of exactly three primary systems:
 
-- **GardenOfApex — THE BRAIN:** research, knowledge, Bible, Korn World, studies, analytics, and AI Chat Lab.
-- **Apex Studio — THE EYES:** creative production, operations, distribution strategy, network/infrastructure, and its native creative interfaces.
-- **KORNKNOB — THE EARS:** AI models, providers, routing, evaluation, and media-AI capabilities.
+- **GardenOfApex:** research, knowledge, Bible, Korn World, studies, analytics, and AI Chat Lab.
+- **Apex Studio:** creative production, operations, distribution strategy, network/infrastructure, and native creative interfaces.
+- **KORNKNOB:** AI models, providers, routing, evaluation, and media-AI capabilities.
+
+## Canonical application layer
+
+The six canonical apps are application surfaces inside those three systems, not additional Apex systems:
+
+1. **KornKnob** — audio and music capability.
+2. **TeeVee** — 24/7 television network and continuous programming.
+3. **PayPex** — money-making stock, market, business and monetization intelligence.
+4. **ApexStudio** — creative production, editing, mastering, QC and delivery.
+5. **GardenOfApex** — knowledge, Scripture, research and creative world.
+6. **XShield** — ad blocking, tracker blocking and network filtering.
+
+These six names are the product-level ownership contract. Implementation modules may retain legacy filenames temporarily when they provide existing capability, but legacy module names are not additional apps or systems.
 
 ## Apex Studio
 
@@ -35,9 +48,9 @@ It is **not**:
 - an external subsystem
 - a mandatory gateway
 - a replacement for Garden research
-- a replacement for KORN-KNOB capability management
+- a replacement for KORNKNOB capability management
 
-Studio can communicate directly with Garden for knowledge/research and directly with KORN-KNOB for AI/model/media capabilities.
+Studio can communicate directly with Garden for knowledge/research and directly with KORNKNOB for AI/model/media capabilities.
 
 ## GardenOfApex
 
@@ -45,11 +58,11 @@ Garden owns research and knowledge, including Bible research, Korn World researc
 
 Garden evidence must distinguish **KNOWN, OBSERVED, INFERRED, and UNKNOWN** and must not invent missing facts.
 
-## KORN-KNOB
+## KORNKNOB
 
-KORN-KNOB owns the AI/model/media capability layer for Apex overall and its own models/capabilities, including LLM, image, video, audio/music, voice, multimodal, embedding/reranking, provider access, routing, evaluation, health, versioning, and fallback.
+KORNKNOB owns the AI/model/media capability layer for Apex overall and its own models/capabilities, including LLM, image, video, audio/music, voice, multimodal, embedding/reranking, provider access, routing, evaluation, health, versioning, and fallback.
 
-KORN-KNOB supplies capabilities; **Studio owns final production and assembly**.
+KORNKNOB supplies capabilities; **Studio owns final production and assembly**.
 
 ## Production law
 
@@ -57,7 +70,7 @@ KORN-KNOB supplies capabilities; **Studio owns final production and assembly**.
 
 **Studio directs, creates, produces, operates, and manages distribution strategy.**
 
-**KORN-KNOB supplies and manages AI/model/media capabilities.**
+**KORNKNOB supplies and manages AI/model/media capabilities.**
 
 Durable workflow state belongs in PostgreSQL rather than SQLite or process-local persistence.
 
@@ -79,8 +92,13 @@ The three systems are exactly:
 
 TOONX production is PostgreSQL-backed and uses the durable worker system for queued execution, leases, fencing, retries, recovery, deduplication, and horizontal worker scaling.
 
-### Apex Studio internal capabilities
+### Application ownership
 
-- **EngineApex** provides Studio opportunity, growth, business, and monetization intelligence. It decides what is worth pursuing and why; it does not own production execution.
-- **ShieldApex** provides Studio network-security boundaries, least-privilege enforcement, auditability, origin/API-key authorization, and fail-closed capability checks.
-- Both are internal Apex Studio capabilities, not additional Apex systems.
+- **PayPex** owns opportunity, growth, business, stock/market and monetization intelligence. It decides what is worth pursuing and why; it does not own production execution.
+- **TeeVee** owns continuous television programming and broadcast orchestration.
+- **XShield** owns ad blocking, tracker blocking and network filtering.
+- **ApexStudio** owns production execution, mastering, QC, delivery and infrastructure.
+- **GardenOfApex** owns knowledge and research.
+- **KornKnob** owns audio/music and the broader AI/model/media capability layer.
+
+Existing implementation modules such as EngineApex, Rapid Video worker paths, RenderWorker, Forge routes, and ShieldApex may remain as implementation components while their product ownership is governed by the six-app contract. They are not additional Apex systems or canonical application identities.
