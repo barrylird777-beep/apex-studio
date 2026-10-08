@@ -35,7 +35,7 @@ test("two workers race for one task and only one claim wins", { skip: !hasDataba
 
 test("expired lease can be reclaimed but stale result is rejected", { skip: !hasDatabase }, async () => {
   const id = crypto.randomUUID();
-  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
   try {
     await ensureWorkerTaskSchema();
     await enqueueWorkerTask({ id, workerId: "crash-test", role: "general", task: "crash", maxAttempts: 3 });
@@ -44,11 +44,11 @@ test("expired lease can be reclaimed but stale result is rejected", { skip: !has
     assert.equal(first.id, id);
 
     await db.query(
-      "UPDATE apex_worker_tasks SET lease_expires_at=NOW()-INTERVAL '1 second' WHERE id=$1",
+      "UPDATE durable_jobs SET lease_expires_at=NOW()-INTERVAL '1 second' WHERE id=$1",
       [id]
     );
     assert.equal(await requeueExpiredWorkerTasks(), 1);
-    await db.query("UPDATE apex_worker_tasks SET next_run_at=NOW() WHERE id=$1", [id]);
+    await db.query("UPDATE durable_jobs SET run_at=NOW() WHERE id=$1", [id]);
 
     const second = await claimWorkerTask(id, 15000);
     assert.ok(second);
@@ -58,7 +58,7 @@ test("expired lease can be reclaimed but stale result is rejected", { skip: !has
     assert.equal(await completeWorkerTask(id, { stale: true }, first.lease_token), false);
     assert.equal(await completeWorkerTask(id, { ok: true }, second.lease_token), true);
   } finally {
-    await db.query("DELETE FROM apex_worker_tasks WHERE id=$1", [id]).catch(() => {});
+    await db.query("DELETE FROM durable_jobs WHERE id=$1", [id]).catch(() => {});
     await db.end();
   }
 });
@@ -73,7 +73,7 @@ test("expired recovery workers partition rows with SKIP LOCKED", { skip: !hasDat
       await claimWorkerTask(id, 15000);
     }
     await db.query(
-      "UPDATE apex_worker_tasks SET lease_expires_at=NOW()-INTERVAL '1 second', next_run_at=NULL WHERE id=ANY($1::uuid[])",
+      "UPDATE durable_jobs SET lease_expires_at=NOW()-INTERVAL '1 second', run_at=NULL WHERE id=ANY($1::uuid[])",
       [ids]
     );
     const [a, b] = await Promise.all([
@@ -81,10 +81,10 @@ test("expired recovery workers partition rows with SKIP LOCKED", { skip: !hasDat
       requeueExpiredWorkerTasks(2)
     ]);
     assert.equal(a + b, ids.length);
-    const rows = await db.query("SELECT recovered_count FROM apex_worker_tasks WHERE id=ANY($1::uuid[])", [ids]);
+    const rows = await db.query("SELECT recovered_count FROM durable_jobs WHERE id=ANY($1::uuid[])", [ids]);
     assert.deepEqual(rows.rows.map(r => r.recovered_count).sort((x, y) => x - y), [1, 1, 1, 1]);
   } finally {
-    await db.query("DELETE FROM apex_worker_tasks WHERE id=ANY($1::uuid[])", [ids]).catch(() => {});
+    await db.query("DELETE FROM durable_jobs WHERE id=ANY($1::uuid[])", [ids]).catch(() => {});
     await db.end();
   }
 });
@@ -97,12 +97,12 @@ test("lease heartbeat extends the active fence", { skip: !hasDatabase }, async (
   assert.ok(task?.lease_token);
   const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    const before = await db.query("SELECT lease_expires_at FROM apex_worker_tasks WHERE id=$1", [id]);
+    const before = await db.query("SELECT lease_expires_at FROM durable_jobs WHERE id=$1", [id]);
     assert.equal(await (await import("../src/core/mesh/durable-worker-store.mjs")).heartbeatWorkerTask(id, 30000, task.lease_token), true);
-    const after = await db.query("SELECT lease_expires_at FROM apex_worker_tasks WHERE id=$1", [id]);
+    const after = await db.query("SELECT lease_expires_at FROM durable_jobs WHERE id=$1", [id]);
     assert.ok(new Date(after.rows[0].lease_expires_at) > new Date(before.rows[0].lease_expires_at));
   } finally {
-    await db.query("DELETE FROM apex_worker_tasks WHERE id=$1", [id]).catch(() => {});
+    await db.query("DELETE FROM durable_jobs WHERE id=$1", [id]).catch(() => {});
     await db.end();
     await closeWorkerStore();
   }
