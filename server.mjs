@@ -131,6 +131,26 @@ const infiniteBroadcast = createInfiniteBroadcast({
   ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg'
 });
 
+app.get('/api/apexus/buyer', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    product: 'Apexus',
+    category: '24/7 original animated entertainment network',
+    productionTarget: { episodes: 2785, firstEpisode: 'APX-0001', lastEpisode: 'APX-2785' },
+    capabilities: ['production','animation','audio','video','qc','mastering','catalog','scheduling','broadcast','worker-orchestration'],
+    commercialStructures: ['acquisition','licensing','strategic-investment','production-partnership','catalog-programming-partnership','joint-development-distribution'],
+    payment: { state: 'payment-ready-not-live', processor: 'Stripe', activation: 'requires business-side Stripe setup and operating policy' },
+    proof: {
+      health: '/health',
+      broadcastStatus: '/api/apexus/broadcast/status',
+      workerStatus: '/api/workers/permanent',
+      durableQueue: '/api/workers/durable',
+      buyerAuditCommand: 'npm run apexus:buyer-audit'
+    },
+    checkedAt: new Date().toISOString()
+  });
+});
+
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
 app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
