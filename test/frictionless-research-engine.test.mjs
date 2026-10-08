@@ -140,6 +140,16 @@ test('builds an evidence frontier and never claims an inaccessible target was re
       access: 'open',
       isPdf: true
     }]
+  }, {
+    title: 'Independent Supporting Work',
+    doi: '10.1234/supporting',
+    abstract: 'Independent supporting evidence.',
+    artifacts: [{
+      url: 'https://repo.example/supporting.pdf',
+      type: 'open-access-pdf',
+      access: 'open',
+      isPdf: true
+    }]
   }];
 
   const bundle = await engine.reconstruct(work, evidence);
