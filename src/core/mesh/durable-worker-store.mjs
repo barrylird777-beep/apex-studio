@@ -3,9 +3,63 @@ import { randomUUID } from "node:crypto";
 
 const { Pool } = pg;
 let pool;
+let healthState = {
+  checkedAt: 0,
+  available: null,
+  lastError: null
+};
 
 export function durableWorkerEnabled() {
   return Boolean(String(process.env.DATABASE_URL || "").trim());
+}
+
+export async function durableWorkerHealth({ force = false } = {}) {
+  if (!durableWorkerEnabled()) {
+    return {
+      configured: false,
+      available: false,
+      status: "disabled",
+      checkedAt: new Date().toISOString(),
+      lastError: null
+    };
+  }
+
+  const now = Date.now();
+  const cacheMs = Math.max(250, Number(process.env.APEX_DB_HEALTH_CACHE_MS || 2000));
+  if (!force && healthState.checkedAt && now - healthState.checkedAt < cacheMs) {
+    return {
+      configured: true,
+      available: healthState.available === true,
+      status: healthState.available === true ? "ready" : "unavailable",
+      checkedAt: new Date(healthState.checkedAt).toISOString(),
+      lastError: healthState.lastError
+    };
+  }
+
+  try {
+    await getPool().query("SELECT 1");
+    healthState = { checkedAt: now, available: true, lastError: null };
+    return {
+      configured: true,
+      available: true,
+      status: "ready",
+      checkedAt: new Date(now).toISOString(),
+      lastError: null
+    };
+  } catch (error) {
+    healthState = {
+      checkedAt: now,
+      available: false,
+      lastError: String(error?.message || error).slice(0, 500)
+    };
+    return {
+      configured: true,
+      available: false,
+      status: "unavailable",
+      checkedAt: new Date(now).toISOString(),
+      lastError: healthState.lastError
+    };
+  }
 }
 
 function postgresSslConfig() {
@@ -345,6 +399,7 @@ export async function queueStats() {
 export async function closeWorkerStore() {
   if (pool) await pool.end();
   pool = null;
+  healthState = { checkedAt: 0, available: null, lastError: null };
 }
 
 export async function recordWorkerJobEvent(jobId, eventType, payload = {}, workerId = null) {
