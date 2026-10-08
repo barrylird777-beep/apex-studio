@@ -27,7 +27,7 @@ const pool = process.env.DATABASE_URL ? new Pool({
   ssl: postgresSslConfig()
 }) : null;
 
-const ROOT = process.env.TeeVee_OUTPUT_DIR || "./data/teevee";
+const ROOT = process.env.TEEVEE_OUTPUT_DIR || "./data/teevee";
 const STAGES = ["story","script","storyboard","voice","audio","visual-development","animation","edit","qc","master","inspection","catalog","schedule"];
 const NEXT_STATE = {
   story:"STORY", script:"SCRIPT", storyboard:"STORYBOARD", voice:"VOICE", audio:"AUDIO",
