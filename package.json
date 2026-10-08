@@ -32,7 +32,8 @@
     "teevee:schedule": "node scripts/schedule-teevee-network.mjs",
     "teevee:worker": "APEX_JOB_HANDLER_MODULE=./src/jobs/teevee-handlers.mjs npm run durable:worker",
     "db:backup": "node scripts/backup-postgres.mjs",
-    "db:backup:object-store": "node scripts/backup-postgres-to-object-store.mjs"
+    "db:backup:object-store": "node scripts/backup-postgres-to-object-store.mjs",
+    "db:diagnose": "node scripts/diagnose-postgres.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
