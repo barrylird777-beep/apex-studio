@@ -7,6 +7,7 @@ import { gardenStatus } from "../src/apps/garden-of-apex.mjs";
 import { kornKnobStatus } from "../src/apps/korn-knob.mjs";
 import { studioStatus } from "../src/apps/apex-studio.mjs";
 import { xshieldStatus } from "../src/apps/xshield.mjs";
+import { createPayPexBrief } from "../src/apps/paypex.mjs";
 
 test("Apex exposes exactly six canonical apps", () => {
   assert.equal(assertSixAppInvariant(), true);
@@ -69,4 +70,13 @@ test("all six app modules expose the same canonical app identity", async () => {
     assert.equal(status.app.id, id);
     assert.equal(status.app.name, getApexApp(id).name);
   }
+});
+
+test("PayPex creates a production handoff brief", () => {
+  const brief = createPayPexBrief({ topic: "Biblical short-form series", objective: "Test a small production", audience: "Bible story viewers" });
+  assert.equal(brief.engine, "PayPex");
+  assert.equal(brief.system, "apex-studio");
+  assert.equal(brief.evidenceRequired, true);
+  assert.equal(brief.handoff, "TeeVee");
+  assert.ok(brief.id);
 });
