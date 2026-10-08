@@ -69,25 +69,6 @@ async function executeEpisodeProductionTask(payload = {}) {
   };
 }
 
-async function executeMusicAudioHandoffTask(payload = {}) {
-  const handoff = payload?.handoff;
-  if (!handoff || handoff.contractVersion !== "music-radar-studio-handoff.v1") {
-    throw new Error("Invalid Studio music integration audio handoff");
-  }
-  return {
-    ok: true,
-    type: "music-audio-handoff",
-    projectId: handoff.projectId,
-    contentDomain: handoff.contentDomain,
-    assetCount: Array.isArray(handoff.assets) ? handoff.assets.length : 0,
-    audioRoles: [...new Set((handoff.assets || []).map(asset => asset.kind))],
-    worldPackage: handoff.worldPackage,
-    provenance: handoff.provenance,
-    stage: "audio-handoff-validated",
-    validatedAt: new Date().toISOString()
-  };
-}
-
 async function executeAiInferenceTask(payload = {}) {
   const provider = String(payload?.provider || "").trim();
   const model = String(payload?.model || "").trim();
