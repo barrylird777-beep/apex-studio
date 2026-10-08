@@ -52,7 +52,7 @@ async function handle(job) {
 
   const modulePath = process.env.APEX_JOB_HANDLER_MODULE;
   const external = modulePath
-    ? await import(path.isAbsolute(modulePath) ? modulePath : pathToFileURL(path.resolve(path.dirname(fileURLToPath(import.meta.url)), modulePath)).href)
+    ? await import(path.isAbsolute(modulePath) ? modulePath : pathToFileURL(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..", modulePath)).href)
     : null;
   const handler =
     productionHandlers?.[job.type] ??
