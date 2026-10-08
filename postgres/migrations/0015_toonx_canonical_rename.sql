@@ -61,6 +61,15 @@ ALTER TABLE IF EXISTS toonx_episodes
   DROP CONSTRAINT IF EXISTS toonx_episodes_audience_lane_check;
 
 ALTER TABLE IF EXISTS toonx_episodes
+  DROP CONSTRAINT IF EXISTS apexus_episodes_state_check;
+ALTER TABLE IF EXISTS toonx_episodes
+  DROP CONSTRAINT IF EXISTS toonx_episodes_state_check;
+ALTER TABLE IF EXISTS toonx_episodes
+  ADD CONSTRAINT toonx_episodes_state_check CHECK (
+    state IN ('IDEA','STORY','SCRIPT','STORYBOARD','VOICE','AUDIO','VISUAL_DEVELOPMENT','ANIMATION','EDIT','QC','MASTER','INSPECTION','CATALOG','SCHEDULED','BROADCAST')
+  );
+
+ALTER TABLE IF EXISTS toonx_episodes
   ADD CONSTRAINT toonx_episodes_audience_lane_check CHECK (
     audience_lane IN (
       'TOONX Family','TOONX Toonhouse','TOONX Action','Apex Anime',
