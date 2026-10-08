@@ -1,14 +1,14 @@
 import { getEngineSnapshot, buildEngineBrief, scoreOpportunity } from "../core/engine-apex.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
 
-const APP = getApexApp("apex-opportunity-engine");
+const APP = getApexApp("paypex");
 
 export async function opportunitySnapshot() {
   const snapshot = await getEngineSnapshot();
   return {
     app: { ...APP },
     ...snapshot,
-    engine: "ApexOpportunityEngine",
+    engine: "Paypex",
     decisionCore: "EngineApex",
     productionExecutionOwnedBy: "ApexStudio"
   };
@@ -18,7 +18,7 @@ export function createOpportunityBrief(input = {}) {
   return {
     app: { ...APP },
     ...buildEngineBrief(input),
-    engine: "ApexOpportunityEngine",
+    engine: "Paypex",
     executionOwner: "ApexStudio"
   };
 }
@@ -26,7 +26,7 @@ export function createOpportunityBrief(input = {}) {
 export function evaluateOpportunity(input = {}) {
   return {
     appId: APP.id,
-    engine: "ApexOpportunityEngine",
+    engine: "Paypex",
     ...scoreOpportunity(input)
   };
 }
