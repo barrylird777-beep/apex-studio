@@ -6,7 +6,7 @@ Apex consists of exactly three primary systems:
 
 - **GardenOfApex — THE BRAIN:** research, knowledge, Bible, Korn World, studies, analytics, and AI Chat Lab.
 - **Apex Studio — THE EYES:** creative production, operations, distribution strategy, network/infrastructure, and its native creative interfaces.
-- **KORN-KNOB — THE EARS:** AI models, providers, routing, evaluation, and media-AI capabilities.
+- **KORNKNOB — THE EARS:** AI models, providers, routing, evaluation, and media-AI capabilities.
 
 ## Apex Studio
 
@@ -72,11 +72,11 @@ npm start
 
 The Apex universe is six distinct product surfaces sharing the same maximum-capability foundation. Apexus replaces the former ApexRapid concept:
 
-- **KORNKOB — EARS:** music, sound, audio discovery and intelligence.
+- **KORNKNOB — EARS:** music, sound, audio discovery and intelligence.
 - **ApexStudios — EYES:** production, visual/media creation and distribution.
 - **GardenOfApex — BRAIN:** Korn World, scripture, research and knowledge.
-- **ApexOpportunity:** opportunity, growth, monetization and business intelligence.
+- **EngineApex:** opportunity, growth, monetization and business intelligence.
 - **Apexus:** 24/7 original animated entertainment network, programming, broadcast and audience experience.
-- **ApexAdBlocker:** network protection and ad blocking.
+- **ShieldApex:** network, security and execution-environment protection.
 
 All six surfaces can use the same AI, automation, analytics, storage, provenance, media, orchestration and network capability plane. Ownership boundaries remain separate.
