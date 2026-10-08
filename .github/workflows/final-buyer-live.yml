@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify live TOONX buyer path
+      - name: Verify live TeeVee buyer path
         run: |
           set -euo pipefail
           url=https://apex-studio-foundation-production.up.railway.app
@@ -19,12 +19,12 @@ jobs:
             sleep 5
           done
           test "$code" = "200"
-          curl -fsSL --max-time 20 "$url/toonx-buyer.html" -o /tmp/page
-          grep -qi "TOONX" /tmp/page
-          code=$(curl -sS -o /tmp/buyer -w '%{http_code}' --max-time 20 "$url/api/toonx/buyer" || true)
+          curl -fsSL --max-time 20 "$url/teevee-buyer.html" -o /tmp/page
+          grep -qi "TeeVee" /tmp/page
+          code=$(curl -sS -o /tmp/buyer -w '%{http_code}' --max-time 20 "$url/api/teevee/buyer" || true)
           echo "buyer=$code"
           test "$code" = "200"
-          grep -q '"product":"TOONX"' /tmp/buyer
+          grep -q '"product":"TeeVee"' /tmp/buyer
           grep -q '"episodes":2785' /tmp/buyer
           code=$(curl -sS -o /tmp/readiness -w '%{http_code}' --max-time 20 "$url/api/apex/readiness" || true)
           echo "readiness=$code"
@@ -32,4 +32,4 @@ jobs:
           grep -q '"apex-studio"' /tmp/readiness
           grep -q '"garden-of-apex"' /tmp/readiness
           grep -q '"kornknob"' /tmp/readiness
-          echo "TOONX_BUYER_READINESS_VERIFIED=1"
+          echo "TeeVee_BUYER_READINESS_VERIFIED=1"
