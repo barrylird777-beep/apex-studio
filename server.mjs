@@ -178,23 +178,26 @@ app.get('/api/shield-apex/status', (_req, res) => {
   });
 });
 
-app.get('/api/apex/readiness', (_req, res) => {
-  res.status(200).json({
-    success: true,
-    releaseTrain: 'Apex three-system release',
-    surfaces: [
-      { id: 'apex-studio', name: 'Apex Studio', role: 'production', state: 'foundation-ready', entry: '/' },
-      { id: 'garden-of-apex', name: 'Garden of Apex', role: 'knowledge', state: 'foundation-ready', entry: '/garden-of-apex.html' },
-      { id: 'kornknob', name: 'KORNKNOB', role: 'capability', state: 'foundation-ready', entry: '/korn-knob.html' },
-      { id: 'special-search', name: 'Special Search', role: 'specialized-search', ownerSystem: 'apex-studio', state: 'integrated' },
-      { id: 'teevee', name: 'TeeVee', role: 'original-animated-entertainment', ownerSystem: 'apex-studio', state: 'production-surface', entry: '/teevee-buyer.html' },
-      { id: 'engine-apex', name: 'Engine Apex', role: 'decision-intelligence', ownerSystem: 'apex-studio', state: 'integrated', entry: '/engine-apex.html' },
-      { id: 'shield-apex', name: 'ShieldApex', role: 'security', ownerSystem: 'apex-studio', state: 'integrated', entry: '/shield-apex.html' },
-      { id: 'apex-overseer', name: 'Apex Overseer', role: 'worker-orchestration', ownerSystem: 'apex-studio', state: 'integrated', entry: '/overseer.html' }
-    ],
-    commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
-    checkedAt: new Date().toISOString()
-  });
+app.get('/api/apex/readiness', async (_req, res) => {
+  try {
+    const { assertSixAppInvariant, listApexApps } = await import('./src/apps/apex-six-apps.mjs');
+    assertSixAppInvariant();
+    return res.status(200).json({
+      success: true,
+      releaseTrain: 'Apex canonical six-app release',
+      surfaces: listApexApps().map(app => ({
+        id: app.id,
+        name: app.name,
+        role: app.role,
+        entry: app.entry,
+        state: 'runtime-surface'
+      })),
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[apex-readiness]', error);
+    return res.status(503).json({ success: false, error: 'Apex readiness unavailable' });
+  }
 });
 
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
