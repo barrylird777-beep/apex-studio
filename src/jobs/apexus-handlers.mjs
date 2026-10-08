@@ -173,8 +173,17 @@ async function handle(stage, job){
     const generated=await generateText(`${base}\nHere is the story development for ${code}:\n${story.slice(0,24000)}\n\nTurn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
   }else if(stage==="storyboard"){
-    const scenes=Array.from({length:Math.max(6,Math.ceil(episode.runtime_target_seconds/60))},(_,i)=>({scene:i+1,durationSeconds:Math.min(60,episode.runtime_target_seconds),camera:i%3===0?"wide cinematic":i%3===1?"tracking medium":"close dramatic",purpose:i===0?"retention hook":"story progression",visualPrompt:`${base} scene ${i+1}, cinematic 16:9 animation frame`}));
-    file=await writeJson(code,stage,"storyboard.json",{episode:code,scenes}); 
+    const sceneCount=Math.max(6,Math.ceil(episode.runtime_target_seconds/30));
+    const baseDuration=Math.floor(episode.runtime_target_seconds/sceneCount);
+    const remainder=episode.runtime_target_seconds-(baseDuration*sceneCount);
+    const scenes=Array.from({length:sceneCount},(_,i)=>({
+      scene:i+1,
+      durationSeconds:baseDuration+(i<remainder?1:0),
+      camera:i%3===0?"wide cinematic":i%3===1?"tracking medium":"close dramatic",
+      purpose:i===0?"retention hook":"story progression",
+      visualPrompt:`${base} scene ${i+1}, cinematic 16:9 animation frame`
+    }));
+    file=await writeJson(code,stage,"storyboard.json",{episode:code,scenes,totalDurationSeconds:scenes.reduce((sum,scene)=>sum+scene.durationSeconds,0)}); 
   }else if(stage==="voice"){
     const script=await fs.readFile(path.join(stagePath(code,"script"),"script.md"),"utf8");
     file=await tts(script.slice(0,60000),path.join(stagePath(code,stage),"narration.wav"));
