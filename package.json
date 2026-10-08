@@ -30,7 +30,8 @@
     "apexus:prepare": "node scripts/prepare-apexus-2785.mjs",
     "apexus:schedule": "node scripts/schedule-apexus-network.mjs",
     "apexus:worker": "APEX_JOB_HANDLER_MODULE=./src/jobs/apexus-handlers.mjs npm run durable:worker",
-    "apexus:buyer-audit": "node scripts/audit-apexus-buyer-ready.mjs"
+    "apexus:buyer-audit": "node scripts/audit-apexus-buyer-ready.mjs",
+    "apex:release-audit": "node scripts/audit-apex-release.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
