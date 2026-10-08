@@ -283,6 +283,11 @@ app.get('/api/apex/apps', async (_req, res) => {
 app.get('/api/apex/apps/:appId/status', async (req, res) => {
   const id = String(req.params.appId || '').trim();
   try {
+    const { getApexApp } = await import('./src/apps/apex-six-apps.mjs');
+    if (getApexApp(id)) {
+      const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
+      return res.json(canonicalAppStatus(id));
+    }
     if (id === 'korn-knob') {
       const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
       return res.json({ success: true, ...kornKnobStatus() });
