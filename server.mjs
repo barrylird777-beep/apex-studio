@@ -51,7 +51,21 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
 app.disable('x-powered-by');
-app.use(cors());
+const corsOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(value => value.trim())
+  .filter(Boolean);
+const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase() === 'true'
+  || process.env.NODE_ENV !== 'production';
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowAllCors || corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS origin not allowed'));
+  },
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token'],
+  maxAge: 600
+}));
 
 const shieldApex = createShieldApex({
   allowedOrigins: String(process.env.APEX_ALLOWED_ORIGINS || "")
@@ -646,7 +660,26 @@ app.get('/api/network/adblock/profile', (_req, res) => {
   return res.send(studioAdBlockMobileConfig());
 });
 
+const throughputWindows = new Map();
+const throughputWindowMs = 60_000;
+const throughputMaxRequestsPerWindow = Math.max(1, Number(process.env.APEX_NETWORK_BENCHMARK_REQUESTS || 4));
+
+function allowThroughputProbe(ip) {
+  const now = Date.now();
+  const current = throughputWindows.get(ip);
+  if (!current || now - current.startedAt >= throughputWindowMs) {
+    throughputWindows.set(ip, { startedAt: now, count: 1 });
+    return true;
+  }
+  if (current.count >= throughputMaxRequestsPerWindow) return false;
+  current.count += 1;
+  return true;
+}
+
 app.get('/api/network/throughput', async (req, res) => {
+  if (!allowThroughputProbe(req.ip)) {
+    return res.status(429).json({ ok: false, error: 'Network benchmark rate limit exceeded' });
+  }
   const requestedMiB = Number(req.query?.mib ?? 32);
   const mib = Math.min(64, Math.max(1, Number.isFinite(requestedMiB) ? Math.floor(requestedMiB) : 32));
   const totalBytes = mib * 1024 * 1024;
@@ -704,7 +737,11 @@ app.use('/api/phone', createPhoneControlPlane({
       candidates: fabric.candidates,
       speed: buildNetworkSpeedPolicy(healthy),
       policy: buildConnectionPolicy(),
-      verified: { runtimeInterfacesObserved: true, clientWifiObserved: false, clientCellularObserved: false },
+      verified: {
+        runtimeInterfacesObserved: Boolean(fabric.selected || fabric.candidates.length),
+        clientWifiObserved: false,
+        clientCellularObserved: false
+      },
       checkedAt: new Date().toISOString()
     };
   }
@@ -748,7 +785,13 @@ app.use('/api/mobile', createMobileControlPlane({
   getNetwork: async () => {
     const { selectNetworkPath, buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
     const fabric = await selectNetworkPath(); const healthy = fabric.candidates.filter(path => path.healthy);
-    return {status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),verified:{runtimeInterfacesObserved:true,clientWifiObserved:false,clientCellularObserved:false,starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)},checkedAt:new Date().toISOString()};
+    return {status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy(),verified:{
+      runtimeInterfacesObserved:Boolean(fabric.selected || fabric.candidates.length),
+      clientWifiObserved:false,
+      clientCellularObserved:false,
+      starlinkObserved:fabric.candidates.some(p=>p.network==='starlink'&&p.healthy),
+      sixGObserved:fabric.candidates.some(p=>p.network==='6g'&&p.healthy)
+    },checkedAt:new Date().toISOString()};
   },
   generateAi: payload => generateUnifiedAi(payload),
   produceEpisode: async (book, chapter, verses, requestId, contentDomain = "bible") => {
