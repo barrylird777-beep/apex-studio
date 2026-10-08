@@ -385,6 +385,27 @@ app.get('/api/canon/apps/:appId/status', async (req, res) => {
   }
 });
 
+app.get('/api/planet-apex/status', async (_req, res) => {
+  try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({success:true,...planetApexStatus()}); }
+  catch { return res.status(503).json({success:false,error:'PlanetApeX status unavailable'}); }
+});
+app.get('/api/ko-blocks/status', async (_req, res) => {
+  try { const { koBlocksStatus } = await import('./src/apps/ko-blocks.mjs'); return res.json({success:true,...koBlocksStatus()}); }
+  catch { return res.status(503).json({success:false,error:'KoBlocks status unavailable'}); }
+});
+app.get('/api/kernel-vision/status', async (_req, res) => {
+  try { const { kernelVisionStatus } = await import('./src/apps/kernel-vision.mjs'); return res.json({success:true,...kernelVisionStatus()}); }
+  catch { return res.status(503).json({success:false,error:'KernelVision status unavailable'}); }
+});
+app.get('/api/kash-korner/status', async (_req, res) => {
+  try { const { kashKornerStatus } = await import('./src/apps/kash-korner.mjs'); return res.json({success:true,...kashKornerStatus()}); }
+  catch { return res.status(503).json({success:false,error:'KashKorner status unavailable'}); }
+});
+app.get('/api/kernelodies/status', async (_req, res) => {
+  try { const { kernelodiesStatus } = await import('./src/apps/kernelodies.mjs'); return res.json({success:true,...await kernelodiesStatus()}); }
+  catch { return res.status(503).json({success:false,error:'Kernelodies status unavailable'}); }
+});
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
 });
