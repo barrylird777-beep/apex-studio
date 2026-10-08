@@ -83,14 +83,14 @@ npm start
 
 ## Canonical production surface
 
-TOONX is the canonical original-animation production surface inside Apex Studio. It is not a fourth Apex system.
+TeeVee is the canonical original-animation production surface inside Apex Studio. It is not a fourth Apex system.
 
 The three systems are exactly:
 - Apex Studio: production, social, network/infrastructure, and Special Search.
 - Garden of Apex: knowledge, research, and creative ecosystem.
 - KORNKNOB: AI/model/media/computational capability.
 
-TOONX production is PostgreSQL-backed and uses the durable worker system for queued execution, leases, fencing, retries, recovery, deduplication, and horizontal worker scaling.
+TeeVee production is PostgreSQL-backed and uses the durable worker system for queued execution, leases, fencing, retries, recovery, deduplication, and horizontal worker scaling.
 
 ### Application ownership
 
