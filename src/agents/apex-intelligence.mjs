@@ -1,3 +1,4 @@
+import { enqueueWorkerTask } from "../core/mesh/durable-worker-store.mjs";
 import crypto from "node:crypto";
 
 const DEFAULT_SPECIALISTS = Object.freeze([
@@ -224,10 +225,11 @@ export class ApexIntelligence {
           memories,
           context
         }));
+        if (Array.isArray(state.evidence)) evidence.push(...state.evidence);
         continue;
       }
 
-      if (state.status === "work-around" || state.status === "decompose" || state.status === "parallelize") {
+      if (state.status === "work-around" || state.status === "decompose") {
         state = normalizeResult(await this.executor({
           phase: state.status,
           goal,
@@ -235,8 +237,10 @@ export class ApexIntelligence {
           specialists,
           memories,
           previous: state,
-          context
+          context,
+          providerRegistry: this.providers
         }));
+        if (Array.isArray(state.evidence)) evidence.push(...state.evidence);
         continue;
       }
 
@@ -260,6 +264,7 @@ export class ApexIntelligence {
           context,
           providerRegistry: this.providers
         }));
+        if (Array.isArray(state.evidence)) evidence.push(...state.evidence);
         continue;
       }
 
@@ -316,6 +321,8 @@ export class ApexIntelligence {
             startedAt,
             completedAt: new Date().toISOString()
           };
+          await this.writeMemory({ type: "intelligence.failure", content: result.reason, planId: plan.id, importance: 0.6 }, context);
+          await this.persist(result);
           this.events?.emit?.("apex.intelligence.blocked", result);
           return result;
         }
