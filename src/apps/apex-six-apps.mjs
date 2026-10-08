@@ -10,16 +10,16 @@ export const APEX_APPS = Object.freeze({
     module: "../core/korn-knob.mjs"
   }),
   RAPID: Object.freeze({
-    id: "apex-rapid-production",
-    name: "ApexRapidProduction",
+    id: "teevee",
+    name: "TeeVee",
     system: APEX_SYSTEMS.APEX_STUDIO.id,
     role: "rapid commercial video fulfillment",
     entry: "/rapid-video.html",
     module: "../workers/rapid-video-worker.mjs"
   }),
   OPPORTUNITY: Object.freeze({
-    id: "apex-opportunity-engine",
-    name: "ApexOpportunityEngine",
+    id: "paypex",
+    name: "Paypex",
     system: APEX_SYSTEMS.APEX_STUDIO.id,
     role: "opportunity, growth, business and conversion intelligence",
     entry: "/engine-apex.html",
@@ -42,8 +42,8 @@ export const APEX_APPS = Object.freeze({
     module: "../core/garden-of-apex.mjs"
   }),
   FORGE: Object.freeze({
-    id: "forge-processing-engine",
-    name: "ForgeProcessingEngine",
+    id: "xshield",
+    name: "XShield",
     system: APEX_SYSTEMS.APEX_STUDIO.id,
     role: "deterministic media processing and rendering",
     entry: "/production.html",
