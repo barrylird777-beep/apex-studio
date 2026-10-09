@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - upgrade/apex-universal-mobile-swarm
+      - fix/apex-mobile-llama-swift-module
 
 jobs:
   build:
