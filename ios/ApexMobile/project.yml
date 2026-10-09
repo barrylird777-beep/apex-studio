@@ -22,5 +22,6 @@ targets:
         embed: false
     settings:
       base:
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
         INFOPLIST_KEY_CFBundleDisplayName: Apex Mobile
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
