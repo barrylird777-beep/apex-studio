@@ -30,6 +30,24 @@ try {
     try {
       const result = await getHealth();
       if (result.status === 200) {
+        let snapshot;
+        try {
+          snapshot = JSON.parse(result.body);
+        } catch {
+          throw new Error(`health endpoint returned invalid JSON: ${result.body.slice(0, 500)}`);
+        }
+
+        // HTTP 200 alone is not enough: /health intentionally reports degraded
+        // runtime state with HTTP 200 to avoid coupling liveness to DB outages.
+        const durableUnavailable = snapshot?.durable?.configured === true
+          && snapshot?.durable?.available !== true;
+        if (snapshot?.status === 'degraded' || durableUnavailable) {
+          throw new Error(`health endpoint is degraded: ${JSON.stringify({
+            status: snapshot?.status,
+            durable: snapshot?.durable
+          })}`);
+        }
+
         healthy = true;
         break;
       }
