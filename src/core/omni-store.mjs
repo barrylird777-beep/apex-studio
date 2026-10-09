@@ -1,4 +1,3 @@
-import sqlite3 from "sqlite3";
 import path from "node:path";
 
 const DEFAULT_DB = process.env.APEX_OMNI_DB_FILE ?? "./apex-omni.sqlite";
@@ -23,6 +22,7 @@ export class OmniStore {
   async init() {
     if (this.ready) return this.ready;
 
+    const { default: sqlite3 } = await import("sqlite3");
     this.ready = new Promise((resolve, reject) => {
       this.db = new sqlite3.Database(this.file, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, error => {
         if (error) return reject(error);
