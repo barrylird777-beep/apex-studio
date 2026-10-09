@@ -18,7 +18,7 @@ targets:
     sources:
       - path: Sources
     frameworks:
-      - path: Frameworks/llama.xcframework
+      - path: Frameworks/llama.framework
         embed: false
     settings:
       base:
