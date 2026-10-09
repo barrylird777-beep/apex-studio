@@ -52,4 +52,3 @@ export function canonicalNeighbors(appId) {
   if (!known) throw new Error("Unknown Apex app: " + id);
   return HANDOFFS.filter(h => h.from === id || h.to === id).map(h => ({ ...h }));
 }
-}
