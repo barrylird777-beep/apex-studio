@@ -34,7 +34,7 @@ const getJson = path => new Promise((resolve, reject) => {
 try {
   let health = null;
   for (let i = 0; i < 30; i += 1) {
-    if (child.exitCode !== null) throw new Error(`server exited with ${child.exitCode}\\n${output}`);
+    if (child.exitCode !== null) throw new Error(`server exited with ${child.exitCode}\n${output}`);
     try {
       health = await getJson('/health');
       if (health.status === 200 && health.json?.status === 'ok') break;
@@ -43,7 +43,7 @@ try {
   }
 
   if (health?.status !== 200 || health.json?.status !== 'ok') {
-    throw new Error(`health endpoint did not report status=ok; last response: ${health?.body || 'no response'}\\n${output}`);
+    throw new Error(`health endpoint did not report status=ok; last response: ${health?.body || 'no response'}\n${output}`);
   }
 
   const readiness = await getJson('/api/apex/readiness');
