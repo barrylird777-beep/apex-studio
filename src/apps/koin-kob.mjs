@@ -206,7 +206,7 @@ export function runWorkerEconomySimulation({
     const count = Math.min(world.workerCount, 400);
     for (let index = 0; index < count; index++) {
       const asset = assets[index % assets.length];
-      const side = index % 2 === 0 ? "buy" : "sell";
+      const side = Math.floor(index / assets.length) % 2 === 0 ? "buy" : "sell";
       const quantity = 1 + (index % 3);
       if (side === "sell") world.workers[index].inventory[asset] = quantity;
       generatedOrders.push(createMarketOrder({
