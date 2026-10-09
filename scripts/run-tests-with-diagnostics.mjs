@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-const testCommand = packageJson.scripts?.test;
+const testCommand = packageJson.scripts?.["test:files"];
 const files = testCommand?.match(/test\/[^\s"]+\.mjs/g) ?? [];
 if (!files.length) throw new Error("Could not discover test files from package.json test script");
 
