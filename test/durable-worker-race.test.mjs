@@ -73,7 +73,7 @@ test("expired recovery workers partition rows with SKIP LOCKED", { skip: !hasDat
       await claimWorkerTask(id, 15000);
     }
     await db.query(
-      "UPDATE durable_jobs SET lease_expires_at=NOW()-INTERVAL '1 second', run_at=NULL WHERE id=ANY($1::uuid[])",
+      "UPDATE durable_jobs SET lease_expires_at=NOW()-INTERVAL '1 second' WHERE id=ANY($1::uuid[])",
       [ids]
     );
     const [a, b] = await Promise.all([
