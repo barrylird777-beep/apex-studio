@@ -53,7 +53,7 @@ export function buildNetworkSchedule({ episodes, startAt, horizonMinutes = 1440 
       // in the remaining block is deferred to the next block at the same cursor.
       // An episode larger than the entire nominal block is allowed to overrun
       // because truncating it would violate the atomic-content rule.
-      if (proposedEnd > blockEnd && duration * 1000 <= block.minutes * 60000) {
+      if (proposedEnd > blockEnd && proposedEnd <= endAt && duration * 1000 <= block.minutes * 60000) {
         break;
       }
       const slotEnd = proposedEnd;
