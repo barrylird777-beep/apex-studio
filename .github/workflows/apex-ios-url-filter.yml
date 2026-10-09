@@ -15,7 +15,7 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
-        run: xcodegen generate --spec ios/project.yml --project ios/ApexURLFilter.xcodeproj
+        run: xcodegen generate --spec ios/project.yml --project ios
       - name: Build unsigned validation artifact
         run: |
           xcodebuild -project ios/ApexURLFilter.xcodeproj -scheme ApexURLFilter -sdk iphoneos -configuration Release -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
