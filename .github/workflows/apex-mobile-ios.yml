@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - upgrade/apex-universal-mobile-swarm
+      - fix/apex-mobile-llama-swift-module
 
 jobs:
   build:
@@ -24,6 +25,20 @@ jobs:
           cd ..
           mkdir -p Frameworks
           cp -R llama.cpp/build-apple/llama.xcframework Frameworks/llama.xcframework
+          # The upstream XCFramework can ship the C headers without a Swift module map.
+          # Add a framework module map so Swift's `import llama` resolves during compilation.
+          while IFS= read -r -d '' header; do
+            framework="${header%/Headers/llama.h}"
+            mkdir -p "$framework/Modules"
+            cat > "$framework/Modules/module.modulemap" <<'MODULEMAP'
+          framework module llama {
+            umbrella header "llama.h"
+            export *
+            module * { export * }
+          }
+          MODULEMAP
+          done < <(find Frameworks/llama.xcframework -path '*/llama.framework/Headers/llama.h' -print0)
+          test -n "$(find Frameworks/llama.xcframework -path '*/llama.framework/Modules/module.modulemap' -print -quit)"
 
       - name: Generate Xcode project
         working-directory: ios/ApexMobile
