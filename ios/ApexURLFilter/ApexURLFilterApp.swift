@@ -16,6 +16,7 @@ struct ApexURLFilterApp: App {
                     Section("Status") { Text(controller.status).font(.footnote) }
                 }.navigationTitle("Apex AdBlock")
             }
-        }.task { await controller.refresh() }
+            .task { await controller.refresh() }
+        }
     }
 }
