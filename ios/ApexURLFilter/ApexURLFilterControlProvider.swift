@@ -2,6 +2,11 @@ import Foundation
 import NetworkExtension
 
 final class ApexURLFilterControlProvider: NSObject, NEURLFilterControlProvider {
+    @MainActor
+    override init() {
+        super.init()
+    }
+
     private let blockedValues = [
         "doubleclick.net", "googlesyndication.com", "googleadservices.com", "googletagmanager.com",
         "googletagservices.com", "adservice.google.com", "adsrvr.org", "adnxs.com", "taboola.com",
