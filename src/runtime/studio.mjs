@@ -80,7 +80,6 @@ export function createStudio(options={}) {
       return value;
     }
   });
-  void studio.omniStore.init();
   studio.search=(query,limit=30)=>universalSearch(query,[
     {type:"projects",items:studio.projects.list()},
     {type:"memories",items:studio.memory.items},
