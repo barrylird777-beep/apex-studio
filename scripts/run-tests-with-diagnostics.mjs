@@ -13,7 +13,7 @@ const failures = [];
 
 async function runFile(file) {
   const started = Date.now();
-  console.log(`\\n[TEST-FILE START] ${file}`);
+  console.log(`\n[TEST-FILE START] ${file}`);
   const child = spawn(process.execPath, ["--test", file], { stdio: "inherit", env: process.env });
   let timedOut = false;
   const timer = setTimeout(() => {
