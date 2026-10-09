@@ -256,6 +256,53 @@ async function buildHealthSnapshot() {
   };
 }
 
+// Liveness answers only whether this Node process can serve HTTP. It must not
+// depend on PostgreSQL, so orchestrators can distinguish a live process from a ready service.
+app.get('/livez', (_req, res) => {
+  res.status(200).json({ ok: true, status: 'live', uptime: process.uptime(), pid: process.pid });
+});
+
+// Readiness is deliberately stricter than liveness: durable processing requires a
+// configured, reachable PostgreSQL database, and the canonical app registry must validate.
+app.get('/readyz', async (_req, res) => {
+  let durable;
+  try {
+    durable = await durableWorkerHealth({ force: true });
+    const { assertSixAppInvariant, listApexApps } = await import('./src/apps/apex-six-apps.mjs');
+    assertSixAppInvariant();
+    const apps = listApexApps();
+    const appsReady = apps.length === 6;
+    const databaseReady = durable.configured === true && durable.available === true;
+    const ready = databaseReady && appsReady && !runtimeFault;
+    return res.status(ready ? 200 : 503).json({
+      ok: ready,
+      status: ready ? 'ready' : 'not_ready',
+      checks: {
+        process: { status: 'live' },
+        database: { configured: durable.configured, available: durable.available, status: durable.status },
+        durableWorker: { status: databaseReady ? 'database-connected' : 'blocked' },
+        canonicalApps: { status: appsReady ? 'ready' : 'invalid', count: apps.length }
+      },
+      runtimeFault,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({
+      ok: false,
+      status: 'not_ready',
+      checks: {
+        process: { status: 'live' },
+        database: { configured: durable?.configured ?? durableWorkerEnabled(), available: false, status: 'unavailable' },
+        durableWorker: { status: 'blocked' },
+        canonicalApps: { status: 'unavailable' }
+      },
+      error: 'readiness checks failed',
+      runtimeFault,
+      checkedAt: new Date().toISOString()
+    });
+  }
+});
+
 app.get('/health', async (_req, res) => {
   try {
     res.status(200).json(await buildHealthSnapshot());
