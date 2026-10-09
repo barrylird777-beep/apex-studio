@@ -17,7 +17,7 @@ jobs:
       - name: Install build tools
         run: brew install cmake xcodegen
 
-      - name: Build official llama.cpp iOS XCFramework with Metal
+      - name: Build official llama.cpp iOS framework with Metal
         run: |
           git clone --depth 1 https://github.com/ggml-org/llama.cpp.git ios/ApexMobile/llama.cpp
           cd ios/ApexMobile/llama.cpp
@@ -25,13 +25,12 @@ jobs:
           cd ..
           mkdir -p Frameworks
           cp -R llama.cpp/build-apple/llama.xcframework Frameworks/llama.xcframework
-          # Upstream build-xcframework.sh already creates a valid module map with
-          # umbrella "Headers". Do not overwrite it: a module map under Modules/
-          # cannot resolve a bare "llama.h" relative to that directory.
-          module_map="$(find Frameworks/llama.xcframework -path '*/llama.framework/Modules/module.modulemap' -print -quit)"
-          test -n "$module_map"
-          grep -q 'framework module llama' "$module_map"
-          test -f "$(dirname "$(dirname "$module_map")")/Headers/llama.h"
+          # XcodeGen's framework integration expects a framework path it can
+          # link directly. Stage the iOS device slice as a top-level framework.
+          cp -R Frameworks/llama.xcframework/ios-arm64/llama.framework Frameworks/llama.framework
+          test -f Frameworks/llama.framework/Headers/llama.h
+          test -f Frameworks/llama.framework/Modules/module.modulemap
+          grep -q 'framework module llama' Frameworks/llama.framework/Modules/module.modulemap
 
       - name: Generate Xcode project
         working-directory: ios/ApexMobile
