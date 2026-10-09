@@ -42,8 +42,7 @@ export function createApexIntelligenceRuntime(options = {}) {
       "Memory: " + JSON.stringify(input.memories ?? []),
       "",
       "Choose the next useful action. For parallel work, return tasks as an array. For a completed candidate, route to verify."
-    ].join("
-");
+    ].join("\n");
 
     const result = await ask(prompt, options);
     const parsed = result.parsed;
@@ -72,8 +71,7 @@ export function createApexIntelligenceRuntime(options = {}) {
       "Candidate: " + JSON.stringify(input.output),
       "Evidence: " + JSON.stringify(input.evidence ?? []),
       "Plan: " + JSON.stringify(input.plan ?? {})
-    ].join("
-");
+    ].join("\n");
 
     const result = await ask(prompt, {
       ...options,
