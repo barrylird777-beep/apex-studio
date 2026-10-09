@@ -64,7 +64,7 @@ const sources=[];
 async function collect(entry){
   let stat;
   try{stat=await fs.stat(entry)}catch{return}
-  if(stat.isDirectory){
+  if(stat.isDirectory()){
     for(const child of await fs.readdir(entry)) await collect(entry+"/"+child);
     return;
   }
