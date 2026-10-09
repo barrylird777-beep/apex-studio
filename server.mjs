@@ -268,19 +268,23 @@ app.get('/readyz', async (_req, res) => {
   let durable;
   try {
     durable = await durableWorkerHealth({ force: true });
+    const { ensureWorkerTaskSchema } = await import('./src/core/mesh/durable-worker-store.mjs');
+    const queueSchemaReady = durable.configured === true && durable.available === true
+      ? await ensureWorkerTaskSchema()
+      : false;
     const { assertSixAppInvariant, listApexApps } = await import('./src/apps/apex-six-apps.mjs');
     assertSixAppInvariant();
     const apps = listApexApps();
     const appsReady = apps.length === 6;
     const databaseReady = durable.configured === true && durable.available === true;
-    const ready = databaseReady && appsReady && !runtimeFault;
+    const ready = databaseReady && queueSchemaReady && appsReady && !runtimeFault;
     return res.status(ready ? 200 : 503).json({
       ok: ready,
       status: ready ? 'ready' : 'not_ready',
       checks: {
         process: { status: 'live' },
         database: { configured: durable.configured, available: durable.available, status: durable.status },
-        durableWorker: { status: databaseReady ? 'database-connected' : 'blocked' },
+        durableWorker: { status: queueSchemaReady ? 'queue-schema-ready' : 'blocked', queueSchemaReady },
         canonicalApps: { status: appsReady ? 'ready' : 'invalid', count: apps.length }
       },
       runtimeFault,
@@ -293,7 +297,7 @@ app.get('/readyz', async (_req, res) => {
       checks: {
         process: { status: 'live' },
         database: { configured: durable?.configured ?? durableWorkerEnabled(), available: false, status: 'unavailable' },
-        durableWorker: { status: 'blocked' },
+        durableWorker: { status: 'blocked', queueSchemaReady: false },
         canonicalApps: { status: 'unavailable' }
       },
       error: 'readiness checks failed',
