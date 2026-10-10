@@ -82,7 +82,7 @@ actor ApexLocalRuntime {
         let tokens = try tokenize(prompt, vocab: vocab)
         guard !tokens.isEmpty else { return "" }
 
-        llama_batch_clear(&batch)
+        batch.n_tokens = 0
 
         for (index, token) in tokens.enumerated() {
             add(
@@ -110,7 +110,7 @@ actor ApexLocalRuntime {
 
             output += piece(token, vocab: vocab)
 
-            llama_batch_clear(&batch)
+            batch.n_tokens = 0
             add(&batch, token: token, position: position, logits: true)
             position += 1
 
