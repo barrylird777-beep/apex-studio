@@ -16,6 +16,7 @@ struct ApexRootView: View {
     @State private var modelImportPresented = false
     @State private var modelStatus = "Import a GGUF model to start local inference."
     @State private var models: [ApexModelFile] = []
+    @State private var selectedModelID: String?
     @State private var lastInferenceMilliseconds: Int?
     @State private var lastRunLabel = "No inference run recorded"
 
@@ -83,7 +84,8 @@ struct ApexRootView: View {
                         defer { busy = false }
                         let start = ContinuousClock.now
                         do {
-                            let result = try await ApexLocalRuntime.shared.generate(prompt)
+                            let modelPath = models.first(where: { $0.id == selectedModelID })?.url.path
+                            let result = try await ApexLocalRuntime.shared.generate(prompt, modelPath: modelPath)
                             output = result
                             let elapsed = start.duration(to: .now)
                             let components = elapsed.components
@@ -154,6 +156,10 @@ struct ApexRootView: View {
 
     private func refreshInventory() {
         models = ApexModelCatalog.inventory()
+        if let selectedModelID, models.contains(where: { $0.id == selectedModelID }) {
+            return
+        }
+        selectedModelID = models.first?.id
     }
 
     private func uniqueDestination(in directory: URL, fileName: String) -> URL {
