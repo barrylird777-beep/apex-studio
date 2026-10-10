@@ -5,21 +5,32 @@ import { build } from "vite";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageWasmDir = path.join(root, "node_modules", "@wllama", "wllama", "src", "wasm");
+const compatWasmDir = path.join(root, "node_modules", "@wllama", "wllama-compat", "wasm");
 const publicWasmDir = path.join(root, "public", "vendor", "wllama", "src", "wasm");
+const publicCompatDir = path.join(root, "public", "vendor", "wllama-compat", "wasm");
 const outputDir = path.join(root, "public", "vendor", "wllama");
 
-try {
-  await access(path.join(packageWasmDir, "wllama.wasm"));
-} catch {
-  throw new Error("Pinned Wllama WASM asset missing at " + path.join(packageWasmDir, "wllama.wasm") + ". Verify @wllama/wllama@3.8.1 is installed and its published package contains src/wasm.");
+for (const [asset, label] of [
+  [path.join(packageWasmDir, "wllama.wasm"), "Wllama WASM"],
+  [path.join(compatWasmDir, "wllama.wasm"), "Safari-compat WASM"],
+  [path.join(compatWasmDir, "wllama.js"), "Safari-compat worker"]
+]) {
+  try {
+    await access(asset);
+  } catch {
+    throw new Error(label + " asset missing at " + asset + ". Verify the pinned Wllama packages are installed.");
+  }
 }
 
 await mkdir(publicWasmDir, { recursive: true });
+await mkdir(publicCompatDir, { recursive: true });
 await cp(packageWasmDir, publicWasmDir, { recursive: true, force: true });
+await cp(compatWasmDir, publicCompatDir, { recursive: true, force: true });
 
 await build({
   configFile: false,
   root,
+  base: "/vendor/wllama/",
   publicDir: false,
   logLevel: "info",
   build: {
@@ -40,4 +51,4 @@ await build({
   }
 });
 
-console.log("Local AI runtime bundle and pinned WASM assets are ready in public/vendor/wllama.");
+console.log("Pinned Wllama runtime, WASM, and Safari-compat assets are ready in public/vendor.");
