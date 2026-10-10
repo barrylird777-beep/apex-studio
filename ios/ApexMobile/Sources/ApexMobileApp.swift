@@ -81,6 +81,7 @@ struct ApexRootView: View {
                 Button(busy ? "Running locally…" : "Execute") {
                     Task {
                         busy = true
+                        error = nil
                         defer { busy = false }
                         let start = ContinuousClock.now
                         do {
