@@ -10,8 +10,10 @@ actor ApexLocalRuntime {
     private var sampler: UnsafeMutablePointer<llama_sampler>?
     private var batch: llama_batch?
     private var position: Int32 = 0
+    private var loadedPath: String?
 
     private let contextSize: UInt32 = 2048
+    private let batchCapacity: Int32 = 512
     private let outputLimit: Int32 = 512
 
     func loadInstalledModel() throws {
@@ -35,6 +37,7 @@ actor ApexLocalRuntime {
     }
 
     func load(path: String) throws {
+        if model != nil, loadedPath == path { return }
         unload()
         llama_backend_init()
 
@@ -42,6 +45,7 @@ actor ApexLocalRuntime {
         params.n_gpu_layers = 99
 
         guard let loaded = llama_model_load_from_file(path, params) else {
+            llama_backend_free()
             throw ApexLocalError.loadFailed
         }
 
@@ -50,7 +54,7 @@ actor ApexLocalRuntime {
 
         var contextParams = llama_context_default_params()
         contextParams.n_ctx = contextSize
-        contextParams.n_batch = 512
+        contextParams.n_batch = UInt32(batchCapacity)
 
         let threads = max(2, min(8, ProcessInfo.processInfo.processorCount - 2))
         contextParams.n_threads = Int32(threads)
@@ -59,6 +63,8 @@ actor ApexLocalRuntime {
         guard let createdContext = llama_init_from_model(loaded, contextParams) else {
             llama_model_free(loaded)
             model = nil
+            vocab = nil
+            llama_backend_free()
             throw ApexLocalError.contextFailed
         }
 
@@ -66,6 +72,7 @@ actor ApexLocalRuntime {
 
         let samplerParams = llama_sampler_chain_default_params()
         guard let createdSampler = llama_sampler_chain_init(samplerParams) else {
+            unload()
             throw ApexLocalError.contextFailed
         }
 
@@ -73,12 +80,17 @@ actor ApexLocalRuntime {
         llama_sampler_chain_add(createdSampler, llama_sampler_init_temp(0.7))
         llama_sampler_chain_add(createdSampler, llama_sampler_init_dist(42))
 
-        batch = llama_batch_init(512, 0, 1)
+        batch = llama_batch_init(batchCapacity, 0, 1)
         position = 0
+        loadedPath = path
     }
 
-    func generate(_ prompt: String) throws -> String {
-        if model == nil {
+    func generate(_ prompt: String, modelPath: String? = nil) throws -> String {
+        if let modelPath {
+            if model == nil || loadedPath != modelPath {
+                try load(path: modelPath)
+            }
+        } else if model == nil {
             try loadInstalledModel()
         }
 
@@ -89,23 +101,39 @@ actor ApexLocalRuntime {
         let tokens = try tokenize(prompt, vocab: vocab)
         guard !tokens.isEmpty else { return "" }
 
-        batch.n_tokens = 0
-
-        for (index, token) in tokens.enumerated() {
-            add(
-                &batch,
-                token: token,
-                position: Int32(index),
-                logits: index == tokens.count - 1
-            )
+        let promptLimit = Int(contextSize) - Int(outputLimit)
+        guard tokens.count <= promptLimit else {
+            throw ApexLocalError.promptTooLong(maxTokens: promptLimit)
         }
 
-        guard llama_decode(context, batch) == 0 else {
-            throw ApexLocalError.contextFailed
+        // Each request starts from a clean KV cache. Without this, follow-up prompts
+        // reuse stale positions and can mix unrelated conversations together.
+        llama_memory_clear(llama_get_memory(context), true)
+        position = 0
+
+        var offset = 0
+        while offset < tokens.count {
+            let end = min(offset + Int(batchCapacity), tokens.count)
+            batch.n_tokens = 0
+
+            for index in offset..<end {
+                add(
+                    &batch,
+                    token: tokens[index],
+                    position: Int32(index),
+                    logits: index == tokens.count - 1
+                )
+            }
+
+            guard llama_decode(context, batch) == 0 else {
+                llama_memory_clear(llama_get_memory(context), true)
+                position = 0
+                throw ApexLocalError.contextFailed
+            }
+            offset = end
         }
 
         position = Int32(tokens.count)
-
         var output = ""
 
         for _ in 0..<outputLimit {
@@ -117,12 +145,15 @@ actor ApexLocalRuntime {
 
             output += piece(token, vocab: vocab)
 
+            guard position < Int32(contextSize) else { break }
             batch.n_tokens = 0
             add(&batch, token: token, position: position, logits: true)
             position += 1
 
             if llama_decode(context, batch) != 0 {
-                break
+                llama_memory_clear(llama_get_memory(context), true)
+                position = 0
+                throw ApexLocalError.contextFailed
             }
         }
 
@@ -151,6 +182,7 @@ actor ApexLocalRuntime {
         }
 
         vocab = nil
+        loadedPath = nil
         position = 0
         llama_backend_free()
     }
@@ -230,6 +262,7 @@ enum ApexLocalError: LocalizedError {
     case loadFailed
     case contextFailed
     case tokenizeFailed
+    case promptTooLong(maxTokens: Int)
 
     var errorDescription: String? {
         switch self {
@@ -241,6 +274,8 @@ enum ApexLocalError: LocalizedError {
             "The local inference context failed."
         case .tokenizeFailed:
             "The local model could not tokenize the request."
+        case .promptTooLong(let maxTokens):
+            "This prompt is too long for the current context. Keep it under approximately \(maxTokens) tokens."
         }
     }
 }
