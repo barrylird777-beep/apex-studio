@@ -29,8 +29,8 @@ jobs:
           cd ..
           mkdir -p Frameworks
           cp -R llama.cpp/build-apple/llama.xcframework Frameworks/llama.xcframework
-          # The upstream XCFramework can ship the C headers without a Swift module map.
-          # Add a framework module map so Swift's `import llama` resolves during compilation.
+          # The upstream XCFramework can ship C headers without a Swift module map.
+          # Add a framework module map so Swift's import llama resolves during compilation.
           while IFS= read -r -d '' header; do
             framework="${header%/Headers/llama.h}"
             mkdir -p "$framework/Modules"
@@ -61,14 +61,22 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build
 
-      - name: Verify and package unsigned app
+      - name: Verify app and embedded llama runtime, then package
         working-directory: ios/ApexMobile
         run: |
+          set -euo pipefail
           app_path="build/Build/Products/Release-iphoneos/ApexMobile.app"
+          executable="$app_path/ApexMobile"
+          runtime="$app_path/Frameworks/llama.framework/llama"
           test -d "$app_path"
           test -f "$app_path/Info.plist"
+          test -s "$executable"
+          test -s "$runtime"
+          /usr/bin/otool -L "$executable" | grep -F "@rpath/llama.framework/llama"
+          /usr/bin/otool -hv "$runtime" | grep -E "ARM64|arm64"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" build/ApexMobile-unsigned.zip
           test -s build/ApexMobile-unsigned.zip
+          ls -lh "$executable" "$runtime" build/ApexMobile-unsigned.zip
 
       - name: Upload unsigned build
         uses: actions/upload-artifact@v6

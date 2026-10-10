@@ -19,7 +19,7 @@ targets:
       - path: Sources
     dependencies:
       - framework: Frameworks/llama.xcframework
-        embed: false
+        embed: true
     settings:
       base:
         GENERATE_INFOPLIST_FILE: true
