@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<title>Local AI · Apex Studio</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#080b12;color:#f4f6fa}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 50% -10%,#1b2a3d,transparent 65%),#080b12}
+main{max-width:850px;margin:auto;padding:clamp(16px,4vw,32px) 14px 56px}
+a{color:#9fd0ff;overflow-wrap:anywhere}.eyebrow{font-size:11px;letter-spacing:.14em;font-weight:800;color:#a6b5c7;margin:0 0 8px}
+h1{font-size:clamp(32px,8vw,48px);letter-spacing:-.04em;margin:0 0 10px}h2{font-size:20px;margin:0 0 12px}p{line-height:1.55;color:#c3ccd8}
+.card{border:1px solid #344254;background:#111925;border-radius:18px;padding:clamp(16px,4vw,24px);margin-top:16px;min-width:0}
+.pills{display:flex;flex-wrap:wrap;gap:7px}.pill{font-size:11px;border:1px solid #3b4a5c;border-radius:999px;padding:6px 9px;color:#d5deea}
+label{display:block;font-weight:700;margin:14px 0 7px}input[type=file],textarea{width:100%;max-width:100%;border:1px solid #425166;border-radius:10px;background:#0b111a;color:#f4f6fa;padding:12px}
+textarea{resize:vertical;min-height:110px;font:inherit;line-height:1.5}button{min-height:44px;border:1px solid #729bc5;border-radius:11px;background:#d6e8fa;color:#102034;font-weight:800;padding:10px 15px;max-width:100%}button:disabled{opacity:.45}button.secondary{background:#172334;color:#e1eaf5;border-color:#45556a}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0}.output{white-space:pre-wrap;overflow-wrap:anywhere;min-height:100px;padding:13px;border-radius:10px;border:1px solid #344254;background:#080d14;color:#e8edf5}
+.status{font-size:14px;color:#cbd7e6}.error{color:#ffb4ad;border:1px solid #84433f;border-radius:10px;padding:12px;overflow-wrap:anywhere}.pass{color:#b9f2cc}.help{font-size:13px;color:#aebccc}.confirm{display:flex;gap:10px;align-items:flex-start;font-weight:500}.confirm input{margin-top:5px;flex-shrink:0}
+progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px}
+</style>
+</head>
+<body>
+<main>
+<header><a href="/">← Back to Apex Studio</a><p class="eyebrow">APEX STUDIO · ON-DEVICE INTELLIGENCE</p><h1>Local AI</h1><p>Load a GGUF model into this browser and generate text on your iPhone. The first visit needs internet to load the runtime. The offline test is only marked passed after a response returns while you report Wi-Fi and cellular data are off.</p><div class="pills"><span id="browser" class="pill">Checking browser…</span><span id="isolation" class="pill">Checking secure runtime…</span><span id="network" class="pill">Checking network…</span></div></header>
+<section class="card"><p class="eyebrow">STEP 1</p><h2>Load a GGUF model</h2><p class="help">Choose a small .gguf file in the iPhone Files picker. Try the <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">19 MB tiny test model</a> if you need one. Save it to Files first.</p><input id="model" type="file" accept=".gguf,application/octet-stream"><p id="status" class="status" role="status">Checking browser requirements…</p><div id="error" hidden class="error" role="alert"></div><div id="modelinfo" class="help"></div></section>
+<section class="card"><p class="eyebrow">STEP 2</p><h2>Run a prompt</h2><label for="prompt">Your prompt</label><textarea id="prompt">Explain artificial intelligence in simple terms, using three short sentences.</textarea><div class="actions"><button id="run" disabled>Run locally</button><button id="reset" class="secondary">Reset prompt</button></div><label for="output">Generated response</label><div id="output" class="output" aria-live="polite">Your model response will appear here.</div></section>
+<section class="card"><p class="eyebrow">STEP 3 · REAL DEVICE CHECK</p><h2>Verify offline inference</h2><p class="help">After the model loads, turn on Airplane Mode or turn off both Wi-Fi and cellular data. Keep this page open, confirm below, and run the check. A response is evidence that inference ran locally for that attempt; this is not an independent network audit.</p><label class="confirm"><input id="offline" type="checkbox"> I turned off Wi-Fi and cellular data on this iPhone.</label><div class="actions"><button id="offlineRun" disabled>Run offline inference check</button></div><p id="proof" class="help" role="status"></p></section>
+<p class="help">Your selected model is not uploaded by this screen. Runtime assets are fetched from the Wllama CDN on first load. Keep the page open during the offline test.</p>
+</main>
+<script type="module">
+import { Wllama } from "https://esm.sh/@wllama/wllama@3.8.1";
+const $=id=>document.getElementById(id);
+let engine=null,ready=false,working=false;
+const apple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+$("browser").textContent=apple?"Apple mobile browser detected":"Browser detected";
+$("network").textContent=navigator.onLine?"Network reported online":"Browser reports offline";
+function setStatus(s){$("status").textContent=s}
+function setError(s){$("error").textContent=s;$("error").hidden=!s}
+function setBusy(v){working=v;$("model").disabled=v;$("run").disabled=v||!ready;$("offlineRun").disabled=v||!ready||!$("offline").checked}
+async function checkSupport(){
+  if(typeof WebAssembly==="undefined"||typeof WebAssembly.instantiate!=="function")return "This browser does not support the WebAssembly runtime.";
+  if(!window.crossOriginIsolated)return "This page is missing cross-origin isolation. The server must send COOP: same-origin and COEP: require-corp headers.";
+  if(!navigator.storage||typeof navigator.storage.getDirectory!=="function")return "This browser does not expose Origin Private File System storage required by this runtime.";
+  try{new WebAssembly.Memory({initial:16,maximum:65536,shared:true})}catch{return "Shared WebAssembly memory is unavailable. Check Safari version and page security headers."}
+  try{await navigator.storage.getDirectory()}catch(e){return "Private browser storage is unavailable: "+(e?.message||e)}
+  return "";
+}
+const supportError=await checkSupport();
+$("isolation").textContent=supportError?"Runtime requirements missing":"Runtime requirements available";
+if(supportError){setError(supportError);setStatus("Local inference is not ready in this browser session.");}
+else setStatus("Browser checks passed. Choose a GGUF model.");
+$("model").addEventListener("change",async e=>{
+  const file=e.currentTarget.files?.[0];e.currentTarget.value="";if(!file)return;
+  setError("");$("proof").textContent="";$("output").textContent="Your model response will appear here.";ready=false;setBusy(true);
+  if(engine){try{await engine.exit()}catch{}engine=null}
+  try{
+    if(!file.name.toLowerCase().endsWith(".gguf"))throw new Error("Choose a .gguf file.");
+    if(!file.size)throw new Error("The selected file is empty.");
+    const issue=await checkSupport();if(issue)throw new Error(issue);
+    setStatus("Starting local runtime…");
+    engine=new Wllama({default:"https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/src/wasm/wllama.wasm"});engine.setCompat("default");
+    setStatus("Loading the model into browser memory. Keep this page open…");
+    await engine.loadModel([file],{n_threads:1,n_ctx:1024,n_gpu_layers:0});
+    ready=true;$("modelinfo").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · loaded in this browser session";
+    setStatus("Model loaded. Run a prompt, then test offline.");$("run").disabled=false;$("offlineRun").disabled=!$("offline").checked;
+  }catch(err){if(engine){try{await engine.exit()}catch{}engine=null}setError(err?.message||String(err));setStatus("Model did not load. Your original file was not changed.");}
+  finally{setBusy(false);$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked}
+});
+async function infer(offlineTest){
+  if(!engine||!ready)return;
+  if(offlineTest&&!$("offline").checked){setError("Turn off Wi-Fi and cellular data, then confirm above.");return}
+  const prompt=$("prompt").value.trim();if(!prompt){setError("Enter a prompt first.");return}
+  setError("");$("output").textContent="";$("proof").textContent="";setBusy(true);setStatus(offlineTest?"Running offline inference check…":"Generating on device…");
+  let result="";
+  try{
+    await engine.createCompletion({prompt,max_tokens:128,temperature:.5,top_k:40,top_p:.9,stream:true,onData:chunk=>{result+=chunk.choices?.[0]?.text||"";$("output").textContent=result}});
+    if(!result.trim())throw new Error("The runtime returned no text. Try a shorter prompt or another small model.");
+    if(offlineTest){$("proof").textContent="PASS — a response was generated after you confirmed Wi-Fi and cellular data were off. This is evidence of local inference for this run, not an independent network audit.";$("proof").className="help pass"}
+    else $("proof").textContent="Response received. Offline operation has not yet been verified.";
+    setStatus("Generation finished.");
+  }catch(err){setError(err?.message||String(err));setStatus("Generation failed.");}
+  finally{setBusy(false);$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked}
+}
+$("run").addEventListener("click",()=>infer(false));$("offlineRun").addEventListener("click",()=>infer(true));
+$("offline").addEventListener("change",()=>{$("offlineRun").disabled=!ready||working||!$("offline").checked});
+$("reset").addEventListener("click",()=>{$("prompt").value="Explain artificial intelligence in simple terms, using three short sentences.";$("output").textContent="Your model response will appear here.";$("proof").textContent="";setError("")});
+window.addEventListener("online",()=>{$("network").textContent="Network reported online"});window.addEventListener("offline",()=>{$("network").textContent="Browser reports offline"});
+</script>
+</body>
+</html>

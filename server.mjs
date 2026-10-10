@@ -802,6 +802,12 @@ app.get('/api/teevee/buyer', (_req, res) => {
     payment: { state: 'payment-ready-not-live', processor: 'Stripe', activation: 'requires business-side Stripe setup and operating policy' }
   });
 });
+app.get('/local-ai', (_req, res) => {
+  res.set('Cross-Origin-Opener-Policy', 'same-origin');
+  res.set('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.sendFile(path.join(__dirname, 'public', 'local-ai.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
