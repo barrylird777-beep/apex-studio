@@ -2,9 +2,106 @@ import pg from "pg";
 
 const { Pool } = pg;
 
-function toPostgresPlaceholders(sql) {
+export function toPostgresPlaceholders(sql) {
+  const input = String(sql);
+  let output = "";
   let index = 0;
-  return String(sql).replace(/\?/g, () => "$" + (++index));
+  let state = "normal";
+  let blockDepth = 0;
+  let dollarDelimiter = "";
+
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+    const next = input[i + 1];
+
+    if (state === "single") {
+      output += ch;
+      if (ch === "\\" && i + 1 < input.length) {
+        output += input[++i];
+      } else if (ch === "'" && next === "'") {
+        output += input[++i];
+      } else if (ch === "'") {
+        state = "normal";
+      }
+      continue;
+    }
+
+    if (state === "double") {
+      output += ch;
+      if (ch === '"' && next === '"') {
+        output += input[++i];
+      } else if (ch === '"') {
+        state = "normal";
+      }
+      continue;
+    }
+
+    if (state === "line-comment") {
+      output += ch;
+      if (ch === "\n") state = "normal";
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (ch === "/" && next === "*") {
+        output += "/*";
+        i += 1;
+        blockDepth += 1;
+      } else if (ch === "*" && next === "/") {
+        output += "*/";
+        i += 1;
+        blockDepth -= 1;
+        if (blockDepth === 0) state = "normal";
+      } else {
+        output += ch;
+      }
+      continue;
+    }
+
+    if (state === "dollar-quote") {
+      if (input.startsWith(dollarDelimiter, i)) {
+        output += dollarDelimiter;
+        i += dollarDelimiter.length - 1;
+        state = "normal";
+      } else {
+        output += ch;
+      }
+      continue;
+    }
+
+    if (ch === "'") {
+      state = "single";
+      output += ch;
+    } else if (ch === '"') {
+      state = "double";
+      output += ch;
+    } else if (ch === "-" && next === "-") {
+      state = "line-comment";
+      output += "--";
+      i += 1;
+    } else if (ch === "/" && next === "*") {
+      state = "block-comment";
+      blockDepth = 1;
+      output += "/*";
+      i += 1;
+    } else if (ch === "$") {
+      const match = input.slice(i).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/);
+      if (match) {
+        dollarDelimiter = match[0];
+        state = "dollar-quote";
+        output += dollarDelimiter;
+        i += dollarDelimiter.length - 1;
+      } else {
+        output += ch;
+      }
+    } else if (ch === "?") {
+      output += "$" + (++index);
+    } else {
+      output += ch;
+    }
+  }
+
+  return output;
 }
 
 function normalizeSql(sql) {
@@ -26,7 +123,9 @@ export function createBibleProductionStore(options = {}) {
     max: Number(options.max ?? process.env.APEX_BIBLE_DB_POOL_MAX ?? 8),
     idleTimeoutMillis: Number(options.idleTimeoutMillis ?? 30000),
     connectionTimeoutMillis: Number(options.connectionTimeoutMillis ?? 10000),
-    ssl: options.ssl ?? (process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false })
+    // Verify PostgreSQL server certificates by default. Set APEX_PG_SSL=false
+    // only for explicitly trusted local/test environments.
+    ssl: options.ssl ?? (process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: true })
   });
 
   const ownsPool = !options.pool;

@@ -10,13 +10,13 @@ function jsonOrFallback(value, fallback) {
 function databaseSsl(connectionString) {
   const explicit = String(process.env.APEX_PG_SSL || "").trim().toLowerCase();
   if (explicit === "false" || explicit === "0") return false;
-  if (explicit === "true" || explicit === "1") return { rejectUnauthorized: false };
+  if (explicit === "true" || explicit === "1") return { rejectUnauthorized: true };
 
   try {
     const hostname = new URL(connectionString).hostname;
     return ["localhost", "127.0.0.1", "::1"].includes(hostname)
       ? false
-      : { rejectUnauthorized: false };
+      : { rejectUnauthorized: true };
   } catch {
     return false;
   }

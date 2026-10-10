@@ -8,7 +8,7 @@ const pool = new Pool({
   max: 1,
   connectionTimeoutMillis: Math.max(1000, Number(process.env.APEX_PG_CONNECTION_TIMEOUT_MS || 5000)),
   idleTimeoutMillis: 5000,
-  ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false }
+  ssl: process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: true }
 });
 const targets = ["durable_jobs","apex_job_events","rate_limits","apex_external_effects","render_nodes","apex_projects","production_jobs","production_events"];
 try {
