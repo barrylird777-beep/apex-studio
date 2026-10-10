@@ -26,7 +26,9 @@ export function createBibleProductionStore(options = {}) {
     max: Number(options.max ?? process.env.APEX_BIBLE_DB_POOL_MAX ?? 8),
     idleTimeoutMillis: Number(options.idleTimeoutMillis ?? 30000),
     connectionTimeoutMillis: Number(options.connectionTimeoutMillis ?? 10000),
-    ssl: options.ssl ?? (process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: false })
+    // Verify PostgreSQL server certificates by default. Set APEX_PG_SSL=false
+    // only for explicitly trusted local/test environments.
+    ssl: options.ssl ?? (process.env.APEX_PG_SSL === "false" ? false : { rejectUnauthorized: true })
   });
 
   const ownsPool = !options.pool;
