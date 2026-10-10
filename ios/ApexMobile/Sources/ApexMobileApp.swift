@@ -64,6 +64,14 @@ struct ApexRootView: View {
                                     Text("\(model.displaySize) • GGUF v\(model.ggufVersion) • \(model.tensorCount) tensors • header valid")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
+                                    Text("Estimated working set: \(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.estimatedWorkingSetBytes(modelBytes: model.sizeBytes), countStyle: .memory)) • rough estimate only")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Button(selectedModelID == model.id ? "Selected for inference" : "Use this model") {
+                                        selectedModelID = model.id
+                                    }
+                                    .font(.caption)
+                                    .disabled(busy)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 Divider()
@@ -138,6 +146,7 @@ struct ApexRootView: View {
                     let documents = ApexModelCatalog.directory
                     let destination = uniqueDestination(in: documents, fileName: sourceURL.lastPathComponent)
                     try FileManager.default.copyItem(at: sourceURL, to: destination)
+                    selectedModelID = destination.lastPathComponent
                     modelStatus = "Imported \(destination.lastPathComponent). Original source preserved; import is a copy."
                     refreshInventory()
                 } catch {
