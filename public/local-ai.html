@@ -22,11 +22,11 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 </head>
 <body>
 <main>
-<header><a href="/">← Back to Apex Studio</a><p class="eyebrow">APEX STUDIO · ON-DEVICE INTELLIGENCE</p><h1>Local AI</h1><p>Load a GGUF model into this browser and generate text on your iPhone. The first visit needs internet to load the runtime. The offline test is only marked passed after a response returns while you report Wi-Fi and cellular data are off.</p><div class="pills"><span id="browser" class="pill">Checking browser…</span><span id="isolation" class="pill">Checking secure runtime…</span><span id="network" class="pill">Checking network…</span></div></header>
+<header><a href="/">← Back to Apex Studio</a><p class="eyebrow">APEX STUDIO · ON-DEVICE INTELLIGENCE</p><h1>Local AI</h1><p>Load a GGUF model into this browser and generate text on your iPhone. The AI runtime and WebAssembly assets are served by Apex Studio. The offline test is only marked passed after a response returns while you report Wi-Fi and cellular data are off.</p><div class="pills"><span id="browser" class="pill">Checking browser…</span><span id="isolation" class="pill">Checking secure runtime…</span><span id="network" class="pill">Checking network…</span></div></header>
 <section class="card"><p class="eyebrow">STEP 1</p><h2>Load a GGUF model</h2><p class="help">Choose a small .gguf file in the iPhone Files picker. Try the <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">19 MB tiny test model</a> if you need one. Save it to Files first.</p><input id="model" type="file" accept=".gguf,application/octet-stream"><p id="status" class="status" role="status">Checking browser requirements…</p><div id="error" hidden class="error" role="alert"></div><div id="modelinfo" class="help"></div></section>
 <section class="card"><p class="eyebrow">STEP 2</p><h2>Run a prompt</h2><label for="prompt">Your prompt</label><textarea id="prompt">Explain artificial intelligence in simple terms, using three short sentences.</textarea><div class="actions"><button id="run" disabled>Run locally</button><button id="reset" class="secondary">Reset prompt</button></div><label for="output">Generated response</label><div id="output" class="output" aria-live="polite">Your model response will appear here.</div></section>
 <section class="card"><p class="eyebrow">STEP 3 · REAL DEVICE CHECK</p><h2>Verify offline inference</h2><p class="help">After the model loads, turn on Airplane Mode or turn off both Wi-Fi and cellular data. Keep this page open, confirm below, and run the check. A response is evidence that inference ran locally for that attempt; this is not an independent network audit.</p><label class="confirm"><input id="offline" type="checkbox"> I turned off Wi-Fi and cellular data on this iPhone.</label><div class="actions"><button id="offlineRun" disabled>Run offline inference check</button></div><p id="proof" class="help" role="status"></p></section>
-<p class="help">Your selected model is not uploaded by this screen. Runtime assets are fetched from the Wllama CDN on first load. Keep the page open during the offline test.</p>
+<p class="help">Your selected model is not uploaded by this screen. The pinned Wllama runtime and WebAssembly assets are served by Apex Studio; model inference runs in this browser. Keep the page open during the offline test.</p>
 </main>
 <script type="module">
 let Wllama = null;
@@ -60,32 +60,53 @@ $("model").addEventListener("change",async e=>{
     if(!file.name.toLowerCase().endsWith(".gguf"))throw new Error("Choose a .gguf file.");
     if(!file.size)throw new Error("The selected file is empty.");
     const issue=await checkSupport();if(issue)throw new Error(issue);
-    setStatus("Loading the AI runtime from CDN…");
-    let runtimeTimer;
+    setStatus("Loading the self-hosted AI runtime…");
     let runtime;
     try {
       runtime = await Promise.race([
-        import("https://esm.sh/@wllama/wllama@3.8.1"),
-        new Promise((_, reject) => {
-          runtimeTimer = setTimeout(() => reject(new Error("The AI runtime did not load from its CDN within 20 seconds. Check your connection or try again.")), 20000);
-        })
+        import("/vendor/wllama/runtime.js"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Local runtime download timed out after 20 seconds. Confirm the deployment includes /vendor/wllama/runtime.js.")), 20000))
       ]);
-    } finally { clearTimeout(runtimeTimer); }
-    if (typeof runtime?.Wllama !== "function") throw new Error("The AI runtime loaded, but its Wllama export was missing. Refresh and retry.");
+    } catch (err) {
+      throw new Error("AI runtime download failed: " + (err?.message || String(err)) + " Check that the self-hosted runtime bundle exists in this deployment.");
+    }
+    if (typeof runtime?.Wllama !== "function") throw new Error("AI runtime initialization failed: the local bundle did not export Wllama.");
     Wllama = runtime.Wllama;
-    setStatus("Starting local runtime…");
-    engine=new Wllama({default:"https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/src/wasm/wllama.wasm"});engine.setCompat("default");
-    setStatus("Loading the model into browser memory. Keep this page open…");
-    // Safari can leave a worker initialization pending. Bound the wait so the
-    // UI recovers and reports a useful error instead of leaving every control disabled.
+
+    setStatus("Downloading and validating the self-hosted WebAssembly runtime…");
+    let wasmBytes;
+    try {
+      const wasmResponse = await fetch("/vendor/wllama/src/wasm/wllama.wasm", { cache: "force-cache" });
+      if (!wasmResponse.ok) throw new Error("HTTP " + wasmResponse.status + " for local WASM asset");
+      wasmBytes = await wasmResponse.arrayBuffer();
+      if (!wasmBytes.byteLength) throw new Error("The WASM asset was empty");
+      await WebAssembly.compile(wasmBytes);
+    } catch (err) {
+      throw new Error("WASM download/validation failed: " + (err?.message || String(err)) + " Check that the pinned Wllama WASM assets were copied into this deployment.");
+    }
+
+    setStatus("Initializing the WASM worker…");
+    try {
+      engine = new Wllama({ default: "/vendor/wllama/src/wasm/wllama.wasm" });
+      engine.setCompat("default");
+    } catch (err) {
+      throw new Error("WASM runtime initialization failed: " + (err?.message || String(err)));
+    }
+
+    setStatus("Loading the GGUF model into browser memory. Keep this page open…");
+    // Wllama initializes its worker/WASM internals during loadModel on versions
+    // that do not expose a separate async init method. Keep this stage distinct
+    // so failures here are reported as model-load/worker-init failures.
     let loadTimer;
     try {
       await Promise.race([
-        engine.loadModel([file],{n_threads:1,n_ctx:1024,n_gpu_layers:0}),
+        engine.loadModel([file], { n_threads: 1, n_ctx: 1024, n_gpu_layers: 0 }),
         new Promise((_, reject) => {
-          loadTimer = setTimeout(() => reject(new Error("Model loading timed out after 90 seconds. The browser runtime may be blocked or this device may not have enough available memory. Refresh the page and try again; if it repeats, send the exact error.")), 90000);
+          loadTimer = setTimeout(() => reject(new Error("Timed out after 90 seconds. The model may exceed available memory, or WASM worker initialization did not finish.")), 90000);
         })
       ]);
+    } catch (err) {
+      throw new Error("GGUF model loading failed (including any deferred WASM worker initialization): " + (err?.message || String(err)));
     } finally {
       clearTimeout(loadTimer);
     }
