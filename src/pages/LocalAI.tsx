@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useRef, useState, type ChangeEvent} from "react";
 import {Wllama} from "@wllama/wllama";
 import WasmFromCDN from "@wllama/wllama/esm/wasm-from-cdn.js";
 import "./LocalAI.css";
@@ -26,7 +26,7 @@ export default function LocalAI(){
 
   useEffect(()=>()=>{if(engine.current){void engine.current.exit().catch(()=>{});engine.current=null;}},[]);
 
-  async function loadModel(event:React.ChangeEvent<HTMLInputElement>){
+  async function loadModel(event:ChangeEvent<HTMLInputElement>){
     const files=Array.from(event.currentTarget.files??[]);
     event.currentTarget.value="";
     if(!files.length)return;
@@ -88,8 +88,8 @@ export default function LocalAI(){
     <section className="local-ai-card">
       <div className="local-ai-card-head"><div><p className="local-ai-eyebrow">STEP 1</p><h2>Choose your model</h2></div><span className={ready?"local-ai-state good":"local-ai-state"}>{ready?"MODEL READY":loading?"LOADING":"NOT LOADED"}</span></div>
       <p className="local-ai-help">Choose a small, quantized GGUF file from the iPhone Files app. Start with a tiny model; large models can exceed mobile memory limits.</p>
-      <input className="local-ai-file" type="file" accept=".gguf,application/octet-stream" onChange={loadModel} disabled={loading||running} aria-label="Choose a GGUF model"/>
-      <p className="local-ai-help">Need a tiny test model? <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">Open the 19 MB test model</a>, save it to Files, then select it here. The first runtime load needs internet to fetch its WebAssembly assets.</p>
+      <input className="local-ai-file" type="file" accept=".gguf,application/octet-stream" onChange={loadModel} disabled={loading||running||!wasmSupported} aria-label="Choose a GGUF model"/>
+      {!wasmSupported&&<div className="local-ai-error" role="alert">This browser does not expose WebAssembly, so local inference cannot start here. Try an up-to-date Safari browser.</div>}\n      <p className="local-ai-help">Need a tiny test model? <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">Open the 19 MB test model</a>, save it to Files, then select it here. The first runtime load needs internet to fetch its WebAssembly assets.</p>
       {loading&&<div className="local-ai-progress"><span>{status}</span><progress/></div>}
       {ready&&<div className="local-ai-model-summary"><strong>{fileName}</strong><span>{(fileSize/1024/1024).toFixed(1)} MB · loaded in browser memory</span></div>}
       <p className="local-ai-status" role="status">{status}</p>
