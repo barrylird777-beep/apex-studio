@@ -31,7 +31,7 @@ struct ApexRootView: View {
                         busy = true
                         defer { busy = false }
                         do { output = try await ApexLocalRuntime.shared.generate(prompt) }
-                        catch { error = error.localizedDescription }
+                        catch let caughtError { error = caughtError.localizedDescription }
                     }
                 }
                 .buttonStyle(.borderedProminent)
