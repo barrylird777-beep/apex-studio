@@ -10,6 +10,7 @@ actor ApexLocalRuntime {
     private var sampler: UnsafeMutablePointer<llama_sampler>?
     private var batch: llama_batch?
     private var position: Int32 = 0
+    private var loadedPath: String?
 
     private let contextSize: UInt32 = 2048
     private let batchCapacity: Int32 = 512
@@ -36,6 +37,7 @@ actor ApexLocalRuntime {
     }
 
     func load(path: String) throws {
+        if model != nil, loadedPath == path { return }
         unload()
         llama_backend_init()
 
@@ -78,12 +80,17 @@ actor ApexLocalRuntime {
         llama_sampler_chain_add(createdSampler, llama_sampler_init_temp(0.7))
         llama_sampler_chain_add(createdSampler, llama_sampler_init_dist(42))
 
-        batch = llama_batch_init(Int32(batchCapacity), 0, 1)
+        batch = llama_batch_init(batchCapacity, 0, 1)
         position = 0
+        loadedPath = path
     }
 
-    func generate(_ prompt: String) throws -> String {
-        if model == nil {
+    func generate(_ prompt: String, modelPath: String? = nil) throws -> String {
+        if let modelPath {
+            if model == nil || loadedPath != modelPath {
+                try load(path: modelPath)
+            }
+        } else if model == nil {
             try loadInstalledModel()
         }
 
@@ -175,6 +182,7 @@ actor ApexLocalRuntime {
         }
 
         vocab = nil
+        loadedPath = nil
         position = 0
         llama_backend_free()
     }
