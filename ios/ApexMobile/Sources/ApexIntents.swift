@@ -14,17 +14,16 @@ struct ApexUniversalIntent: AppIntent {
 }
 
 struct ApexShortcuts: AppShortcutsProvider {
+    @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
-        [
-            AppShortcut(
-                intent: ApexUniversalIntent(),
-                phrases: [
-                    "Run Apex locally in \(.applicationName)",
-                    "Ask Apex locally in \(.applicationName)"
-                ],
-                shortTitle: "Run Apex Locally",
-                systemImageName: "cpu"
-            )
-        ]
+        AppShortcut(
+            intent: ApexUniversalIntent(),
+            phrases: [
+                "Run Apex locally in \(.applicationName)",
+                "Ask Apex locally in \(.applicationName)"
+            ],
+            shortTitle: "Run Apex Locally",
+            systemImageName: "cpu"
+        )
     }
 }
