@@ -85,15 +85,16 @@ $("model").addEventListener("change",async e=>{
       throw new Error("WASM download/validation failed: " + (err?.message || String(err)) + " Check that the pinned Wllama WASM assets were copied into this deployment.");
     }
 
-    setStatus("Initializing the WASM worker…");
+    setStatus("Preparing the local WASM worker…");
     try {
       engine = new Wllama({ default: "/vendor/wllama/src/wasm/wllama.wasm" });
-      engine.setCompat("default");
+      // Default compat mode can fetch extra assets from a CDN. Keep this path local.
+      engine.setCompat(null);
     } catch (err) {
-      throw new Error("WASM runtime initialization failed: " + (err?.message || String(err)));
+      throw new Error("WASM runtime setup failed: " + (err?.message || String(err)));
     }
 
-    setStatus("Loading the GGUF model into browser memory. Keep this page open…");
+    setStatus("Initializing WASM and loading the GGUF model into browser memory. Keep this page open…");
     // Wllama initializes its worker/WASM internals during loadModel on versions
     // that do not expose a separate async init method. Keep this stage distinct
     // so failures here are reported as model-load/worker-init failures.
