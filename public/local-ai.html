@@ -61,11 +61,29 @@ $("model").addEventListener("change",async e=>{
     setStatus("Starting local runtime…");
     engine=new Wllama({default:"https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/src/wasm/wllama.wasm"});engine.setCompat("default");
     setStatus("Loading the model into browser memory. Keep this page open…");
-    await engine.loadModel([file],{n_threads:1,n_ctx:1024,n_gpu_layers:0});
+    // Safari can leave a worker initialization pending. Bound the wait so the
+    // UI recovers and reports a useful error instead of leaving every control disabled.
+    let loadTimer;
+    try {
+      await Promise.race([
+        engine.loadModel([file],{n_threads:1,n_ctx:1024,n_gpu_layers:0}),
+        new Promise((_, reject) => {
+          loadTimer = setTimeout(() => reject(new Error("Model loading timed out after 90 seconds. The browser runtime may be blocked or this device may not have enough available memory. Refresh the page and try again; if it repeats, send the exact error.")), 90000);
+        })
+      ]);
+    } finally {
+      clearTimeout(loadTimer);
+    }
     ready=true;$("modelinfo").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · loaded in this browser session";
     setStatus("Model loaded. Run a prompt, then test offline.");$("run").disabled=false;$("offlineRun").disabled=!$("offline").checked;
-  }catch(err){if(engine){try{await engine.exit()}catch{}engine=null}setError(err?.message||String(err));setStatus("Model did not load. Your original file was not changed.");}
-  finally{setBusy(false);$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked}
+  }catch(err){
+    const message=err?.message||String(err);
+    if(engine){try{await Promise.race([engine.exit(),new Promise(resolve=>setTimeout(resolve,1500))])}catch{}engine=null}
+    ready=false;
+    setError(message);
+    setStatus("Model did not load. Controls are available again so you can retry.");
+  }
+  finally{setBusy(false);$("model").disabled=false;$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked}
 });
 async function infer(offlineTest){
   if(!engine||!ready)return;
@@ -74,7 +92,12 @@ async function infer(offlineTest){
   setError("");$("output").textContent="";$("proof").textContent="";setBusy(true);setStatus(offlineTest?"Running offline inference check…":"Generating on device…");
   let result="";
   try{
-    await engine.createCompletion({prompt,max_tokens:128,temperature:.5,top_k:40,top_p:.9,stream:true,onData:chunk=>{result+=chunk.choices?.[0]?.text||"";$("output").textContent=result}});
+    const stream = await engine.createCompletion({prompt,max_tokens:128,temperature:.5,top_k:40,top_p:.9,stream:true});
+    for await (const chunk of stream) {
+      const choice = chunk?.choices?.[0];
+      result += choice?.text ?? choice?.delta?.content ?? "";
+      $("output").textContent = result;
+    }
     if(!result.trim())throw new Error("The runtime returned no text. Try a shorter prompt or another small model.");
     if(offlineTest){$("proof").textContent="PASS — a response was generated after you confirmed Wi-Fi and cellular data were off. This is evidence of local inference for this run, not an independent network audit.";$("proof").className="help pass"}
     else $("proof").textContent="Response received. Offline operation has not yet been verified.";
