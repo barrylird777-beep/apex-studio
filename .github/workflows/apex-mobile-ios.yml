@@ -2,6 +2,10 @@ name: Apex Mobile iOS Build
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "ios/ApexMobile/**"
+      - ".github/workflows/apex-mobile-ios.yml"
   push:
     branches:
       - main
