@@ -51,6 +51,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
 app.disable('x-powered-by');
+// Serve same-origin bundled runtime assets before the API CORS gate.
+// Browser module imports use CORS mode even for same-origin URLs; do not reject our own static assets.
+app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor')));
 const corsOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
