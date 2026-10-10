@@ -29,7 +29,7 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 <p class="help">Your selected model is not uploaded by this screen. Runtime assets are fetched from the Wllama CDN on first load. Keep the page open during the offline test.</p>
 </main>
 <script type="module">
-import { Wllama } from "https://esm.sh/@wllama/wllama@3.8.1";
+let Wllama = null;
 const $=id=>document.getElementById(id);
 let engine=null,ready=false,working=false;
 const apple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
@@ -43,13 +43,15 @@ async function checkSupport(){
   if(!window.crossOriginIsolated)return "This page is missing cross-origin isolation. The server must send COOP: same-origin and COEP: require-corp headers.";
   if(!navigator.storage||typeof navigator.storage.getDirectory!=="function")return "This browser does not expose Origin Private File System storage required by this runtime.";
   try{new WebAssembly.Memory({initial:16,maximum:65536,shared:true})}catch{return "Shared WebAssembly memory is unavailable. Check Safari version and page security headers."}
-  try{await navigator.storage.getDirectory()}catch(e){return "Private browser storage is unavailable: "+(e?.message||e)}
+  try {
+    await Promise.race([
+      navigator.storage.getDirectory(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Storage check timed out")), 5000))
+    ]);
+  } catch(e) { return "Private browser storage is unavailable: "+(e?.message||e); }
   return "";
 }
-const supportError=await checkSupport();
-$("isolation").textContent=supportError?"Runtime requirements missing":"Runtime requirements available";
-if(supportError){setError(supportError);setStatus("Local inference is not ready in this browser session.");}
-else setStatus("Browser checks passed. Choose a GGUF model.");
+setStatus("Preparing browser checks…");
 $("model").addEventListener("change",async e=>{
   const file=e.currentTarget.files?.[0];e.currentTarget.value="";if(!file)return;
   setError("");$("proof").textContent="";$("output").textContent="Your model response will appear here.";ready=false;setBusy(true);
@@ -58,6 +60,19 @@ $("model").addEventListener("change",async e=>{
     if(!file.name.toLowerCase().endsWith(".gguf"))throw new Error("Choose a .gguf file.");
     if(!file.size)throw new Error("The selected file is empty.");
     const issue=await checkSupport();if(issue)throw new Error(issue);
+    setStatus("Loading the AI runtime from CDN…");
+    let runtimeTimer;
+    let runtime;
+    try {
+      runtime = await Promise.race([
+        import("https://esm.sh/@wllama/wllama@3.8.1"),
+        new Promise((_, reject) => {
+          runtimeTimer = setTimeout(() => reject(new Error("The AI runtime did not load from its CDN within 20 seconds. Check your connection or try again.")), 20000);
+        })
+      ]);
+    } finally { clearTimeout(runtimeTimer); }
+    if (typeof runtime?.Wllama !== "function") throw new Error("The AI runtime loaded, but its Wllama export was missing. Refresh and retry.");
+    Wllama = runtime.Wllama;
     setStatus("Starting local runtime…");
     engine=new Wllama({default:"https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/src/wasm/wllama.wasm"});engine.setCompat("default");
     setStatus("Loading the model into browser memory. Keep this page open…");
@@ -109,6 +124,18 @@ $("run").addEventListener("click",()=>infer(false));$("offlineRun").addEventList
 $("offline").addEventListener("change",()=>{$("offlineRun").disabled=!ready||working||!$("offline").checked});
 $("reset").addEventListener("click",()=>{$("prompt").value="Explain artificial intelligence in simple terms, using three short sentences.";$("output").textContent="Your model response will appear here.";$("proof").textContent="";setError("")});
 window.addEventListener("online",()=>{$("network").textContent="Network reported online"});window.addEventListener("offline",()=>{$("network").textContent="Browser reports offline"});
+// Attach every control before asynchronous capability checks or CDN requests.
+// A failed/hung AI runtime must never prevent Reset Prompt from working.
+void (async()=>{
+  const supportError=await checkSupport();
+  $("isolation").textContent=supportError?"Runtime requirements missing":"Runtime requirements available";
+  if(supportError){setError(supportError);setStatus("Local inference is not ready in this browser session.");}
+  else {setError("");setStatus("Browser checks passed. Choose a GGUF model.");}
+})().catch(err=>{
+  $("isolation").textContent="Runtime check failed";
+  setError("Browser capability check failed: "+(err?.message||String(err)));
+  setStatus("Local inference is not ready in this browser session.");
+});
 </script>
 </body>
 </html>
