@@ -10,7 +10,7 @@ export class EnterpriseDistributedStore {
       max:Number(process.env.APEX_PG_POOL_SIZE||20),
       idleTimeoutMillis:Number(process.env.APEX_PG_IDLE_TIMEOUT_MS||30000),
       connectionTimeoutMillis:Number(process.env.APEX_PG_CONNECT_TIMEOUT_MS||10000),
-      ssl:process.env.APEX_PG_SSL==="false"?false:{rejectUnauthorized:false}
+      ssl:process.env.APEX_PG_SSL==="false"?false:{rejectUnauthorized:true}
     });
   }
   async connect(){await this.pool.query("SELECT 1");return this;}
