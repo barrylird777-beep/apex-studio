@@ -76,6 +76,10 @@ struct ApexRootView: View {
             ) { result in
                 do {
                     guard let sourceURL = try result.get().first else { return }
+                    guard sourceURL.pathExtension.lowercased() == "gguf" else {
+                        error = "Choose a .gguf model file."
+                        return
+                    }
                     let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
                     defer {
                         if didStartAccessing {
