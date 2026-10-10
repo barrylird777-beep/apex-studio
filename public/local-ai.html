@@ -81,15 +81,26 @@ $("model").addEventListener("change",async e=>{
       wasmBytes = await wasmResponse.arrayBuffer();
       if (!wasmBytes.byteLength) throw new Error("The WASM asset was empty");
       await WebAssembly.compile(wasmBytes);
+      const compatWasmResponse = await fetch("/vendor/wllama-compat/wasm/wllama.wasm", { cache: "force-cache" });
+      if (!compatWasmResponse.ok) throw new Error("HTTP " + compatWasmResponse.status + " for local Safari-compat WASM asset");
+      const compatWasmBytes = await compatWasmResponse.arrayBuffer();
+      if (!compatWasmBytes.byteLength) throw new Error("The Safari-compat WASM asset was empty");
+      await WebAssembly.compile(compatWasmBytes);
     } catch (err) {
       throw new Error("WASM download/validation failed: " + (err?.message || String(err)) + " Check that the pinned Wllama WASM assets were copied into this deployment.");
     }
 
     setStatus("Preparing the local WASM worker…");
     try {
+      const compatWorkerResponse = await fetch("/vendor/wllama-compat/wasm/wllama.js", { cache: "force-cache" });
+      if (!compatWorkerResponse.ok) throw new Error("HTTP " + compatWorkerResponse.status + " for local Safari-compat worker");
+      const compatWorkerCode = await compatWorkerResponse.text();
+      if (!compatWorkerCode.trim()) throw new Error("The Safari-compat worker asset was empty");
       engine = new Wllama({ default: "/vendor/wllama/src/wasm/wllama.wasm" });
-      // Default compat mode can fetch extra assets from a CDN. Keep this path local.
-      engine.setCompat(null);
+      engine.setCompat({
+        wasm: "/vendor/wllama-compat/wasm/wllama.wasm",
+        worker: { code: compatWorkerCode }
+      });
     } catch (err) {
       throw new Error("WASM runtime setup failed: " + (err?.message || String(err)));
     }
