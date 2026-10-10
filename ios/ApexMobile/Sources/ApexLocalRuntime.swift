@@ -20,8 +20,15 @@ actor ApexLocalRuntime {
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let models = try FileManager.default.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: nil
-        ).filter { $0.pathExtension.lowercased() == "gguf" }
+            includingPropertiesForKeys: [.creationDateKey]
+        )
+        .filter { $0.pathExtension.lowercased() == "gguf" }
+        .sorted { lhs, rhs in
+            let lhsDate = (try? lhs.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            let rhsDate = (try? rhs.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            if lhsDate != rhsDate { return lhsDate > rhsDate }
+            return lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent) == .orderedDescending
+        }
 
         guard let url = models.first else { throw ApexLocalError.noModel }
         try load(path: url.path)
