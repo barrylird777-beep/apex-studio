@@ -91,15 +91,19 @@ $("model").addEventListener("change",async e=>{
 
     setStatus("Preparing the local WASM worker…");
     try {
-      const compatWorkerResponse = await fetch("/vendor/wllama-compat/wasm/wllama.js", { cache: "force-cache" });
-      if (!compatWorkerResponse.ok) throw new Error("HTTP " + compatWorkerResponse.status + " for local Safari-compat worker");
-      const compatWorkerCode = await compatWorkerResponse.text();
-      if (!compatWorkerCode.trim()) throw new Error("The Safari-compat worker asset was empty");
       engine = new Wllama({ default: "/vendor/wllama/src/wasm/wllama.wasm" });
-      engine.setCompat({
-        wasm: "/vendor/wllama-compat/wasm/wllama.wasm",
-        worker: { code: compatWorkerCode }
-      });
+      if (apple) {
+        const compatWorkerResponse = await fetch("/vendor/wllama-compat/wasm/wllama.js", { cache: "force-cache" });
+        if (!compatWorkerResponse.ok) throw new Error("HTTP " + compatWorkerResponse.status + " for local Safari-compat worker");
+        const compatWorkerCode = await compatWorkerResponse.text();
+        if (!compatWorkerCode.trim()) throw new Error("The Safari-compat worker asset was empty");
+        engine.setCompat({
+          wasm: "/vendor/wllama-compat/wasm/wllama.wasm",
+          worker: { code: compatWorkerCode }
+        });
+      } else {
+        engine.setCompat(null);
+      }
     } catch (err) {
       throw new Error("WASM runtime setup failed: " + (err?.message || String(err)));
     }
