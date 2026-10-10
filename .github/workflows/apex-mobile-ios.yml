@@ -11,7 +11,6 @@ on:
       - main
       - upgrade/apex-universal-mobile-swarm
       - fix/apex-mobile-llama-swift-module
-      - fix/apex-mobile-embed-llama-framework
 
 jobs:
   build:
