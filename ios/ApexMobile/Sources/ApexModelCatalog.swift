@@ -68,6 +68,10 @@ enum ApexModelCatalog {
     /// Full metadata and architecture compatibility are checked by the inference runtime.
     static func inspect(url: URL) throws -> (version: UInt32, tensorCount: UInt64, metadataCount: UInt64) {
         guard url.pathExtension.lowercased() == "gguf" else { throw ApexModelCatalogError.notGGUF }
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let fileSize = attributes[.size] as? NSNumber, fileSize.int64Value > 24 else {
+            throw ApexModelCatalogError.unreadableHeader
+        }
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         guard let data = try handle.read(upToCount: 24), data.count == 24 else {
