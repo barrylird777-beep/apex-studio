@@ -30,7 +30,6 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 </main>
 <script type="module">
 import { Wllama } from "https://esm.sh/@wllama/wllama@3.8.1";
-import WasmFromCDN from "https://esm.sh/@wllama/wllama@3.8.1/esm/wasm-from-cdn.js";
 const $=id=>document.getElementById(id);
 let engine=null,ready=false,working=false;
 const apple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
@@ -60,7 +59,7 @@ $("model").addEventListener("change",async e=>{
     if(!file.size)throw new Error("The selected file is empty.");
     const issue=await checkSupport();if(issue)throw new Error(issue);
     setStatus("Starting local runtime…");
-    engine=new Wllama(WasmFromCDN);engine.setCompat("default");
+    engine=new Wllama({default:"https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/src/wasm/wllama.wasm"});engine.setCompat("default");
     setStatus("Loading the model into browser memory. Keep this page open…");
     await engine.loadModel([file],{n_threads:1,n_ctx:1024,n_gpu_layers:0});
     ready=true;$("modelinfo").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · loaded in this browser session";
