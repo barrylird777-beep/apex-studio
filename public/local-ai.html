@@ -74,18 +74,17 @@ $("model").addEventListener("change",async e=>{
     Wllama = runtime.Wllama;
 
     setStatus("Downloading and validating the self-hosted WebAssembly runtime…");
-    let wasmBytes;
     try {
-      const wasmResponse = await fetch("/vendor/wllama/src/wasm/wllama.wasm", { cache: "force-cache" });
-      if (!wasmResponse.ok) throw new Error("HTTP " + wasmResponse.status + " for local WASM asset");
-      wasmBytes = await wasmResponse.arrayBuffer();
+      // The main WASM build uses newer features that older Safari lacks.
+      // Compile only the build expected to run on this browser.
+      const wasmUrl = apple
+        ? "/vendor/wllama-compat/wasm/wllama.wasm"
+        : "/vendor/wllama/src/wasm/wllama.wasm";
+      const wasmResponse = await fetch(wasmUrl, { cache: "force-cache" });
+      if (!wasmResponse.ok) throw new Error("HTTP " + wasmResponse.status + " for local WASM asset " + wasmUrl);
+      const wasmBytes = await wasmResponse.arrayBuffer();
       if (!wasmBytes.byteLength) throw new Error("The WASM asset was empty");
       await WebAssembly.compile(wasmBytes);
-      const compatWasmResponse = await fetch("/vendor/wllama-compat/wasm/wllama.wasm", { cache: "force-cache" });
-      if (!compatWasmResponse.ok) throw new Error("HTTP " + compatWasmResponse.status + " for local Safari-compat WASM asset");
-      const compatWasmBytes = await compatWasmResponse.arrayBuffer();
-      if (!compatWasmBytes.byteLength) throw new Error("The Safari-compat WASM asset was empty");
-      await WebAssembly.compile(compatWasmBytes);
     } catch (err) {
       throw new Error("WASM download/validation failed: " + (err?.message || String(err)) + " Check that the pinned Wllama WASM assets were copied into this deployment.");
     }
