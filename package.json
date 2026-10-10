@@ -56,7 +56,8 @@
     "openai": "^6.15.0",
     "@aws-sdk/client-s3": "^3.879.0",
     "@aws-sdk/s3-request-presigner": "^3.879.0",
-    "@wllama/wllama": "3.8.1"
+    "@wllama/wllama": "3.8.1",
+    "@wllama/wllama-compat": "3.6.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
