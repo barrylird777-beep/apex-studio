@@ -61,8 +61,18 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build
 
+      - name: Verify and package unsigned app
+        working-directory: ios/ApexMobile
+        run: |
+          app_path="build/Build/Products/Release-iphoneos/ApexMobile.app"
+          test -d "$app_path"
+          test -f "$app_path/Info.plist"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" build/ApexMobile-unsigned.zip
+          test -s build/ApexMobile-unsigned.zip
+
       - name: Upload unsigned build
         uses: actions/upload-artifact@v6
         with:
           name: apex-mobile-unsigned
-          path: ios/ApexMobile/build/**/*.app
+          path: ios/ApexMobile/build/ApexMobile-unsigned.zip
+          if-no-files-found: error
