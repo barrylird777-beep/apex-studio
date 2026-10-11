@@ -78,8 +78,7 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
     }
     if (typeof store.init === "function") await store.init();
     const claimed = await store.claim({ workerId, role, limit, leaseMs });
-    const results = [];
-    for (const job of claimed) {
+    const results = await Promise.all(claimed.map(async job => {
       const assignment = job.payload?._apex_worker || {};
       try {
         const result = await executeTask({
@@ -87,6 +86,8 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
           role: String(assignment.role || "general"),
           assignedTask: String(job.payload?.assignedTask || assignment.assignedTask || ""),
           context: clone(job.payload?.context || {}),
+          payload: clone(job.payload || {}),
+          type: job.type,
           jobId: job.id,
           runnerId: String(workerId),
           leaseFence: job.leaseFence
@@ -96,21 +97,21 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
           leaseFence: job.leaseFence,
           result: clone(result)
         });
-        results.push({ jobId: job.id, workerId: assignment.id, status: completed ? "completed" : "lease_lost", result: clone(result) });
+        return { jobId: job.id, workerId: assignment.id, status: completed ? "completed" : "lease_lost", result: clone(result) };
       } catch (error) {
         const transitioned = await store.transition(job.id, "fail", {
           leaseToken: job.leaseToken,
           leaseFence: job.leaseFence,
           error
         });
-        results.push({
+        return {
           jobId: job.id,
           workerId: assignment.id,
           status: transitioned ? "failed_or_requeued" : "lease_lost",
           error: String(error?.message || error)
-        });
+        };
       }
-    }
+    }));
     return {
       claimed: claimed.length,
       completed: results.filter(result => result.status === "completed").length,
