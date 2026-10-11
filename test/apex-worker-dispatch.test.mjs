@@ -29,18 +29,22 @@ test("fixed worker assignment reaches Pure-WAL queue and survives restart", asyn
     assert.equal(queued.worker.role, "scripture");
     assert.equal(queued.worker.task, "scripture.worker.001");
 
-    const [claimed] = await store.claim({ workerId: "apex-worker-0001", role: "scripture" });
-    assert.ok(claimed);
-    assert.equal(claimed.id, queued.jobId);
-    assert.equal(claimed.payload._apex_worker.id, "apex-worker-0001");
-    assert.equal(claimed.payload._apex_worker.assignedTask, "scripture.worker.001");
-    assert.equal(claimed.payload.context.scope, "recovery-test");
-
-    assert.equal(await store.transition(claimed.id, "complete", {
-      leaseToken: claimed.leaseToken,
-      leaseFence: claimed.leaseFence,
-      result: { verified: true }
-    }), true);
+    const executed = await dispatcher.runQueued({
+      workerId: "runner-test",
+      role: "scripture",
+      limit: 1,
+      executeTask: async assignment => ({
+        verified: true,
+        workerId: assignment.workerId,
+        assignedTask: assignment.assignedTask,
+        scope: assignment.context.scope
+      })
+    });
+    assert.equal(executed.claimed, 1);
+    assert.equal(executed.completed, 1);
+    assert.equal(executed.results[0].status, "completed");
+    assert.equal(executed.results[0].result.workerId, "apex-worker-0001");
+    assert.equal(executed.results[0].result.assignedTask, "scripture.worker.001");
 
     const reopened = makeStore();
     await reopened.init();
