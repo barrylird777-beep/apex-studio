@@ -81,7 +81,7 @@ export function createPureStore({ root = PROJECTS } = {}) {
     await ensure();
     const target = path.join(root, name);
     const temp = target + '.' + process.pid + '.' + randomUUID() + '.tmp';
-    await writeFile(temp, JSON.stringify(value, null, 2) + '\\n', 'utf8');
+    await writeFile(temp, JSON.stringify(value, null, 2) + '\n', 'utf8');
     await rename(temp, target);
     return target;
   }
