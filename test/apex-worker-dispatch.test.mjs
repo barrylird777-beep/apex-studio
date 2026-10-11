@@ -22,6 +22,7 @@ test("fixed worker assignment reaches Pure-WAL queue and survives restart", asyn
     await store.init();
     const dispatcher = createApexWorkerDispatcher({ store });
     const queued = await dispatcher.enqueueWorker("apex-worker-0001", {
+      workId: "recovery-test-1",
       context: { scope: "recovery-test", source: "fixed-manifest" }
     });
 
@@ -54,10 +55,16 @@ test("fixed worker assignment reaches Pure-WAL queue and survives restart", asyn
     assert.equal(recovered.result.verified, true);
 
     const duplicate = await createApexWorkerDispatcher({ store: reopened })
-      .enqueueWorker("apex-worker-0001");
+      .enqueueWorker("apex-worker-0001", { workId: "recovery-test-1" });
     assert.equal(duplicate.duplicate, true);
     assert.equal(duplicate.status, "completed");
     assert.equal(reopened.jobs().length, 1);
+
+    const nextRun = await createApexWorkerDispatcher({ store: reopened })
+      .enqueueWorker("apex-worker-0001", { workId: "recovery-test-2" });
+    assert.equal(nextRun.duplicate, false);
+    assert.notEqual(nextRun.jobId, queued.jobId);
+    assert.equal(reopened.jobs().length, 2);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
