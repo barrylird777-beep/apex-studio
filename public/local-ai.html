@@ -23,7 +23,7 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 <body>
 <main>
 <header><a href="/">← Back to Apex Studio</a><p class="eyebrow">APEX STUDIO · ON-DEVICE INTELLIGENCE</p><h1>Local AI</h1><p>Load a GGUF model into this browser and generate text on your iPhone. The AI runtime and WebAssembly assets are served by Apex Studio. The offline test is only marked passed after a response returns while you report Wi-Fi and cellular data are off.</p><div class="pills"><span id="browser" class="pill">Checking browser…</span><span id="isolation" class="pill">Checking secure runtime…</span><span id="network" class="pill">Checking network…</span></div></header>
-<section class="card"><p class="eyebrow">STEP 1</p><h2>Load a GGUF model</h2><p class="help">Choose a small .gguf file in the iPhone Files picker. Try the <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">19 MB tiny test model</a> if you need one. Save it to Files first.</p><input id="model" type="file" accept=".gguf,application/octet-stream"><p id="status" class="status" role="status">Checking browser requirements…</p><div id="error" hidden class="error" role="alert"></div><div id="modelinfo" class="help"></div></section>
+<section class="card"><p class="eyebrow">STEP 1</p><h2>Load a GGUF model</h2><p class="help">Choose a small .gguf file in the iPhone Files picker. Try the <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">19 MB tiny test model</a> if you need one. Save it to Files first.</p><input id="model" type="file" accept=".gguf,application/octet-stream"><label class="confirm"><input id="persistModel" type="checkbox"> Keep a copy of this model in this iPhone browser for later sessions.</label><div class="actions"><button id="restoreModel" class="secondary" disabled>Restore saved model</button><button id="deleteSavedModel" class="secondary" disabled>Delete saved copy</button></div><p id="storageStatus" class="help" role="status">Checking for a saved model…</p><p id="status" class="status" role="status">Checking browser requirements…</p><div id="error" hidden class="error" role="alert"></div><div id="modelinfo" class="help"></div></section>
 <section class="card"><p class="eyebrow">STEP 2</p><h2>Run a prompt</h2><label for="prompt">Your prompt</label><textarea id="prompt">Explain artificial intelligence in simple terms, using three short sentences.</textarea><div class="actions"><button id="run" disabled>Run locally</button><button id="reset" class="secondary">Reset prompt</button></div><label for="output">Generated response</label><div id="output" class="output" aria-live="polite">Your model response will appear here.</div></section>
 <section class="card"><p class="eyebrow">STEP 3 · REAL DEVICE CHECK</p><h2>Verify offline inference</h2><p class="help">After the model loads, turn on Airplane Mode or turn off both Wi-Fi and cellular data. Keep this page open, confirm below, and run the check. A response is evidence that inference ran locally for that attempt; this is not an independent network audit.</p><label class="confirm"><input id="offline" type="checkbox"> I turned off Wi-Fi and cellular data on this iPhone.</label><div class="actions"><button id="offlineRun" disabled>Run offline inference check</button></div><p id="proof" class="help" role="status"></p></section>
 <p class="help">Your selected model is not uploaded by this screen. The pinned Wllama runtime and WebAssembly assets are served by Apex Studio; model inference runs in this browser. Keep the page open during the offline test.</p>
@@ -32,6 +32,54 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 let Wllama = null;
 const $=id=>document.getElementById(id);
 let engine=null,ready=false,working=false;
+const MODEL_DB="apex-local-ai-models-v1";
+const MODEL_STORE="saved-models";
+function openModelDb(){
+  return new Promise((resolve,reject)=>{
+    if(!("indexedDB" in window)){reject(new Error("IndexedDB is unavailable in this browser."));return}
+    const request=indexedDB.open(MODEL_DB,1);
+    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(MODEL_STORE))db.createObjectStore(MODEL_STORE)};
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error||new Error("Could not open local model storage."));
+  });
+}
+async function storeModel(file){
+  const db=await openModelDb();
+  try{await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MODEL_STORE,"readwrite");
+    tx.objectStore(MODEL_STORE).put({name:file.name,size:file.size,lastModified:file.lastModified||Date.now(),blob:file}, "active");
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("Could not save model"));tx.onabort=()=>reject(tx.error||new Error("Model save was aborted"));
+  })}finally{db.close()}
+}
+async function readSavedModel(){
+  const db=await openModelDb();
+  try{return await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MODEL_STORE,"readonly"),request=tx.objectStore(MODEL_STORE).get("active");
+    request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error||new Error("Could not read saved model"));
+  })}finally{db.close()}
+}
+async function removeSavedModel(){
+  const db=await openModelDb();
+  try{await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MODEL_STORE,"readwrite");tx.objectStore(MODEL_STORE).delete("active");
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("Could not delete saved model"));tx.onabort=()=>reject(tx.error||new Error("Model deletion was aborted"));
+  })}finally{db.close()}
+}
+async function refreshSavedModelStatus(){
+  try{
+    const saved=await readSavedModel(),exists=Boolean(saved?.blob?.size);
+    $("restoreModel").disabled=!exists||working;
+    $("deleteSavedModel").disabled=!exists||working;
+    $("storageStatus").textContent=exists
+      ? "Saved on this device: "+saved.name+" · "+(saved.size/1048576).toFixed(1)+" MB. Safari may clear site data; this is not permanent archival storage."
+      : "No saved model found on this device. Saving is optional and uses local browser storage.";
+    return saved;
+  }catch(err){
+    $("restoreModel").disabled=true;$("deleteSavedModel").disabled=true;
+    $("storageStatus").textContent="Local model storage unavailable: "+(err?.message||String(err));
+    return null;
+  }
+}
 const apple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
 $("browser").textContent=apple?"Apple mobile browser detected":"Browser detected";
 $("network").textContent=navigator.onLine?"Network reported online":"Browser reports offline";
@@ -53,13 +101,26 @@ async function checkSupport(){
 }
 setStatus("Preparing browser checks…");
 $("model").addEventListener("change",async e=>{
-  const file=e.currentTarget.files?.[0];e.currentTarget.value="";if(!file)return;
+  const file=e.currentTarget.files?.[0];e.currentTarget.value="";if(file)await loadModelFile(file,false);
+});
+async function loadModelFile(file,fromSaved=false){
   setError("");$("proof").textContent="";$("output").textContent="Your model response will appear here.";ready=false;setBusy(true);
   if(engine){try{await engine.exit()}catch{}engine=null}
   try{
     if(!file.name.toLowerCase().endsWith(".gguf"))throw new Error("Choose a .gguf file.");
     if(!file.size)throw new Error("The selected file is empty.");
     const issue=await checkSupport();if(issue)throw new Error(issue);
+    let modelSaved=fromSaved;
+    if(!fromSaved&&$("persistModel").checked){
+      $("storageStatus").textContent="Saving a local copy before loading…";
+      try{
+        await storeModel(file);modelSaved=true;
+        $("storageStatus").textContent="Saved "+file.name+" on this device · "+(file.size/1048576).toFixed(1)+" MB. Keep in mind Safari may clear site data.";
+        $("restoreModel").disabled=false;$("deleteSavedModel").disabled=false;
+      }catch(saveErr){
+        $("storageStatus").textContent="Could not save a persistent copy: "+(saveErr?.message||String(saveErr))+". The model will still try to load for this session.";
+      }
+    }
     setStatus("Loading the self-hosted AI runtime…");
     let runtime;
     try {
@@ -125,7 +186,7 @@ $("model").addEventListener("change",async e=>{
     } finally {
       clearTimeout(loadTimer);
     }
-    ready=true;$("modelinfo").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · loaded in this browser session";
+    ready=true;$("modelinfo").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · loaded in this browser session"+(modelSaved?" · saved on this device for later sessions":"");
     setStatus("Model loaded. Run a prompt, then test offline.");$("run").disabled=false;$("offlineRun").disabled=!$("offline").checked;
   }catch(err){
     const message=err?.message||String(err);
@@ -134,8 +195,23 @@ $("model").addEventListener("change",async e=>{
     setError(message);
     setStatus("Model did not load. Controls are available again so you can retry.");
   }
-  finally{setBusy(false);$("model").disabled=false;$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked}
+  finally{setBusy(false);$("model").disabled=false;$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked;await refreshSavedModelStatus()}
+}
+$("restoreModel").addEventListener("click",async()=>{
+  setError("");
+  try{
+    const saved=await readSavedModel();
+    if(!saved?.blob?.size)throw new Error("No saved model is available on this device.");
+    const file=new File([saved.blob],saved.name,{type:"application/octet-stream",lastModified:saved.lastModified||Date.now()});
+    await loadModelFile(file,true);
+  }catch(err){setError("Could not restore saved model: "+(err?.message||String(err)));await refreshSavedModelStatus()}
 });
+$("deleteSavedModel").addEventListener("click",async()=>{
+  if(!confirm("Delete the saved model copy from this iPhone browser? This does not delete the original file in Files."))return;
+  try{await removeSavedModel();$("modelinfo").textContent="";$("storageStatus").textContent="Saved model copy deleted from this browser.";await refreshSavedModelStatus()}
+  catch(err){$("storageStatus").textContent="Could not delete saved copy: "+(err?.message||String(err))}
+});
+void refreshSavedModelStatus();
 async function infer(offlineTest){
   if(!engine||!ready)return;
   if(offlineTest&&!$("offline").checked){setError("Turn off Wi-Fi and cellular data, then confirm above.");return}
