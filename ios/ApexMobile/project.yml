@@ -3,6 +3,9 @@ options:
   deploymentTarget:
     iOS: "16.4"
   createIntermediateGroups: true
+packages:
+  ApexNetworkFabric:
+    path: ../ApexNetworkFabric
 settings:
   base:
     SWIFT_VERSION: 6.0
@@ -20,6 +23,8 @@ targets:
     dependencies:
       - framework: Frameworks/llama.xcframework
         embed: true
+      - package: ApexNetworkFabric
+        product: ApexNetworkFabric
     settings:
       base:
         GENERATE_INFOPLIST_FILE: true
