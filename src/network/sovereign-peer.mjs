@@ -17,8 +17,11 @@ const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 async function readJson(stream) {
   let text = '';
+  let bytesRead = 0;
   for await (const chunk of stream.source) {
     const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+    bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
+    if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
     text += decoder.decode(bytes, { stream: true });
     if (text.includes('\n')) break;
   }
@@ -77,7 +80,7 @@ export async function startSovereignPeer(options) {
 
 export async function sendToPeer(node, multiaddr, envelope) {
   const address = String(multiaddr || '');
-  const match = address.match(/\\/p2p\\/([^/]+)$/);
+  const match = address.match(/\/p2p\/([^/]+)$/);
   const destinationPeerId = match?.[1] || '';
   if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) {
     throw new Error('outgoing sovereign peer is not allowlisted');
