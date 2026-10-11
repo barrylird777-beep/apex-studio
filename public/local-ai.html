@@ -31,7 +31,7 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 <script type="module">
 let Wllama = null;
 const $=id=>document.getElementById(id);
-let engine=null,ready=false,working=false;
+let engine=null,ready=false,working=false,savedModelAvailable=false;
 const MODEL_DB="apex-local-ai-models-v1";
 const MODEL_STORE="saved-models";
 function openModelDb(){
@@ -47,7 +47,7 @@ async function storeModel(file){
   const db=await openModelDb();
   try{await new Promise((resolve,reject)=>{
     const tx=db.transaction(MODEL_STORE,"readwrite");
-    tx.objectStore(MODEL_STORE).put({name:file.name,size:file.size,lastModified:file.lastModified||Date.now(),blob:file}, "active");
+    tx.objectStore(MODEL_STORE).put({name:file.name,size:file.size,lastModified:file.lastModified||Date.now(),blob:new Blob([file],{type:file.type||"application/octet-stream"})}, "active");
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("Could not save model"));tx.onabort=()=>reject(tx.error||new Error("Model save was aborted"));
   })}finally{db.close()}
 }
@@ -68,6 +68,7 @@ async function removeSavedModel(){
 async function refreshSavedModelStatus(){
   try{
     const saved=await readSavedModel(),exists=Boolean(saved?.blob?.size);
+    savedModelAvailable=exists;
     $("restoreModel").disabled=!exists||working;
     $("deleteSavedModel").disabled=!exists||working;
     $("storageStatus").textContent=exists
@@ -75,7 +76,7 @@ async function refreshSavedModelStatus(){
       : "No saved model found on this device. Saving is optional and uses local browser storage.";
     return saved;
   }catch(err){
-    $("restoreModel").disabled=true;$("deleteSavedModel").disabled=true;
+    savedModelAvailable=false;$("restoreModel").disabled=true;$("deleteSavedModel").disabled=true;
     $("storageStatus").textContent="Local model storage unavailable: "+(err?.message||String(err));
     return null;
   }
@@ -85,7 +86,7 @@ $("browser").textContent=apple?"Apple mobile browser detected":"Browser detected
 $("network").textContent=navigator.onLine?"Network reported online":"Browser reports offline";
 function setStatus(s){$("status").textContent=s}
 function setError(s){$("error").textContent=s;$("error").hidden=!s}
-function setBusy(v){working=v;$("model").disabled=v;$("run").disabled=v||!ready;$("offlineRun").disabled=v||!ready||!$("offline").checked}
+function setBusy(v){working=v;$("model").disabled=v;$("run").disabled=v||!ready;$("offlineRun").disabled=v||!ready||!$("offline").checked;$("restoreModel").disabled=v||!savedModelAvailable;$("deleteSavedModel").disabled=v||!savedModelAvailable}
 async function checkSupport(){
   if(typeof WebAssembly==="undefined"||typeof WebAssembly.instantiate!=="function")return "This browser does not support the WebAssembly runtime.";
   if(!window.crossOriginIsolated)return "This page is missing cross-origin isolation. The server must send COOP: same-origin and COEP: require-corp headers.";
@@ -116,7 +117,7 @@ async function loadModelFile(file,fromSaved=false){
       try{
         await storeModel(file);modelSaved=true;
         $("storageStatus").textContent="Saved "+file.name+" on this device · "+(file.size/1048576).toFixed(1)+" MB. Keep in mind Safari may clear site data.";
-        $("restoreModel").disabled=false;$("deleteSavedModel").disabled=false;
+        savedModelAvailable=true;
       }catch(saveErr){
         $("storageStatus").textContent="Could not save a persistent copy: "+(saveErr?.message||String(saveErr))+". The model will still try to load for this session.";
       }
