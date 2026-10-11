@@ -1,15 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { apexPureStore } from './apex-pure-store.mjs';
 
 const DEFAULT_MAX_ATTEMPTS = Number(process.env.APEX_SOVEREIGN_MAX_ATTEMPTS || 8);
 
-function requireDb(db) {
-  if (!db || typeof db.query !== 'function') {
-    throw new TypeError('Sovereign durable bridge requires a PostgreSQL client');
-  }
-}
-
 function serializePayload(record) {
-  return JSON.stringify({
+  return {
     source: 'sovereign-wal',
     seq: record.seq,
     waveId: record.waveId,
@@ -18,57 +13,33 @@ function serializePayload(record) {
     timestamp: record.timestamp,
     payload: record.payload,
     checksum: record.checksum
-  });
+  };
 }
 
-export function createSovereignDurableBridge({ engine, db, workerId, peerNode, peerAddress, sendPeer }) {
+/**
+ * Connects the checksummed sovereign event log to the local durable job store.
+ * PostgreSQL is deliberately not required by this bridge.
+ */
+export function createSovereignDurableBridge({ engine, workerId, peerNode, peerAddress, sendPeer, store = apexPureStore }) {
   if (!engine) throw new TypeError('engine is required');
   if (!workerId) throw new Error('workerId is required');
-  requireDb(db);
+  if (!store || typeof store.enqueue !== 'function') throw new TypeError('a durable local store is required');
 
   async function persist(record, options = {}) {
-    const now = options.now ?? new Date();
-    const id = randomUUID();
-    const dedupeKey = `sovereign:${record.waveId}`;
-
-    const inserted = await db.query(
-      `INSERT INTO durable_jobs
-        (id, type, payload, status, run_at, max_attempts, dedupe_key, created_at, updated_at)
-       VALUES
-        ($1, $2, $3::jsonb, 'queued', $4, $5, $6, $4, $4)
-       ON CONFLICT (dedupe_key)
-       WHERE dedupe_key IS NOT NULL AND status IN ('queued','running')
-       DO NOTHING
-       RETURNING id, status, attempts, max_attempts, dedupe_key, lease_fence`,
-      [
-        id,
-        options.type ?? 'sovereign.publish',
-        serializePayload(record),
-        now,
-        options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
-        dedupeKey
-      ]
-    );
-
-    if (inserted.rows[0]) return inserted.rows[0];
-
-    const existing = await db.query(
-      `SELECT id, status, attempts, max_attempts, dedupe_key, lease_fence
-       FROM durable_jobs
-       WHERE dedupe_key = $1 AND status IN ('queued','running')
-       LIMIT 1`,
-      [dedupeKey]
-    );
-
-    if (!existing.rows[0]) {
-      throw new Error(`Durable task disappeared during idempotent insert: ${dedupeKey}`);
-    }
-
-    return existing.rows[0];
+    const payload = serializePayload(record);
+    const result = await store.enqueue({
+      id: randomUUID(),
+      type: options.type ?? 'sovereign.publish',
+      payload,
+      runAt: options.now instanceof Date ? options.now.getTime() : (options.now ?? Date.now()),
+      maxAttempts: options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+      dedupeKey: `sovereign:${record.waveId}`
+    });
+    const job = (typeof store.jobs === 'function' ? store.jobs() : []).find((item) => item.id === String(result.id));
+    return job || { id: String(result.id), status: result.duplicate ? 'existing' : 'queued', leaseFence: 0, duplicate: Boolean(result.duplicate) };
   }
 
-  async function dispatch(payload, options = {}) {
-    const record = await engine.dispatchAutonomousPayload(payload);
+  async function acceptRecord(record, options = {}) {
     const job = await persist(record, options);
     let peerAcceptance = null;
     const requirePeer = process.env.APEX_REQUIRE_PEER_ACK === 'true';
@@ -81,12 +52,11 @@ export function createSovereignDurableBridge({ engine, db, workerId, peerNode, p
         waveId: record.waveId,
         jobId: job.id,
         checksum: record.checksum,
-        fence: Number(job.lease_fence ?? 0)
+        fence: Number(job.leaseFence ?? job.lease_fence ?? 0)
       });
     }
-
     const acknowledged = await engine.acknowledge(record.waveId, {
-      database: 'accepted',
+      storage: 'accepted',
       jobId: job.id,
       status: job.status,
       peer: peerAcceptance
@@ -94,56 +64,27 @@ export function createSovereignDurableBridge({ engine, db, workerId, peerNode, p
     return { record, job, acknowledged };
   }
 
+  async function dispatch(payload, options = {}) {
+    const record = await engine.dispatchAutonomousPayload(payload);
+    return acceptRecord(record, options);
+  }
+
   async function reconcile(options = {}) {
     const records = engine.snapshot().filter((record) => record.status === 'DISPATCHED');
     const results = [];
     const errors = [];
     let acknowledgedCount = 0;
-
     for (const record of records) {
       try {
-        const job = await persist(record, options);
-        let peerAcceptance = null;
-        const requirePeer = process.env.APEX_REQUIRE_PEER_ACK === 'true';
-        if (requirePeer && !(peerNode && peerAddress && sendPeer)) {
-          throw new Error('peer acknowledgement is required but no peer transport is configured');
-        }
-        if (peerNode && peerAddress && sendPeer) {
-          peerAcceptance = await sendPeer(peerNode, peerAddress, {
-            type: 'durable.accept',
-            waveId: record.waveId,
-            jobId: job.id,
-            checksum: record.checksum,
-            fence: Number(job.lease_fence ?? 0)
-          });
-        }
-
-        const acknowledged = await engine.acknowledge(record.waveId, {
-          database: 'accepted',
-          jobId: job.id,
-          status: job.status,
-          peer: peerAcceptance
-        });
-        const didAck = acknowledged.status === 'ACKNOWLEDGED';
+        const result = await acceptRecord(record, options);
+        const didAck = result.acknowledged.status === 'ACKNOWLEDGED';
         if (didAck) acknowledgedCount += 1;
-        results.push({ waveId: record.waveId, jobId: job.id, status: job.status, acknowledged: didAck });
+        results.push({ waveId: record.waveId, jobId: result.job.id, status: result.job.status, acknowledged: didAck });
       } catch (error) {
-        errors.push({
-          waveId: record.waveId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+        errors.push({ waveId: record.waveId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-
-    return {
-      workerId,
-      scanned: records.length,
-      persisted: results.length,
-      acknowledged: acknowledgedCount,
-      failed: errors.length,
-      results,
-      errors
-    };
+    return { workerId, scanned: records.length, persisted: results.length, acknowledged: acknowledgedCount, failed: errors.length, results, errors };
   }
 
   return { dispatch, persist, reconcile, workerId };
