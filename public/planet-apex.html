@@ -1,1 +1,74 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="PlanetApeX world builder"><title>PlanetApeX · Apex</title><style>body{margin:0;background:#080a0f;color:#eef2f7;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1100px;margin:auto;padding:34px 18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{padding:18px;border:1px solid #303640;border-radius:16px;background:#10141b}input,button{font:inherit;border-radius:9px;padding:9px 11px;border:1px solid #46505f;background:#171d27;color:#fff}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}input{width:100%;box-sizing:border-box;margin:5px 0 9px}pre{white-space:pre-wrap;word-break:break-word;color:#cbd5e1}.row{display:flex;gap:8px;flex-wrap:wrap}a{color:#9cc8ff}.ok{color:#9fe3b1}.bad{color:#ff9b9b}</style></head><body><main><div>APEX CANONICAL APP</div><h1>PlanetApeX</h1><p>Build a local planetary model with explicit world, region, and entity relationships.</p><div class="grid"><section class="card"><h2>World Builder</h2><label>Planet ID<input id="pid" value="earth" autocomplete="off"></label><label>Name<input id="pname" value="PlanetApeX" autocomplete="off"></label><div class="row"><button id="world">Create world</button><button id="region" disabled>Add region</button><button id="entity" disabled>Add entity</button></div></section><section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre><button id="refresh">Refresh</button></section><section class="card"><h2>World State</h2><pre id="worldState">No world created.</pre></section></div><p><a href="/">Apex Studio</a> · <a href="/api/canon/apps">canonical six registry</a></p></main><script>const $=id=>document.getElementById(id);let planet=null;function render(){const has=!!planet;$("region").disabled=!has;$("entity").disabled=!has;$("worldState").textContent=has?JSON.stringify(planet,null,2):"No world created."}function addRegion(){const n=planet.regions.length+1;planet.regions.push({id:"region-"+n,name:"Region "+n,type:"region",state:{}});render()}function addEntity(){const n=planet.entities.length+1;planet.entities.push({id:"entity-"+n,kind:"entity",name:"Entity "+n,regionId:planet.regions[0]?.id??null,state:{}});render()}$("world").onclick=()=>{const id=$("pid").value.trim();const name=$("pname").value.trim();if(!id||!name)return;$("pid").value=id;$("pname").value=name;planet={id,name,state:{},regions:[],entities:[],createdAt:new Date().toISOString()};render()};$("region").onclick=addRegion;$("entity").onclick=addEntity;async function refresh(){try{const r=await fetch("/api/canon/apps/planet-apex/status",{headers:{accept:"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);$("status").textContent=JSON.stringify(await r.json(),null,2)}catch(e){$("status").textContent="Runtime unavailable: "+e.message}}$("refresh").onclick=refresh;render();refresh();</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="PlanetApeX, the brain and shared-context coordinator of the Apex universe">
+<title>PlanetApeX · The Brain</title>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#080a0f;color:#eef2f7;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1000px;margin:auto;padding:26px 16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.card{padding:17px;border:1px solid #303640;border-radius:15px;background:#10141b}input,button{font:inherit;border-radius:9px;padding:9px 11px;border:1px solid #46505f;background:#171d27;color:#fff}
+button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}input{width:100%;box-sizing:border-box;margin:5px 0 9px}pre{white-space:pre-wrap;word-break:break-word;color:#cbd5e1}
+.row{display:flex;gap:8px;flex-wrap:wrap}a{color:#9cc8ff}.muted{color:#aab5c5}.good{color:#9fe3b1}.warn{color:#ffd28a}
+</style>
+</head>
+<body><main>
+<div>APEX · CANONICAL APP</div><h1>PlanetApeX — The Brain</h1>
+<p>PlanetApeX coordinates shared universe context. The six projects remain separate; this app does not own their code.</p>
+<div class="grid">
+<section class="card"><h2>World Builder</h2>
+<label>World ID<input id="pid" value="earth" autocomplete="off"></label>
+<label>Name<input id="pname" value="PlanetApeX" autocomplete="off"></label>
+<div class="row"><button id="world">Create world</button><button id="region" disabled>Add region</button><button id="entity" disabled>Add entity</button></div>
+<p id="saveStatus" class="muted">Worlds save in this browser only.</p>
+</section>
+<section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre><button id="refresh">Refresh status</button></section>
+<section class="card"><h2>World State</h2><pre id="worldState">No saved world.</pre></section>
+<section class="card"><h2>Recovered capabilities</h2>
+<ul>
+<li><strong>World builder:</strong> code exists; browser-local saving is enabled here.</li>
+<li><strong>Bible study:</strong> a note/evidence module exists; it is not yet connected to this page.</li>
+<li><strong>Research, AI, analytics:</strong> part of the vision; full working integration is not verified.</li>
+<li><strong>History:</strong> GardenOfApex is treated as absorbed historical lineage, not a separate current app.</li>
+</ul>
+</section>
+</div>
+<p class="muted">Browser-local saving is not shared or server-side storage. Clearing this browser's site data can erase it.</p>
+<p><a href="/api/canon/apps">Canonical app registry</a></p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const STORAGE_KEY="planetapex.world.v1";
+let planet=null;
+function persist(){
+  try{if(planet){localStorage.setItem(STORAGE_KEY,JSON.stringify(planet));$("saveStatus").textContent="Saved in this browser.";}}
+  catch(error){$("saveStatus").textContent="Browser saving unavailable: "+error.message;}
+}
+function render(){
+  const has=!!planet;$("region").disabled=!has;$("entity").disabled=!has;
+  $("worldState").textContent=has?JSON.stringify(planet,null,2):"No saved world.";
+  if(has){$("pid").value=planet.id;$("pname").value=planet.name;}
+}
+function addRegion(){
+  const n=planet.regions.length+1;planet.regions.push({id:"region-"+n,name:"Region "+n,type:"region",state:{}});persist();render();
+}
+function addEntity(){
+  const n=planet.entities.length+1;planet.entities.push({id:"entity-"+n,kind:"entity",name:"Entity "+n,regionId:planet.regions[0]?.id??null,state:{}});persist();render();
+}
+$("world").onclick=()=>{
+  const id=$("pid").value.trim(),name=$("pname").value.trim();if(!id||!name)return;
+  planet={id,name,state:{},regions:[],entities:[],createdAt:new Date().toISOString()};persist();render();
+};
+$("region").onclick=addRegion;$("entity").onclick=addEntity;
+async function refresh(){
+  try{const r=await fetch("/api/canon/apps/planet-apex/status",{headers:{accept:"application/json"}});
+    if(!r.ok)throw new Error("HTTP "+r.status);$("status").textContent=JSON.stringify(await r.json(),null,2);
+  }catch(error){$("status").textContent="Runtime status unavailable: "+error.message;}
+}
+$("refresh").onclick=refresh;
+try{
+  const saved=localStorage.getItem(STORAGE_KEY);
+  if(saved){const value=JSON.parse(saved);if(value&&typeof value.id==="string"&&Array.isArray(value.regions)&&Array.isArray(value.entities)){planet=value;$("saveStatus").textContent="Restored from this browser.";}}
+}catch(error){$("saveStatus").textContent="Could not restore browser save: "+error.message;}
+render();refresh();
+</script></body></html>
