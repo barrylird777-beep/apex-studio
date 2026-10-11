@@ -11,6 +11,8 @@ const PROTOCOL = '/apex/sovereign/1.0.0';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
+const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
+const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 async function readJson(stream) {
   let text = '';
@@ -41,8 +43,10 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
   });
 
   node.addEventListener('peer:discovery', (event) => {
+    const discoveredId = event.detail?.id?.toString?.() || '';
     const addresses = event.detail?.multiaddrs || [];
-    if (addresses.length) {
+    // Discovery is not authorization. Never auto-dial peers outside the explicit allowlist.
+    if (discoveredId && isAllowedPeer(discoveredId) && addresses.length) {
       node.dial(addresses).catch(() => {});
     }
   });
