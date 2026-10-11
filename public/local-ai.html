@@ -253,7 +253,8 @@ async function infer(offlineTest){
   setError("");$("output").textContent="";$("proof").textContent="";setBusy(true);setStatus(offlineTest?"Running offline inference check…":"Generating on device…");
   let result="";
   try{
-    const modelName=loadedModelName.toLowerCase();const completionPrompt=modelName.includes("smollm2-360m-instruct")?"<|im_start|>system\nYou are a helpful assistant. Follow the user’s instructions exactly. Keep answers concise.\n<|im_end|>\n<|im_start|>user\n"+prompt+"\n<|im_end|>\n<|im_start|>assistant\n":prompt;\n    const stream = await engine.createCompletion({prompt:completionPrompt,max_tokens:128,temperature:.2,top_k:40,top_p:.9,stream:true});
+    const modelName=loadedModelName.toLowerCase();const completionPrompt=modelName.includes("smollm2-360m-instruct")?"<|im_start|>system\nYou are a helpful assistant. Follow the user’s instructions exactly. Keep answers concise.\n<|im_end|>\n<|im_start|>user\n"+prompt+"\n<|im_end|>\n<|im_start|>assistant\n":prompt;
+    const stream = await engine.createCompletion({prompt:completionPrompt,max_tokens:128,temperature:.2,top_k:40,top_p:.9,stream:true});
     for await (const chunk of stream) {
       const choice = chunk?.choices?.[0];
       result += choice?.text ?? choice?.delta?.content ?? "";
