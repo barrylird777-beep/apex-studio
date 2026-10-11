@@ -1090,6 +1090,17 @@ app.post('/api/rapid/preview', async (req, res) => {
 
 app.post('/api/rapid/orders', async (req, res) => {
   try {
+    // Never take payment while durable fulfillment is unavailable.
+    const dbHealth = await durableWorkerHealth({ force: true });
+    if (!dbHealth.available) {
+      return res.status(503).json({ success: false, error: 'Checkout is temporarily paused while order fulfillment is recovering' });
+    }
+    try {
+      const { ensureWorkerTaskSchema } = await import('./src/core/mesh/durable-worker-store.mjs');
+      await ensureWorkerTaskSchema();
+    } catch {
+      return res.status(503).json({ success: false, error: 'Checkout is temporarily paused while order fulfillment is recovering' });
+    }
     const name = String(req.body?.name || '').trim().slice(0, 120);
     const type = String(req.body?.type || '').trim().slice(0, 160);
     const brief = String(req.body?.brief || '').trim().slice(0, 4000);
