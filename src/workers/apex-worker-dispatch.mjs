@@ -16,6 +16,7 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
     const worker = getWorker(workerId);
     if (!worker) throw new Error(`unknown fixed APEX worker: ${workerId}`);
 
+    if (typeof store.init === "function") await store.init();
     const taskId = `apex-fixed-task:${worker.id}:${worker.task}`;
     // Treat completed/dead jobs as deduplicated too: fixed assignments must not
     // be silently recreated just because their previous execution finished.
