@@ -25,8 +25,8 @@ export const SOVEREIGN_CONFIG_SCHEMA = {
       storagePath: process.env.APEX_STORAGE_PATH || '/srv/apex/se-x/projects'
     },
     ringWal: {
-      storageEngine: 'postgresql',
-      syncMode: 'transactional'
+      storageEngine: 'pure-wal',
+      syncMode: 'fsync'
     },
     security: {
       mode: 'deny_by_default',
@@ -63,8 +63,8 @@ export function validateManifest(config) {
     throw new Error('[SECURITY_VIOLATION] Noise transport enforcement must be enabled.');
   }
 
-  if (ringWal.storageEngine !== 'postgresql') {
-    throw new Error('[VALIDATION_ERROR] Ring WAL storage must use PostgreSQL.');
+  if (ringWal.storageEngine !== 'pure-wal' || ringWal.syncMode !== 'fsync') {
+    throw new Error('[VALIDATION_ERROR] Ring WAL storage must use Pure-WAL with fsync durability.');
   }
 
   assertPositiveInteger(apexStudio.concurrency, 'apexStudio.concurrency');
