@@ -37,7 +37,8 @@
     "sovereign:test": "node --test test/sovereign-mesh.test.mjs test/sovereign-durable-runtime.test.mjs test/sovereign-pure-wal-bridge.test.mjs test/apex-worker-dispatch.test.mjs test/sovereign-peer-security.test.mjs",
     "sovereign:runtime": "node src/core/sovereign-runtime-daemon.mjs",
     "sovereign:peer": "node src/network/sovereign-peer.mjs",
-    "sovereign:edge": "node src/network/apex-edge-node.mjs"
+    "sovereign:edge": "node src/network/apex-edge-node.mjs",
+    "workers:pure-wal": "node src/workers/apex-2000-worker-pure-wal-daemon.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
