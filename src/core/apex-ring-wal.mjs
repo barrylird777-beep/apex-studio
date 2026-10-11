@@ -39,3 +39,27 @@ export class ApexRingWAL {
   async snapshot(){await this.init();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
 }
 export const apexRingWAL=new ApexRingWAL();
+
+/**
+ * Compatibility facade for legacy callers. The underlying log remains
+ * hash-chained and fsync-backed; readAll replays the complete retained log.
+ */
+export function createRingWal({ file = FILE, maxBytes = 50 * 1024 * 1024 } = {}) {
+  const wal = new ApexRingWAL({ file });
+  async function append(type, payload = {}) {
+    const record = await wal.append(type, payload);
+    return { ...record, at: record.ts };
+  }
+  async function readAll() {
+    const records = [];
+    await wal.replay({ onRecord: record => { records.push({ ...record, at: record.ts }); } });
+    return records;
+  }
+  async function compact() {
+    const records = await readAll();
+    // Truncating a hash chain would invalidate its next-record integrity proof.
+    // Preserve the complete log rather than silently destroying recovery history.
+    return records.length;
+  }
+  return { file, append, readAll, compact, maxBytes };
+}
