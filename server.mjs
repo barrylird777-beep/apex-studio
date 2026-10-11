@@ -54,6 +54,10 @@ app.disable('x-powered-by');
 // Serve same-origin bundled runtime assets before the API CORS gate.
 // Browser module imports use CORS mode even for same-origin URLs; do not reject our own static assets.
 app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor')));
+app.get('/local-ai-sw.js', (_req, res) => {
+  res.set('Service-Worker-Allowed', '/');
+  res.type('application/javascript').sendFile(path.join(__dirname, 'public', 'local-ai-sw.js'));
+});
 const corsOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
