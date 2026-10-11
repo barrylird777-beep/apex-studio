@@ -65,3 +65,25 @@ export class ApexPureStore {
   async snapshot(){await this.init();return {root:this.root,jobs:this.jobs(),state:[...this.state.values()].map(clone),wal:await this.wal.snapshot()};}
 }
 export const apexPureStore=new ApexPureStore();
+
+/**
+ * Backward-compatible file store API used by existing application modules.
+ * Sovereign jobs use apexPureStore; legacy callers retain their read/write contract.
+ */
+export function createPureStore({ root = PROJECTS } = {}) {
+  async function ensure() { await mkdir(root, { recursive: true }); }
+  async function read(name, fallback = null) {
+    await ensure();
+    try { return JSON.parse(await readFile(path.join(root, name), 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') return fallback; throw error; }
+  }
+  async function write(name, value) {
+    await ensure();
+    const target = path.join(root, name);
+    const temp = target + '.' + process.pid + '.' + randomUUID() + '.tmp';
+    await writeFile(temp, JSON.stringify(value, null, 2) + '\\n', 'utf8');
+    await rename(temp, target);
+    return target;
+  }
+  return { root, ensure, read, write };
+}
