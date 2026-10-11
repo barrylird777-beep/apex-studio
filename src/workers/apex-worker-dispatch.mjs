@@ -66,5 +66,58 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
     };
   }
 
-  return { enqueueWorker, enqueueWorkers };
+  async function runQueued({
+    workerId = "apex-worker-runner",
+    role = null,
+    limit = 1,
+    leaseMs = 45000,
+    executeTask
+  } = {}) {
+    if (typeof executeTask !== "function") {
+      throw new TypeError("executeTask callback is required; no AI execution is assumed");
+    }
+    if (typeof store.init === "function") await store.init();
+    const claimed = await store.claim({ workerId, role, limit, leaseMs });
+    const results = [];
+    for (const job of claimed) {
+      const assignment = job.payload?._apex_worker || {};
+      try {
+        const result = await executeTask({
+          workerId: String(assignment.id || "unknown"),
+          role: String(assignment.role || "general"),
+          assignedTask: String(job.payload?.assignedTask || assignment.assignedTask || ""),
+          context: clone(job.payload?.context || {}),
+          jobId: job.id,
+          runnerId: String(workerId),
+          leaseFence: job.leaseFence
+        });
+        const completed = await store.transition(job.id, "complete", {
+          leaseToken: job.leaseToken,
+          leaseFence: job.leaseFence,
+          result: clone(result)
+        });
+        results.push({ jobId: job.id, workerId: assignment.id, status: completed ? "completed" : "lease_lost", result: clone(result) });
+      } catch (error) {
+        const transitioned = await store.transition(job.id, "fail", {
+          leaseToken: job.leaseToken,
+          leaseFence: job.leaseFence,
+          error
+        });
+        results.push({
+          jobId: job.id,
+          workerId: assignment.id,
+          status: transitioned ? "failed_or_requeued" : "lease_lost",
+          error: String(error?.message || error)
+        });
+      }
+    }
+    return {
+      claimed: claimed.length,
+      completed: results.filter(result => result.status === "completed").length,
+      failed: results.filter(result => result.status === "failed_or_requeued").length,
+      results
+    };
+  }
+
+  return { enqueueWorker, enqueueWorkers, runQueued };
 }
