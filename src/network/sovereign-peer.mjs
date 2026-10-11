@@ -10,6 +10,7 @@ import { identify } from '@libp2p/identify';
 const PROTOCOL = '/apex/sovereign/1.0.0';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const MAX_ENVELOPE_BYTES = Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVELOPE_BYTES || 65536));
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
@@ -75,6 +76,12 @@ export async function startSovereignPeer(options) {
 }
 
 export async function sendToPeer(node, multiaddr, envelope) {
+  const address = String(multiaddr || '');
+  const match = address.match(/\\/p2p\\/([^/]+)$/);
+  const destinationPeerId = match?.[1] || '';
+  if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) {
+    throw new Error('outgoing sovereign peer is not allowlisted');
+  }
   const stream = await node.dialProtocol(multiaddr, PROTOCOL, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
