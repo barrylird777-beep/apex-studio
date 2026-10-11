@@ -1,4 +1,6 @@
 import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { apexPureStore } from "../core/apex-pure-store.mjs";
 import { createApexWorkerDispatcher } from "./apex-worker-dispatch.mjs";
 import { APEX_WORKER_COUNT, assertWorkerFabric } from "./apex-2000-worker-fabric.mjs";
@@ -14,7 +16,8 @@ function resolveHandler(module) {
   const handler = module?.handlers?.["apex.worker.assigned-task"]
     ?? module?.default?.handlers?.["apex.worker.assigned-task"]
     ?? module?.handleJob
-    ?? module?.default?.handleJob;
+    ?? module?.default?.handleJob
+    ?? (typeof module?.default === "function" ? module.default : null);
   if (typeof handler !== "function") {
     throw new Error("APEX_JOB_HANDLER_MODULE must export a handler for apex.worker.assigned-task (or a generic handleJob)");
   }
@@ -24,7 +27,10 @@ function resolveHandler(module) {
 async function main() {
   assertWorkerFabric();
   if (!handlerModulePath) throw new Error("APEX_JOB_HANDLER_MODULE is required for Pure-WAL worker execution");
-  const handlersModule = await import(handlerModulePath);
+  const moduleSpecifier = handlerModulePath.startsWith(".") || path.isAbsolute(handlerModulePath)
+    ? pathToFileURL(path.resolve(process.cwd(), handlerModulePath)).href
+    : handlerModulePath;
+  const handlersModule = await import(moduleSpecifier);
   const executeTask = resolveHandler(handlersModule);
   const dispatcher = createApexWorkerDispatcher({ store: apexPureStore });
 
