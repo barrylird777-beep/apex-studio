@@ -1,66 +1,65 @@
 import os from 'node:os';
-import pg from 'pg';
 import SovereignMeshEngine from './sovereign-mesh-engine.mjs';
+import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
 import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 
-const { Pool } = pg;
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));
 const peerAddress = process.env.APEX_SOVEREIGN_PEER_ADDRESS || '';
-
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: Number(process.env.APEX_PG_POOL_SIZE || 20),
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  ssl: process.env.APEX_PG_SSL === 'false' ? false : { rejectUnauthorized: false }
-});
 
 const engine = new SovereignMeshEngine(storageDir);
 let peerNode;
 let edgeNode;
 let stopping = false;
 let timer;
+let bridge;
 
 async function acceptPeerEnvelope(envelope) {
-  if (!envelope || !['durable.accept', 'edge.heartbeat'].includes(envelope.type)) throw new Error('unsupported sovereign envelope');
+  if (!envelope || !['durable.accept', 'edge.heartbeat'].includes(envelope.type)) {
+    throw new Error('unsupported sovereign envelope');
+  }
   if (envelope.type === 'edge.heartbeat') return true;
   if (!envelope.waveId || !envelope.jobId || !envelope.checksum) throw new Error('incomplete sovereign envelope');
   if (!/^[0-9a-f]{64}$/i.test(envelope.checksum)) throw new Error('invalid sovereign checksum');
   if (!/^[0-9a-f-]{36}$/i.test(envelope.jobId)) throw new Error('invalid sovereign job id');
 
-  const result = await pool.query(
-    `INSERT INTO durable_job_receipts
-      (wave_id, origin_job_id, checksum, origin_fence)
-     VALUES ($1, $2::uuid, $3, $4)
-     ON CONFLICT (wave_id) DO UPDATE
-       SET checksum = EXCLUDED.checksum,
-           origin_job_id = EXCLUDED.origin_job_id,
-           origin_fence = GREATEST(durable_job_receipts.origin_fence, EXCLUDED.origin_fence)
-     RETURNING wave_id`,
-    [envelope.waveId, envelope.jobId, envelope.checksum, Number(envelope.fence || 0)]
-  );
-  if (result.rowCount !== 1) throw new Error('peer receipt was not durable');
+  const existing = await apexPureStore.get('durable_job_receipts', envelope.waveId);
+  if (existing && existing.checksum !== envelope.checksum) {
+    throw new Error('conflicting durable receipt checksum for wave');
+  }
+  await apexPureStore.put('durable_job_receipts', envelope.waveId, {
+    waveId: envelope.waveId,
+    originJobId: envelope.jobId,
+    checksum: envelope.checksum,
+    originFence: Math.max(Number(existing?.originFence || 0), Number(envelope.fence || 0)),
+    acceptedAt: existing?.acceptedAt || new Date().toISOString()
+  });
   return true;
 }
 
 async function main() {
-  await pool.query('SELECT 1');
+  await apexPureStore.init();
+  await engine.ready();
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   await peerNode.start();
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
 
-  edgeNode = await createApexEdgeNode({ peerNode, onState: (state) => console.log('[EDGE STATE]', JSON.stringify({ selected: state.network?.selected, mptcp: state.mptcp, error: state.error })) });
+  edgeNode = await createApexEdgeNode({
+    peerNode,
+    onState: (state) => console.log('[EDGE STATE]', JSON.stringify({
+      selected: state.network?.selected,
+      mptcp: state.mptcp,
+      error: state.error
+    }))
+  });
 
-  const bridge = createSovereignDurableBridge({
+  bridge = createSovereignDurableBridge({
     engine,
-    db: pool,
+    store: apexPureStore,
     workerId,
     peerNode,
     peerAddress,
@@ -68,14 +67,14 @@ async function main() {
   });
 
   await reconcile(bridge);
-
-  console.log('[*] APEX STUDIO SOVEREIGN RUNTIME ONLINE', JSON.stringify({
+  console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
     workerId,
     peerId: peerNode.peerId.toString(),
     peerAddress: peerAddress || null,
     listenAddresses: peerNode.getMultiaddrs().map(String),
     storageDir: engine.storageDir,
     walFilePath: engine.walFilePath,
+    durableStore: 'local-pure-wal',
     reconcileMs
   }));
 
@@ -85,8 +84,8 @@ async function main() {
   timer.unref?.();
 }
 
-async function reconcile(bridge) {
-  const result = await bridge.reconcile();
+async function reconcile(activeBridge) {
+  const result = await activeBridge.reconcile();
   console.log('[SOVEREIGN RECONCILE]', JSON.stringify({
     scanned: result.scanned,
     persisted: result.persisted,
@@ -100,19 +99,14 @@ async function shutdown(signal) {
   stopping = true;
   if (timer) clearInterval(timer);
   console.log(`[SOVEREIGN] draining on ${signal}`);
-
   try {
-    const bridge = createSovereignDurableBridge({
-      engine, db: pool, workerId, peerNode, peerAddress, sendPeer: sendToPeer
-    });
-    await reconcile(bridge);
+    if (bridge) await reconcile(bridge);
   } catch (error) {
     console.error('[SOVEREIGN] final reconcile failed:', error);
     process.exitCode = 1;
   } finally {
     await edgeNode?.stop().catch(() => {});
     await peerNode?.stop().catch(() => {});
-    await pool.end().catch(() => {});
   }
 }
 
@@ -123,6 +117,5 @@ main().catch(async (error) => {
   console.error('[FATAL] Sovereign runtime failed:', error);
   await edgeNode?.stop().catch(() => {});
   await peerNode?.stop().catch(() => {});
-  await pool.end().catch(() => {});
   process.exitCode = 1;
 });
