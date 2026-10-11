@@ -1,12 +1,9 @@
 const CACHE_NAME = "apex-local-ai-offline-v1";
 const PAGE = "/local-ai";
-const ASSETS = [
-  PAGE,
-  "/vendor/wllama/runtime.js",
-  "/vendor/wllama/src/wasm/wllama.wasm",
-  "/vendor/wllama-compat/wasm/wllama.wasm",
-  "/vendor/wllama-compat/wasm/wllama.js"
-];
+// Precache only the shell and JavaScript dependency tree. Large WASM files are
+// cached on demand when the user actually loads a model, avoiding duplicate
+// main + Safari-compat downloads on iPhone mobile data.
+const ASSETS = [PAGE, "/vendor/wllama/runtime.js"];
 
 async function cacheJavaScriptTree(path, cache, seen) {
   const url = new URL(path, self.location.origin);
