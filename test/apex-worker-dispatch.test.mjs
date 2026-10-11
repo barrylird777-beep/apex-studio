@@ -6,6 +6,7 @@ import path from "node:path";
 import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
 import { createApexWorkerDispatcher } from "../src/workers/apex-worker-dispatch.mjs";
+import { resolveHandler } from "../src/workers/apex-2000-worker-pure-wal-daemon.mjs";
 
 test("fixed worker assignment reaches Pure-WAL queue and survives restart", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-worker-dispatch-"));
@@ -60,4 +61,11 @@ test("fixed worker assignment reaches Pure-WAL queue and survives restart", asyn
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
+});
+
+test("Pure-WAL worker daemon requires an explicit assigned-task or generic handler", () => {
+  const handler = async () => ({ ok: true });
+  assert.equal(resolveHandler({ handlers: { "apex.worker.assigned-task": handler } }), handler);
+  assert.equal(resolveHandler({ handleJob: handler }), handler);
+  assert.throws(() => resolveHandler({ handlers: {} }), /must export a handler/);
 });
