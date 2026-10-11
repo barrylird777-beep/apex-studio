@@ -31,7 +31,7 @@ progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px
 <script type="module">
 let Wllama = null;
 const $=id=>document.getElementById(id);
-let engine=null,ready=false,working=false,savedModelAvailable=false,loadedModelName="";
+let engine=null,ready=false,working=false,savedModelAvailable=false,loadedModelName="",sharedMemoryAvailable=false;
 $("runtimeState").textContent="Runtime: not loaded";
 $("modelState").textContent="Model: not loaded";
 async function prepareOfflineCache(){
@@ -119,7 +119,9 @@ async function checkSupport(){
   if(typeof WebAssembly==="undefined"||typeof WebAssembly.instantiate!=="function")return "This browser does not support the WebAssembly runtime.";
   if(!window.crossOriginIsolated)return "This page is missing cross-origin isolation. The server must send COOP: same-origin and COEP: require-corp headers.";
   if(!navigator.storage||typeof navigator.storage.getDirectory!=="function")return "This browser does not expose Origin Private File System storage required by this runtime.";
-  try{new WebAssembly.Memory({initial:16,maximum:65536,shared:true})}catch{return "Shared WebAssembly memory is unavailable. Check Safari version and page security headers."}
+  // Probe shared memory with a tiny allocation. A 4 GiB maximum can fail on iPhone memory limits even when shared WASM memory is supported. Wllama can fall back to single-threaded inference when it is not.
+  sharedMemoryAvailable=false;
+  try{new WebAssembly.Memory({initial:1,maximum:1,shared:true});sharedMemoryAvailable=true}catch{}
   try {
     await Promise.race([
       navigator.storage.getDirectory(),
@@ -275,7 +277,7 @@ window.addEventListener("online",()=>{$("network").textContent="Network reported
 // A failed/hung AI runtime must never prevent Reset Prompt from working.
 void (async()=>{
   const supportError=await checkSupport();
-  $("isolation").textContent=supportError?"Runtime requirements missing":"Runtime requirements available";
+  $("isolation").textContent=supportError?"Runtime requirements missing":sharedMemoryAvailable?"Shared WASM memory available":"Shared memory unavailable · attempting single-thread fallback";
   if(supportError){setError(supportError);setStatus("Local inference is not ready in this browser session.");}
   else {setError("");setStatus("Browser checks passed. Choose a GGUF model.");}
 })().catch(err=>{
