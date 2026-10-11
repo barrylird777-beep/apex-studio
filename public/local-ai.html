@@ -48,7 +48,11 @@ async function prepareOfflineCache(){
         new Promise(resolve=>setTimeout(resolve,2500))
       ]);
     }
-    $("offlineCacheState").textContent="Offline shell cache ready";
+    if(!navigator.serviceWorker.controller){
+      $("offlineCacheState").textContent="Cache installed — reload while online to activate";
+      return false;
+    }
+    $("offlineCacheState").textContent="Offline cache active";
     return true;
   }catch(err){
     $("offlineCacheState").textContent="Offline cache unavailable";
