@@ -80,6 +80,14 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
     const claimed = await store.claim({ workerId, role, limit, leaseMs });
     const results = await Promise.all(claimed.map(async job => {
       const assignment = job.payload?._apex_worker || {};
+      const heartbeatTimer = setInterval(() => {
+        void store.transition(job.id, "heartbeat", {
+          leaseToken: job.leaseToken,
+          leaseFence: job.leaseFence,
+          leaseMs
+        }).catch(() => {});
+      }, Math.max(1000, Math.floor(leaseMs / 3)));
+      heartbeatTimer.unref?.();
       try {
         const result = await executeTask({
           workerId: String(assignment.id || "unknown"),
@@ -92,6 +100,7 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
           runnerId: String(workerId),
           leaseFence: job.leaseFence
         });
+        clearInterval(heartbeatTimer);
         const completed = await store.transition(job.id, "complete", {
           leaseToken: job.leaseToken,
           leaseFence: job.leaseFence,
@@ -99,6 +108,7 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
         });
         return { jobId: job.id, workerId: assignment.id, status: completed ? "completed" : "lease_lost", result: clone(result) };
       } catch (error) {
+        clearInterval(heartbeatTimer);
         const transitioned = await store.transition(job.id, "fail", {
           leaseToken: job.leaseToken,
           leaseFence: job.leaseFence,
