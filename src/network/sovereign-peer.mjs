@@ -51,10 +51,15 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
     }
   });
 
-  node.handle(PROTOCOL, async ({ stream }) => {
+  node.handle(PROTOCOL, async ({ stream, connection }) => {
     try {
+      const remotePeerId = connection?.remotePeer?.toString?.() || '';
+      if (!isAllowedPeer(remotePeerId)) {
+        await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: 'peer is not allowlisted' }) + '\n')]);
+        return;
+      }
       const envelope = await readJson(stream);
-      const accepted = onEnvelope ? await onEnvelope(envelope) : true;
+      const accepted = onEnvelope ? await onEnvelope(envelope) : false;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
     } catch (error) {
       await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: error instanceof Error ? error.message : String(error) }) + '\n')]);
