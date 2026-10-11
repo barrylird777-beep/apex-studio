@@ -67,5 +67,6 @@ test("Pure-WAL worker daemon requires an explicit assigned-task or generic handl
   const handler = async () => ({ ok: true });
   assert.equal(resolveHandler({ handlers: { "apex.worker.assigned-task": handler } }), handler);
   assert.equal(resolveHandler({ handleJob: handler }), handler);
+  assert.equal(resolveHandler({ default: handler }), handler);
   assert.throws(() => resolveHandler({ handlers: {} }), /must export a handler/);
 });
