@@ -1,5 +1,5 @@
 export const APEX_APPS = Object.freeze({
-  PLANET_APEX: Object.freeze({ id:"planet-apex", name:"PlanetApeX", role:"world and planetary Apex environment", entry:"/planet-apex.html", module:"../apps/planet-apex.mjs" }),
+  PLANET_APEX: Object.freeze({ id:"planet-apex", name:"PlanetApeX", role:"brain of the Apex universe; coordinates shared world context without owning other projects' code", entry:"/planet-apex.html", module:"../apps/planet-apex.mjs" }),
   KO_BLOCKS: Object.freeze({ id:"ko-blocks", name:"KoBlocks", role:"modular building and reusable Apex blocks", entry:"/ko-blocks.html", module:"../apps/ko-blocks.mjs" }),
   KERNEL_VISION: Object.freeze({ id:"kernel-vision", name:"KernelVision", role:"finished-work viewing through KernelVision Theatre and Kornmax", entry:"/kernel-vision.html", module:"../apps/kernel-vision.mjs" }),
   KOIN_KOB: Object.freeze({ id:"koin-kob", name:"KoinKob", role:"economy, value, barter and autonomous worker markets", entry:"/koin-kob.html", module:"../apps/koin-kob.mjs" }),
@@ -13,7 +13,7 @@ const LEGACY_SUPPORT_APPS = Object.freeze({
   "teevee": Object.freeze({ id:"teevee", name:"TeeVee", system:"apex-studio", role:"legacy production surface", entry:"/teevee-buyer.html" }),
   "paypex": Object.freeze({ id:"paypex", name:"PayPex", system:"apex-studio", role:"legacy opportunity intelligence surface", entry:"/paypex.html" }),
   "apex-studio": Object.freeze({ id:"apex-studio", name:"ApexStudio", system:"apex-studio", role:"supporting production system surface", entry:"/" }),
-  "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", system:"garden-of-apex", role:"supporting knowledge system surface", entry:"/garden-of-apex.html" }),
+  "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", system:"planet-apex", role:"historical GardenOfApex capability alias absorbed into PlanetApeX; retained for compatibility", entry:"/garden-of-apex.html" }),
   "xshield": Object.freeze({ id:"xshield", name:"XShield", system:"apex-studio", role:"legacy network protection surface", entry:"/xshield.html" })
 });
 
