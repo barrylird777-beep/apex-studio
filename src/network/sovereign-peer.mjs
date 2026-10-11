@@ -15,7 +15,7 @@ const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',')
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
-async function readJson(stream) {
+export async function readSovereignEnvelope(stream) {
   let text = '';
   let bytesRead = 0;
   for await (const chunk of stream.source) {
@@ -62,7 +62,7 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
         await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: 'peer is not allowlisted' }) + '\n')]);
         return;
       }
-      const envelope = await readJson(stream);
+      const envelope = await readSovereignEnvelope(stream);
       const accepted = onEnvelope ? await onEnvelope(envelope) : false;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
     } catch (error) {
@@ -89,7 +89,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
   await stream.sink([encoder.encode(JSON.stringify(envelope) + '\n')]);
-  const response = await readJson(stream);
+  const response = await readSovereignEnvelope(stream);
   await stream.close?.();
   if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
   return response;
