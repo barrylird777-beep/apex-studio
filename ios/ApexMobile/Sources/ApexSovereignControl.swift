@@ -1,13 +1,13 @@
 import Foundation
 
-struct ApexSovereignApp: Decodable, Identifiable {
+struct ApexSovereignApp: Decodable, Identifiable, Sendable {
     let id: String
     let name: String
     let role: String
     let entry: String
 }
 
-struct ApexSovereignControlClient {
+struct ApexSovereignControlClient: Sendable {
     let baseURL: URL
     let token: String
 
