@@ -1,10 +1,12 @@
 import os from 'node:os';
-import SovereignMeshEngine from './sovereign-mesh-engine.mjs';
+import { createHash } from 'node:crypto';
+import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
 import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
+import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
@@ -18,25 +20,59 @@ let stopping = false;
 let timer;
 let bridge;
 
-async function acceptPeerEnvelope(envelope) {
+async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (!envelope || !['durable.accept', 'edge.heartbeat'].includes(envelope.type)) {
     throw new Error('unsupported sovereign envelope');
   }
   if (envelope.type === 'edge.heartbeat') return true;
-  if (!envelope.waveId || !envelope.jobId || !envelope.checksum) throw new Error('incomplete sovereign envelope');
+  if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
+  if (!envelope.waveId || !envelope.jobId || !envelope.checksum || !envelope.record) throw new Error('incomplete sovereign envelope');
   if (!/^[0-9a-f]{64}$/i.test(envelope.checksum)) throw new Error('invalid sovereign checksum');
   if (!/^[0-9a-f-]{36}$/i.test(envelope.jobId)) throw new Error('invalid sovereign job id');
-
-  const existing = await apexPureStore.get('durable_job_receipts', envelope.waveId);
-  if (existing && existing.checksum !== envelope.checksum) {
-    throw new Error('conflicting durable receipt checksum for wave');
+  if (!verifySovereignRecord(envelope.record)) throw new Error('peer event checksum verification failed');
+  if (envelope.record.waveId !== envelope.waveId || envelope.record.checksum !== envelope.checksum || envelope.record.status !== 'DISPATCHED') {
+    throw new Error('peer event envelope does not match its verified record');
   }
-  await apexPureStore.put('durable_job_receipts', envelope.waveId, {
-    waveId: envelope.waveId,
-    originJobId: envelope.jobId,
-    checksum: envelope.checksum,
-    originFence: Math.max(Number(existing?.originFence || 0), Number(envelope.fence || 0)),
-    acceptedAt: existing?.acceptedAt || new Date().toISOString()
+
+  const receiptId = String(envelope.waveId);
+  const existing = await apexPureStore.get('sovereign_peer_receipts', receiptId);
+  if (existing && existing.checksum !== envelope.checksum) {
+    throw new Error('conflicting peer receipt checksum for wave');
+  }
+
+  const record = envelope.record;
+  const appId = String(record.payload?.appId || '');
+  if (appId) {
+    const recordId = 'peer-' + createHash('sha256').update(receiptId).digest('hex');
+    await sovereignAppFabric.put(appId, recordId, {
+      waveId: receiptId,
+      action: String(record.action || 'app.publish'),
+      data: record.payload?.data ?? record.payload,
+      sourcePeerId: remotePeerId,
+      originPeerId: record.peerId,
+      sourceChecksum: envelope.checksum,
+      receivedAt: existing?.receivedAt || new Date().toISOString()
+    });
+  }
+
+  if (!existing) {
+    await apexPureStore.put('sovereign_peer_receipts', receiptId, {
+      waveId: receiptId,
+      originPeerId: String(record.peerId),
+      transportPeerId: remotePeerId,
+      originJobId: String(envelope.jobId),
+      checksum: envelope.checksum,
+      originFence: Math.max(0, Number(envelope.fence || 0)),
+      receivedAt: new Date().toISOString()
+    });
+  }
+
+  const localWaveId = 'peer-' + createHash('sha256').update(remotePeerId + ':' + receiptId).digest('hex');
+  await engine.dispatchAutonomousPayload({
+    waveId: localWaveId,
+    peerId: remotePeerId,
+    action: 'PeerReceive',
+    payload: { originWaveId: receiptId, sourcePeerId: remotePeerId, sourceChecksum: envelope.checksum }
   });
   return true;
 }
