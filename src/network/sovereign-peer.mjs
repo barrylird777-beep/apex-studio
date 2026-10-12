@@ -59,7 +59,7 @@ const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 const streamReaders = new WeakMap();
 
-function readerFor(stream) {
+function readerFor(stream, { resume = true } = {}) {
   let reader = streamReaders.get(stream);
   if (reader) return reader;
 
@@ -125,14 +125,21 @@ function readerFor(stream) {
   streamReaders.set(stream, reader);
   // Event-based streams need to be resumed after listeners attach, but a
   // closing/closed libp2p stream must never be resumed.
-  if (stream.status !== 'closing' && stream.status !== 'closed') stream.resume?.();
+  if (resume && stream.status !== 'closing' && stream.status !== 'closed') {
+    try { stream.resume?.(); }
+    catch (error) {
+      // libp2p can close the stream between the status check and resume.
+      // Treat that as a closed transport, not an uncaught process-level failure.
+      if (!/closing\/closed/i.test(error instanceof Error ? error.message : String(error))) throw error;
+    }
+  }
   return reader;
 }
 
-export async function readSovereignEnvelope(stream) {
+export async function readSovereignEnvelope(stream, options = {}) {
   // Keep one reader and its unread buffer per stream. Prefer libp2p v3
   // message events; the async-iterator fallback preserves older adapters.
-  const reader = readerFor(stream);
+  const reader = readerFor(stream, options);
   const timeoutMs = Math.max(1, Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
   const deadline = Date.now() + timeoutMs;
 
@@ -282,7 +289,8 @@ export async function sendToPeer(node, multiaddr, envelope) {
   const stream = await node.dialProtocol(target, PROTOCOL, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
-  const responsePromise = readSovereignEnvelope(stream);
+  // Outbound streams are already flowing; do not resume them again while waiting for the ACK.
+  const responsePromise = readSovereignEnvelope(stream, { resume: false });
   await sendSovereignEnvelope(stream, envelope);
   const response = await responsePromise;
   await stream.close?.();
