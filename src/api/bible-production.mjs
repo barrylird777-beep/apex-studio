@@ -42,13 +42,19 @@ const safeId = value => {
 };
 const slug = value => clean(value, 200).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || crypto.randomUUID();
 
+function normalizeEntity(type, record) {
+  if (!record) return record;
+  const prefix = PREFIX[type];
+  const id = record.entityId ?? (String(record.id || "").startsWith(prefix) ? String(record.id).slice(prefix.length) : record.id);
+  return { ...record, id: String(id ?? "") };
+}
 async function listType(type) {
   const rows = await sovereignAppFabric.list(APP);
-  return rows.filter(item => item.record?.recordType === type && item.record.deleted !== true).map(item => item.record);
+  return rows.filter(item => item.record?.recordType === type && item.record.deleted !== true).map(item => normalizeEntity(type, item.record));
 }
 async function getType(type, id) {
   const row = await sovereignAppFabric.get(APP, PREFIX[type] + safeId(id));
-  return row && row.record?.deleted !== true && row.record?.recordType === type ? row.record : null;
+  return row && row.record?.deleted !== true && row.record?.recordType === type ? normalizeEntity(type, row.record) : null;
 }
 async function saveType(type, id, value) {
   const key = PREFIX[type] + safeId(id);
@@ -58,6 +64,7 @@ async function saveType(type, id, value) {
     ...(previous?.record || {}),
     ...value,
     id: safeId(id),
+    entityId: safeId(id),
     recordType: type,
     createdAt: previous?.record?.createdAt || value.createdAt || timestamp,
     updatedAt: timestamp,
@@ -233,7 +240,7 @@ async function migrateLegacySqliteIfPresent() {
     const putIfMissing = async (type, id, record) => {
       const key = PREFIX[type] + safeId(id);
       const existing = await sovereignAppFabric.get(APP, key);
-      if (!existing) { await sovereignAppFabric.put(APP, key, { ...record, id: String(id), recordType: type, source: 'legacy-sqlite-import', importedAt: now(), createdAt: record.createdAt || record.created_at || now(), updatedAt: record.updatedAt || record.updated_at || now(), deleted: false }); imported[type] = (imported[type] || 0) + 1; }
+      if (!existing) { await sovereignAppFabric.put(APP, key, { ...record, id: String(id), entityId: String(id), recordType: type, source: 'legacy-sqlite-import', importedAt: now(), createdAt: record.createdAt || record.created_at || now(), updatedAt: record.updatedAt || record.updated_at || now(), deleted: false }); imported[type] = (imported[type] || 0) + 1; }
     };
     for (const row of tables.projects) await putIfMissing('project', row.id, { title: row.title || '', description: row.description || '', primaryScripture: row.primary_scripture || '', status: row.status || 'development', created_at: row.created_at || null, updated_at: row.updated_at || null });
     for (const row of tables.characters) await putIfMissing('character', row.id, {
