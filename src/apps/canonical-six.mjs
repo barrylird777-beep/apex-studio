@@ -18,7 +18,7 @@ const statusFns=Object.freeze({
 export async function canonicalAppStatus(id){
   const app=assertCanonicalApexApp(id);
   const result=await statusFns[app.id]();
-  return {success:true,...result};
+  return {success:true,...result,canonical:true};
 }
 export async function canonicalAppsStatus(){
   const apps=listApexApps();
