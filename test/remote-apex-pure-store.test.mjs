@@ -10,7 +10,7 @@ import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
-  constructor() { this.refs = new Map(); }
+  constructor() { this.refs = new Map(); this.listCalls = new Map(); }
   async init() { return this; }
   async readRef(ns, key) {
     const row = this.refs.get(ns + "/" + key);
@@ -30,6 +30,7 @@ class MemoryCAS {
     this.refs.delete(id); return true;
   }
   async listRefs(ns) {
+    this.listCalls.set(ns, (this.listCalls.get(ns) || 0) + 1);
     const prefix = ns + "/";
     return [...this.refs.entries()].filter(([id]) => id.startsWith(prefix)).map(([id,row]) => ({ namespace: ns, key: id.slice(prefix.length), hash: row.hash, value: structuredClone(row.value) }));
   }
@@ -65,6 +66,33 @@ test("remote Pure-WAL mode persists records and jobs without creating local reco
     assert.equal(claimed[0].id, "job-1");
     assert.equal(await store.delete("app_records", "record-1"), true);
     assert.equal(await store.get("app_records", "record-1"), null);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("remote queue index keeps claim, heartbeat, and completion off full job scans", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-queue-index-"));
+  try {
+    const cas = new MemoryCAS();
+    const store = new ApexPureStore({ root, cas });
+    await store.init();
+    await store.ensureRemoteQueueIndex();
+    const baseline = cas.listCalls.get("jobs") || 0;
+    const queued = await store.enqueue({ id: "indexed-job", type: "test.indexed", payload: { ok: true } });
+    assert.equal(queued.durable, true);
+    assert.equal((await cas.listRefs("queue")).some(ref => ref.value.id === "indexed-job"), true);
+    assert.equal(cas.listCalls.get("jobs") || 0, baseline, "enqueue without dedupe must not scan every job");
+    const claimed = await store.claim({ workerId: "index-test", limit: 1 });
+    assert.equal(claimed.length, 1);
+    assert.equal(claimed[0].id, "indexed-job");
+    assert.equal((await cas.listRefs("running")).some(ref => ref.value.id === "indexed-job"), true);
+    assert.equal(await store.transition("indexed-job", "heartbeat", {
+      leaseToken: claimed[0].leaseToken, leaseFence: claimed[0].leaseFence, leaseMs: 60000
+    }), true);
+    assert.equal(await store.transition("indexed-job", "complete", {
+      leaseToken: claimed[0].leaseToken, leaseFence: claimed[0].leaseFence, result: { ok: true }
+    }), true);
+    assert.equal((await cas.listRefs("running")).some(ref => ref.value.id === "indexed-job"), false);
+    assert.equal(cas.listCalls.get("jobs") || 0, baseline, "claim and transitions must use targeted refs, not full job scans");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
