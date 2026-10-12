@@ -65,7 +65,7 @@ try {
   }
 
   const readiness = await getJson('/api/apex/readiness');
-  const expectedApps = ['PlanetApeX', 'XShield', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies'];
+  const expectedApps = ['PlanetApeX', 'KoBlocks', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies'];
   const actualApps = readiness.json?.canonicalApps?.map(app => app.name);
   if (
     readiness.status !== 200 ||
@@ -76,7 +76,35 @@ try {
     throw new Error(`canonical app readiness check failed; response: ${readiness.body}`);
   }
 
-  console.log('production server smoke: PASS (liveness=alive; detailed health=ok; six canonical apps verified)');
+  const validGraphResponse = await fetch(`http://127.0.0.1:${port}/api/canon/apps/ko-blocks/validate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      version: 'koblx.v1',
+      blocks: [{ id: 'source', outputs: ['out'] }, { id: 'target', inputs: ['in'] }],
+      edges: [{ from: 'source', to: 'target', port: 'out' }]
+    })
+  });
+  const validGraph = await validGraphResponse.json();
+  if (validGraphResponse.status !== 200 || validGraph.success !== true || validGraph.appId !== 'ko-blocks') {
+    throw new Error(`KoBlocks valid graph smoke failed: ${JSON.stringify(validGraph)}`);
+  }
+
+  const cyclicGraphResponse = await fetch(`http://127.0.0.1:${port}/api/canon/apps/ko-blocks/validate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      version: 'koblx.v1',
+      blocks: [{ id: 'a', outputs: ['out'] }, { id: 'b', outputs: ['out'] }],
+      edges: [{ from: 'a', to: 'b', port: 'out' }, { from: 'b', to: 'a', port: 'out' }]
+    })
+  });
+  const cyclicGraph = await cyclicGraphResponse.json();
+  if (cyclicGraphResponse.status !== 422 || cyclicGraph.success !== false || cyclicGraph.reason !== 'cycle') {
+    throw new Error(`KoBlocks cycle rejection smoke failed: ${JSON.stringify(cyclicGraph)}`);
+  }
+
+  console.log('production server smoke: PASS (health, six canonical apps, KoBlocks valid/cyclic graph validation verified)');
 } finally {
   child.kill('SIGTERM');
   await Promise.race([

@@ -716,6 +716,26 @@ app.get('/api/canon/apps/:appId/status', async (req, res) => {
   }
 });
 
+app.post('/api/canon/apps/ko-blocks/validate', async (req, res) => {
+  try {
+    const { validateKoBlockGraph } = await import('./src/apps/ko-blocks.mjs');
+    const result = validateKoBlockGraph(req.body);
+    return res.status(result.valid ? 200 : 422).json({
+      success: result.valid,
+      ...result,
+      appId: 'ko-blocks',
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      valid: false,
+      error: 'Invalid KoBlocks graph',
+      details: String(error?.message || error).slice(0, 240)
+    });
+  }
+});
+
 app.get('/api/planet-apex/status', async (_req, res) => {
   try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({ success: true, ...planetApexStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'PlanetApeX status unavailable' }); }
@@ -1185,7 +1205,7 @@ app.get('/local-ai', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'local-ai.html'));
 });
 
-app.get(['/ko-blocks', '/ko-blocks.html'], (_req, res) => res.redirect(301, '/xshield.html'));
+app.get(['/ko-blocks', '/ko-blocks.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'ko-blocks.html')));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

@@ -5,7 +5,7 @@
 ## The six canonical apps
 
 1. **PlanetApeX — brain:** Bible study, research, knowledge, AI, world/universe analytics and interactive experiences. **GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX**, not a seventh app.
-2. **XShield — shield:** security, ad/tracker blocking, DNS filtering and protected connectivity. Never block whole sites/apps as a default.
+2. **KoBlocks — workflow blocks:** reusable execution blocks, composition and graph validation for cross-app workflows.
 3. **KernelVision — eyes:** creative production and delivery: direction, scripts, scenes, images, video, animation, VFX, editing, mixing/mastering, rendering, QC, publishing, Special Search and social/manager analytics. KernelVision Theatre and Kornmax are viewing experiences within this app.
 4. **KoinKob — role under recovery:** the current repository implements worker markets, value, barter, market clearing and economic simulation. These are implementation facts, not a locked final-purpose decision.
 5. **KashKorner — cash/connectivity:** cash flow, ledger and financial state, carrying forward relevant EngineApex/Apexus connectivity lineage without creating extra app identities.
@@ -13,7 +13,7 @@
 
 ## Historical lineage
 
-ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex and related names are historical systems, names or capabilities to recover. They are **not automatically separate current apps**. Their surviving capabilities belong under the six identities above. TeeVee and PayPex are supporting/legacy capability surfaces, not extra canonical apps.
+ApexStudios, KORNKNOB, XShield, ShieldApex, EngineApex, Apexus, GardenOfApex and related names are historical systems, names or capabilities to recover. They are **not automatically separate current apps**. Their surviving capabilities belong under the six identities above. XShield network-protection features remain a supporting capability, not an extra canonical app. TeeVee and PayPex are supporting/legacy capability surfaces, not extra canonical apps.
 
 ## Integration and sovereignty
 
