@@ -40,7 +40,7 @@ struct ApexRootView: View {
                         Text("Nearby device-to-device messages can work without carrier service. This does not create general internet access.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        SecureField("Shared pairing secret (16+ characters)", text: $pairingSecret)
+                        SecureField("Random shared pairing secret (32+ characters)", text: $pairingSecret)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                         HStack {
