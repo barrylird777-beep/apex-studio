@@ -527,36 +527,33 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
-    if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
-
-    const existing = await getWorkerTask(metadata.orderId);
-    if (existing) return res.json({ received: true, duplicate: true, orderId: metadata.orderId });
-
-    await enqueueWorkerTask({
-      id: metadata.orderId,
-      workerId: 'rapid-video-intake',
-      role: 'rapid-video',
-      task: 'rapid-video-order',
-      payload: {
-        orderId: metadata.orderId,
-        name: metadata.name,
-        type: metadata.type,
-        brief: metadata.brief,
-        platform: metadata.platform,
-        email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
-        price: 25,
-        paid: true,
-        stripeSessionId: String(session.id || ''),
-        paidAt: new Date().toISOString()
-      },
-      maxAttempts: 3,
-      dedupeKey: 'rapid-paid:' + metadata.orderId,
-      traceId: metadata.orderId
-    });
-    return res.json({ received: true, queued: true, orderId: metadata.orderId });
+    const payment = {
+      orderId: metadata.orderId,
+      name: metadata.name,
+      type: metadata.type,
+      brief: metadata.brief,
+      platform: metadata.platform,
+      email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
+      price: 25,
+      paid: true,
+      amount,
+      currency: String(session.currency || '').toUpperCase(),
+      stripeSessionId: String(session.id || ''),
+      stripeEventId: String(event.id || ''),
+      paidAt: new Date().toISOString()
+    };
+    const queued = await rapidVideoPureWalQueue.enqueuePaidOrder(payment);
+    if (queued.needsReconciliation) {
+      console.warn('[rapid-stripe-webhook] legacy paid order needs manual reconciliation', metadata.orderId);
+      return res.json({ received: true, queued: false, needsReconciliation: true, orderId: metadata.orderId });
+    }
+    return res.json({ received: true, queued: Boolean(queued.queued), duplicate: Boolean(queued.duplicate), orderId: metadata.orderId });
   } catch (error) {
     console.error('[rapid-stripe-webhook]', error);
-    return res.status(400).json({ received: false, error: error.message || 'Webhook verification failed' });
+    const message = String(error?.message || error || '');
+    const isSignatureError = /Stripe-Signature|Stripe signature|Invalid Stripe|Expired Stripe|webhook JSON/i.test(message);
+    if (isSignatureError) return res.status(400).json({ received: false, error: message || 'Webhook verification failed' });
+    return res.status(503).json({ received: false, error: 'Payment event could not be queued; retry is safe' });
   }
 });
 
