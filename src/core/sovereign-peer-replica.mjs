@@ -16,13 +16,17 @@ export function readSovereignPeerReplica(engine, request, { remotePeerId = '' } 
     throw new Error('invalid sovereign replica read request');
   }
 
-  const receipt = engine.snapshot().find(record =>
-    record.action === 'PeerReceive' &&
-    record.payload?.originWaveId === waveId &&
-    record.payload?.sourcePeerId === remotePeerId &&
-    record.payload?.sourceChecksum === checksum
-  );
-  const sourceRecord = receipt?.payload?.sourceRecord;
+  const receipt = engine.snapshot().find(record => {
+    if (record.action !== 'PeerReceive') return false;
+    // dispatchAutonomousPayload wraps its argument in record.payload.payload.
+    // Accept the historical flat form too, so older recovered records remain readable.
+    const received = record.payload?.payload ?? record.payload;
+    return received?.originWaveId === waveId &&
+      received?.sourcePeerId === remotePeerId &&
+      received?.sourceChecksum === checksum;
+  });
+  const received = receipt?.payload?.payload ?? receipt?.payload;
+  const sourceRecord = received?.sourceRecord;
   if (!sourceRecord || sourceRecord.waveId !== waveId ||
       sourceRecord.checksum !== checksum || !verifySovereignRecord(sourceRecord)) {
     throw new Error('verified sovereign replica not found');
