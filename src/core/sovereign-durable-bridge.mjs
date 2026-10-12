@@ -49,6 +49,7 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
       throw new Error('peer acknowledgement is required but no peer transport is configured');
     }
     if (peerNode && peerAddress && sendPeer) {
+      const expectedPeerId = String(peerAddress).match(/\/p2p\/([^/]+)$/)?.[1] || '';
       peerAcceptance = await sendPeer(peerNode, peerAddress, {
         type: 'durable.accept',
         waveId: record.waveId,
@@ -57,15 +58,18 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
         record,
         fence: Number(job.leaseFence ?? job.lease_fence ?? 0)
       });
+      if (!peerAcceptance?.accepted || !expectedPeerId || peerAcceptance.peerId !== expectedPeerId) {
+        throw new Error('peer did not confirm acceptance from the expected authenticated identity');
+      }
       const replicaResponse = await sendPeer(peerNode, peerAddress, {
         type: 'durable.read',
         waveId: record.waveId,
         checksum: record.checksum
       });
       const replica = replicaResponse?.replica;
-      if (!replicaResponse?.accepted || replica?.waveId !== record.waveId ||
-          replica?.checksum !== record.checksum || replica?.record?.waveId !== record.waveId ||
-          !verifySovereignRecord(replica.record)) {
+      if (!replicaResponse?.accepted || replicaResponse.peerId !== expectedPeerId ||
+          replica?.waveId !== record.waveId || replica?.checksum !== record.checksum ||
+          replica?.record?.waveId !== record.waveId || !verifySovereignRecord(replica.record)) {
         throw new Error('peer accepted the event but failed verified replica read-back');
       }
       peerAcceptance = { ...peerAcceptance, replicaVerified: true, replicaChecksum: replica.checksum };
