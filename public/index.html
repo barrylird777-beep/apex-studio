@@ -220,7 +220,7 @@ class SceneController {
       const cinematicPrompt = String(forge.cinematicPrompt || prompt);
       const voiceoverScript = String(forge.voiceoverScript || prompt);
 
-      const voiceoverWords = voiceoverScript.split(/\\s+/).filter(Boolean).length;
+      const voiceoverWords = voiceoverScript.split(/\s+/).filter(Boolean).length;
       const sceneDuration = Math.min(10, Math.max(4, Math.ceil(voiceoverWords / 2.5)));
       const [videoRes, audioRes] = await Promise.all([
         fetch('/api/media/video', {
