@@ -303,9 +303,7 @@ async function concatAnimation(sceneFiles, output, runtimeSeconds){
   const dir=path.dirname(output);
   await fs.mkdir(dir,{recursive:true});
   const list=path.join(dir,"concat.txt");
-  await fs.writeFile(list,sceneFiles.map(concatQuote).join("
-")+"
-");
+  await fs.writeFile(list,sceneFiles.map(concatQuote).join("\n")+"\n");
   try{
     await new Promise((resolve,reject)=>ffmpeg()
       .input(list)
