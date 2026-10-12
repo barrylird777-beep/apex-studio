@@ -21,6 +21,7 @@ struct ApexRootView: View {
     @State private var lastInferenceMilliseconds: Int?
     @State private var lastRunLabel = "No inference run recorded"
     @StateObject private var nearbyMesh = ApexNearbyMesh()
+    @StateObject private var connectivity = ApexPhoneConnectivity()
     @State private var pairingSecret = ""
     @State private var nearbyMessage = "APEX nearby link test"
 
@@ -31,6 +32,12 @@ struct ApexRootView: View {
     private var nearbyMeshPanel: some View {
         GroupBox("Carrier-independent nearby mesh") {
             VStack(alignment: .leading, spacing: 8) {
+                Text("System route: " + connectivity.systemRoute).font(.caption).textSelection(.enabled)
+                Text("Wi-Fi: " + connectivity.wifiRoute + " • Cellular: " + connectivity.cellularRoute)
+                    .font(.caption).textSelection(.enabled)
+                Text("iOS route status is not proof of public internet access.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                Divider()
                 Text("Nearby device-to-device messages can work without carrier service. This does not create general internet access.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
