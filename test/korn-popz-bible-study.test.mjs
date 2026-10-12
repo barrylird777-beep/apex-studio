@@ -34,7 +34,7 @@ test("GardenOfApex exposes a dedicated Bible Study Room", () => {
   assert.equal(status.room, "Bible Study Room");
   assert.equal(status.system, "garden-of-apex");
   assert.ok(status.capabilities.includes("scripture-study"));
-  assert.equal(status.productionOwner, "ApexStudio");
+  assert.equal(status.productionOwner, "KernelVision");
 
   const room = createBibleStudyRoom();
   const note = room.putNote({
@@ -47,5 +47,5 @@ test("GardenOfApex exposes a dedicated Bible Study Room", () => {
 
   assert.equal(room.getNote(note.id).evidenceState, "OBSERVED");
   const handoff = room.createProductionHandoff(note.id, { title: "Genesis 1", format: "show" });
-  assert.equal(handoff.destination, "ApexStudio");
+  assert.equal(handoff.destination, "KernelVision");
 });
