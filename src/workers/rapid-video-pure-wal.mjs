@@ -75,13 +75,22 @@ export function createRapidVideoPureWalQueue({
       platform:String(input.platform||"Short-form social").trim().slice(0,80),
       createdAt:now(),updatedAt:now()
     };
-    const queued=await store.enqueue({
-      id:orderId,type:"kernelvision.rapid.preview",
-      payload:{...record,_apex_worker:{role:ROLE}},
-      maxAttempts:1,dedupeKey:"rapid-preview:"+orderId
-    });
-    await fabric.put("kash-korner",previewKey(queued.id),{...record,orderId:queued.id,status:queued.status||"queued"});
-    return {orderId:queued.id,status:queued.status||"queued",duplicate:Boolean(queued.duplicate)};
+    await fabric.put("kash-korner",previewKey(orderId),record);
+    try {
+      const queued=await store.enqueue({
+        id:orderId,type:"kernelvision.rapid.preview",
+        payload:{...record,_apex_worker:{role:ROLE}},
+        maxAttempts:1,dedupeKey:"rapid-preview:"+orderId
+      });
+      const jobState=store.jobs().find(item=>String(item.id)===String(queued.id));
+      const currentStatus=jobState?.status==="completed"?"completed":jobState?.status==="running"?"processing":queued.status||"queued";
+      const latest=(await fabric.get("kash-korner",previewKey(queued.id)))?.record||record;
+      await fabric.put("kash-korner",previewKey(queued.id),{...latest,orderId:queued.id,status:currentStatus,jobId:String(queued.id),updatedAt:now()});
+      return {orderId:queued.id,status:currentStatus,duplicate:Boolean(queued.duplicate)};
+    } catch(error) {
+      await fabric.put("kash-korner",previewKey(orderId),{...record,status:"failed",error:safeError(error),updatedAt:now()}).catch(()=>{});
+      throw error;
+    }
   }
 
   async function enqueuePaidOrder(payment={}){
@@ -126,12 +135,17 @@ export function createRapidVideoPureWalQueue({
   }
 
   async function recordObservedSale(orderId,payment={}){
-    await fabric.put("kash-kobs","paid-order-"+safeId(orderId),{
+    const key="paid-order-"+safeId(orderId);
+    const existing=await fabric.get("kash-kobs",key);
+    if(existing)return existing.record;
+    const record={
       kind:"observed-paid-order",orderId:safeId(orderId),amount:25,currency:"USD",
       classification:"observed",status:"paid",
       evidence:{source:"verified Stripe webhook",stripeSessionId:String(payment.stripeSessionId||"")||null,stripeEventId:String(payment.stripeEventId||"")||null},
       observedAt:String(payment.paidAt||now()),updatedAt:now()
-    });
+    };
+    await fabric.put("kash-kobs",key,record);
+    return record;
   }
 
   async function getOrder(orderId){
