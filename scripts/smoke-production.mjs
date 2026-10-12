@@ -121,7 +121,7 @@ try {
     body: JSON.stringify({
       collection: 'koin_kob_opportunities',
       id: 'smoke-opportunity',
-      record: { fingerprint: 'smoke-fingerprint', kind: 'arbitrage', estimated_net_profit_usd: 42.25, observed_at: '2026-10-12T00:00:00.000Z' }
+      record: { fingerprint: 'smoke-fingerprint', kind: 'arbitrage', estimated_net_profit_usd: 42.25, observed_at: '2026-10-12T00:00:00.000Z', payload: { internal_secret: 'must-not-leak' } }
     })
   });
   const writtenOpportunity = await opportunityWrite.json();
@@ -174,9 +174,11 @@ try {
 
   const publicOpportunityFeed = await fetch(`http://127.0.0.1:${port}/api/koin-kob/opportunities?limit=10`);
   const publicOpportunityBody = await publicOpportunityFeed.json();
+  const publicSmokeOpportunity = publicOpportunityBody.items?.find(item => item.id === 'smoke-opportunity');
   if (publicOpportunityFeed.status !== 200 || publicOpportunityBody.success !== true ||
-      publicOpportunityBody.storage !== 'pure-wal' || !publicOpportunityBody.items?.some(item => item.id === 'smoke-opportunity')) {
-    throw new Error(`KoinKob public Pure-WAL opportunity feed failed: ${JSON.stringify(publicOpportunityBody)}`);
+      publicOpportunityBody.storage !== 'pure-wal' || !publicSmokeOpportunity ||
+      Object.prototype.hasOwnProperty.call(publicSmokeOpportunity, 'payload')) {
+    throw new Error(`KoinKob public Pure-WAL opportunity feed failed or exposed internal payload: ${JSON.stringify(publicOpportunityBody)}`);
   }
 
 
