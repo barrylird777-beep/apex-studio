@@ -260,6 +260,8 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
+    // Preserve path and symlink validation even though duplicate JSON files are no longer written.
+    await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     // Content-addressed manifests are authoritative. Do not write a duplicate JSON
     // copy into the volume; that duplicate can exhaust the disk after the CAS write
