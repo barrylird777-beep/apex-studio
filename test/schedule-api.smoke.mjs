@@ -76,12 +76,16 @@ test("SPEC-005 sovereign API smoke: calendar, day creation, assignment, order, u
     assert.equal(before.r.status, 200);
     assert.equal(before.body.summary.unassigned, 3);
 
-    const d1 = await json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "2026-11-01", callTime: "07:00", notes: "Unit 1" }) });
-    const d2 = await json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "2026-11-02" }) });
+    const [firstAttempt, secondAttempt] = await Promise.all([
+      json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "2026-11-01", callTime: "07:00", notes: "Unit 1" }) }),
+      json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "2026-11-01", callTime: "07:00", notes: "Unit 1" }) })
+    ]);
+    const d1 = firstAttempt.r.status === 201 ? firstAttempt : secondAttempt;
+    const duplicate = firstAttempt.r.status === 409 ? firstAttempt : secondAttempt;
     assert.equal(d1.r.status, 201);
-    assert.equal(d2.r.status, 201);
-    const duplicate = await json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "2026-11-01" }) });
     assert.equal(duplicate.r.status, 409);
+    const d2 = await json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "2026-11-02" }) });
+    assert.equal(d2.r.status, 201);
     const badDate = await json(`/api/projects/${id}/shoot-days`, { method: "POST", body: JSON.stringify({ shootDate: "not-a-date" }) });
     assert.equal(badDate.r.status, 400);
     assert.equal(sceneIds.length, 3);
