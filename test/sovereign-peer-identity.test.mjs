@@ -11,6 +11,7 @@ test("sovereign peer identity can load from a secret without touching local stor
   const keyFile=path.join(dir,"identity","peer.key");
   const previous=process.env.APEX_PEER_PRIVATE_KEY_BASE64;
   try {
+    delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
     const generated=await loadOrCreatePeerPrivateKey(keyFile);
     const encoded=Buffer.from(privateKeyToProtobuf(generated)).toString("base64");
     await rm(keyFile,{force:true});
