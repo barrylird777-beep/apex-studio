@@ -32,6 +32,16 @@ test("every canonical app page references only implemented API routes", async ()
 });
 
 
+test("canonical handoff uses the durable fabric dispatch payload contract", async () => {
+  const server = await read("../server.mjs");
+  const start = server.indexOf("app.post('/api/canon/handoff'");
+  const end = server.indexOf("app.get('/api/canon/handoff'", start);
+  assert.ok(start >= 0 && end > start);
+  const route = server.slice(start, end);
+  assert.match(route, /sovereignAppFabric\.dispatch\(\{\s*appId:\s*source/);
+  assert.doesNotMatch(route, /sovereignAppFabric\.dispatch\(source,/);
+});
+
 test("KoinKob simulation runs are durably stored and surfaced in history", async () => {
   const [server, page] = await Promise.all([read("../server.mjs"), read("../public/koin-kob.html")]);
   const listStart = server.indexOf("app.get('/api/koin-kob/simulations'");
