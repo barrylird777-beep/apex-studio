@@ -26,13 +26,16 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.mutationChain=Promise.resolve();}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();}
   async init(){
     if(this.ready)return this;
-    await mkdir(this.root,{recursive:true,mode:0o700});
-    await this.wal.init();
-    await this.wal.replay({onRecord:r=>this.apply(r)});
-    this.ready=true;return this;
+    if(this.initPromise)return this.initPromise;
+    this.initPromise=(async()=>{
+      await mkdir(this.root,{recursive:true,mode:0o700});
+      await this.wal.init({onRecord:r=>this.apply(r)});
+      this.ready=true;return this;
+    })();
+    try{return await this.initPromise;}catch(error){this.initPromise=null;throw error;}
   }
   async refresh(){
     await this.init();
