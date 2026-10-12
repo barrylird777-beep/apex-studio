@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import SovereignMeshEngine from '../src/core/sovereign-mesh-engine.mjs';
+import SovereignMeshEngine, { sovereignRecordChecksum } from '../src/core/sovereign-mesh-engine.mjs';
 
 test('sovereign content-addressed state persists without a WAL, deduplicates, and recovers', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-sovereign-'));
@@ -87,8 +87,9 @@ test('replicated peer events retain the verified source record across restart', 
     timestamp: '2026-10-12T00:00:00.000Z',
     status: 'DISPATCHED',
     payload: { appId: 'PlanetApeX', data: { sovereignty: true } },
-    checksum: 'verified-at-ingress'
+    checksum: ''
   };
+  sourceRecord.checksum = sovereignRecordChecksum(sourceRecord);
 
   try {
     const first = new SovereignMeshEngine(dir);
