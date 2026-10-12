@@ -96,6 +96,29 @@ test("remote queue index keeps claim, heartbeat, and completion off full job sca
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("remote dispatch dedupe uses an index and retains completed dispatch keys", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-dedupe-index-"));
+  try {
+    const cas = new MemoryCAS();
+    const store = new ApexPureStore({ root, cas });
+    await store.init();
+    await store.ensureRemoteQueueIndex();
+    const baseline = cas.listCalls.get("jobs") || 0;
+    const first = await store.enqueue({ id: "dispatch-first", type: "sovereign.app.dispatch", dedupeKey: "wave-index-test", payload: {} });
+    assert.equal(first.durable, true);
+    const claimed = await store.claim({ workerId: "dedupe-test", onlyId: "dispatch-first", limit: 1 });
+    assert.equal(claimed.length, 1);
+    assert.equal(await store.transition("dispatch-first", "complete", {
+      leaseToken: claimed[0].leaseToken, leaseFence: claimed[0].leaseFence, result: { ok: true }
+    }), true);
+    const duplicate = await store.enqueue({ id: "dispatch-second", type: "sovereign.app.dispatch", dedupeKey: "wave-index-test", payload: {} });
+    assert.equal(duplicate.duplicate, true);
+    assert.equal(duplicate.id, "dispatch-first");
+    assert.equal(duplicate.status, "completed");
+    assert.equal(cas.listCalls.get("jobs") || 0, baseline, "dedupe must not scan the full job namespace");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("remote migration imports local CAS records without deleting the source", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-migration-"));
   try {
