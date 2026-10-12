@@ -26,3 +26,14 @@ test("network capability claims require explicit verification", async () => {
   assert.match(selector, /sixGVerified: VERIFIED_NETWORK_CAPABILITIES\.has\('6g'\)/);
   assert.match(selector, /starlinkVerified: VERIFIED_NETWORK_CAPABILITIES\.has\('starlink'\)/);
 });
+
+test("connection policy never labels multiple connections as verified multipath", async () => {
+  const { buildConnectionPolicy } = await import("../src/network/path-selector.mjs");
+  const unverified = buildConnectionPolicy({ speed: "maximum", multipleConnections: true, clientVerifiedPaths: 0 });
+  assert.equal(unverified.mode, "single-path-maximum");
+  assert.equal(unverified.maxLanes, 1);
+  assert.equal(unverified.multipleConnections, true);
+  const verified = buildConnectionPolicy({ speed: "maximum", multipleConnections: true, clientVerifiedPaths: 2 });
+  assert.equal(verified.mode, "multipath-verified");
+  assert.equal(verified.maxLanes, 16);
+});
