@@ -1,4 +1,4 @@
-import { mkdir, rename, writeFile, readFile } from "node:fs/promises";
+import { mkdir, rename, readFile, open } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
@@ -7,6 +7,24 @@ const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const PROJECTS=process.env.APEX_PROJECTS_DIR||path.join(ROOT,"projects");
 const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const safe=v=>String(v).replace(/[^a-zA-Z0-9._:-]/g,"_");
+function resolveWithinRoot(root, name) {
+  if (typeof name !== "string" || name.length === 0 || name.includes(String.fromCharCode(0))) throw new TypeError("store path must be a non-empty relative path");
+  if (path.isAbsolute(name)) throw new Error("STORE_PATH_OUTSIDE_ROOT: absolute paths are not allowed");
+  const base = path.resolve(root), target = path.resolve(base, name), relative = path.relative(base, target);
+  if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) throw new Error("STORE_PATH_OUTSIDE_ROOT: path must remain inside the store root");
+  return target;
+}
+async function durableAtomicWrite(target, value) {
+  await mkdir(path.dirname(target), { recursive: true });
+  const temp = target + "." + process.pid + "." + randomUUID() + ".tmp";
+  const handle = await open(temp, "wx", 0o600);
+  try { await handle.writeFile(JSON.stringify(value, null, 2) + "\n", "utf8"); await handle.sync(); }
+  catch (error) { await handle.close().catch(() => {}); const fs = await import("node:fs/promises"); await fs.unlink(temp).catch(() => {}); throw error; }
+  await handle.close();
+  await rename(temp, target);
+  const directory = await open(path.dirname(target), "r");
+  try { await directory.sync(); } finally { await directory.close(); }
+}
 
 export class ApexPureStore {
   constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=root;this.wal=wal;this.state=new Map();this.jobsState=new Map();this.ready=false;}
@@ -25,11 +43,7 @@ export class ApexPureStore {
     if(r.type==="job.transition"){const j=this.jobsState.get(String(p.id));if(j)this.jobsState.set(String(p.id),{...j,...clone(p.patch)});}
   }
   file(c,id){return path.join(this.root,safe(c),safe(id)+".json");}
-  async atomic(file,value){
-    await mkdir(path.dirname(file),{recursive:true});
-    const tmp=file+"."+process.pid+"."+randomUUID()+".tmp";
-    await writeFile(tmp,JSON.stringify(value,null,2)+"\n","utf8");await rename(tmp,file);
-  }
+  async atomic(file,value) { await durableAtomicWrite(file, value); }
   async put(collection,id,record){
     await this.init();const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     const r=await this.wal.append("state.put",{collection,id:String(id),record:value});this.apply(r);await this.atomic(this.file(collection,id),value);return clone(value);
@@ -74,15 +88,14 @@ export function createPureStore({ root = PROJECTS } = {}) {
   async function ensure() { await mkdir(root, { recursive: true }); }
   async function read(name, fallback = null) {
     await ensure();
-    try { return JSON.parse(await readFile(path.join(root, name), 'utf8')); }
+    const target = resolveWithinRoot(root, name);
+    try { return JSON.parse(await readFile(target, 'utf8')); }
     catch (error) { if (error.code === 'ENOENT') return fallback; throw error; }
   }
   async function write(name, value) {
     await ensure();
-    const target = path.join(root, name);
-    const temp = target + '.' + process.pid + '.' + randomUUID() + '.tmp';
-    await writeFile(temp, JSON.stringify(value, null, 2) + '\n', 'utf8');
-    await rename(temp, target);
+    const target = resolveWithinRoot(root, name);
+    await durableAtomicWrite(target, value);
     return target;
   }
   return { root, ensure, read, write };
