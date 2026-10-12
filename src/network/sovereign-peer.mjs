@@ -1,6 +1,6 @@
 import { createLibp2p } from 'libp2p';
 import { generateKeyPair, privateKeyFromProtobuf, privateKeyToProtobuf } from '@libp2p/crypto/keys';
-import { mkdir, open, readFile, stat } from 'node:fs/promises';
+import { mkdir, open, readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { tcp } from '@libp2p/tcp';
 import { noise } from '@libp2p/noise';
@@ -18,7 +18,7 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
   const target = path.resolve(file);
   await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
   try {
-    const info = await stat(target);
+    const info = await lstat(target);
     if (!info.isFile() || (info.mode & 0o077) !== 0) throw new Error('sovereign peer identity key permissions are unsafe');
     const bytes = await readFile(target);
     if (!bytes.length) throw new Error('sovereign peer identity key is empty');
@@ -42,7 +42,7 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
   } catch (error) {
     await handle?.close().catch(() => {});
     if (error.code !== 'EEXIST') throw error;
-    const info = await stat(target);
+    const info = await lstat(target);
     if (!info.isFile() || (info.mode & 0o077) !== 0) throw new Error('sovereign peer identity key permissions are unsafe');
     const existing = await readFile(target);
     if (!existing.length) throw new Error('sovereign peer identity key was created empty');
