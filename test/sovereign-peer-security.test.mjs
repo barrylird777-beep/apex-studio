@@ -129,3 +129,37 @@ test("two sovereign peers exchange an envelope only when both identities are all
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+
+test("outgoing peer ACK reader does not resume a stream that may be closing", async () => {
+  const previous = process.env.APEX_ALLOWED_PEER_IDS;
+  process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
+  const listeners = new Map();
+  let resumeCalls = 0;
+  const fakeStream = {
+    status: "open",
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    removeEventListener(type) { listeners.delete(type); },
+    resume() {
+      resumeCalls++;
+      throw new Error("Cannot resume a stream that is closing/closed");
+    },
+    send() {
+      queueMicrotask(() => listeners.get("message")?.({
+        data: new TextEncoder().encode('{"accepted":true,"peerId":"allowed-peer"}\\n')
+      }));
+      return true;
+    },
+    async close() {}
+  };
+  try {
+    const response = await sendToPeer({
+      async dialProtocol() { return fakeStream; }
+    }, "/ip4/127.0.0.1/tcp/1234/p2p/allowed-peer", { type: "test.payload" });
+    assert.equal(response.accepted, true);
+    assert.equal(resumeCalls, 0);
+  } finally {
+    if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = previous;
+  }
+});
