@@ -175,11 +175,14 @@ export class ApexRingWAL {
 }
 export const apexRingWAL=String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true" ? new RemoteApexRingWAL() : new ApexRingWAL();
 
-/** Compatibility facade: the complete hash chain is retained; compact never truncates it. */
-export function createRingWal({file=FILE,maxBytes=50*1024*1024}={}){
-  const wal=new ApexRingWAL({file,maxBytes});
+/** Compatibility facade: in remote mode it must never fall back to a local file. */
+export function createRingWal({file=FILE,maxBytes=50*1024*1024,cas,scope}={}){
+  const remote=String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";
+  const wal=remote
+    ? new RemoteApexRingWAL({maxBytes,...(cas?{cas}:{}),...(scope?{scope}:{})})
+    : new ApexRingWAL({file,maxBytes});
   async function append(type,payload={}){const record=await wal.append(type,payload);return {...record,at:record.ts};}
   async function readAll(){const records=[];await wal.replay({onRecord:record=>{records.push({...record,at:record.ts});}});return records;}
   async function compact(){return (await readAll()).length;}
-  return {file,append,readAll,compact,maxBytes};
+  return {file:wal.file??file,append,readAll,compact,maxBytes};
 }
