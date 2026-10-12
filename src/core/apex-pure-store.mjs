@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-function resolveWithinRoot(root, name) {
+async function resolveWithinRoot(root, name) {
   if (typeof name !== 'string' || name.length === 0 || name.includes(String.fromCharCode(0))) {
     throw new TypeError('store path must be a non-empty relative path');
   }
@@ -12,6 +12,23 @@ function resolveWithinRoot(root, name) {
   const relative = path.relative(base, target);
   if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
     throw new Error('STORE_PATH_OUTSIDE_ROOT: path must remain inside the store root');
+  }
+  const realRoot = await fs.realpath(base);
+  let ancestor = path.dirname(target);
+  while (true) {
+    try {
+      const realAncestor = await fs.realpath(ancestor);
+      const realRelative = path.relative(realRoot, realAncestor);
+      if (realRelative === '..' || realRelative.startsWith('..' + path.sep) || path.isAbsolute(realRelative)) {
+        throw new Error('STORE_PATH_OUTSIDE_ROOT: symlink escapes the store root');
+      }
+      break;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) throw error;
+      ancestor = parent;
+    }
   }
   return target;
 }
@@ -38,7 +55,7 @@ export function createPureStore({ root = '/srv/apex/se-x/projects' } = {}) {
   async function ensure() { await fs.mkdir(root, { recursive: true }); }
   async function read(name, fallback = null) {
     await ensure();
-    const target = resolveWithinRoot(root, name);
+    const target = await resolveWithinRoot(root, name);
     try { return JSON.parse(await fs.readFile(target, 'utf8')); }
     catch (error) { if (error.code === 'ENOENT') return fallback; throw error; }
   }
