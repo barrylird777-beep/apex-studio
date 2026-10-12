@@ -1,7 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { APEX_APPS } from "../apps/apex-six-apps.mjs";
 import { apexPureStore } from "./apex-pure-store.mjs";
-import SovereignMeshEngine from "./sovereign-mesh-engine.mjs";
-import { createSovereignDurableBridge } from "./sovereign-durable-bridge.mjs";
 
 const APP_LIST=Object.values(APEX_APPS).map(({id,name,role,entry})=>({id,name,role,entry}));
 const APP_IDS=new Set(APP_LIST.map(app=>app.id));
@@ -18,39 +17,37 @@ function assertId(value){
   if(!ID.test(id)||id.includes(".."))throw Object.assign(new Error("Invalid record id."),{status:400});
   return id;
 }
+function liveRuntime(record){
+  if(record?.status!=="online"||!record.peerId||!record.lastSeenAt)return false;
+  const age=Date.now()-Date.parse(record.lastSeenAt);
+  return Number.isFinite(age)&&age>=-5000&&age<=30000;
+}
 
 /**
- * One local durable fabric shared by the six canonical apps and authenticated
- * phone control plane. This is an integration layer; it does not silently
- * rewrite the apps' existing domain models or claim a peer is online.
+ * Durable shared namespaces for all six apps. Dispatch is queued locally here;
+ * only the sovereign runtime daemon may turn it into a mesh event and report
+ * actual peer transport. The phone API never fabricates a network ACK.
  */
-export function createSovereignAppFabric({store=apexPureStore,engineFactory=()=>new SovereignMeshEngine()}={}){
-  let engine=null;
-  let bridge=null;
+export function createSovereignAppFabric({store=apexPureStore}={}){
   let readyPromise=null;
   async function init(){
-    if(!readyPromise){
-      readyPromise=(async()=>{
-        await store.init();
-        engine=engine||engineFactory();
-        await engine.ready();
-        bridge=createSovereignDurableBridge({engine,store,workerId:process.env.APEX_SOVEREIGN_WORKER_ID||`app-fabric-${process.pid}`});
-        return true;
-      })().catch(error=>{readyPromise=null;throw error;});
-    }
+    if(!readyPromise)readyPromise=store.init().catch(error=>{readyPromise=null;throw error;});
     await readyPromise;
     return true;
   }
   async function status(){
     await init();
-    const snapshot=engine.snapshot();
+    const [runtime]=await Promise.all([store.get("sovereign_runtime","identity")]);
+    const jobs=store.jobs();
+    const pendingDispatches=jobs.filter(job=>job.type==="sovereign.app.dispatch"&&["queued","running"].includes(job.status)).length;
+    const online=liveRuntime(runtime);
     return {
       ok:true,
       storage:"local-pure-wal",
       durableStoreReady:true,
       canonicalAppCount:APP_LIST.length,
       apps:APP_LIST.map(app=>({...app,storageNamespace:`app-${app.id}`})),
-      mesh:{ready:true,peerIdentityConfigured:Boolean(process.env.APEX_SOVEREIGN_PEER_ID),dispatchRequiresPeerIdentity:true,transportOwner:"sovereign-runtime-daemon",recordCount:snapshot.length},
+      mesh:{runtimeOnline:online,peerIdentityConfigured:online,peerId:online?runtime.peerId:null,transportOwner:"sovereign-runtime-daemon",dispatchMode:"durable-queue",pendingDispatches},
       checkedAt:new Date().toISOString()
     };
   }
@@ -74,20 +71,22 @@ export function createSovereignAppFabric({store=apexPureStore,engineFactory=()=>
   }
   async function dispatch(payload){
     await init();
-    if(!process.env.APEX_SOVEREIGN_PEER_ID)throw Object.assign(new Error("Sovereign peer identity is not configured; dispatch is fail-closed."),{status:503});
     if(!payload||typeof payload!=="object"||Array.isArray(payload))throw Object.assign(new Error("Dispatch payload must be an object."),{status:400});
     const app=assertApp(payload.appId);
-    const record=await engine.dispatchAutonomousPayload({
-      waveId:payload.waveId,
-      action:payload.action||"app.publish",
-      payload:{appId:app,data:clone(payload.data??{})}
+    const waveId=assertId(payload.waveId||randomUUID());
+    const dedupeKey=`sovereign-app-dispatch:${waveId}`;
+    const existing=store.jobs().find(job=>job.dedupeKey===dedupeKey);
+    if(existing){
+      return {accepted:true,durable:true,queued:["queued","running"].includes(existing.status),duplicate:true,peerPending:existing.status!=="completed",appId:app,waveId,jobId:String(existing.id),status:existing.status};
+    }
+    const result=await store.enqueue({
+      id:randomUUID(),
+      type:"sovereign.app.dispatch",
+      payload:{appId:app,waveId,action:String(payload.action||"app.publish").slice(0,160),data:clone(payload.data??{}),requestedAt:new Date().toISOString(),_apex_worker:{role:"sovereign-runtime"}},
+      dedupeKey
     });
-    // Persist the event as a durable job but leave it DISPATCHED until the
-    // sovereign runtime daemon confirms peer transport. Do not fake an ACK.
-    const job=await bridge.persist(record);
-    return {accepted:true,durable:true,queued:true,peerPending:true,appId:app,waveId:record.waveId,seq:record.seq,checksum:record.checksum,jobId:job.id,status:record.status};
+    return {accepted:true,durable:true,queued:true,duplicate:Boolean(result.duplicate),peerPending:true,appId:app,waveId,jobId:String(result.id),status:"queued"};
   }
   return {init,status,put,get,list,dispatch,apps:()=>APP_LIST.map(clone)};
 }
-
 export const sovereignAppFabric=createSovereignAppFabric();
