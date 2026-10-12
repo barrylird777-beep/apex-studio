@@ -68,6 +68,10 @@ test('phone dispatch is durably queued and the runtime daemon alone writes the m
     assert.equal(record.payload.payload.source,'phone-control-plane');
     assert.match(record.checksum,/^[a-f0-9]{64}$/);
     assert.equal(store.jobs().find(job=>job.id===queued.jobId).status,'completed');
+    const retry=await fabric.dispatch({appId:'kernelodies',waveId:'phone-wave-1',action:'phone.test',data:{origin:'iphone'}});
+    assert.equal(retry.duplicate,true,'retries must reuse the original durable dispatch');
+    assert.equal(retry.status,'completed');
+    assert.equal(store.jobs().filter(job=>job.type==='sovereign.app.dispatch').length,1,'one wave must never create duplicate dispatch jobs');
   } finally {
     if(prior===undefined)delete process.env.APEX_SOVEREIGN_PEER_ID;else process.env.APEX_SOVEREIGN_PEER_ID=prior;
     await fs.rm(dir,{recursive:true,force:true});
