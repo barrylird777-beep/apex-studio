@@ -19,7 +19,7 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
   const legacyDb=path.join(root,"legacy.sqlite");
   const projectsDir=path.join(root,"projects");
   const walDir=path.join(root,"wal");
-  const oldEnv={APEX_PROJECTS_DIR:process.env.APEX_PROJECTS_DIR,APEX_SOVEREIGN_STORAGE_DIR:process.env.APEX_SOVEREIGN_STORAGE_DIR,APEX_BIBLE_DB:process.env.APEX_BIBLE_DB,APEX_BIBLE_DB_DIR:process.env.APEX_BIBLE_DB_DIR};
+  const oldEnv={APEX_SE_X_ROOT:process.env.APEX_SE_X_ROOT,APEX_PROJECTS_DIR:process.env.APEX_PROJECTS_DIR,APEX_WAL_DIR:process.env.APEX_WAL_DIR,APEX_WAL_FILE:process.env.APEX_WAL_FILE,APEX_SOVEREIGN_STORAGE_DIR:process.env.APEX_SOVEREIGN_STORAGE_DIR,APEX_BIBLE_DB:process.env.APEX_BIBLE_DB,APEX_BIBLE_DB_DIR:process.env.APEX_BIBLE_DB_DIR};
   let server;
   try{
     const db=new DatabaseSync(legacyDb);
@@ -34,7 +34,10 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
     await close(db);
     const originalHash=digest(await readFile(legacyDb));
 
+    process.env.APEX_SE_X_ROOT=root;
     process.env.APEX_PROJECTS_DIR=projectsDir;
+    process.env.APEX_WAL_DIR=walDir;
+    process.env.APEX_WAL_FILE=path.join(walDir,"ring.wal.jsonl");
     process.env.APEX_SOVEREIGN_STORAGE_DIR=walDir;
     process.env.APEX_BIBLE_DB=legacyDb;
     delete process.env.APEX_BIBLE_DB_DIR;
