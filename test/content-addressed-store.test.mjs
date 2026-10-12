@@ -110,3 +110,28 @@ test("concurrent store instances perform legacy migration only once", async () =
     assert.equal((await second.get("kash-korner", "legacy-opportunity")).value, 7);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+
+test("legacy migration streams batches and preserves final state and job transitions", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-stream-migration-"));
+  try {
+    const walFile = path.join(root, "wal", "legacy.jsonl");
+    const wal = new ApexRingWAL({ file: walFile });
+    await wal.append("job.enqueue", { id: "job-stream-1", job: { id: "job-stream-1", status: "queued", attempts: 0 } });
+    await wal.append("job.transition", { id: "job-stream-1", patch: { status: "done", attempts: 1 } });
+    await wal.append("state.put", { collection: "kash-korner", id: "deleted-row", record: { value: "old" } });
+    await wal.append("state.delete", { collection: "kash-korner", id: "deleted-row" });
+    for (let i = 0; i < 260; i += 1) {
+      await wal.append("state.put", { collection: "kash-korner", id: "row-" + i, record: { value: i } });
+    }
+
+    const store = new ApexPureStore({ root: path.join(root, "projects"), wal });
+    await store.init();
+    assert.equal((await store.get("kash-korner", "row-259")).value, 259);
+    assert.equal(await store.get("kash-korner", "deleted-row"), null);
+    await store.refreshJobs();
+    const job = store.jobs().find(item => item.id === "job-stream-1");
+    assert.equal(job.status, "done");
+    assert.equal(job.attempts, 1);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
