@@ -164,6 +164,12 @@ export class ApexRingWAL {
     const release=await this._acquireLock();
     try{const count=await this._streamRecords(onRecord,{retainRing});this.ready=true;return count;}finally{await release();}
   }
+  // Migration-only read path: verifies the full chain without creating directories or lock files.
+  async replayReadOnly({onRecord=async()=>{},retainRing=false}={}){
+    const count=await this._streamRecords(onRecord,{retainRing});
+    this.ready=true;
+    return count;
+  }
   async snapshot(){await this.init();await this.refresh();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
 }
 export const apexRingWAL=new ApexRingWAL();
