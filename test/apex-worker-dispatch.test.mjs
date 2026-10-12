@@ -50,6 +50,7 @@ test("fixed worker assignment reaches Pure-WAL queue and survives restart", asyn
 
     const reopened = makeStore();
     await reopened.init();
+    await reopened.refreshJobs();
     const recovered = reopened.jobs().find(job => job.id === queued.jobId);
     assert.equal(recovered.status, "completed");
     assert.equal(recovered.result.verified, true);
