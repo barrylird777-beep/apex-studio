@@ -28,10 +28,12 @@ export class ContentAddressedStore {
   }
 
   async init() {
-    await Promise.all([
-      mkdir(this.objects, { recursive: true, mode: 0o700 }),
-      mkdir(this.refs, { recursive: true, mode: 0o700 })
-    ]);
+    if (!this.remoteObjects.enabled) {
+      await Promise.all([
+        mkdir(this.objects, { recursive: true, mode: 0o700 }),
+        mkdir(this.refs, { recursive: true, mode: 0o700 })
+      ]);
+    }
     return this;
   }
 
@@ -71,6 +73,15 @@ export class ContentAddressedStore {
       await this.remoteObjects.put(digest, bytes);
       return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "object-storage" };
     }
+    if (this.remoteObjects.enabled) {
+      // Remote-required mode never creates a local object or falls back to one.
+      await this.remoteObjects.put(digest, bytes);
+      const verified = await this.remoteObjects.get(digest);
+      if (verified === null || hash(verified) !== digest || verified !== bytes) {
+        throw new Error("Remote object write/read-back verification failed: " + digest);
+      }
+      return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "object-storage" };
+    }
     const file = this.objectPath(digest);
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     try {
@@ -92,10 +103,9 @@ export class ContentAddressedStore {
     await this.init();
     if (this.remoteObjects.enabled) {
       const remoteBytes = await this.remoteObjects.get(digest);
-      if (remoteBytes !== null) {
-        if (hash(remoteBytes) !== digest) throw new Error("Remote object integrity verification failed: " + digest);
-        return JSON.parse(remoteBytes);
-      }
+      if (remoteBytes === null) throw new Error("Remote content-addressed object is missing: " + digest);
+      if (hash(remoteBytes) !== digest) throw new Error("Remote object integrity verification failed: " + digest);
+      return JSON.parse(remoteBytes);
     }
     const bytes = await readFile(this.objectPath(digest), "utf8");
     if (hash(bytes) !== digest) throw new Error("Object integrity verification failed: " + digest);
@@ -107,11 +117,11 @@ export class ContentAddressedStore {
     const file = this.refPath(namespace, key);
     if (this.remoteRefsEnabled) {
       const remote = await this.remoteObjects.getRef(namespace, key);
-      if (remote !== null) {
-        const manifest = JSON.parse(remote);
-        if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid remote content-addressed manifest");
-        return { ...manifest, value: await this.getObject(manifest.hash) };
-      }
+      if (remote === null) return null;
+      const manifest = JSON.parse(remote);
+      if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid remote content-addressed manifest");
+      if (manifest.namespace !== String(namespace) || manifest.key !== String(key)) throw new Error("Remote content-addressed manifest identity mismatch");
+      return { ...manifest, value: await this.getObject(manifest.hash) };
     }
     try {
       const manifest = JSON.parse(await readFile(file, "utf8"));
@@ -213,7 +223,7 @@ export class ContentAddressedStore {
   async writeRef(namespace, key, value, { expectedHash = undefined } = {}) {
     await this.init();
     const file = this.refPath(namespace, key);
-    return this.withRefLock(file, async () => {
+    const write = async () => {
       const current = await this.readRef(namespace, key);
       const actual = current?.hash ?? null;
       if (expectedHash !== undefined && actual !== expectedHash) {
@@ -231,21 +241,32 @@ export class ContentAddressedStore {
         hash: object.hash,
         updatedAt: new Date().toISOString()
       };
-      if (this.remoteRefsEnabled) await this.remoteObjects.putRef(namespace, key, canonical(manifest) + "\n");
-      else await this.atomicWrite(file, canonical(manifest) + "\n");
+      if (this.remoteRefsEnabled) {
+        const serialized = canonical(manifest) + "\n";
+        await this.remoteObjects.putRef(namespace, key, serialized);
+        const readBack = await this.remoteObjects.getRef(namespace, key);
+        if (readBack !== serialized) throw new Error("Remote manifest write/read-back verification failed: " + namespace + "/" + key);
+      } else {
+        await this.atomicWrite(file, canonical(manifest) + "\n");
+      }
       return { ...manifest, uri: object.uri, bytes: object.bytes, backend: this.remoteRefsEnabled ? "object-storage" : "local" };
-    });
+    };
+    // Local lock files are forbidden in remote-required mode. Remote writes are
+    // read-back verified; conditional-write concurrency support is tested separately.
+    return this.remoteRefsEnabled ? write() : this.withRefLock(file, write);
   }
 
   async listRefs(namespace) {
     await this.init();
     const keys = new Set();
     if (this.remoteRefsEnabled) for (const key of await this.remoteObjects.listRefs(namespace)) keys.add(key);
-    const dir = path.join(this.refs, String(namespace));
-    try {
-      const names = await (await import("node:fs/promises")).readdir(dir);
-      for (const name of names) if (name.endsWith(".json")) keys.add(name.slice(0, -5));
-    } catch (error) { if (error.code !== "ENOENT") throw error; }
+    if (!this.remoteRefsEnabled) {
+      const dir = path.join(this.refs, String(namespace));
+      try {
+        const names = await (await import("node:fs/promises")).readdir(dir);
+        for (const name of names) if (name.endsWith(".json")) keys.add(name.slice(0, -5));
+      } catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
     const candidates = [...keys];
     const out = [];
     const batchSize = 32;
