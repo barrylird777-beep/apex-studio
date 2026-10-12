@@ -37,7 +37,9 @@ test("episode export validates hook, assembles media, QC-checks and stores metad
     assert.equal(result.artifact.status,"ready");
     assert.equal(result.artifact.output.width,1920);
     assert.equal(result.artifact.openingHook.durationSec,30);
-    assert.equal(result.artifact.releaseEligible,true);
+    assert.equal(result.artifact.releaseEligible,false,"rendering alone must never publish an episode");
+    assert.equal(result.artifact.provenanceReady,true);
+    assert.ok(result.artifact.releaseBlockers.includes("human-release-approval-required"));
     assert.equal(records.length,1);
     assert.equal(records[0].appId,"kernel-vision");
     assert.match(records[0].id,/^episode-genesis-37-/);
