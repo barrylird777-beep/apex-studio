@@ -179,6 +179,14 @@ try {
     throw new Error(`KoinKob public Pure-WAL opportunity feed failed: ${JSON.stringify(publicOpportunityBody)}`);
   }
 
+
+  const koinKobPageResponse = await fetch(`http://127.0.0.1:${port}/koin-kob.html`);
+  const koinKobPage = await koinKobPageResponse.text();
+  if (koinKobPageResponse.status !== 200 || !koinKobPage.includes('Opportunity Feed') ||
+      !koinKobPage.includes('/api/koin-kob/opportunities')) {
+    throw new Error('KoinKob page is missing the Pure-WAL opportunity feed UI');
+  }
+
   const invalidOpportunityCollection = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/put`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
