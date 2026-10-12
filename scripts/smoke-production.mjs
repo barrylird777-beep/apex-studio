@@ -106,8 +106,6 @@ try {
       sovereignStatus.json?.storage !== 'content-addressed' ||
       sovereignStatus.json?.storageAuthority !== 'local-filesystem' ||
       sovereignStatus.json?.cloudStorageReady !== false ||
-      sovereignStatus.json?.storageAuthority !== 'local-filesystem' ||
-      sovereignStatus.json?.cloudStorageReady !== false ||
       sovereignStatus.json?.canonicalAppCount !== canonicalAppIds.length ||
       sovereignStatus.json?.durableStoreReady !== true) {
     throw new Error(`six-app sovereign storage smoke failed: ${sovereignStatus.body}`);
