@@ -86,7 +86,7 @@
     audio.dataset.blobUrl = url;
     audio.src = url;
     card.append(audio);
-    return true;
+    return audio;
   }
   function renderTrack(track, mode) {
     const card = document.createElement("div");
@@ -112,8 +112,11 @@
           const response = await fetch(track.audioUrl, { headers: { "X-Apex-Control-Token": token() } });
           if (!response.ok) throw new Error("Audio request failed (HTTP " + response.status + ")");
           const blob = await response.blob();
-          if (!addPlayer(card, blob)) throw new Error("Could not create audio player.");
+          const audio = addPlayer(card, blob);
+          if (!audio) throw new Error("Could not create audio player.");
           play.disabled = true;
+          try { await audio.play(); }
+          catch (_playError) { status("Audio loaded; use the audio controls to start playback."); }
         } catch (error) { status(error.message); }
       };
       card.append(play);

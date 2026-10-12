@@ -221,4 +221,5 @@ test("Kernelodies browser UI script parses and defaults to local-first mode", ()
   assert.match(source, /music-radar-independent/);
   assert.match(source, /metadata-only\.json/);
   assert.match(source, /Apex shared storage/);
+  assert.match(source, /await audio\\.play\\(\\)/);
 });
