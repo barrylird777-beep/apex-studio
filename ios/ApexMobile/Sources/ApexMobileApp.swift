@@ -19,6 +19,9 @@ struct ApexRootView: View {
     @State private var selectedModelID: String?
     @State private var lastInferenceMilliseconds: Int?
     @State private var lastRunLabel = "No inference run recorded"
+    @StateObject private var nearbyMesh = ApexNearbyMesh()
+    @State private var pairingSecret = ""
+    @State private var nearbyMessage = "APEX nearby link test"
 
     private var ggufType: UTType {
         UTType(filenameExtension: "gguf", conformingTo: .data) ?? .data
@@ -31,6 +34,53 @@ struct ApexRootView: View {
                 Text("On-device inference • Metal when supported • offline-capable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                GroupBox("Carrier-independent nearby mesh") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Nearby device-to-device messages can work without carrier service. This does not create general internet access.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        SecureField("Shared pairing secret (16+ characters)", text: $pairingSecret)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        HStack {
+                            Button("Start discovery") {
+                                do { try nearbyMesh.start(pairingSecret: pairingSecret) }
+                                catch { self.error = error.localizedDescription }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            Button("Stop") { nearbyMesh.stop() }
+                                .buttonStyle(.bordered)
+                        }
+                        Text(nearbyMesh.status).font(.caption).textSelection(.enabled)
+                        if !nearbyMesh.nearbyPeers.isEmpty {
+                            Text("Nearby devices").font(.subheadline.bold())
+                            ForEach(nearbyMesh.nearbyPeers, id: \.self) { peer in
+                                HStack {
+                                    Text(peer).lineLimit(1)
+                                    Spacer()
+                                    Button(nearbyMesh.connectedPeers.contains(peer) ? "Connected" : "Connect") {
+                                        nearbyMesh.connect(to: peer)
+                                    }
+                                    .disabled(nearbyMesh.connectedPeers.contains(peer))
+                                }
+                            }
+                        }
+                        Text("Connected: " + (nearbyMesh.connectedPeers.isEmpty ? "none" : nearbyMesh.connectedPeers.joined(separator: ", ")))
+                            .font(.caption)
+                            .textSelection(.enabled)
+                        TextField("Message to nearby peers", text: $nearbyMessage)
+                            .textInputAutocapitalization(.sentences)
+                        Button("Send authenticated message") {
+                            do { try nearbyMesh.send(nearbyMessage) }
+                            catch { self.error = error.localizedDescription }
+                        }
+                        .disabled(nearbyMesh.connectedPeers.isEmpty || nearbyMessage.isEmpty)
+                        Text(nearbyMesh.lastMessage)
+                            .font(.caption)
+                            .textSelection(.enabled)
+                    }
+                }
 
                 Button {
                     modelImportPresented = true
