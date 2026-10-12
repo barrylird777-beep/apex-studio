@@ -37,7 +37,8 @@ export function targetRecordId(schema, table, primaryKey, row, duplicateOrdinal 
 export function classifyTarget(existing, incoming) {
   if (!existing) return "new";
   return canonicalJson(existing.sourceRow) === canonicalJson(incoming.sourceRow) &&
-    canonicalJson(existing.sourcePrimaryKey) === canonicalJson(incoming.sourcePrimaryKey)
+    canonicalJson(existing.sourcePrimaryKey) === canonicalJson(incoming.sourcePrimaryKey) &&
+    canonicalJson(existing.sourceForeignKeys) === canonicalJson(incoming.sourceForeignKeys)
     ? "identical" : "conflict";
 }
 
@@ -120,6 +121,16 @@ async function main() {
         ORDER BY array_position(i.indkey, a.attnum)
       `, [table.schema_name, table.table_name]);
       const primaryKey = pkResult.rows.map(r => r.column_name);
+      const foreignKeyResult = await client.query(`
+        SELECT con.conname AS name,
+               pg_get_constraintdef(con.oid, true) AS definition
+        FROM pg_constraint con
+        JOIN pg_class t ON t.oid=con.conrelid
+        JOIN pg_namespace n ON n.oid=t.relnamespace
+        WHERE con.contype='f' AND n.nspname=$1 AND t.relname=$2
+        ORDER BY con.conname
+      `, [table.schema_name, table.table_name]);
+      const sourceForeignKeys = foreignKeyResult.rows.map(r => ({ name: r.name, definition: r.definition }));
       const orderBy = primaryKey.length
         ? primaryKey.map(k => quoteSqlIdentifier(k)).join(",")
         : "row_to_json(src)::text";
@@ -147,6 +158,7 @@ async function main() {
             sourceSchema: table.schema_name,
             sourceTable: table.table_name,
             sourcePrimaryKey: primaryKey.map(key => [key, sourceRow[key]]),
+            sourceForeignKeys,
             sourceColumns: columns,
             sourceRow,
             sourceRowHash: sha256(canonicalJson(sourceRow))
@@ -160,7 +172,7 @@ async function main() {
           plannedRows.push({ id, record, classification });
         }
       }
-      tablePlans.push({ schema: table.schema_name, table: table.table_name, collection, rowCount: plannedRows.length, rows: plannedRows });
+      tablePlans.push({ schema: table.schema_name, table: table.table_name, collection, rowCount: plannedRows.length, primaryKey, columns, sourceForeignKeys, rows: plannedRows });
     }
 
     if (summary.conflicts) {
@@ -199,7 +211,7 @@ async function main() {
         rowValuesPreservedAsJson: true
       },
       summary,
-      tables: tablePlans.map(({ schema, table, collection, rowCount }) => ({ schema, table, collection, rowCount }))
+      tables: tablePlans.map(({ schema, table, collection, rowCount, primaryKey, columns, sourceForeignKeys }) => ({ schema, table, collection, rowCount, primaryKey, columns, sourceForeignKeys }))
     };
     const output = JSON.stringify(report, null, 2) + "\n";
     if (options.output) {
