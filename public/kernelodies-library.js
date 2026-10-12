@@ -12,7 +12,7 @@
       </select>
     </label>
     <p id="kl-mode-note">Audio and metadata stay in this browser. This is not shared storage.</p>
-    <label id="kl-token-label" hidden>Control token <input id="kl-token" type="password" autocomplete="off" placeholder="APEX_SHORTCUT_TOKEN"></label>
+    <label id="kl-token-label" hidden>Control token <input id="kl-token" type="password" autocomplete="off" placeholder="KERNEL... shared-library token"></label>
     <label>Track title <input id="kl-title" maxlength="200" placeholder="Track title (optional)"></label>
     <label>Artist <input id="kl-artist" maxlength="200" placeholder="Artist (optional)"></label>
     <label>Album <input id="kl-album" maxlength="200" placeholder="Album (optional)"></label>
@@ -62,10 +62,10 @@
     });
   }
   async function api(url, options = {}) {
-    if (!token()) throw new Error("Enter the Apex control token to connect to shared storage.");
+    if (!token()) throw new Error("Enter the Kernelodies shared-library token to connect to shared storage.");
     const response = await fetch(url, {
       ...options,
-      headers: { ...(options.headers || {}), "X-Apex-Control-Token": token() }
+      headers: { ...(options.headers || {}), "X-Kernelodies-Token": token() }
     });
     const data = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
     if (!response.ok) throw new Error(data?.error || "Request failed (HTTP " + response.status + ")");
