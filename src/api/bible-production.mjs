@@ -412,7 +412,7 @@ router.post('/scenes/generate', async (req, res) => {
       number += 1;
       const matched = characters.filter(character=>[character.canonicalName,...arr(character.aliases)].some(name=>name && part.toLowerCase().includes(String(name).toLowerCase())));
       return sceneOut({
-        id:idOf('scene'),recordType:'scene',projectId,sceneNumber:number,title:'Scene '+number+' — '+part.split(/\s+/).slice(0,6).join(' ').slice(0,80),
+        id:'',recordType:'scene',projectId,sceneNumber:number,title:'Scene '+number+' — '+part.split(/\s+/).slice(0,6).join(' ').slice(0,80),
         scriptureReference,location:'To be determined',characters:matched.map(item=>item.canonicalName),
         charactersPresent:matched.map(item=>item.id),actionSummary:part,emotionalBeat:'Refine from the passage without inventing events.',
         productionNotes:'Verify the source passage, setting, costumes, props, continuity, and production requirements before approval.',
