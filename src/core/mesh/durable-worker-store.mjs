@@ -210,5 +210,5 @@ export async function heartbeatRenderNode({id,inFlight=0,state="ready"}={}) {
 export async function renderCapacitySnapshot() {
   if(!durableWorkerEnabled()) return {durable:false,nodes:[],available:0};
   const nodes=(await apexPureStore.list("render_nodes")).filter(node=>node.state==="ready").map(node=>({...node,available:Math.max(0,Number(node.maxConcurrency||1)-Number(node.inFlight||0))}));
-  return {durable:true,storage:"local-content-addressed-pure-wal",nodes,available:nodes.reduce((sum,node)=>sum+node.available,0)};
+  return {durable:true,storage:"local-content-addressed-pure-wal",remoteAuthoritative:false,sovereignty:"not-verified",nodes,available:nodes.reduce((sum,node)=>sum+node.available,0)};
 }
