@@ -244,7 +244,10 @@ if (!workerOnly) {
 
   // Locked continuous path: seed only zero-cost AI work. If no provider is
   // provably zero-cost, the feeder stays idle rather than risking a charge.
-  const autonomousAiLoop = await startLockedContinuousAiLoop();
+  const autonomousAiLoop = await startLockedContinuousAiLoop({
+    enqueueTask: remoteWorkerApiUrl ? async item => (await remoteWorkerRequest("/api/internal/worker/enqueue", item)).task : undefined,
+    getQueueStats: remoteWorkerApiUrl ? async () => (await remoteWorkerRequest("/api/internal/worker/stats")).stats : undefined
+  });
   const inFlight = new Map();
   const claimed = new Map();
 
