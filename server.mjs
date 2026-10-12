@@ -1157,6 +1157,13 @@ app.post('/api/rapid/orders', async (req, res) => {
 
 app.get('/api/rapid/orders/:id', async (req, res) => {
   try {
+    const pureWalOrder = await rapidVideoPureWalQueue.getOrder(req.params.id);
+    if (pureWalOrder) return res.json(pureWalOrder);
+
+    // Read-only compatibility for historical orders that were queued before the
+    // Pure-WAL cutover. Never enqueue or re-run a legacy order from this branch.
+    const dbHealth = await durableWorkerHealth();
+    if (!dbHealth.available) return res.status(404).json({ success: false, error: 'Order not found in the active durable queue' });
     const task = await getWorkerTask(req.params.id);
     if (!task || !['rapid-video-order','rapid-video-preview'].includes(task.task)) {
       return res.status(404).json({ success: false, error: 'Order not found' });
@@ -1167,14 +1174,14 @@ app.get('/api/rapid/orders/:id', async (req, res) => {
       status: task.status,
       attempts: task.attempts,
       maxAttempts: task.max_attempts,
-      result: task.result || null,
+      result: task.result ? { url: task.result.url || null, format: task.result.format || null, durationSeconds: task.result.durationSeconds || null, generatedAt: task.result.generatedAt || null } : null,
       error: task.last_error || null,
       createdAt: task.created_at,
       updatedAt: task.updated_at
     });
   } catch (error) {
     console.error('[rapid-order-status]', error);
-    return res.status(500).json({ success: false, error: 'Order status unavailable' });
+    return res.status(Number(error?.status)===400?400:503).json({ success: false, error: 'Order status unavailable' });
   }
 });
 
