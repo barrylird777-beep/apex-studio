@@ -27,9 +27,10 @@ function voiceoverPayload(input = {}) {
 }
 
 export async function enqueueVoiceoverJob(input = {}, options = {}) {
+  const store = options.store || apexPureStore;
   const id = String(options.id || input.id || crypto.randomUUID());
   const payload = voiceoverPayload(input);
-  const result = await apexPureStore.enqueue({
+  const result = await store.enqueue({
     id,
     type: "voiceover.synthesize",
     payload: { ...payload, _apex_worker: { role: "voiceover" } },
@@ -54,23 +55,23 @@ async function synth(job) {
   };
 }
 
-async function loop() {
+async function loop(store = apexPureStore) {
   const workerId = "voiceover-" + crypto.randomUUID();
   while (!stopping) {
     let job = null;
     try {
-      const tasks = await apexPureStore.claim({ workerId, limit: 1, leaseMs: LEASE_MS, role: "voiceover" });
+      const tasks = await store.claim({ workerId, limit: 1, leaseMs: LEASE_MS, role: "voiceover" });
       job = tasks[0] || null;
       if (!job) { await sleep(POLL_MS); continue; }
       const result = await synth(job);
-      await apexPureStore.transition(job.id, "complete", {
+      await store.transition(job.id, "complete", {
         leaseToken: job.leaseToken,
         leaseFence: job.leaseFence,
         result
       });
     } catch (error) {
       if (job) {
-        await apexPureStore.transition(job.id, "fail", {
+        await store.transition(job.id, "fail", {
           leaseToken: job.leaseToken,
           leaseFence: job.leaseFence,
           error,
@@ -82,20 +83,20 @@ async function loop() {
   }
 }
 
-export async function startVoiceoverWorker() {
+export async function startVoiceoverWorker({ store = apexPureStore } = {}) {
   if (String(process.env.APEX_WORKER_API_URL || "").trim()) {
     throw new Error("Voiceover tasks must run through the authoritative remote Pure-WAL worker; start index.mjs instead.");
   }
   stopping = false;
-  await apexPureStore.init();
-  await Promise.all(Array.from({ length: CONCURRENCY }, loop));
+  await store.init();
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => loop(store)));
 }
 
 export async function listVoiceCatalog() {
   return (await listVoiceOptions()).map(v => ({ ...v, provider: "local" }));
 }
 
-export async function voiceoverWorkerStatus() {
+export async function voiceoverWorkerStatus({ store = apexPureStore } = {}) {
   const remoteUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\\/+$/, "");
   const token = String(process.env.APEX_WORKER_TOKEN || "");
   if (remoteUrl && token) {
@@ -115,8 +116,8 @@ export async function voiceoverWorkerStatus() {
       providers: { local: true, elevenlabs: Boolean(process.env.ELEVENLABS_API_KEY), google: Boolean(process.env.GOOGLE_TTS_API_KEY) }
     };
   }
-  await apexPureStore.refresh();
-  const jobs = apexPureStore.jobs().filter(job => job.type === "voiceover.synthesize");
+  await store.refresh();
+  const jobs = store.jobs().filter(job => job.type === "voiceover.synthesize");
   return {
     durable: true,
     queueOwner: "local-pure-wal",
