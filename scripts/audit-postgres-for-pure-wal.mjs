@@ -47,13 +47,11 @@ async function main() {
     throw Object.assign(new Error("DATABASE_URL must use postgres:// or postgresql://."), { exitCode: 2 });
   }
 
-  const local = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
-  const ssl = process.env.APEX_PG_SSL === "false" || local ? false : { rejectUnauthorized: false };
-  const pool = new Pool({ connectionString, ssl, connectionTimeoutMillis: 10000, idleTimeoutMillis: 10000, max: 1 });
+  const pool = new Pool({ connectionString, connectionTimeoutMillis: 10000, idleTimeoutMillis: 10000, max: 1 });
   let client;
   try {
     client = await pool.connect();
-    await client.query("BEGIN READ ONLY");
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const db = await client.query(`
       SELECT current_database() AS database,
              current_user AS database_user,
