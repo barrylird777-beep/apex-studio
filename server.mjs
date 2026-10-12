@@ -368,6 +368,40 @@ app.post('/api/internal/opportunity-engine/store/put', requireOpportunityEngineA
   }
 });
 
+
+app.post('/api/internal/opportunity-engine/store/bulk', requireOpportunityEngineAuth, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length || items.length > 100 || items.some(item =>
+      !validOpportunityEngineCollection(item?.collection) ||
+      !String(item?.id || '') || String(item.id).length > 128 ||
+      !item.record || typeof item.record !== 'object' || Array.isArray(item.record) ||
+      JSON.stringify(item.record).length > 1000000)) {
+      return res.status(400).json({ success: false, error: 'Invalid opportunity-store bulk write' });
+    }
+    const records = [];
+    let written = 0;
+    let existing = 0;
+    for (const item of items) {
+      const collection = String(item.collection);
+      const id = String(item.id);
+      const found = await apexPureStore.get(collection, id);
+      if (found) {
+        existing += 1;
+        records.push(found);
+        continue;
+      }
+      const saved = await apexPureStore.put(collection, id, item.record);
+      written += 1;
+      records.push(saved);
+    }
+    res.set('cache-control', 'no-store');
+    return res.json({ success: true, written, existing, records });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
 app.post('/api/internal/teevee/enqueue', requireWorkerAuth, async (req, res) => {
   try {
     const item = req.body || {};
