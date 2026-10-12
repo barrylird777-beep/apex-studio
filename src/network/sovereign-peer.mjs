@@ -270,6 +270,11 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         remotePeerId: connection?.remotePeer?.toString?.() || ''
       }));
       await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+    } finally {
+      // Explicitly half-close only after the ACK/error response has been queued.
+      // Returning from a handler without a graceful close can reset a remote stream
+      // before it has consumed the response, especially across TCP proxies.
+      try { await stream.close?.(); } catch {}
     }
   });
   return node;
