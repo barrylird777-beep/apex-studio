@@ -168,10 +168,10 @@ export class ApexPureStore {
       this.apply(r);return true;
     });
   }
-  async recoverExpired(limit=500){
+  async recoverExpired(limit=500,role=null){
     return this.withMutationLock(async()=>{
       await this.refresh();let n=0;const now=Date.now();
-      for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){
+      for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now&&(!role||x.payload?._apex_worker?.role===role)).slice(0,limit)){
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
         const r=await this.wal.append("job.transition",{id:j.id,patch});
         for(const external of r.externalRecords||[])this.apply(external);
