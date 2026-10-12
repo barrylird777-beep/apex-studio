@@ -18,7 +18,7 @@ async function fixture(){
   await writeFile(path.join(root,"assets","narration.wav"),Buffer.from("narration"));
   return {root,shots,narrationPath:"assets/narration.wav"};
 }
-const probe={width:1920,height:1080,vcodec:"h264",pixFmt:"yuv420p",acodec:"aac",durationSec:30};
+const probe={width:1920,height:1080,vcodec:"h264",pixFmt:"yuv420p",acodec:"aac",fps:24,durationSec:30};
 const qc={ok:true,checks:{hasVideo:true,hasAudio:true,dimensions:true,aspectRatio:true,duration:true,playable:true},failures:[],duration:30,streams:[]};
 function fakeOptions(records){
   return {
@@ -73,5 +73,17 @@ test("unverified media can render for review but cannot be marked release-eligib
     const result=await produceKernelVisionEpisode({projectId:"p",episodeId:"unverified",shots:f.shots,narrationPath:f.narrationPath},{mediaRoot:f.root,...fakeOptions(records)});
     assert.equal(result.artifact.status,"ready");
     assert.equal(result.artifact.releaseEligible,false);
+  }finally{await rm(f.root,{recursive:true,force:true});}
+});
+
+
+test("episode export records QC failures as non-publishable artifacts",async()=>{
+  const f=await fixture(),records=[];
+  try{
+    const options={...fakeOptions(records),qc:async()=>({ok:false,failures:["dimensions"]})};
+    await assert.rejects(()=>produceKernelVisionEpisode({projectId:"p",episodeId:"qc-fail",shots:f.shots,narrationPath:f.narrationPath},{mediaRoot:f.root,...options}),/Episode export failed QC/);
+    assert.equal(records.length,1);
+    assert.equal(records[0].record.status,"qc-failed");
+    assert.equal(records[0].record.releaseEligible,false);
   }finally{await rm(f.root,{recursive:true,force:true});}
 });
