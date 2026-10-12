@@ -175,19 +175,19 @@ if (!workerOnly) {
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const storageRetryMaxMs = Math.max(5000, Number(process.env.APEX_WORKER_STORAGE_RETRY_MAX_MS || 30000));
-  let dbFailures = 0;
+  let storageFailures = 0;
   const waitForStorage = async () => {
     while (!stopping) {
       try {
         await ensureWorkerTaskSchema();
-        if (dbFailures) console.log("[apex-worker] Pure-WAL storage recovered");
-        dbFailures = 0;
+        if (storageFailures) console.log("[apex-worker] Pure-WAL storage recovered");
+        storageFailures = 0;
         return true;
       } catch (error) {
-        dbFailures = Math.min(dbFailures + 1, 8);
-        const base = Math.min(dbRetryMaxMs, 1000 * 2 ** (dbFailures - 1));
+        storageFailures = Math.min(storageFailures + 1, 8);
+        const base = Math.min(storageRetryMaxMs, 1000 * 2 ** (storageFailures - 1));
         const jitter = Math.floor(Math.random() * Math.max(100, base * 0.25));
-        console.error("[apex-worker] PostgreSQL unavailable; durable work is paused:", error?.message || error);
+        console.error("[apex-worker] Pure-WAL storage unavailable; durable work is paused:", error?.message || error);
         await sleep(base + jitter);
       }
     }
