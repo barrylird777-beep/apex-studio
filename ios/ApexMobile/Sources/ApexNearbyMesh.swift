@@ -19,6 +19,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     private let stateLock = NSLock()
     private var peerIndex: [String: MCPeerID] = [:]
     private var signingKey: SymmetricKey?
+    private var isRunning = false
     private var seenNonces: [String: TimeInterval] = [:]
     private var seenMessageIDs: [String: TimeInterval] = [:]
 
@@ -47,13 +48,13 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         guard pairingSecret.utf8.count >= 32 else {
             throw NSError(domain: "ApexNearbyMesh", code: 1, userInfo: [NSLocalizedDescriptionKey: "Use a randomly generated pairing secret of at least 32 UTF-8 bytes."])
         }
+        stop()
         stateLock.lock()
         signingKey = SymmetricKey(data: Data(pairingSecret.utf8))
+        isRunning = true
         seenNonces.removeAll()
         seenMessageIDs.removeAll()
         stateLock.unlock()
-        advertiser?.stopAdvertisingPeer()
-        browser?.stopBrowsingForPeers()
         let info = ["role": "apex-nearby-node", "protocol": "1"]
         let nextAdvertiser = MCNearbyServiceAdvertiser(peer: localPeer, discoveryInfo: info, serviceType: Self.serviceType)
         let nextBrowser = MCNearbyServiceBrowser(peer: localPeer, serviceType: Self.serviceType)
@@ -72,6 +73,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         session.disconnect()
         stateLock.lock()
         signingKey = nil
+        isRunning = false
         peerIndex.removeAll()
         seenNonces.removeAll()
         seenMessageIDs.removeAll()
@@ -183,6 +185,12 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         return signingKey
     }
 
+    private func isActive() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return isRunning
+    }
+
     private func setStatus(_ value: String) {
         DispatchQueue.main.async { self.status = value }
     }
@@ -195,6 +203,10 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         DispatchQueue.main.async {
             self.nearbyPeers = nearby
             self.connectedPeers = connected
+            guard self.isActive() else {
+                self.status = "Stopped"
+                return
+            }
             self.status = connected.isEmpty ? "Searching nearby devices • carrier not required" : "Nearby mesh connected • \(connected.count) peer(s)"
         }
     }
@@ -243,7 +255,7 @@ extension ApexNearbyMesh: MCNearbyServiceBrowserDelegate {
     }
 
     public func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String : String]?) {
-        guard info?["protocol"] == "1", info?["role"] == "apex-nearby-node" else { return }
+        guard isActive(), info?["protocol"] == "1", info?["role"] == "apex-nearby-node" else { return }
         stateLock.lock()
         peerIndex[peerID.displayName] = peerID
         stateLock.unlock()
