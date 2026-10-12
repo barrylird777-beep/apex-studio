@@ -62,27 +62,18 @@ const streamReaders = new WeakMap();
 function readerFor(stream) {
   let reader = streamReaders.get(stream);
   if (reader) return reader;
-  // libp2p v3 Stream implements [Symbol.asyncIterator]() directly. Keep
-  // source-based support for the older duplex-stream shape used by adapters.
-  const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
-    ? stream.source
-    : stream && typeof stream[Symbol.asyncIterator] === 'function'
-      ? stream
-      : null;
-  if (iterable) {
-    reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
-  } else if (stream && typeof stream.addEventListener === 'function') {
-    // Some libp2p stream adapters expose message events but no iterator. Use
-    // the same buffered reader contract and explicitly resume message delivery.
+
+  // Prefer libp2p v3's message events and explicitly resume them. The
+  // async-iterator adapter remains available for older stream implementations.
+  if (stream && typeof stream.addEventListener === 'function') {
     const queue = [];
     const waiters = [];
     let ended = false;
     let closeError = null;
     const onMessage = event => {
-      const chunk = event?.data;
       const waiter = waiters.shift();
-      if (waiter) waiter.resolve({ done: false, value: chunk });
-      else queue.push(chunk);
+      if (waiter) waiter.resolve({ done: false, value: event?.data });
+      else queue.push(event?.data);
     };
     const onClose = event => {
       ended = true;
@@ -114,19 +105,28 @@ function readerFor(stream) {
     };
     stream.resume?.();
   } else {
-    const shape = {
-      type: typeof stream,
-      keys: stream && typeof stream === 'object' ? Object.keys(stream).slice(0, 20) : [],
-      send: typeof stream?.send,
-      addEventListener: typeof stream?.addEventListener,
-      asyncIterator: typeof stream?.[Symbol.asyncIterator],
-      source: typeof stream?.source,
-      nestedStream: typeof stream?.stream,
-      read: typeof stream?.read,
-      sink: typeof stream?.sink
-    };
-    throw new TypeError('unsupported sovereign peer stream read interface: ' + JSON.stringify(shape));
+    const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
+      ? stream.source
+      : stream && typeof stream[Symbol.asyncIterator] === 'function'
+        ? stream
+        : null;
+    if (!iterable) {
+      const shape = {
+        type: typeof stream,
+        keys: stream && typeof stream === 'object' ? Object.keys(stream).slice(0, 20) : [],
+        send: typeof stream?.send,
+        addEventListener: typeof stream?.addEventListener,
+        asyncIterator: typeof stream?.[Symbol.asyncIterator],
+        source: typeof stream?.source,
+        nestedStream: typeof stream?.stream,
+        read: typeof stream?.read,
+        sink: typeof stream?.sink
+      };
+      throw new TypeError('unsupported sovereign peer stream read interface: ' + JSON.stringify(shape));
+    }
+    reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
   }
+
   streamReaders.set(stream, reader);
   return reader;
 }
