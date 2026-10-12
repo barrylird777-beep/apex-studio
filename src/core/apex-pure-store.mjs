@@ -29,8 +29,14 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
+    if(this.ready)return this;
+    if(this.initPromise)return this.initPromise;
+    this.initPromise=this.initialize();
+    try{return await this.initPromise;}catch(error){this.initPromise=null;throw error;}
+  }
+  async initialize(){
     if(this.ready)return this;
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
