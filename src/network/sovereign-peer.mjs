@@ -197,7 +197,7 @@ export async function startSovereignPeer(options) {
 
 export async function sendToPeer(node, multiaddr, envelope) {
   const address = String(multiaddr || '');
-  const match = address.match(/\\/p2p\\/([^/]+)$/);
+  const match = address.match(/\/p2p\/([^/]+)$/);
   const destinationPeerId = match?.[1] || '';
   if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) {
     throw new Error('outgoing sovereign peer is not allowlisted');
