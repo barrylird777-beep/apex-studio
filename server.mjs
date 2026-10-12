@@ -1093,7 +1093,7 @@ app.get('/local-ai', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'local-ai.html'));
 });
 
-app.get(['/ko-blocks', '/ko-blocks.html'], (_req, res) => res.redirect(301, '/xshield.html'));
+app.get(['/ko-blocks', '/ko-blocks.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'ko-blocks.html')));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
