@@ -65,6 +65,7 @@ export class SovereignMeshEngine {
         await this.cas.writeRef("waves", this.key(entry.waveId), entry);
         lastSeq = entry.seq;
       }
+      await this.cas.writeRef("meta", "sequence", { next: lastSeq + 1 });
       const marker = this.migrationFile + "." + randomUUID() + ".tmp";
       await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: new Date().toISOString() }) + "\n", { flag: "wx", mode: 0o600 });
       await fs.rename(marker, this.migrationFile);
