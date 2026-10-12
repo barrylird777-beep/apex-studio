@@ -190,26 +190,33 @@ export function createKernelodiesLibraryRouter({
       await init();
       const record = (await readManifest()).tracks.find(track => track.id === id);
       if (!record) return res.status(404).json({ ok: false, error: "Track record not found" });
-      let availableBytes;
-      try { availableBytes = Number(await getAvailableBytes(root)); }
-      catch (_error) { return res.status(503).json({ ok: false, error: "Unable to verify available storage space" }); }
-      if (!Number.isFinite(availableBytes) || availableBytes < bytes.length + MIN_FREE_BYTES) {
-        return res.status(507).json({ ok: false, error: "Not enough free space; existing shared storage is protected." });
-      }
       const filename = id + "." + extension;
       const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
       const finalPath = path.join(root, filename);
       const tempPath = path.join(root, "." + filename + ".tmp-" + crypto.randomUUID());
+      // Serialize every capacity check + audio write across app processes. A
+      // check without this lock races when two uploads compete for the same disk.
+      const release = await acquireManifestLock();
       try {
-        const handle = await fs.open(tempPath, "wx", 0o600);
+        let availableBytes;
+        try { availableBytes = Number(await getAvailableBytes(root)); }
+        catch (_error) { return res.status(503).json({ ok: false, error: "Unable to verify available storage space" }); }
+        if (!Number.isFinite(availableBytes) || availableBytes < bytes.length + MIN_FREE_BYTES) {
+          return res.status(507).json({ ok: false, error: "Not enough free space; existing shared storage is protected." });
+        }
         try {
-          await handle.writeFile(bytes);
-          await handle.sync();
-        } finally { await handle.close(); }
-        await fs.link(tempPath, finalPath);
-        await syncDirectory(root);
+          const handle = await fs.open(tempPath, "wx", 0o600);
+          try {
+            await handle.writeFile(bytes);
+            await handle.sync();
+          } finally { await handle.close(); }
+          await fs.link(tempPath, finalPath);
+          await syncDirectory(root);
+        } finally {
+          await fs.unlink(tempPath).catch(() => {});
+        }
       } finally {
-        await fs.unlink(tempPath).catch(() => {});
+        await release();
       }
       await updateManifest(manifest => {
         const track = manifest.tracks.find(item => item.id === id);

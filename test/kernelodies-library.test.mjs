@@ -162,3 +162,48 @@ test("Kernelodies protects shared-storage headroom before audio writes", async (
     await fs.rm(storageDir, { recursive: true, force: true });
   }
 });
+
+
+test("Kernelodies serializes concurrent audio capacity checks across app instances", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-capacity-race-test-"));
+  let remaining = 80 * 1024 * 1024;
+  let first;
+  let second;
+  try {
+    const getAvailableBytes = async () => {
+      const observed = remaining;
+      remaining -= 50 * 1024 * 1024;
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return observed;
+    };
+    first = await startApp(storageDir, { getAvailableBytes });
+    second = await startApp(storageDir, { getAvailableBytes });
+    const headers = { "x-test-token": "test-secret", "content-type": "application/json" };
+    const create = async (runtime, title) => {
+      const response = await fetch(runtime.base + "/api/kernelodies/library", {
+        method: "POST", headers, body: JSON.stringify({ title, artist: "Test Artist" })
+      });
+      assert.equal(response.status, 201);
+      return (await response.json()).track.id;
+    };
+    const ids = await Promise.all([create(first, "Capacity Race A"), create(second, "Capacity Race B")]);
+    const upload = (runtime, id) => fetch(runtime.base + "/api/kernelodies/library/" + id + "/audio", {
+      method: "PUT",
+      headers: { "x-test-token": "test-secret", "content-type": "audio/wav" },
+      body: Buffer.from("audio")
+    });
+    const responses = await Promise.all([upload(first, ids[0]), upload(second, ids[1])]);
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 507]);
+    const listing = await (await fetch(first.base + "/api/kernelodies/library", {
+      headers: { "x-test-token": "test-secret" }
+    })).json();
+    assert.equal(listing.tracks.filter(track => track.audioUrl).length, 1);
+    const files = await fs.readdir(path.join(storageDir, "kernelodies-library"));
+    assert.equal(files.filter(name => name.endsWith(".wav")).length, 1);
+    assert.equal(files.some(name => name.includes(".tmp-")), false);
+  } finally {
+    if (first) await first.close().catch(() => {});
+    if (second) await second.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
+  }
+});
