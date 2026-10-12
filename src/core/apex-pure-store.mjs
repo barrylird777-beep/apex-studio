@@ -52,6 +52,8 @@ export class ApexPureStore {
         await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now(),token}),"utf8");
         await handle.sync();
       }catch(error){
+        // Keep an exclusively created inode lock if ENOSPC blocks metadata bytes.
+        if(error.code==="ENOSPC"&&handle){await handle.sync().catch(()=>{});break;}
         if(handle){
           // If lock creation succeeded but metadata write failed (for example ENOSPC),
           // remove only the exact inode created by this attempt before retrying.
