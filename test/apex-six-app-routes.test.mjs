@@ -38,7 +38,9 @@ test("canonical handoff uses the durable fabric dispatch payload contract", asyn
   const end = server.indexOf("app.get('/api/canon/handoff'", start);
   assert.ok(start >= 0 && end > start);
   const route = server.slice(start, end);
-  assert.match(route, /sovereignAppFabric\.dispatch\(\{\s*appId:\s*source/);
+  assert.match(route, /sovereignAppFabric\.dispatch\(\{\s*appId:\s*target/);
+  assert.match(route, /data:\s*\{\s*from:\s*source,\s*to:\s*target/);
+  assert.match(route, /sovereignAppFabric\.put\(target,\s*waveId/);
   assert.doesNotMatch(route, /sovereignAppFabric\.dispatch\(source,/);
 });
 
