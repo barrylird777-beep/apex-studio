@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import path from "node:path";
+import { RemoteCasObjectBackend } from "./remote-cas-object-backend.mjs";
 
 const canonical = value => JSON.stringify(value);
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -22,6 +23,7 @@ export class ContentAddressedStore {
     this.objects = path.join(this.root, "objects", "sha256");
     this.refs = path.join(this.root, "refs");
     this.lockTimeoutMs = 180000;
+    this.remoteObjects = new RemoteCasObjectBackend();
   }
 
   async init() {
@@ -64,6 +66,10 @@ export class ContentAddressedStore {
     await this.init();
     const bytes = canonical(value);
     const digest = hash(bytes);
+    if (this.remoteObjects.enabled) {
+      await this.remoteObjects.put(digest, bytes);
+      return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "object-storage" };
+    }
     const file = this.objectPath(digest);
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     try {
@@ -78,11 +84,18 @@ export class ContentAddressedStore {
         if (hash(existing) !== digest) throw new Error("Object integrity mismatch after concurrent write");
       }
     }
-    return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest };
+    return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "local" };
   }
 
   async getObject(digest) {
     await this.init();
+    if (this.remoteObjects.enabled) {
+      const remoteBytes = await this.remoteObjects.get(digest);
+      if (remoteBytes !== null) {
+        if (hash(remoteBytes) !== digest) throw new Error("Remote object integrity verification failed: " + digest);
+        return JSON.parse(remoteBytes);
+      }
+    }
     const bytes = await readFile(this.objectPath(digest), "utf8");
     if (hash(bytes) !== digest) throw new Error("Object integrity verification failed: " + digest);
     return JSON.parse(bytes);
