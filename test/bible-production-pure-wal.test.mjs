@@ -95,7 +95,7 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
 test("KernelVision production pages contain syntactically valid inline JavaScript",async()=>{
   for(const filename of ["public/index.html","public/production.html","public/rapid-video.html"]){
     const html=await readFile(new URL("../"+filename,import.meta.url),"utf8");
-    const scripts=[...html.matchAll(/<script\b[^>]*>([\s\\S]*?)<\/script>/gi)].map(match=>match[1]).filter(script=>script.trim());
+    const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(match=>match[1]).filter(script=>script.trim());
     assert.ok(scripts.length>0,filename+" should contain its expected application script");
     scripts.forEach((script,index)=>new vm.Script(script,{filename:filename+"#script-"+index}));
   }
