@@ -311,7 +311,9 @@ export async function sendToPeer(node, multiaddr, envelope) {
       stream = await node.dialProtocol(target, PROTOCOL, {
         signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
       });
-      const responsePromise = readSovereignEnvelope(stream, { resume: false });
+      // Resume an open libp2p v3 stream so its message events flow. readerFor safely
+      // skips closed streams and catches the close race if status changes after this check.
+      const responsePromise = readSovereignEnvelope(stream);
       const [, response] = await Promise.all([
         sendSovereignEnvelope(stream, envelope),
         responsePromise
