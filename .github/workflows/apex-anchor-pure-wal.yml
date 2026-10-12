@@ -44,6 +44,12 @@ jobs:
           node --check src/network/sovereign-peer.mjs
           node --check src/core/autonomy/locked-continuous-loop.mjs
           node --check scripts/run-tests-with-diagnostics.mjs
+          node --check scripts/smoke-kernelvision-episode.mjs
+          node --check src/api/bible-production.mjs
+          node --check src/core/storage.mjs
+          node --check src/core/mastering.mjs
+          node --check src/video/assemble.mjs
+          node --check src/video/episode-pipeline.mjs
       - name: Verify six-app identity and handoff contract
         run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs
       - name: Verify isolated Pure-WAL app namespaces and dispatch queue
@@ -60,3 +66,5 @@ jobs:
         run: node --test test/sovereign-peer-security.test.mjs
       - name: Verify honest network-path policy
         run: node --test test/network-status.test.mjs test/network-throughput.test.mjs
+      - name: Verify KernelVision Pure-WAL production and 24 fps export
+        run: node --test test/bible-production-pure-wal.test.mjs test/episode-pipeline.test.mjs test/storage-scenes.test.mjs test/mastering-fallback.test.mjs
