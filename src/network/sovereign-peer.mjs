@@ -69,8 +69,53 @@ function readerFor(stream) {
     : stream && typeof stream[Symbol.asyncIterator] === 'function'
       ? stream
       : null;
-  if (!iterable) throw new TypeError('unsupported sovereign peer stream read interface');
-  reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
+  if (iterable) {
+    reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
+  } else if (stream && typeof stream.addEventListener === 'function') {
+    // Some libp2p stream adapters expose message events but no iterator. Use
+    // the same buffered reader contract and explicitly resume message delivery.
+    const queue = [];
+    const waiters = [];
+    let ended = false;
+    let closeError = null;
+    const onMessage = event => {
+      const chunk = event?.data;
+      const waiter = waiters.shift();
+      if (waiter) waiter({ done: false, value: chunk });
+      else queue.push(chunk);
+    };
+    const onClose = event => {
+      ended = true;
+      closeError = event?.error || null;
+      while (waiters.length) {
+        const waiter = waiters.shift();
+        if (closeError) waiter(Promise.reject(closeError));
+        else waiter({ done: true });
+      }
+    };
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
+    reader = {
+      iterator: {
+        next: () => {
+          if (queue.length) return Promise.resolve({ done: false, value: queue.shift() });
+          if (ended) return closeError ? Promise.reject(closeError) : Promise.resolve({ done: true });
+          return new Promise(resolve => waiters.push(resolve));
+        }
+      },
+      decoder: new TextDecoder(),
+      text: '',
+      bytesRead: 0,
+      pending: null,
+      cleanup: () => {
+        stream.removeEventListener?.('message', onMessage);
+        stream.removeEventListener?.('close', onClose);
+      }
+    };
+    stream.resume?.();
+  } else {
+    throw new TypeError('unsupported sovereign peer stream read interface');
+  }
   streamReaders.set(stream, reader);
   return reader;
 }
