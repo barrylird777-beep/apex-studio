@@ -18,7 +18,7 @@ test("sovereign envelope reader preserves a second envelope from the same stream
   const { readSovereignEnvelope } = await import("../src/network/sovereign-peer.mjs");
   const stream = {
     source: (async function* () {
-      yield new TextEncoder().encode('{"type":"request"}\\n{"accepted":true}\\n');
+      yield new TextEncoder().encode('{"type":"request"}\n{"accepted":true}\n');
     })()
   };
   assert.deepEqual(await readSovereignEnvelope(stream), { type: "request" });
@@ -28,7 +28,7 @@ test("sovereign envelope reader preserves a second envelope from the same stream
 test("sovereign envelope reader supports the libp2p v3 async-iterator stream", async () => {
   const stream = {
     async *[Symbol.asyncIterator]() {
-      yield new TextEncoder().encode('{"accepted":true}\\n');
+      yield new TextEncoder().encode('{"accepted":true}\n');
     }
   };
   assert.deepEqual(await readSovereignEnvelope(stream), { accepted: true });
@@ -41,7 +41,7 @@ test("sovereign envelope reader resumes event-based streams", async () => {
     removeEventListener(type) { listeners.delete(type); },
     resume() {
       queueMicrotask(() => listeners.get("message")?.({
-        data: new TextEncoder().encode('{"accepted":true}\\n')
+        data: new TextEncoder().encode('{"accepted":true}\n')
       }));
     }
   };
