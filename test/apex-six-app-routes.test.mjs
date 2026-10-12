@@ -80,5 +80,6 @@ test("local AI service worker cannot replace the phone shell worker", async () =
   assert.match(phone, /serviceWorker\.register\(["']\/sw\.js["']/);
   assert.match(localAi, /serviceWorker\.register\(["']\/local-ai-sw\.js["'],\s*\{\s*scope:\s*["']\/local-ai["']\s*\}\)/);
   assert.match(localAiWorker, /const PAGE = ["']\/local-ai["']/);
+  assert.match(localAi, /controller\?\.scriptURL\.endsWith\(["']\/local-ai-sw\.js["']\)/, "offline readiness must verify the local AI worker actually controls the page");
   assert.match(server, /Service-Worker-Allowed', '\/local-ai'/);
 });
