@@ -15,8 +15,8 @@ async function syncDirectory(dir){const fh=await open(dir,"r");try{await fh.sync
 function expectedHash(record){const {hash,...body}=record;return sha(body);}
 
 export class ApexRingWAL {
-  constructor({file=FILE,ringSize=RING_SIZE,lockTimeoutMs=65000,staleLockMs=60000}={}){
-    this.file=path.resolve(file);this.lockFile=this.file+".lock";this.ringSize=ringSize;this.lockTimeoutMs=lockTimeoutMs;this.staleLockMs=staleLockMs;
+  constructor({file=FILE,ringSize=RING_SIZE,lockTimeoutMs=65000,staleLockMs=60000,maxBytes=Number(process.env.APEX_WAL_MAX_BYTES||50*1024*1024)}={}){
+    this.file=path.resolve(file);this.maxBytes=Number(maxBytes);if(!Number.isSafeInteger(this.maxBytes)||this.maxBytes<=0)throw new TypeError("maxBytes must be a positive safe integer");this.lockFile=this.file+".lock";this.ringSize=ringSize;this.lockTimeoutMs=lockTimeoutMs;this.staleLockMs=staleLockMs;
     this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.offset=0;this.lastExternalRecords=[];this.ready=false;
   }
   _reset(){this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(this.ringSize);this.head=0;this.count=0;this.offset=0;}
@@ -104,6 +104,8 @@ export class ApexRingWAL {
         const record={version:1,id:randomUUID(),seq:this.seq+1,ts:new Date().toISOString(),type:String(type),payload,meta,prevHash:this.lastHash};
         record.hash=sha(record);
         const line=JSON.stringify(record)+"\n";
+        const incomingBytes=Buffer.byteLength(line,"utf8");
+        if(this.offset+incomingBytes>this.maxBytes){const error=new Error(`WAL_CAPACITY_EXCEEDED: ${this.offset}+${incomingBytes} exceeds ${this.maxBytes} bytes`);error.code="WAL_CAPACITY_EXCEEDED";error.currentBytes=this.offset;error.incomingBytes=incomingBytes;error.maxBytes=this.maxBytes;throw error;}
         const fh=await open(this.file,"a",0o600);
         try{await fh.writeFile(line,"utf8");await fh.sync();}finally{await fh.close();}
         await syncDirectory(path.dirname(this.file));
@@ -136,7 +138,7 @@ export const apexRingWAL=new ApexRingWAL();
 
 /** Compatibility facade: the complete hash chain is retained; compact never truncates it. */
 export function createRingWal({file=FILE,maxBytes=50*1024*1024}={}){
-  const wal=new ApexRingWAL({file});
+  const wal=new ApexRingWAL({file,maxBytes});
   async function append(type,payload={}){const record=await wal.append(type,payload);return {...record,at:record.ts};}
   async function readAll(){const records=[];await wal.replay({onRecord:record=>{records.push({...record,at:record.ts});}});return records;}
   async function compact(){return (await readAll()).length;}
