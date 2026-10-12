@@ -24,7 +24,7 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
 
   async function nextId(kind) {
     return withLock(async () => {
-      const current = await getRecord(SEQUENCE_ID) || { recordType: "schedule-sequences", project: 0, scene: 0, shootDay: 0 };
+      const current = await getRecord(SEQUENCE_ID) || { recordType: "schedule-sequences", project: 0, scene: 0, shootDay: 0, character: 0 };
       const next = Math.max(0, Number(current[kind]) || 0) + 1;
       await putRecord(SEQUENCE_ID, { ...current, recordType: "schedule-sequences", [kind]: next });
       return next;
@@ -236,6 +236,8 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
     const idProject = Number(projectId);
     if (!await getProject(idProject)) return null;
     const date = text(shootDate);
+    const parsedDate = new Date(date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) throw fail("shootDate must be a valid YYYY-MM-DD date");
     if ((await listDays(idProject)).some(day => day.shootDate === date)) throw fail("A shoot day already exists for this project and date", 409, "DUPLICATE_DATE");
     const id = await nextId("shootDay");
     const record = { recordType: "schedule-day", shootDayId: id, projectId: idProject, shootDate: date, callTime: text(callTime) || null, notes: String(notes || ""), unit: "1st Unit" };
@@ -341,6 +343,8 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   return {
     listProjects, createProject, getProjectOverview, updateProject, deleteProject,
     listScenes, createScene, updateScene, deleteScene,
+    listShootDays: listDays, getShootDay: async id => { const day = await getDay(id); return day ? dayView(day) : null; },
+    listAssignments,
     getCalendar, createShootDay, deleteShootDay, assignScenes, reorderDay, unassignScene, runAutoSchedule
   };
 }
