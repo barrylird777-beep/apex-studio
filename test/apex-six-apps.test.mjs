@@ -18,7 +18,7 @@ test("Apex exposes the six locked canonical apps",()=>{
 });
 test("all canonical registry entries point to real surfaces and modules",async()=>{
   for(const app of Object.values(APEX_APPS)){
-    await access(resolve(process.cwd(),"public",app.entry.slice(1)));
+    await access(resolve(process.cwd(),"public",app.entry === "/" ? "index.html" : app.entry.slice(1)));
     await access(resolve(process.cwd(),"src/apps",app.module.replace("../apps/","")));
   }
 });
