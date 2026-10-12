@@ -95,3 +95,22 @@ test("store startup defers full hydration but reads existing CAS records correct
     assert.equal(found.value, 42, "a read must hydrate the requested store state");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("concurrent store initialization performs legacy migration once", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-single-init-"));
+  try {
+    const wal = new ApexRingWAL({ file: path.join(root, "wal", "legacy.jsonl") });
+    await wal.append("state.put", { collection: "kash-korner", id: "legacy-opportunity", record: { value: 7 } });
+    let replayCalls = 0;
+    const replay = wal.replay.bind(wal);
+    wal.replay = async options => {
+      replayCalls += 1;
+      await new Promise(resolve => setTimeout(resolve, 25));
+      return replay(options);
+    };
+    const store = new ApexPureStore({ root, wal });
+    await Promise.all([store.init(), store.init(), store.init()]);
+    assert.equal(replayCalls, 1, "concurrent callers must share the same migration promise");
+    assert.equal((await store.get("kash-korner", "legacy-opportunity")).value, 7);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
