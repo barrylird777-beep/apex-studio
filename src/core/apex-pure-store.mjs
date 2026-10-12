@@ -157,7 +157,7 @@ export class ApexPureStore {
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
     return this.withMutationLock(async()=>{
-      await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
+      await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
       let patch={updatedAt:new Date().toISOString()};
       if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
