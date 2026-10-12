@@ -274,18 +274,18 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function assignScenes(shootDayId, sceneIds) {
-    const day = await getDay(shootDayId);
-    if (!day) throw fail("Shoot day not found", 404, "NOT_FOUND");
     if (!Array.isArray(sceneIds)) throw fail("sceneIds must be an array");
     const ids = [...new Set(sceneIds.map(Number))];
-    const scenes = [];
-    for (const id of ids) {
-      if (!Number.isInteger(id)) throw fail("sceneIds must contain integer ids");
-      const scene = await getScene(id);
-      if (!scene || scene.projectId !== day.projectId) throw fail("All scenes must belong to the same project as the shoot day", 400, "PROJECT_SCOPE");
-      scenes.push(scene);
-    }
+    if (ids.some(id => !Number.isInteger(id))) throw fail("sceneIds must contain integer ids");
     return withLock(async () => {
+      const day = await getDay(shootDayId);
+      if (!day) throw fail("Shoot day not found", 404, "NOT_FOUND");
+      const scenes = [];
+      for (const id of ids) {
+        const scene = await getScene(id);
+        if (!scene || scene.projectId !== day.projectId) throw fail("All scenes must belong to the same project as the shoot day", 400, "PROJECT_SCOPE");
+        scenes.push(scene);
+      }
       const assignments = await listAssignments(day.projectId);
       const currentDay = assignments.filter(item => item.shootDayId === day.shootDayId && !ids.includes(item.sceneId));
       const otherDays = assignments.filter(item => item.shootDayId !== day.shootDayId && !ids.includes(item.sceneId));
