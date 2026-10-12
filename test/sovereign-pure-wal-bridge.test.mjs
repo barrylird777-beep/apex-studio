@@ -124,7 +124,7 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
     assert.equal(result.acknowledged.status, 'ACKNOWLEDGED');
     const ack = await store.get('sovereign_peer_acks', 'payload-wave-1');
     assert.equal(ack.peerId, 'remote-peer');
-    assert.equal(ack.checksum, sent.envelope.checksum);
+    assert.equal(ack.checksum, sent[0].envelope.checksum);
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
     else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
