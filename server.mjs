@@ -1293,7 +1293,7 @@ app.get('/api/episodes/:episodeId/:artifactId/download', requireControlPlaneAuth
 });
 
 // Titan-protected mutation surfaces are mounted explicitly at the route boundary.
-app.use('/api/bible-production', async (req, res, next) => {
+app.use('/api/bible-production', requireControlPlaneAuth, async (req, res, next) => {
   try {
     const { default: router } = await import('./src/api/bible-production.mjs');
     return router(req, res, next);
