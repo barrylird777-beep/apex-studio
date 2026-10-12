@@ -42,7 +42,7 @@ test("outgoing sovereign transport accepts an explicitly allowlisted peer", asyn
     const response = await sendToPeer({
       async dialProtocol(address) {
         dialed = true;
-        assert.match(address, /\/p2p\/allowed-peer$/);
+        assert.match(String(address), /\/p2p\/allowed-peer$/);
         return fakeStream;
       }
     }, "/ip4/127.0.0.1/tcp/1234/p2p/allowed-peer", { type: "test" });
