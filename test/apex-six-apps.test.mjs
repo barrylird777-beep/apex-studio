@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
 import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
+import { xshieldStatus, classifyXShieldRequest } from "../src/apps/xshield.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
@@ -36,6 +37,9 @@ test("KoBlocks composes reusable blocks and rejects invalid execution graphs",()
   const cyclic=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"},{from:"target",to:"source",port:"out"}]);
   assert.equal(validateKoBlockGraph(cyclic).reason,"cycle");
   assert.equal(koBlocksStatus().app.name,"KoBlocks");
+  assert.equal(typeof koBlocksStatus().networkProtection.dns,"object");
+  assert.equal(xshieldStatus().app.name,"XShield");
+  assert.equal(classifyXShieldRequest("https://example.com").action,"allow");
 });
 test("KernelVision creates Theatre and Kornmax viewing sessions",()=>{
   const item=createTheatreItem({id:"film-1",title:"Finished Work"}),session=createViewingSession({item});
@@ -57,6 +61,7 @@ test("KoinKob clears a market and supports systemic events",()=>{
   assert.equal(settled.accounts.find(account=>account.workerId==="buyer").inventory.service,1);
   const round=runAdversarialRound({workers:[buyer,seller],orders,events:[createSystemicEvent({type:"demand-spike"})]});
   assert.equal(round.workerCount,2); assert.equal(koinKobStatus().app.name,"KoinKob");
+  assert.match(koinKobStatus().role,/autonomous economy/i);
   const world=buildWorkerEconomy({workerCount:2000});
   assert.equal(world.workerCount,2000);
   const simulation=runWorkerEconomySimulation({workerCount:2000,events:[createSystemicEvent({type:"infrastructure-breakdown",severity:.8})]});
