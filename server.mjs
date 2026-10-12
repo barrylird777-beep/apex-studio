@@ -3374,7 +3374,7 @@ app.post('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async 
   }
 });
 
-app.get('/api/engine-apex/chat-runtime/status', async (_req, res) => {
+app.get('/api/engine-apex/chat-runtime/status', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
     const snapshot = await getChatRuntimeState('default');
