@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
 import crypto from 'node:crypto';
 
-import { access, readFile, unlink } from 'node:fs/promises';
+import { access, readFile, unlink, realpath, stat } from 'node:fs/promises';
 import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
@@ -1222,6 +1222,39 @@ app.post('/api/episodes/produce', requireControlPlaneAuth, async (req, res) => {
       code: code || 'KERNELVISION_PRODUCTION_FAILED',
       error: status < 500 ? String(error?.message || 'Episode request failed') : 'Episode production failed; inspect server logs using the request timestamp.'
     });
+  }
+});
+
+app.get('/api/episodes/:episodeId/:artifactId/download', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const episodeId = String(req.params.episodeId || '');
+    const artifactId = String(req.params.artifactId || '');
+    const safeId = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,100}$/;
+    if (!safeId.test(episodeId) || episodeId.includes('..') || !safeId.test(artifactId) || artifactId.includes('..')) {
+      return res.status(400).json({ success: false, error: 'Invalid episode artifact reference' });
+    }
+    const stored = await sovereignAppFabric.get('kernel-vision', 'episode-' + episodeId + '-' + artifactId);
+    const artifact = stored?.record;
+    if (!artifact || artifact.status !== 'ready' || !artifact.output?.path) {
+      return res.status(404).json({ success: false, error: 'Verified episode export not found' });
+    }
+    const mediaRoot = await realpath(path.resolve(process.env.APEX_KERNELVISION_MEDIA_ROOT || STORAGE_DIR));
+    const target = path.resolve(mediaRoot, artifact.output.path);
+    const relative = path.relative(mediaRoot, target);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+      return res.status(400).json({ success: false, error: 'Episode artifact path is outside managed storage' });
+    }
+    const actual = await realpath(target);
+    const actualRelative = path.relative(mediaRoot, actual);
+    if (!actualRelative || actualRelative === '..' || actualRelative.startsWith('..' + path.sep) || path.isAbsolute(actualRelative)) {
+      return res.status(400).json({ success: false, error: 'Episode artifact path is outside managed storage' });
+    }
+    const info = await stat(actual);
+    if (!info.isFile()) return res.status(404).json({ success: false, error: 'Episode export file not found' });
+    return res.download(actual, episodeId + '.mp4');
+  } catch (error) {
+    console.error('[kernelvision-episode-download] failed:', error?.message || error);
+    return res.status(500).json({ success: false, error: 'Unable to retrieve the episode export' });
   }
 });
 
