@@ -1,5 +1,6 @@
 import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
 
@@ -46,14 +47,19 @@ export class ApexPureStore {
     while(true){
       try{
         const handle=await open(lockFile,"wx",0o600);
-        try{await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now()}),"utf8");await handle.sync();}
+        try{await handle.writeFile(JSON.stringify({pid:process.pid,host:os.hostname(),createdAt:Date.now()})+"\\n","utf8");await handle.sync();}
         catch(error){await handle.close().catch(()=>{});await unlink(lockFile).catch(()=>{});throw error;}
         await handle.close();
         break;
       }catch(error){
         if(error.code!=="EEXIST")throw error;
+        let owner;
+        try{owner=JSON.parse(await readFile(lockFile,"utf8"));}catch(e){if(e.code==="ENOENT")continue;}
         let stale=false;
-        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>60000;}catch(e){if(e.code==="ENOENT")continue;throw e;}
+        if(owner?.host===os.hostname()&&Number.isSafeInteger(owner.pid)&&owner.pid>0){
+          try{process.kill(owner.pid,0);}catch(e){stale=e.code==="ESRCH";}
+        }
+        // Age alone cannot prove a lock owner is dead. Unknown/corrupt/remote locks fail closed.
         if(stale){await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});continue;}
         if(Date.now()-started>65000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
         await sleep(20+Math.floor(Math.random()*31));
