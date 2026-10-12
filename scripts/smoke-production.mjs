@@ -103,7 +103,7 @@ try {
     'x-apex-shortcut-token': 'apex-smoke-token'
   });
   if (sovereignStatus.status !== 200 || sovereignStatus.json?.success !== true ||
-      sovereignStatus.json?.storage !== 'local-pure-wal' ||
+      sovereignStatus.json?.storage !== 'content-addressed' ||
       sovereignStatus.json?.canonicalAppCount !== canonicalAppIds.length ||
       sovereignStatus.json?.durableStoreReady !== true) {
     throw new Error(`six-app sovereign storage smoke failed: ${sovereignStatus.body}`);
@@ -118,7 +118,7 @@ try {
     });
     const saved = await savedResponse.json();
     if (savedResponse.status !== 200 || saved.success !== true ||
-        saved.durable !== true || saved.storage !== 'local-pure-wal' ||
+        saved.durable !== true || saved.storage !== 'content-addressed' ||
         saved.record?.marker !== payload.marker) {
       throw new Error(`${expectedName} durable save smoke failed: ${JSON.stringify(saved)}`);
     }
