@@ -22,12 +22,44 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # This disposable database exists only for legacy TypeScript scheduling compatibility tests.
+    # Production API/worker persistence remains Pure-WAL/Ring-WAL.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: apex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d apex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/apex_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install FFmpeg for audio/render regression tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Wait for disposable compatibility database
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h 127.0.0.1 -p 5432 -U postgres -d apex_test; then exit 0; fi
+            sleep 2
+          done
+          echo "Temporary compatibility database did not become ready" >&2
+          exit 1
+      - name: Prepare legacy compatibility schema
+        run: npm run db:migrate
       - name: Run Apex Anchor test suite
         run: npm test
