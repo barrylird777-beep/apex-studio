@@ -58,3 +58,25 @@ test("remote WAL persists and verifies its hash chain across reinitialization wi
     await rm(parent, { recursive: true, force: true });
   }
 });
+
+
+test("remote WAL repairs a stale head after a crash between record and head writes", async () => {
+  const cas = new MemoryCAS();
+  const first = new RemoteApexRingWAL({ cas, scope: "remote-wal-recovery", ringSize: 8 });
+  await first.append("state.put", { id: "committed-before-crash", value: 1 });
+  const head = await cas.readRef("system", first.headKey);
+  await cas.deleteRef("system", first.headKey, { expectedHash: head.hash });
+
+  const restarted = new RemoteApexRingWAL({ cas, scope: "remote-wal-recovery", ringSize: 8 });
+  assert.equal(await restarted.replay(), 1, "valid immutable records survive a missing head");
+  const second = await restarted.append("state.put", { id: "after-recovery", value: 2 });
+  assert.equal(second.seq, 2);
+  const recoveredHead = await cas.readRef("system", restarted.headKey);
+  assert.equal(recoveredHead.value.seq, 2);
+  assert.equal(recoveredHead.value.lastHash, second.hash);
+
+  const verified = new RemoteApexRingWAL({ cas, scope: "remote-wal-recovery", ringSize: 8 });
+  const records = [];
+  assert.equal(await verified.replay({ onRecord: record => records.push(record) }), 2);
+  assert.deepEqual(records.map(record => record.payload.id), ["committed-before-crash", "after-recovery"]);
+});
