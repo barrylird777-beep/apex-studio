@@ -154,6 +154,8 @@ export class ApexPureStore {
     await this.withRemoteLock(lockKey,async()=>{
       if(await this.cas.readRef("system",markerKey))return;
       for(const namespace of ["state","jobs"]){
+        try{await stat(path.join(this.localCas.refs,namespace));}
+        catch(error){if(error.code==="ENOENT")continue;throw error;}
         for(const ref of await this.localCas.listRefs(namespace)){
           const current=await this.cas.readRef(namespace,ref.key);
           if(!current)await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
