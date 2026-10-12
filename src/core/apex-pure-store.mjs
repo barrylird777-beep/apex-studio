@@ -120,7 +120,7 @@ export class ApexPureStore {
     try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
     return true;
   }
-  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null}={}){
+  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
     const run=()=>this.withMutationLock(async()=>{
       await this.refresh();
@@ -129,7 +129,7 @@ export class ApexPureStore {
         const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&statuses.includes(j.status));
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
-      const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
+      const job={id:String(id),type:String(type),payload:clone(payload),priority:Number(priority)||0,status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
       const r=await this.wal.append("job.enqueue",{id:job.id,job});
       for(const external of r.externalRecords||[])this.apply(external);
       this.apply(r);
