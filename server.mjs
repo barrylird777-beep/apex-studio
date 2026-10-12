@@ -2016,7 +2016,8 @@ app.post('/api/audio', async (req, res) => {
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!buffer.length) throw new Error('TTS provider returned an empty audio file');
     if (sceneId) {
-      const savedScene = await saveSceneAsset(sceneId, 'audio', buffer, 'wav');
+      const estimatedDurationMs = Math.min(600000, Math.max(1000, Math.ceil(text.split(/\\s+/).filter(Boolean).length / 2.5 * 1000)));
+      const savedScene = await saveSceneAsset(sceneId, 'audio', buffer, 'wav', { durationMs: estimatedDurationMs });
       return res.json({
         success: true,
         sceneId,
@@ -2151,7 +2152,7 @@ async function renderFreeMotionVideoFromStill(prompt, sceneId, duration, aspectR
     ], { maxBuffer: 8 * 1024 * 1024 });
     const videoBuffer = await readFile(outputPath);
     if (!videoBuffer.length) throw new Error('Local FFmpeg motion render produced an empty video');
-    const saved = await saveSceneAsset(sceneId, 'video', videoBuffer, 'mp4');
+    const saved = await saveSceneAsset(sceneId, 'video', videoBuffer, 'mp4', { durationMs: duration * 1000 });
     return {
       success: true,
       sceneId,
@@ -2206,7 +2207,7 @@ app.post('/api/media/video', async (req, res) => {
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!buffer.length) throw new Error('Pollinations returned an empty video response');
 
-    const savedScene = await saveSceneAsset(sceneId, 'video', buffer, 'mp4');
+    const savedScene = await saveSceneAsset(sceneId, 'video', buffer, 'mp4', { durationMs: duration * 1000 });
     return res.json({
       success: true,
       sceneId,
