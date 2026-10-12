@@ -65,6 +65,11 @@ try {
     throw new Error(`detailed health endpoint did not report status=ok; last response: ${detailedHealth.body}`);
   }
 
+  const emptySearch = await getJson('/api/search');
+  if (emptySearch.status !== 400 || emptySearch.json?.success !== false) {
+    throw new Error(`Special Search route validation smoke failed: ${emptySearch.body}`);
+  }
+
   const readiness = await getJson('/api/apex/readiness');
   const expectedApps = ['PlanetApeX', 'KoBlocks', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies'];
   const actualApps = readiness.json?.canonicalApps?.map(app => app.name);
