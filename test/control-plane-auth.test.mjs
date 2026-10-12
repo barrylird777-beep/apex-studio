@@ -103,6 +103,7 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["get", "/api/project"],
     ["get", "/api/engine-apex/chat-runtime/state"],
     ["get", "/api/engine-apex/chat-runtime/events"],
+    ["get", "/api/engine-apex/chat-runtime/status"],
     ["get", "/api/engine-apex/snapshot"]
   ];
   for (const [method, route] of protectedRoutes) {
