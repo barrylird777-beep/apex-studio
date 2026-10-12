@@ -82,7 +82,7 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
       dedupeKey
     });
     const status=result.status||"queued";
-    return {accepted:true,durable:true,queued:["queued","running"].includes(status),duplicate:Boolean(result.duplicate),peerPending:status!=="completed",appId:app,waveId,jobId:String(result.id),status};
+    return {accepted:true,durable:true,queued:["queued","running"].includes(status),duplicate:Boolean(result.duplicate),peerPending:true,appId:app,waveId,jobId:String(result.id),status};
   }
   return {init,status,put,get,list,dispatch,apps:()=>APP_LIST.map(clone)};
 }
