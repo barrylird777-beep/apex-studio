@@ -10,7 +10,11 @@ export class RemoteCasObjectBackend {
     this.prefix = text(env.APEX_CAS_OBJECT_PREFIX) || "apex-cas/objects/sha256";
     if (!this.enabled) return;
     this.bucket = bucket;
-    this.client = new S3Client({ endpoint, region: text(env.APEX_OBJECT_STORAGE_REGION) || "auto", forcePathStyle: text(env.APEX_OBJECT_STORAGE_URL_STYLE) === "path", credentials: { accessKeyId, secretAccessKey } });
+    this.requestTimeoutMs = Math.max(1000, Number(env.APEX_OBJECT_STORAGE_TIMEOUT_MS || 10000));
+    this.client = new S3Client({ endpoint, region: text(env.APEX_OBJECT_STORAGE_REGION) || "auto", forcePathStyle: text(env.APEX_OBJECT_STORAGE_URL_STYLE) === "path", maxAttempts: 1, credentials: { accessKeyId, secretAccessKey } });
+  }
+  async send(command) {
+    return this.client.send(command, { abortSignal: AbortSignal.timeout(this.requestTimeoutMs) });
   }
   key(digest) {
     if (!/^[a-f0-9]{64}$/.test(String(digest))) throw new Error("Invalid SHA-256 object id");
@@ -18,7 +22,7 @@ export class RemoteCasObjectBackend {
   }
   async put(digest, bytes) {
     if (!this.enabled) return false;
-    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: this.key(digest), Body: bytes, ContentLength: Buffer.byteLength(bytes), ContentType: "application/json", Metadata: { sha256: digest } }));
+    await this.send(new PutObjectCommand({ Bucket: this.bucket, Key: this.key(digest), Body: bytes, ContentLength: Buffer.byteLength(bytes), ContentType: "application/json", Metadata: { sha256: digest } }));
     return true;
   }
   refKey(namespace, key) {
@@ -33,7 +37,7 @@ export class RemoteCasObjectBackend {
   async getRef(namespace, key) {
     if (!this.enabled) return null;
     try {
-      const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.refKey(namespace, key) }));
+      const response = await this.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.refKey(namespace, key) }));
       if (!response.Body) throw new Error("Remote CAS manifest response has no body");
       return await response.Body.transformToString("utf-8");
     } catch (error) {
@@ -46,7 +50,7 @@ export class RemoteCasObjectBackend {
   async putRef(namespace, key, textValue) {
     if (!this.enabled) return false;
     const body = String(textValue);
-    await this.client.send(new PutObjectCommand({
+    await this.send(new PutObjectCommand({
       Bucket: this.bucket, Key: this.refKey(namespace, key), Body: body,
       ContentLength: Buffer.byteLength(body), ContentType: "application/json"
     }));
@@ -54,7 +58,7 @@ export class RemoteCasObjectBackend {
   }
   async deleteRef(namespace, key) {
     if (!this.enabled) return false;
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.refKey(namespace, key) }));
+    await this.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.refKey(namespace, key) }));
     return true;
   }
   async listRefs(namespace) {
@@ -63,7 +67,7 @@ export class RemoteCasObjectBackend {
     const keys = [];
     let ContinuationToken;
     do {
-      const response = await this.client.send(new ListObjectsV2Command({
+      const response = await this.send(new ListObjectsV2Command({
         Bucket: this.bucket, Prefix: prefix, ContinuationToken
       }));
       for (const item of response.Contents || []) {
@@ -77,7 +81,7 @@ export class RemoteCasObjectBackend {
   async get(digest) {
     if (!this.enabled) return null;
     try {
-      const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.key(digest) }));
+      const response = await this.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.key(digest) }));
       if (!response.Body) throw new Error("Remote CAS object response has no body");
       return await response.Body.transformToString("utf-8");
     } catch (error) {
