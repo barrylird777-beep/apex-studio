@@ -238,6 +238,39 @@ app.post('/api/internal/store/list', requireWorkerAuth, async (req, res) => {
   }
 });
 
+app.post('/api/internal/store/query', requireWorkerAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const filters = req.body?.filters && typeof req.body.filters === 'object' && !Array.isArray(req.body.filters) ? req.body.filters : {};
+    const allowedFilterFields = new Set(['id','episodeId','episode_id','episodeCode','episode_code','assetType','asset_type','state','status']);
+    const entries = Object.entries(filters).slice(0, 5);
+    if (!validTeeVeeStoreCollection(collection) || entries.some(([key, value]) => !allowedFilterFields.has(key) || !['string','number','boolean'].includes(typeof value))) {
+      return res.status(400).json({ success: false, error: 'Invalid store query' });
+    }
+    const sortField = String(req.body?.sortField || '');
+    const allowedSortFields = new Set(['id','version','createdAt','updatedAt','episodeCode','episode_code']);
+    if (sortField && !allowedSortFields.has(sortField)) return res.status(400).json({ success: false, error: 'Invalid sort field' });
+    const descending = req.body?.descending === true;
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(req.body?.limit) || 100)));
+    const records = await apexPureStore.query(collection,
+      record => entries.every(([key, value]) => record?.[key] === value),
+      {
+        limit,
+        ...(sortField ? { sort: (a, b) => {
+          const left = a?.[sortField], right = b?.[sortField];
+          const order = typeof left === 'number' && typeof right === 'number'
+            ? left - right
+            : String(left ?? '').localeCompare(String(right ?? ''));
+          return descending ? -order : order;
+        } } : {})
+      }
+    );
+    return res.json({ success: true, records });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
 app.post('/api/internal/store/put', requireWorkerAuth, async (req, res) => {
   try {
     const collection = String(req.body?.collection || '');
