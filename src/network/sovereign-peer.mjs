@@ -63,18 +63,33 @@ function readerFor(stream) {
   let reader = streamReaders.get(stream);
   if (reader) return reader;
 
-  // Prefer libp2p v3's message events and explicitly resume them. The
-  // async-iterator adapter remains available for older stream implementations.
-  if (stream && typeof stream.addEventListener === 'function') {
+  // Prefer the stream's own async iterator when available. Some libp2p
+  // transports emit message events for diagnostics but don't reliably feed
+  // the same chunks to that event adapter under concurrent bidirectional use.
+  const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
+    ? stream.source
+    : stream && typeof stream[Symbol.asyncIterator] === 'function'
+      ? stream
+      : null;
+
+  if (iterable) {
+    reader = {
+      iterator: iterable[Symbol.asyncIterator](),
+      decoder: new TextDecoder(),
+      text: '',
+      bytesRead: 0,
+      pending: null,
+      cleanup: () => {}
+    };
+  } else if (stream && typeof stream.addEventListener === 'function') {
     const queue = [];
     const waiters = [];
     let ended = false;
     let closeError = null;
     const onMessage = event => {
-      const chunk = event?.data;
       const waiter = waiters.shift();
-      if (waiter) waiter.resolve({ done: false, value: chunk });
-      else queue.push(chunk);
+      if (waiter) waiter.resolve({ done: false, value: event?.data });
+      else queue.push(event?.data);
     };
     const onClose = event => {
       ended = true;
@@ -106,15 +121,7 @@ function readerFor(stream) {
     };
     stream.resume?.();
   } else {
-    const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
-      ? stream.source
-      : stream && typeof stream[Symbol.asyncIterator] === 'function'
-        ? stream
-        : null;
-    if (!iterable) {
-      throw new TypeError('unsupported sovereign peer stream read interface');
-    }
-    reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
+    throw new TypeError('unsupported sovereign peer stream read interface');
   }
 
   streamReaders.set(stream, reader);
