@@ -45,8 +45,8 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         guard pairingSecret.utf8.count >= 32 else {
             throw NSError(domain: "ApexNearbyMesh", code: 1, userInfo: [NSLocalizedDescriptionKey: "Use a randomly generated pairing secret of at least 32 UTF-8 bytes."])
         }
-        signingKey = SymmetricKey(data: Data(pairingSecret.utf8))
         stateLock.lock()
+        signingKey = SymmetricKey(data: Data(pairingSecret.utf8))
         seenNonces.removeAll()
         stateLock.unlock()
         advertiser?.stopAdvertisingPeer()
@@ -67,9 +67,10 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         advertiser?.stopAdvertisingPeer()
         browser?.stopBrowsingForPeers()
         session.disconnect()
-        signingKey = nil
         stateLock.lock()
+        signingKey = nil
         peerIndex.removeAll()
+        seenNonces.removeAll()
         stateLock.unlock()
         DispatchQueue.main.async {
             self.nearbyPeers = []
@@ -90,7 +91,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     }
 
     public func send(_ message: String) throws {
-        guard signingKey != nil else {
+        guard let key = keySnapshot() else {
             throw NSError(domain: "ApexNearbyMesh", code: 2, userInfo: [NSLocalizedDescriptionKey: "Start nearby mesh with a shared pairing secret first."])
         }
         guard !session.connectedPeers.isEmpty else {
@@ -100,7 +101,6 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         guard body.count <= 16_384 else {
             throw NSError(domain: "ApexNearbyMesh", code: 4, userInfo: [NSLocalizedDescriptionKey: "Nearby message exceeds the 16 KiB safety limit."])
         }
-        let key = signingKey!
         let timestamp = String(Int(Date().timeIntervalSince1970))
         let nonce = UUID().uuidString
         let payload = body.base64EncodedString()
@@ -116,6 +116,12 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         let encoded = try JSONSerialization.data(withJSONObject: packet, options: [.sortedKeys])
         try session.send(encoded, toPeers: session.connectedPeers, with: .reliable)
         DispatchQueue.main.async { self.lastMessage = "Sent authenticated message to \(self.session.connectedPeers.count) peer(s)." }
+    }
+
+    private func keySnapshot() -> SymmetricKey? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return signingKey
     }
 
     private func setStatus(_ value: String) {
@@ -135,7 +141,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     }
 
     private func verify(_ data: Data) -> String? {
-        guard let key = signingKey,
+        guard let key = keySnapshot(),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
               object["version"] == "1",
               let timestampText = object["timestamp"],
@@ -164,7 +170,7 @@ extension ApexNearbyMesh: MCNearbyServiceAdvertiserDelegate {
     }
 
     public func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        invitationHandler(signingKey != nil && context == Data("apex-fabric-v1".utf8), session)
+        invitationHandler(keySnapshot() != nil && context == Data("apex-fabric-v1".utf8), session)
     }
 }
 
@@ -206,6 +212,6 @@ extension ApexNearbyMesh: MCSessionDelegate {
     public func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
     public func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
     public func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) {
-        certificateHandler(signingKey != nil)
+        certificateHandler(keySnapshot() != nil)
     }
 }
