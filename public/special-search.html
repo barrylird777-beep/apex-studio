@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080b12">
+<title>Special Search · KernelVision</title>
+<style>
+:root{color-scheme:dark;--bg:#080b12;--panel:#111827;--panel2:#0c1220;--line:#27364a;--ink:#f2f6ff;--muted:#aab7cb;--blue:#8abaff;--violet:#b9a0ff;--ok:#9ce7c4;--warn:#ffd38b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 12% 0%,#17284a 0,transparent 42%),radial-gradient(ellipse at 95% 15%,#2a1d45 0,transparent 35%),var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1040px;margin:auto;padding:24px 16px 48px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.eyebrow{color:var(--blue);font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.links{color:var(--muted);font-size:13px}.links a{color:var(--blue);text-decoration:none;margin-right:10px}
+h1{font-size:clamp(34px,7vw,58px);line-height:1.04;letter-spacing:-.04em;margin:18px 0 10px}.lead{max-width:760px;color:var(--muted);margin:0 0 22px}
+.panel{border:1px solid var(--line);border-radius:20px;padding:18px;background:linear-gradient(145deg,rgba(19,28,44,.95),rgba(10,15,25,.97));box-shadow:0 18px 50px rgba(0,0,0,.2)}
+.search-row{display:grid;grid-template-columns:1fr auto;gap:10px}input,button{font:inherit;border-radius:12px;border:1px solid #35445b;background:#0b1220;color:var(--ink);padding:13px 14px;min-width:0}button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4;font-weight:750;cursor:pointer}button:disabled{opacity:.45;cursor:default}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.filters button{width:auto;padding:7px 12px;font-size:13px}.filters button[aria-pressed=true]{border-color:var(--blue);background:#18304b}
+.status{color:var(--muted);font-size:13px;white-space:pre-wrap;margin:10px 0}.provider-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.provider{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.provider.ok{color:var(--ok);border-color:#315d50}.provider.bad{color:var(--warn);border-color:#66532f}
+.results{display:grid;gap:10px;margin-top:14px}.result{border:1px solid var(--line);border-radius:14px;padding:14px;background:rgba(9,14,23,.7)}.result h2{font-size:17px;line-height:1.35;margin:0 0 7px}.result h2 a{color:var(--blue);text-decoration:none;overflow-wrap:anywhere}.result p{margin:0;color:#d5dfef;font-size:14px;overflow-wrap:anywhere}.meta{font-size:12px;color:var(--muted);margin-top:8px}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}.notice{font-size:12px;color:var(--muted);margin-top:16px}
+@media(max-width:560px){main{padding:18px 12px 36px}.panel{padding:13px}.search-row{grid-template-columns:1fr}.search-row button{width:100%}.pager button{width:auto}}
+</style>
+</head>
+<body><main>
+<header class="top"><div class="eyebrow">KernelVision · Special Search / SE-X</div><nav class="links"><a href="/">PlanetApeX</a><a href="/kernel-vision.html">KernelVision</a><a href="/phone.html">Phone Control</a></nav></header>
+<h1>Search beyond one source.</h1>
+<p class="lead">Federated discovery across public web results, Wikipedia, OpenAlex, Crossref, and arXiv. Results keep their source links; unavailable providers are reported instead of silently hidden.</p>
+<section class="panel" aria-label="Federated search">
+<form id="search-form" class="search-row">
+<input id="query" name="q" type="search" maxlength="512" autocomplete="off" placeholder="Search anything: a Bible passage, technology, history, music, research…" aria-label="Search query" required>
+<button id="submit" type="submit">Search</button>
+</form>
+<div class="filters" role="group" aria-label="Filter results by source type">
+<button type="button" data-filter="all" aria-pressed="true">All results</button>
+<button type="button" data-filter="web" aria-pressed="false">Public web</button>
+<button type="button" data-filter="encyclopedia" aria-pressed="false">Encyclopedia</button>
+<button type="button" data-filter="research" aria-pressed="false">Research papers</button>
+</div>
+<div id="status" class="status" role="status" aria-live="polite">Ready. Search results depend on provider availability and public access limits.</div>
+<div id="providers" class="provider-row" aria-label="Provider status"></div>
+<div id="results" class="results"></div>
+<div class="pager"><button id="previous" type="button" disabled>← Previous</button><span id="page-label" class="status">Page 1</span><button id="next" type="button" disabled>Next →</button></div>
+<p class="notice">Search is broad and extensible, not literally unlimited: public providers may rate-limit requests, some pages require access, and private or paywalled material is not bypassed. A result is a lead, not automatic verification.</p>
+</section>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const state = { page: 1, filter: "all", results: [], providers: [], query: "", loading: false };
+function showProviders() {
+  const box = $("providers");
+  box.replaceChildren();
+  for (const provider of state.providers) {
+    const chip = document.createElement("span");
+    chip.className = "provider " + (provider.ok ? "ok" : "bad");
+    chip.textContent = provider.source + ": " + (provider.ok ? provider.resultCount + " results" : "unavailable");
+    chip.title = provider.ok ? "Provider responded" : String(provider.error || "Provider failed");
+    box.append(chip);
+  }
+}
+function showResults() {
+  const box = $("results");
+  box.replaceChildren();
+  const filtered = state.results.filter(item => state.filter === "all" || item.category === state.filter);
+  if (!filtered.length) {
+    const empty = document.createElement("p");
+    empty.className = "status";
+    empty.textContent = state.results.length ? "No results match this filter." : "No results returned for this page. A provider may be unavailable or have no matches.";
+    box.append(empty);
+  }
+  for (const item of filtered) {
+    const card = document.createElement("article");
+    card.className = "result";
+    const heading = document.createElement("h2");
+    const link = document.createElement("a");
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = item.title || item.url;
+    heading.append(link);
+    const snippet = document.createElement("p");
+    snippet.textContent = item.snippet || "No snippet supplied by this source.";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = [item.source, item.category, item.published].filter(Boolean).join(" · ");
+    card.append(heading, snippet, meta);
+    box.append(card);
+  }
+  $("page-label").textContent = "Page " + state.page;
+  $("previous").disabled = state.loading || state.page <= 1;
+  $("next").disabled = state.loading || state.page >= 100 || state.results.length === 0;
+}
+async function runSearch(page = 1) {
+  const query = $("query").value.trim();
+  if (!query) return;
+  state.query = query;
+  state.page = page;
+  state.loading = true;
+  state.results = [];
+  state.providers = [];
+  $("submit").disabled = true;
+  $("status").textContent = "Searching public and scholarly sources…";
+  $("results").replaceChildren();
+  $("providers").replaceChildren();
+  showResults();
+  try {
+    const params = new URLSearchParams({ q: query, limit: "50", page: String(page) });
+    const response = await fetch("/api/search?" + params.toString(), { headers: { accept: "application/json" } });
+    const data = await response.json();
+    state.results = Array.isArray(data.results) ? data.results : [];
+    state.providers = Array.isArray(data.providers) ? data.providers : [];
+    if (!response.ok && !data.providers) throw new Error(data.error || "Search failed (" + response.status + ")");
+    const failed = state.providers.filter(provider => !provider.ok).length;
+    $("status").textContent = data.resultCount + " results · " + (data.partial ? "partial results; " + failed + " provider(s) unavailable" : "all providers responded") + " · retrieved " + new Date(data.retrievedAt).toLocaleTimeString();
+    if (!data.success) $("status").textContent = "Search providers did not return results. Check provider status below and try again.";
+    showProviders();
+  } catch (error) {
+    state.results = [];
+    state.providers = [];
+    $("status").textContent = error.message || "Search failed.";
+  } finally {
+    state.loading = false;
+    $("submit").disabled = false;
+    showProviders();
+    showResults();
+  }
+}
+$("search-form").addEventListener("submit", event => { event.preventDefault(); runSearch(1); });
+$("previous").addEventListener("click", () => runSearch(Math.max(1, state.page - 1)));
+$("next").addEventListener("click", () => runSearch(Math.min(100, state.page + 1)));
+document.querySelectorAll("[data-filter]").forEach(button => button.addEventListener("click", () => {
+  state.filter = button.dataset.filter;
+  document.querySelectorAll("[data-filter]").forEach(other => other.setAttribute("aria-pressed", String(other === button)));
+  showResults();
+}));
+</script>
+</body></html>
