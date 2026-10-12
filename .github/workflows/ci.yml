@@ -73,6 +73,8 @@ jobs:
       - run: npm run db:migrate
       - run: npm run build
       - run: npm run smoke:production
+      - run: npm run check:canonical
+      - run: npm run smoke:kernelvision-episode
       - run: npm test
       - run: npm run apex:release-audit
       - run: npm run verify:migrations
