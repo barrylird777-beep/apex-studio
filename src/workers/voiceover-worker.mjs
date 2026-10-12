@@ -43,6 +43,11 @@ export async function enqueueVoiceoverJob(input = {}, options = {}) {
 
 async function synth(job) {
   const p = voiceoverPayload(job.payload || {});
+  if (!p.voice) {
+    const voices = await listVoiceOptions();
+    p.voice = voices.find(item => item.engine === "espeak-ng" || item.engine === "espeak")?.id || "";
+  }
+  if (!p.voice) throw new Error("No installed local TTS engine found; install Piper/eSpeak-ng or configure a supported provider");
   await fs.mkdir(OUT_DIR, { recursive: true, mode: 0o700 });
   const result = await synthesizeSpeech({ ...p, outputDir: OUT_DIR });
   const info = await fs.stat(result.path);
