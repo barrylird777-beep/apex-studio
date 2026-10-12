@@ -23,6 +23,15 @@ async function bodyText(body) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function bodyBytes(body) {
+  if (!body) throw new Error("Remote CAS returned an empty object body");
+  if (Buffer.isBuffer(body) || body instanceof Uint8Array) return Buffer.from(body);
+  if (typeof body.transformToByteArray === "function") return Buffer.from(await body.transformToByteArray());
+  const chunks = [];
+  for await (const chunk of body) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
 /**
  * S3-compatible content-addressed store. Objects are immutable SHA-256 blobs;
  * refs are small manifests updated with conditional S3 writes. No local lock
@@ -50,6 +59,10 @@ export class RemoteContentAddressedStore {
     if (!/^[a-f0-9]{64}$/.test(String(digest))) throw new Error("Invalid SHA-256 object id");
     return `${this.prefix}/objects/sha256/${digest.slice(0, 2)}/${digest}.json`;
   }
+  blobObjectKey(digest) {
+    if (!/^[a-f0-9]{64}$/.test(String(digest))) throw new Error("Invalid SHA-256 blob id");
+    return `${this.prefix}/objects/sha256/${digest.slice(0, 2)}/${digest}.blob`;
+  }
   refKey(namespace, key) { return `${this.prefix}/refs/${safe(namespace)}/${safe(key)}.json`; }
   async init() { return this; }
   async putObject(value) {
@@ -71,6 +84,28 @@ export class RemoteContentAddressedStore {
     const bytes = await bodyText(result.Body);
     if (hash(bytes) !== digest) throw new Error("Remote object integrity verification failed: " + digest);
     return JSON.parse(bytes);
+  }
+  async putBlob(value, { contentType = "application/octet-stream" } = {}) {
+    const bytes = Buffer.isBuffer(value) ? Buffer.from(value) : Buffer.from(value ?? "");
+    const digest = hash(bytes);
+    const key = this.blobObjectKey(digest);
+    try {
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.bucket, Key: key, Body: bytes, ContentType: contentType,
+        Metadata: { "sha256": digest }, IfNoneMatch: "*"
+      }));
+    } catch (error) {
+      if (!conflict(error)) throw error;
+      const existing = await this.getBlob(digest);
+      if (!existing.bytes.equals(bytes)) throw new Error("Remote blob integrity mismatch");
+    }
+    return { hash: digest, bytes: bytes.length, uri: "cas+blob://sha256/" + digest, contentType };
+  }
+  async getBlob(digest) {
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.blobObjectKey(digest) }));
+    const bytes = await bodyBytes(result.Body);
+    if (hash(bytes) !== digest) throw new Error("Remote blob integrity verification failed: " + digest);
+    return { hash: digest, bytes, contentType: String(result.ContentType || "application/octet-stream") };
   }
   async readManifest(namespace, key) {
     try {
