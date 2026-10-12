@@ -14,9 +14,7 @@
     if (
       path.startsWith("/api/internal/") ||
       path === "/api/rapid/stripe/webhook" ||
-      path === "/api/kash-korner/opportunities" ||
-      path === "/api/kernelodies/library" ||
-      path.startsWith("/api/kernelodies/library/")
+      path === "/api/kash-korner/opportunities"
     ) return nativeFetch(input, init);
 
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
