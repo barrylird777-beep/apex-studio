@@ -171,6 +171,14 @@ try {
     throw new Error('KoinKob Pure-WAL bulk write overwrote an existing record');
   }
 
+
+  const publicOpportunityFeed = await fetch(`http://127.0.0.1:${port}/api/koin-kob/opportunities?limit=10`);
+  const publicOpportunityBody = await publicOpportunityFeed.json();
+  if (publicOpportunityFeed.status !== 200 || publicOpportunityBody.success !== true ||
+      publicOpportunityBody.storage !== 'pure-wal' || !publicOpportunityBody.items?.some(item => item.id === 'smoke-opportunity')) {
+    throw new Error(`KoinKob public Pure-WAL opportunity feed failed: ${JSON.stringify(publicOpportunityBody)}`);
+  }
+
   const invalidOpportunityCollection = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/put`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
