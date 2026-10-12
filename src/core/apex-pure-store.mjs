@@ -152,7 +152,16 @@ export class ApexPureStore {
           }});
           await flushMigrationBatch();
         }
-        try{await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});}
+        if(this.cas.remoteRefsEnabled){
+          for(const namespace of ["state","jobs"]){
+            const refs=await this.cas.listRefs(namespace);
+            await runBatched(refs,16,async ref=>{
+              const remote=await this.cas.remoteObjects.getRef(namespace,ref.key);
+              if(remote===null)await this.cas.writeRef(namespace,ref.key,ref.value);
+            });
+          }
+        }
+        try{await this.atomic(this.migrationFile,{version:1,storage:this.cas.remoteRefsEnabled?"remote-content-addressed":"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});}
         catch(error){if(error.code!=="ENOSPC")throw error;}
       }
       this.ready=true;
