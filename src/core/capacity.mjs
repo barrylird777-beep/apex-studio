@@ -34,7 +34,7 @@ export function capacitySnapshot(){
     distributedStorageConfigured,
     objectStoreConfigured:Boolean(CAPACITY.objectStore),
     notes:[
-      "Apex durable application state uses Pure-WAL/Ring-WAL; SQL and SQLite are not selected backends.",
+      "Apex app state and durable worker tasks use immutable content-addressed objects and atomic manifests; SQL and WAL are not selected for that store.",
       "Local durability does not by itself prove cross-device replication or public peer connectivity.",
       "External mesh readiness requires a verified peer identity, allowlist, bootstrap peers, and public peer address.",
       "Resource ceilings are deployment/runtime constraints, not product entitlements.",
