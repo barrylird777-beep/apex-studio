@@ -103,6 +103,7 @@ export class ContentAddressedStore {
   }
 
   async withRefLock(file, operation) {
+    await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const lock = file + ".lock";
     const started = Date.now();
     let handle;
