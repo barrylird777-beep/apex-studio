@@ -34,4 +34,4 @@ npm start
 
 ## Current implementation note
 
-This repository contains the shared implementation surfaces for the six-app layer. A live Railway service does not by itself prove every feature works. The active recovery work is correcting the canonical registry, retiring broken PostgreSQL-backed worker execution in favor of Pure-WAL, and verifying secure peer transport and app-to-app flows before release.
+This repository contains the shared implementation surfaces for the six-app layer. A live Railway service does not by itself prove every feature works. The active recovery work is correcting the canonical registry, retiring PostgreSQL-backed worker execution in favor of content-addressed storage, and verifying secure peer transport and app-to-app flows before release.
