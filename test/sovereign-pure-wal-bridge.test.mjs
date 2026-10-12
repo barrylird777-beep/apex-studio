@@ -222,3 +222,43 @@ test('legacy mesh migration preserves the sequence counter without continuing WA
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('bridge leaves a wave unacknowledged when peer replica readback fails', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-peer-readback-fail-'));
+  const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
+  const previousRequirePeer = process.env.APEX_REQUIRE_PEER_ACK;
+  process.env.APEX_SOVEREIGN_PEER_ID = 'origin-peer';
+  delete process.env.APEX_REQUIRE_PEER_ACK;
+  try {
+    const store = new ApexPureStore({
+      root: path.join(dir, 'projects'),
+      wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
+    });
+    const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+    await store.init();
+    await engine.ready();
+    const bridge = createSovereignDurableBridge({
+      engine,
+      store,
+      workerId: 'readback-fail-test',
+      peerNode: {},
+      peerAddress: '/ip4/127.0.0.1/tcp/9000/p2p/remote-peer',
+      sendPeer: async (_node, _address, envelope) => envelope.type === 'durable.accept'
+        ? { accepted: true, peerId: 'remote-peer' }
+        : { accepted: true, peerId: 'remote-peer', replica: null }
+    });
+
+    await assert.rejects(
+      bridge.dispatch({ waveId: 'readback-fail-wave', action: 'app.publish', payload: { appId: 'planet-apex', data: { private: true } } }),
+      /failed verified replica read-back/
+    );
+    assert.equal(engine.get('readback-fail-wave').status, 'DISPATCHED');
+    assert.equal(await store.get('sovereign_peer_acks', 'readback-fail-wave'), null);
+  } finally {
+    if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
+    else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
+    if (previousRequirePeer === undefined) delete process.env.APEX_REQUIRE_PEER_ACK;
+    else process.env.APEX_REQUIRE_PEER_ACK = previousRequirePeer;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
