@@ -9,6 +9,7 @@ import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.m
 import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
 import { retryWalStartup } from './wal-startup-retry.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
+import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
@@ -79,6 +80,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
     action: 'PeerReceive',
     payload: { originWaveId: receiptId, sourcePeerId: remotePeerId, sourceChecksum: envelope.checksum }
   });
+  await acknowledgeLocalPeerReceive(engine, localWaveId, remotePeerId);
   return true;
 }
 
@@ -163,6 +165,7 @@ async function publishRuntimeIdentity(status = 'online') {
 
 async function runCycle(activeBridge) {
   await publishRuntimeIdentity('online');
+  await acknowledgePendingLocalPeerReceives(engine);
   const queued = await drainSovereignAppDispatchQueue({
     store: apexPureStore,
     engine,
