@@ -25,9 +25,6 @@ export function createRemotePureStore() {
     async get(collection, id) {
       return (await request("/api/internal/store/get", { collection, id: String(id) })).record || null;
     },
-    async list(collection) {
-      return (await request("/api/internal/store/list", { collection })).records || [];
-    },
     async put(collection, id, record) {
       return (await request("/api/internal/store/put", { collection, id: String(id), record })).record;
     },
