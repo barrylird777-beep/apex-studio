@@ -15,7 +15,8 @@ const child = spawn(process.execPath, ['server.mjs'], {
     APEX_SE_X_ROOT: smokeRoot,
     APEX_PROJECTS_DIR: path.join(smokeRoot, 'projects'),
     APEX_WAL_DIR: path.join(smokeRoot, 'wal'),
-    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl')
+    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl'),
+    APEX_OPPORTUNITY_ENGINE_TOKEN: 'test-opportunity-engine-token'
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -104,7 +105,60 @@ try {
     throw new Error(`KoBlocks cycle rejection smoke failed: ${JSON.stringify(cyclicGraph)}`);
   }
 
-  console.log('production server smoke: PASS (health, six canonical apps, KoBlocks valid/cyclic graph validation verified)');
+
+  const unauthenticatedStoreWrite = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/put`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ collection: 'koin_kob_opportunities', id: 'smoke-opportunity', record: { kind: 'arbitrage' } })
+  });
+  if (unauthenticatedStoreWrite.status !== 401) {
+    throw new Error(`Opportunity store accepted an unauthenticated write: HTTP ${unauthenticatedStoreWrite.status}`);
+  }
+
+  const opportunityWrite = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/put`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
+    body: JSON.stringify({
+      collection: 'koin_kob_opportunities',
+      id: 'smoke-opportunity',
+      record: { fingerprint: 'smoke-fingerprint', kind: 'arbitrage', estimated_net_profit_usd: 42.25, observed_at: '2026-10-12T00:00:00.000Z' }
+    })
+  });
+  const writtenOpportunity = await opportunityWrite.json();
+  if (opportunityWrite.status !== 200 || writtenOpportunity.success !== true || writtenOpportunity.record?.id !== 'smoke-opportunity') {
+    throw new Error(`KoinKob sovereign opportunity write failed: ${JSON.stringify(writtenOpportunity)}`);
+  }
+
+  const opportunityQuery = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/query`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
+    body: JSON.stringify({ collection: 'koin_kob_opportunities', filters: { kind: 'arbitrage' }, sortField: 'estimated_net_profit_usd', descending: true, limit: 5 })
+  });
+  const queriedOpportunities = await opportunityQuery.json();
+  if (opportunityQuery.status !== 200 || queriedOpportunities.success !== true || queriedOpportunities.records?.[0]?.id !== 'smoke-opportunity') {
+    throw new Error(`KoinKob sovereign opportunity query failed: ${JSON.stringify(queriedOpportunities)}`);
+  }
+
+  const opportunityGet = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/get`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
+    body: JSON.stringify({ collection: 'koin_kob_opportunities', id: 'smoke-opportunity' })
+  });
+  const fetchedOpportunity = await opportunityGet.json();
+  if (opportunityGet.status !== 200 || fetchedOpportunity.success !== true || fetchedOpportunity.record?.fingerprint !== 'smoke-fingerprint') {
+    throw new Error(`KoinKob sovereign opportunity get failed: ${JSON.stringify(fetchedOpportunity)}`);
+  }
+
+  const invalidOpportunityCollection = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/put`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
+    body: JSON.stringify({ collection: 'teevee_episodes', id: 'must-not-write', record: { kind: 'arbitrage' } })
+  });
+  if (invalidOpportunityCollection.status !== 400) {
+    throw new Error(`Opportunity store accepted a non-KoinKob collection: HTTP ${invalidOpportunityCollection.status}`);
+  }
+
+  console.log('production server smoke: PASS (health, six canonical apps, KoBlocks graph validation, authenticated KoinKob Pure-WAL store verified)');
 } finally {
   child.kill('SIGTERM');
   await Promise.race([
