@@ -1439,7 +1439,7 @@ app.use('/api/mobile', createMobileControlPlane({
   },
   generateAi: payload => generateUnifiedAi(payload),
   produceEpisode: async (book, chapter, verses, requestId, contentDomain = "bible") => {
-    if (!durableWorkerEnabled()) throw new Error('Durable PostgreSQL worker fabric is unavailable');
+    if (!durableWorkerEnabled()) throw new Error('Sovereign Pure-WAL worker fabric is unavailable');
     const id = crypto.randomUUID();
     const result = await enqueueWorkerTask({
       id,
@@ -1456,7 +1456,7 @@ app.use('/api/mobile', createMobileControlPlane({
       jobId: result.id,
       status: 'queued',
       durable: true,
-      controlPlane: 'postgresql-worker-fabric'
+      controlPlane: 'sovereign-pure-wal-worker-fabric'
     };
   }
 }));
