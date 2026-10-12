@@ -33,7 +33,8 @@ export function sovereignRecordChecksum(record) {
   return createHash('sha256').update(body).digest('hex');
 }
 
-export function verifySovereignRecord(record) {\n  return Boolean(record && typeof record === 'object' && typeof record.checksum === 'string' && sovereignRecordChecksum(record) === record.checksum);\n}\n\nexport class SovereignMeshEngine {
+export function verifySovereignRecord(record) {
+  return Boolean(record && typeof record === 'object' && typeof record.checksum === 'string' && sovereignRecordChecksum(record) === record.checksum);\n}\n\nexport class SovereignMeshEngine {
   constructor(storageDir = DEFAULT_STORAGE_DIR) {
     this.storageDir = path.resolve(storageDir);
     this.walFilePath = path.join(this.storageDir, 'apex-ring-wal.ndjson');
