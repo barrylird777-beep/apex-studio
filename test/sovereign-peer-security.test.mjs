@@ -146,7 +146,7 @@ test("outgoing peer ACK reader does not resume a stream that may be closing", as
     },
     send() {
       queueMicrotask(() => listeners.get("message")?.({
-        data: new TextEncoder().encode('{"accepted":true,"peerId":"allowed-peer"}\\n')
+        data: new TextEncoder().encode('{"accepted":true,"peerId":"allowed-peer"}\n')
       }));
       return true;
     },
