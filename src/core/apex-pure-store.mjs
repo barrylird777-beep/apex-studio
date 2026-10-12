@@ -303,7 +303,8 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    await this.checkedFile(collection,id,{createDir:true});
+    // Validate path segments without creating redundant per-collection directories.
+    await this.checkedFile(collection,id);
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     await this.persistState(collection,id,value);
     this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
