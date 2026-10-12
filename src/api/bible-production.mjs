@@ -165,7 +165,7 @@ async function resolveProjectId(value) {
   return String((await defaultProject()).id);
 }
 async function seedCharacters() {
-  const existing = await listType('character');
+  const existing = (await sovereignAppFabric.list(APP)).filter(item => item.record?.recordType === 'character').map(item => item.record);
   const names = new Set(existing.map(row => String(row.canonicalName || '').toLowerCase()));
   for (const seed of BIBLE_CHARACTER_SEEDS) {
     const canonicalName = clean(seed.canonicalName, 180);
@@ -468,7 +468,7 @@ async function makeCallSheet(body={}, forcedId=null) {
   });
 }
 router.post('/call-sheets/from-scenes', async (req,res) => {
-  try {const ids=arr(req.body?.sceneIds);if(!ids.length)return res.status(400).json({error:'sceneIds is required'});const existing=[];for(const id of ids){const scene=await getType('scene',id);if(scene)existing.push(scene);}if(!existing.length)return res.status(404).json({error:'No linked scenes found'});res.status(201).json(callSheetOut(await makeCallSheet(req.body||{})));}
+  try {const ids=arr(req.body?.sceneIds);if(!ids.length)return res.status(400).json({error:'sceneIds is required'});const existing=[];for(const id of ids){const scene=await getType('scene',id);if(scene)existing.push(scene);}if(!existing.length)return res.status(404).json({error:'No linked scenes found'});if(existing.length!==ids.length)return res.status(400).json({error:'One or more linked scenes were not found'});res.status(201).json(callSheetOut(await makeCallSheet(req.body||{})));}
   catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
 });
 router.post('/call-sheets', async (req,res) => {
