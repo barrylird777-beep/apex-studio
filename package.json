@@ -72,7 +72,8 @@
     "@libp2p/noise": "^17.0.3",
     "@libp2p/ping": "^3.1.13",
     "@libp2p/tcp": "^11.0.28",
-    "@libp2p/yamux": "^8.0.3"
+    "@libp2p/yamux": "^8.0.3",
+    "@multiformats/multiaddr": "^13.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
