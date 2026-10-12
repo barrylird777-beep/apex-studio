@@ -20,7 +20,7 @@ function stableJson(value) {
   return JSON.stringify(normalize(value));
 }
 
-function checksum(record) {
+export function sovereignRecordChecksum(record) {
   const body = stableJson({
     seq: record.seq,
     waveId: record.waveId,
@@ -33,7 +33,7 @@ function checksum(record) {
   return createHash('sha256').update(body).digest('hex');
 }
 
-export class SovereignMeshEngine {
+export function verifySovereignRecord(record) {\n  return Boolean(record && typeof record === 'object' && typeof record.checksum === 'string' && sovereignRecordChecksum(record) === record.checksum);\n}\n\nexport class SovereignMeshEngine {
   constructor(storageDir = DEFAULT_STORAGE_DIR) {
     this.storageDir = path.resolve(storageDir);
     this.walFilePath = path.join(this.storageDir, 'apex-ring-wal.ndjson');
@@ -83,7 +83,7 @@ export class SovereignMeshEngine {
         throw new Error(`WAL recovery failed at line ${index + 1}: incomplete record`);
       }
 
-      if (checksum(entry) !== entry.checksum) {
+      if (sovereignRecordChecksum(entry) !== entry.checksum) {
         throw new Error(`WAL recovery failed at line ${index + 1}: checksum mismatch`);
       }
 
@@ -121,7 +121,7 @@ export class SovereignMeshEngine {
       payload
     };
 
-    record.checksum = checksum(record);
+    record.checksum = sovereignRecordChecksum(record);
 
     // Serialize writers in-process and recover the chain after a failed write.
     const write = this._writeTail.catch(() => {}).then(() => this._appendDurably(record));
