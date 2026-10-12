@@ -107,7 +107,7 @@ test('replicated peer events retain the verified source record across restart', 
 
     const recovered = new SovereignMeshEngine(dir);
     await recovered.ready();
-    assert.deepEqual(recovered.get('peer-origin-wave-41').payload.sourceRecord, sourceRecord);
+    assert.deepEqual(recovered.get('peer-origin-wave-41').payload.payload.sourceRecord, sourceRecord);
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
     else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
