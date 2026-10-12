@@ -34,7 +34,10 @@ export function sovereignRecordChecksum(record) {
 }
 
 export function verifySovereignRecord(record) {
-  return Boolean(record && typeof record === 'object' && typeof record.checksum === 'string' && sovereignRecordChecksum(record) === record.checksum);\n}\n\nexport class SovereignMeshEngine {
+  return Boolean(record && typeof record === 'object' && typeof record.checksum === 'string' && sovereignRecordChecksum(record) === record.checksum);
+}
+
+export class SovereignMeshEngine {
   constructor(storageDir = DEFAULT_STORAGE_DIR) {
     this.storageDir = path.resolve(storageDir);
     this.walFilePath = path.join(this.storageDir, 'apex-ring-wal.ndjson');
@@ -155,7 +158,7 @@ export function verifySovereignRecord(record) {
         acceptance
       }
     };
-    record.checksum = checksum(record);
+    record.checksum = sovereignRecordChecksum(record);
 
     const write = this._writeTail.catch(() => {}).then(() => this._appendDurably(record));
     this._writeTail = write.catch((error) => {
