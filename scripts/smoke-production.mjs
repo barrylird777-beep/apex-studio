@@ -37,13 +37,18 @@ try {
     if (child.exitCode !== null) throw new Error(`server exited with ${child.exitCode}\n${output}`);
     try {
       health = await getJson('/health');
-      if (health.status === 200 && health.json?.status === 'ok') break;
+      if (health.status === 200 && health.json?.status === 'alive') break;
     } catch {}
     await sleep(250);
   }
 
-  if (health?.status !== 200 || health.json?.status !== 'ok') {
-    throw new Error(`health endpoint did not report status=ok; last response: ${health?.body || 'no response'}\n${output}`);
+  if (health?.status !== 200 || health.json?.status !== 'alive') {
+    throw new Error(`liveness endpoint did not report status=alive; last response: ${health?.body || 'no response'}\n${output}`);
+  }
+
+  const detailedHealth = await getJson('/api/health');
+  if (detailedHealth.status !== 200 || detailedHealth.json?.status !== 'ok') {
+    throw new Error(`detailed health endpoint did not report status=ok; last response: ${detailedHealth.body}`);
   }
 
   const readiness = await getJson('/api/apex/readiness');
@@ -58,7 +63,7 @@ try {
     throw new Error(`canonical app readiness check failed; response: ${readiness.body}`);
   }
 
-  console.log('production server smoke: PASS (health status=ok; six canonical apps verified)');
+  console.log('production server smoke: PASS (liveness=alive; detailed health=ok; six canonical apps verified)');
 } finally {
   child.kill('SIGTERM');
   await Promise.race([
