@@ -274,8 +274,11 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
-      const accepted = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
-      await sendSovereignEnvelope(stream, { accepted: Boolean(accepted), peerId: node.peerId.toString() });
+      const outcome = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
+      const response = outcome && typeof outcome === 'object' && !Array.isArray(outcome)
+        ? { ...outcome, peerId: node.peerId.toString() }
+        : { accepted: Boolean(outcome), peerId: node.peerId.toString() };
+      await sendSovereignEnvelope(stream, response);
     } catch (error) {
       console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({
         error: error instanceof Error ? error.message : String(error),
