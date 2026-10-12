@@ -180,11 +180,18 @@ async function seedCharacters() {
     names.add(canonicalName.toLowerCase());
   }
 }
-function openLegacySqlite(sqlite3, filename) {
-  return new Promise((resolve, reject) => {
-    let db;
-    db = new sqlite3.Database(filename, sqlite3.OPEN_READONLY, error => error ? reject(error) : resolve(db));
-  });
+function openLegacySqlite(DatabaseSync, filename) {
+  const database = new DatabaseSync(filename, { readOnly: true });
+  return {
+    all(sql, callback) {
+      try { callback(null, database.prepare(sql).all()); }
+      catch (error) { callback(error); }
+    },
+    close(callback) {
+      try { database.close(); callback?.(); }
+      catch (error) { callback?.(error); }
+    }
+  };
 }
 function readLegacyTable(db, table) {
   return new Promise((resolve, reject) => db.all('SELECT * FROM ' + table, (error, rows) => error ? reject(error) : resolve(rows || [])));
@@ -213,9 +220,8 @@ async function migrateLegacySqliteIfPresent() {
   let db;
   try {
     const sourceHashBefore = await hashFile(legacyDbFile);
-    const sqliteModule = await import('sqlite3');
-    const sqlite3 = sqliteModule.default || sqliteModule;
-    db = await openLegacySqlite(sqlite3, legacyDbFile);
+    const { DatabaseSync } = await import('node:sqlite');
+    db = openLegacySqlite(DatabaseSync, legacyDbFile);
     const tables = {};
     const availableTables = await readLegacyTableNames(db);
     for (const name of ['projects','characters','scenes','shoot_days','scene_shoot_days','call_sheets','budget_items','script_notes']) {
