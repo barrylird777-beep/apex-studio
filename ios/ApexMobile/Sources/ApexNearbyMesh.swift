@@ -34,7 +34,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         session.disconnect()
     }
 
-    /// Use the same strong, privately exchanged pairing secret on both devices (16+ UTF-8 bytes).
+    /// Use the same strong, privately exchanged pairing secret on both devices (32+ UTF-8 bytes).
     /// The secret stays in memory only and authenticates every application message with HMAC-SHA256.
     public func start(pairingSecret: String) throws {
         guard pairingSecret.utf8.count >= 32 else {
