@@ -594,6 +594,124 @@ app.get('/api/kernelodies/status', async (_req, res) => {
   catch { return res.status(503).json({success:false,error:'Kernelodies status unavailable'}); }
 });
 
+// Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
+app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) => {
+  try {
+    const { listKashKornerRecords, cashFlowSummary } = await import('./src/apps/kash-korner.mjs');
+    const entries = await listKashKornerRecords();
+    const currencies = [...new Set(entries.map(entry => String(entry.currency || 'USD').toUpperCase()))];
+    const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
+    return res.json({ success: true, entries, summaries });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { recordCashEntry, saveKashKornerRecord, listKashKornerRecords } = await import('./src/apps/kash-korner.mjs');
+    const entry = recordCashEntry(req.body || {});
+    await saveKashKornerRecord(entry.id, entry);
+    const entries = await listKashKornerRecords();
+    return res.status(201).json({ success: true, entry, entries });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.get('/api/kernel-vision/items', requireControlPlaneAuth, async (_req, res) => {
+  try {
+    const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
+    const records = await listKernelVisionRecords();
+    return res.json({ success: true, items: records.filter(record => record.recordType === 'theatre-item') });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/kernel-vision/sessions', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { createViewingSession, saveKernelVisionRecord } = await import('./src/apps/kernel-vision.mjs');
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const mediaUrl = String(body.mediaUrl || '').trim();
+    if (mediaUrl) {
+      const url = new URL(mediaUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Media URL must use HTTP or HTTPS');
+    }
+    const session = createViewingSession({ ...body, item: { ...body, mediaUrl } });
+    await saveKernelVisionRecord(session.item.id, { ...session.item, recordType: 'theatre-item' });
+    await saveKernelVisionRecord(session.sessionId, { ...session, recordType: 'viewing-session' });
+    return res.status(201).json({ success: true, session });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.get('/api/kernel-vision/sessions', requireControlPlaneAuth, async (_req, res) => {
+  try {
+    const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
+    const records = await listKernelVisionRecords();
+    return res.json({ success: true, sessions: records.filter(record => record.recordType === 'viewing-session') });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.get('/api/kernelodies/tracks', requireControlPlaneAuth, async (_req, res) => {
+  try {
+    const { listKernelodiesRecords } = await import('./src/apps/kernelodies.mjs');
+    const records = await listKernelodiesRecords();
+    return res.json({ success: true, tracks: records.filter(record => record.kind === 'music-track') });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { createMusicTrack, buildMusicPrompt, saveKernelodiesRecord } = await import('./src/apps/kernelodies.mjs');
+    const { normalizeContentDomain } = await import('./src/core/content/content-domains.mjs');
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const contentDomain = normalizeContentDomain(body.contentDomain || 'bible');
+    let gardenPackage;
+    if (contentDomain === 'korn') {
+      const { gardenSnapshot, verifiedGardenIds } = await import('./src/garden/lore-graph.mjs');
+      const { validateScriptGardenReferences } = await import('./src/core/validation/production-contracts.mjs');
+      const { graph } = await gardenSnapshot();
+      const packageHash = crypto.createHash('sha256').update(JSON.stringify(graph)).digest('hex');
+      const references = [
+        { id: 'garden:Apex', type: 'garden:Universe', graphVersion: 'garden-lore-v1' },
+        { id: 'garden:JesusFreaks', type: 'garden:Collective', graphVersion: 'garden-lore-v1' }
+      ];
+      validateScriptGardenReferences(references, await verifiedGardenIds());
+      gardenPackage = { system: 'garden-of-apex', graphVersion: 'garden-lore-v1', packageHash, references };
+    }
+    const track = createMusicTrack({
+      trackId: String(body.trackId || crypto.randomUUID()),
+      projectId: String(body.projectId || crypto.randomUUID()),
+      title: String(body.title || 'Untitled').slice(0, 200),
+      role: 'music',
+      contentDomain,
+      tuningHz: contentDomain === 'korn' ? 432 : body.tuningHz,
+      genre: Array.isArray(body.genre) ? body.genre : [String(body.genre || 'cinematic')],
+      mood: Array.isArray(body.mood) ? body.mood : [String(body.mood || 'cinematic')],
+      gardenPackage,
+      provenance: { source: 'Kernelodies Track Forge' }
+    });
+    const prompt = buildMusicPrompt({
+      title: track.title, genre: track.genre, mood: track.mood,
+      fusion: Array.isArray(body.fusion) ? body.fusion : [],
+      purpose: String(body.purpose || 'film-score'), contentDomain,
+      tuningHz: track.tuningHz, gardenPackage
+    });
+    const record = { ...track, prompt, kind: 'music-track', status: 'concept', createdAt: new Date().toISOString() };
+    await saveKernelodiesRecord(track.trackId, record);
+    return res.status(201).json({ success: true, track: record, nextStep: 'Production plan saved; audio rendering is a separate step.' });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
 });
