@@ -17,7 +17,7 @@ function expectedHash(record){const {hash,...body}=record;return sha(body);}
 export class ApexRingWAL {
   constructor({file=FILE,ringSize=RING_SIZE,lockTimeoutMs=65000,staleLockMs=60000}={}){
     this.file=path.resolve(file);this.lockFile=this.file+".lock";this.ringSize=ringSize;this.lockTimeoutMs=lockTimeoutMs;this.staleLockMs=staleLockMs;
-    this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.offset=0;this.lastExternalRecords=[];this.ready=false;
+    this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.offset=0;this.lastExternalRecords=[];this.ready=false;this.initPromise=null;this.replayed=false;
   }
   _reset(){this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(this.ringSize);this.head=0;this.count=0;this.offset=0;}
   _load(record){this.seq=Number(record.seq);this.lastHash=String(record.hash);this.ring[this.head]=record;this.head=(this.head+1)%this.ringSize;this.count=Math.min(this.count+1,this.ringSize);}
@@ -25,7 +25,7 @@ export class ApexRingWAL {
     try{const info=await lstat(this.file);if(info.isSymbolicLink()||!info.isFile())throw new Error("[SECURITY_VIOLATION] WAL path must be a regular file, not a symlink.");}
     catch(e){if(e.code!=="ENOENT")throw e;}
   }
-  async _readAndVerify(){
+  async _readAndVerify(onRecord=null){
     await this._assertWalIsRegular();this._reset();
     let text="";
     try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
@@ -37,7 +37,7 @@ export class ApexRingWAL {
       if(!record||!Number.isSafeInteger(record.seq)||record.seq!==seq+1||record.prevHash!==prev||record.hash!==expectedHash(record)){
         throw new Error("[WAL_INTEGRITY] Hash chain or sequence failure at record "+(seq+1)+".");
       }
-      this._load(record);prev=record.hash;seq=record.seq;count++;
+      this._load(record);if(onRecord)await onRecord(record);prev=record.hash;seq=record.seq;count++;
     }
     this.offset=Buffer.byteLength(text,"utf8");
     return count;
@@ -89,11 +89,22 @@ export class ApexRingWAL {
     this.offset=size;
     return count;
   }
-  async init(){
-    if(this.ready)return this;
-    await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
-    const release=await this._acquireLock();
-    try{await this._readAndVerify();this.ready=true;return this;}finally{await release();}
+  async init({onRecord=null}={}){
+    if(this.ready){
+      if(onRecord&&!this.replayed){await this.replay({onRecord});this.replayed=true;}
+      return this;
+    }
+    if(this.initPromise){
+      await this.initPromise;
+      if(onRecord&&!this.replayed){await this.replay({onRecord});this.replayed=true;}
+      return this;
+    }
+    this.initPromise=(async()=>{
+      await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
+      const release=await this._acquireLock();
+      try{await this._readAndVerify(onRecord);this.ready=true;this.replayed=Boolean(onRecord);return this;}finally{await release();}
+    })();
+    try{return await this.initPromise;}catch(error){this.initPromise=null;this.ready=false;throw error;}
   }
   async append(type,payload={},meta={}){
     await this.init();
