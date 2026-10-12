@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
 import { createHash } from "node:crypto";
@@ -29,7 +30,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -196,6 +197,10 @@ export class ApexPureStore {
   async persistJob(job){await this.cas.writeRef("jobs",this.refKey("job",job.id),{id:String(job.id),job:clone(job)});}
   async persistState(collection,id,record){await this.cas.writeRef("state",this.refKey(collection,id),{collection:String(collection),id:String(id),record:clone(record)});}
   async withMutationLock(operation){
+    // Reentrant for nested mutations in the same async call chain; otherwise a
+    // nested acquisition waits on its own lock until the global timeout.
+    if(this.mutationContext.getStore()===this)return operation();
+    return this.mutationContext.run(this,async()=>{
     await mkdir(this.root,{recursive:true,mode:0o700});
     const lockFile=path.join(this.root,".apex-queue-mutations.lock");
     const started=Date.now();
@@ -264,6 +269,7 @@ export class ApexPureStore {
       await ownedHandle.close().catch(()=>{});
       if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
     }
+    });
   }
   key(c,id){return String(c)+"::"+String(id);}
   apply(r){
