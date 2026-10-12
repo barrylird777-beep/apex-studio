@@ -581,8 +581,7 @@ app.get('/api/canon/handoff/status', requireControlPlaneAuth, async (_req, res) 
       success: true,
       contractVersion: 'apex-canonical-handoff.v1',
       durable: true,
-      queued: records.length,
-      maxEvents: 1000,
+      storedEvents: records.length,
       maxPayloadBytes: 262144,
       pendingDispatches: fabric.pendingDispatches,
       pendingPeerAcks: fabric.mesh.pendingPeerAcks,
@@ -592,6 +591,62 @@ app.get('/api/canon/handoff/status', requireControlPlaneAuth, async (_req, res) 
   } catch (error) {
     return res.status(503).json({ success: false, error: 'Canonical durable handoff status unavailable' });
   }
+});
+
+app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
+  try {
+    const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
+    return res.json({ success: true, appId: req.params.appId, neighbors: canonicalNeighbors(req.params.appId) });
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
+    return res.status(503).json({ success: false, error: 'Canonical app neighbors unavailable' });
+  }
+});
+
+app.get('/api/canon/apps', async (_req, res) => {
+  try {
+    const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
+    return res.json({ success: true, apps: await canonicalAppsStatus(), checkedAt: new Date().toISOString() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: 'Canonical app registry unavailable' });
+  }
+});
+
+app.get('/api/canon/apps/:appId/status', async (req, res) => {
+  try {
+    const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
+    return res.json(await canonicalAppStatus(req.params.appId));
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
+    return res.status(503).json({ success: false, error: 'Canonical app status unavailable' });
+  }
+});
+
+app.get('/api/planet-apex/status', async (_req, res) => {
+  try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({ success: true, ...planetApexStatus() }); }
+  catch { return res.status(503).json({ success: false, error: 'PlanetApeX status unavailable' }); }
+});
+app.get('/api/kernel-vision/status', async (_req, res) => {
+  try { const { kernelVisionStatus } = await import('./src/apps/kernel-vision.mjs'); return res.json({ success: true, ...kernelVisionStatus() }); }
+  catch { return res.status(503).json({ success: false, error: 'KernelVision status unavailable' }); }
+});
+app.get('/api/kash-korner/status', async (_req, res) => {
+  try { const { kashKornerStatus } = await import('./src/apps/kash-korner.mjs'); return res.json({ success: true, ...kashKornerStatus() }); }
+  catch { return res.status(503).json({ success: false, error: 'KashKorner status unavailable' }); }
+});
+app.get('/api/kernelodies/status', async (_req, res) => {
+  try { const { kernelodiesStatus } = await import('./src/apps/kernelodies.mjs'); return res.json({ success: true, ...await kernelodiesStatus() }); }
+  catch { return res.status(503).json({ success: false, error: 'Kernelodies status unavailable' }); }
+});
+app.get('/api/xshield/status', async (_req, res) => {
+  try { const { xshieldStatus } = await import('./src/apps/xshield.mjs'); return res.json({ success: true, ...xshieldStatus() }); }
+  catch { return res.status(503).json({ success: false, error: 'XShield status unavailable' }); }
+});
+app.get('/api/koin-kob/status', async (_req, res) => {
+  try { const { koinKobStatus } = await import('./src/apps/koin-kob.mjs'); return res.json({ success: true, ...koinKobStatus() }); }
+  catch { return res.status(503).json({ success: false, error: 'KoinKob status unavailable' }); }
 });
 
 // Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
