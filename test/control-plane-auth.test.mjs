@@ -80,7 +80,26 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["post", "/api/engine-apex/brief"],
     ["post", "/api/network/rogue-ap/trust"],
     ["post", "/api/network/rogue-ap/revoke"],
-    ["post", "/api/network/rogue-ap/observations"]
+    ["post", "/api/network/rogue-ap/observations"],
+    ["post", "/api/koin-kob/simulation"],
+    ["post", "/api/canon/handoff"],
+    ["post", "/api/kash-korner/entries"],
+    ["post", "/api/kernel-vision/sessions"],
+    ["post", "/api/kernelodies/tracks"],
+    ["post", "/api/episodes/produce"],
+    ["post", "/api/workforce/burst"],
+    ["post", "/api/broadcast/start"],
+    ["post", "/api/broadcast/stop"],
+    ["post", "/api/voiceover/jobs"],
+    ["post", "/api/projects"],
+    ["put", "/api/projects/:id"],
+    ["delete", "/api/projects/:id"],
+    ["post", "/api/projects/:id/scenes"],
+    ["put", "/api/scenes/:id"],
+    ["delete", "/api/scenes/:id"],
+    ["post", "/api/projects/:id/shoot-days"],
+    ["post", "/api/shoot-days/:id/scenes"],
+    ["post", "/api/projects/:id/auto-schedule"]
   ];
   for (const [method, route] of protectedRoutes) {
     assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
