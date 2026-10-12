@@ -18,9 +18,9 @@ function assertId(value){
   return id;
 }
 function liveRuntime(record){
-  if(record?.status!=="online"||!record.peerId||!record.lastSeenAt)return false;
-  const age=Date.now()-Date.parse(record.lastSeenAt);
-  return Number.isFinite(age)&&age>=-5000&&age<=30000;
+  if(record?.status!=="online"||!record.peerId)return false;
+  const expiry=Number(record.leaseExpiresAt);
+  return Number.isFinite(expiry)&&expiry>Date.now();
 }
 
 /**
