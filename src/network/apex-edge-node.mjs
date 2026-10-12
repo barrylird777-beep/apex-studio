@@ -46,10 +46,12 @@ export async function createApexEdgeNode({
   state.peerId = peerNode.peerId.toString();
   state.online = true;
   let stopped = false;
+  let inFlight = false;
   let timer;
 
   const tick = async () => {
-    if (stopped) return;
+    if (stopped || inFlight) return;
+    inFlight = true;
     try {
       const snapshot = await inspectEdgeNode();
       snapshot.identity.peerId = state.peerId;
@@ -68,6 +70,8 @@ export async function createApexEdgeNode({
     } catch (error) {
       state.last = { timestamp: new Date().toISOString(), error: error.message };
       onState(state.last);
+    } finally {
+      inFlight = false;
     }
   };
 
