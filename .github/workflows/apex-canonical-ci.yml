@@ -1,0 +1,40 @@
+name: Apex Canonical CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apex-canonical-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sovereign-and-six-apps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test sovereign peer, WAL, and app fabric
+        run: npm run sovereign:test
+
+      - name: Test canonical six-app contract and routes
+        run: npm run check:canonical
+
+      - name: Build production app
+        run: npm run build
