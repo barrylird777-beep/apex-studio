@@ -103,7 +103,7 @@ async function executeVoiceoverSynthesis(payload = {}) {
       signal: AbortSignal.timeout(30000)
     });
     if (!response.ok) throw new Error("Voiceover object upload failed: " + response.status);
-    const rawKey = String(upload.key).replace(/^mobile\\/apex-audio\\//, "");
+    const rawKey = String(upload.key).replace(/^mobile\/apex-audio\//, "");
     const download = await createDownloadUrl({ key: rawKey, prefix: "apex-audio" });
     return {
       ok: true,
