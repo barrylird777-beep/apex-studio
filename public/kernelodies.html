@@ -10,7 +10,26 @@ button:hover{filter:brightness(1.12);transform:translateY(-1px)}
 input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--apex-blue);outline-offset:2px}
 a{color:var(--apex-blue)}
 @media(max-width:600px){main{padding:22px 13px 36px}}
-</style></head><body><main><div>APEX CANONICAL APP</div><h1>Kernelodies</h1><p>Music, sound, audio creation and audio identity using Apex's existing music contracts.</p><div class="grid"><section class="card"><h2>Track Forge</h2><label>Content domain<select id="content-domain"><option value="bible">Bible</option><option value="korn">Jesus Freaks · 432 Hz only</option><option value="original">Original</option></select></label><p id="tuning-note">Bible content domain.</p><label>Title<input id="title" value="Apex Theme"></label><label>Prompt<textarea id="prompt" rows="4">cinematic dark-fantasy anime score, sacred atmosphere</textarea></label><button id="add">Create track concept</button><div id="tracks" aria-live="polite"></div><pre id="track-storage-status">Open Phone Control in this tab to connect the durable track library.</pre></section><section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre></section><section class="card" id="kernelodies-library"></section></div><script src="/kernelodies-library.js"></script><p><a href="/">Apex Studio</a> · <a href="/api/canon/apps">canonical six registry</a></p></main><script>
+</style></head><body><main><div>APEX CANONICAL APP</div><h1>Kernelodies</h1><p>Music creation, audio library, public catalog discovery, saved discoveries and sovereign playlists.</p><div class="grid"><section class="card"><h2>Track Forge</h2><label>Content domain<select id="content-domain"><option value="bible">Bible</option><option value="korn">Jesus Freaks · 432 Hz only</option><option value="original">Original</option></select></label><p id="tuning-note">Bible content domain.</p><label>Title<input id="title" value="Apex Theme"></label><label>Prompt<textarea id="prompt" rows="4">cinematic dark-fantasy anime score, sacred atmosphere</textarea></label><button id="add">Create track concept</button><div id="tracks" aria-live="polite"></div><pre id="track-storage-status">Open Phone Control in this tab to connect the durable track library.</pre></section><section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre></section><section class="card" id="kernelodies-discovery">
+<h2>Music Radar · Public Catalog</h2>
+<p>Search tracks and albums, listen to available previews, save discoveries in Kernelodies Pure-WAL, and build local playlists. Spotify account sync is not configured here.</p>
+<div class="kl-controls">
+<label>Search music<input id="kd-query" maxlength="160" value="Korn" placeholder="Artist, song, album, genre…"></label>
+<label>Catalog type<select id="kd-entity"><option value="song">Tracks</option><option value="album">Albums</option></select></label>
+</div>
+<button id="kd-search" type="button">Discover music</button>
+<div id="kd-status" role="status" aria-live="polite">Open Phone Control in this tab to connect the sovereign discovery library.</div>
+<div id="kd-results"></div>
+<hr>
+<h3>Saved discoveries</h3>
+<button id="kd-refresh-saved" type="button">Refresh saved discoveries</button>
+<div id="kd-saved"></div>
+<h3>Playlist Lab</h3>
+<label>Playlist name<input id="kd-playlist-title" maxlength="100" value="Radar Mix"></label>
+<button id="kd-build-playlist" type="button">Build playlist from saved discoveries</button>
+<div id="kd-playlists"></div>
+</section>
+<section class="card" id="kernelodies-library"></section></div><script src="/kernelodies-library.js"></script><script src="/kernelodies-discovery.js"></script><p><a href="/">PlanetApeX</a> · <a href="/kernel-vision.html">KernelVision</a> · <a href="/api/canon/apps">canonical six registry</a></p></main><script>
 const $=id=>document.getElementById(id),tokenKey="apex.phone.sessionToken";let tracks=[];
 function headers(){const token=sessionStorage.getItem(tokenKey)||"";if(!token)throw new Error("Open Phone Control in this tab and enter your control token first.");return{"x-apex-shortcut-token":token,"content-type":"application/json"}}
 async function json(url,options={}){const response=await fetch(url,options);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"HTTP "+response.status);return data}

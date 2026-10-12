@@ -35,6 +35,7 @@ import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
+import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -1546,6 +1547,7 @@ app.get('/api/network/status', async (req,res)=>{
 });
 app.use('/api/studio/audio', createAudioStationRouter());
 app.use('/api/kernelodies/library', createKernelodiesLibraryRouter({ storageDir: STORAGE_DIR, authorize: createKernelodiesLibraryAuth() }));
+app.use('/api/kernelodies/discovery', createKernelodiesDiscoveryRouter({ authorize: requireControlPlaneAuth }));
 
 app.get('/api/studio/omni/events', async (req, res) => {
   const { omniEventsHandler } = await import('./src/api/omni-events.mjs');
