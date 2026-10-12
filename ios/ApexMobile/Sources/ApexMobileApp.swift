@@ -30,7 +30,8 @@ struct ApexRootView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
+            ScrollView {
+                VStack(spacing: 14) {
                 Text("APEX UNIVERSAL LOCAL AI").font(.headline)
                 Text("On-device inference • Metal when supported • offline-capable")
                     .font(.caption)
@@ -176,9 +177,11 @@ struct ApexRootView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
+                .frame(maxHeight: 220)
                 Spacer(minLength: 0)
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("Apex")
             .onAppear { refreshInventory() }
             .fileImporter(
