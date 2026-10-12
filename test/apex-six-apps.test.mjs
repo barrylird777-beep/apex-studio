@@ -28,11 +28,10 @@ test("PlanetApeX builds world state",()=>{
   assert.equal(planet.regions.length,1); assert.equal(planet.entities[0].regionId,"r1");
   assert.equal(planetApexStatus().app.name,"PlanetApeX");
 });
-test("KoBlocks composes and validates reusable blocks",()=>{
-  const a=defineKoBlock({id:"a",outputs:["out"]}),b=defineKoBlock({id:"b",inputs:["in"]});
-  const graph=composeKoBlocks([a,b],[{from:"a",to:"b",port:"out"}]);
-  assert.deepEqual(validateKoBlockGraph(graph),{valid:true,blockCount:2,edgeCount:1});
-  assert.equal(koBlocksStatus().app.name,"KoBlocks");
+test("XShield is the canonical network protection app",()=>{
+  assert.equal(xshieldStatus().app.name,"XShield");
+  assert.equal(typeof xshieldStatus().dns,"object");
+  assert.equal(classifyXShieldRequest("https://example.com").action,"allow");
 });
 test("KernelVision creates Theatre and Kornmax viewing sessions",()=>{
   const item=createTheatreItem({id:"film-1",title:"Finished Work"}),session=createViewingSession({item});
@@ -70,14 +69,6 @@ test("canonical apps reject malformed state instead of cloning garbage",()=>{
   assert.throws(() => createTheatreItem(null), /item input must be an object/);
 });
 
-test("KoBlocks rejects duplicate edges and unknown output ports",()=>{
-  const source=defineKoBlock({id:"source",outputs:["out"]});
-  const target=defineKoBlock({id:"target"});
-  const duplicate=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"},{from:"source",to:"target",port:"out"}]);
-  assert.deepEqual(validateKoBlockGraph(duplicate),{valid:false,reason:"duplicate-edge"});
-  const unknown=composeKoBlocks([source,target],[{from:"source",to:"target",port:"missing"}]);
-  assert.deepEqual(validateKoBlockGraph(unknown),{valid:false,reason:"unknown-output-port"});
-});
 
 test("KernelVision returns the viewed item with a validated session id",()=>{
   const session=createViewingSession({item:{id:"film-1",title:"Finished Work"}});
