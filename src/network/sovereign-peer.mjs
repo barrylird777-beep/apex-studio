@@ -20,7 +20,7 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
   const identityRequired = String(process.env.NODE_ENV || '').toLowerCase() === 'production' ||
     String(process.env.APEX_PEER_IDENTITY_REQUIRED || '').toLowerCase() === 'true';
   if (encoded) {
-    const normalized = encoded.replace(/\\s+/g, '');
+    const normalized = encoded.replace(/\s+/g, '');
     const bytes = Buffer.from(normalized, 'base64');
     if (!bytes.length || bytes.toString('base64') !== normalized) {
       throw new Error('APEX_PEER_PRIVATE_KEY_BASE64 must contain canonical base64 key bytes');
