@@ -6,12 +6,12 @@ test("canonical handoff bus enforces trajectory routes", () => {
   clearCanonicalHandoffs();
   const event = publishCanonicalHandoff({
     from: "planet-apex",
-    to: "ko-blocks",
+    to: "xshield",
     payload: { worldId: "world-1", regionCount: 2 }
   });
   assert.equal(event.contractVersion, "apex-canonical-handoff.v1");
   assert.equal(event.durable, false);
-  assert.equal(listCanonicalHandoffs({ appId: "ko-blocks", limit: 1 })[0].id, event.id);
+  assert.equal(listCanonicalHandoffs({ appId: "xshield", limit: 1 })[0].id, event.id);
   assert.throws(() => publishCanonicalHandoff({
     from: "planet-apex",
     to: "kash-korner",
@@ -23,7 +23,7 @@ test("canonical handoff bus bounds payloads and reports non-durable state", () =
   clearCanonicalHandoffs();
   assert.throws(() => publishCanonicalHandoff({
     from: "korn-knob",
-    to: "ko-blocks",
+    to: "xshield",
     payload: {}
   }), /Invalid canonical handoff/);
   assert.equal(canonicalHandoffStatus().durable, false);
