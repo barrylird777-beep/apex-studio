@@ -124,7 +124,7 @@ function requireWorkerAuth(req, res, next) {
 function requireOpportunityEngineAuth(req, res, next) {
   const expected = process.env.APEX_OPPORTUNITY_ENGINE_TOKEN;
   if (!expected) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
-  const supplied = req.get('x-apex-opportunity-token') || req.get('authorization')?.replace(/^Bearer\\s+/i, '');
+  const supplied = req.get('x-apex-opportunity-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!timingSafeSecret(expected, supplied)) return res.status(401).json({ success: false, error: 'Unauthorized' });
   return next();
 }
