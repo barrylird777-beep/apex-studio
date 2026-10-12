@@ -754,7 +754,6 @@ app.get('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
     const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
     const appId = req.query?.appId ? String(req.query.appId) : null;
     if (appId) canonicalNeighbors(appId);
-    await apexPureStore.refresh();
     const limit = Math.max(1, Math.min(500, Math.floor(Number(req.query?.limit) || 50)));
     const records = (await apexPureStore.list('apex_canonical_handoffs'))
       .map(row => row?.record || row)
@@ -770,7 +769,6 @@ app.get('/api/canon/handoff/status', requireControlPlaneAuth, async (_req, res) 
   try {
     const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
     const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
-    await apexPureStore.refresh();
     const fabric = await sovereignAppFabric.status();
     const records = await apexPureStore.list('apex_canonical_handoffs');
     return res.json({
