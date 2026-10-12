@@ -1,8 +1,8 @@
 import { APEX_APPS, assertSixAppInvariant } from "./apex-six-apps.mjs";
 
 const HANDOFFS = Object.freeze([
-  Object.freeze({ from:"planet-apex", to:"ko-blocks", purpose:"turn world context into reusable execution blocks" }),
-  Object.freeze({ from:"ko-blocks", to:"kernel-vision", purpose:"route validated production graphs toward finished-work presentation" }),
+  Object.freeze({ from:"planet-apex", to:"xshield", purpose:"apply network protection to the shared Apex environment" }),
+  Object.freeze({ from:"xshield", to:"kernel-vision", purpose:"provide protected network access for production and finished-work delivery" }),
   Object.freeze({ from:"kernelodies", to:"kernel-vision", purpose:"attach music and audio identity to finished work" }),
   Object.freeze({ from:"koin-kob", to:"kash-korner", purpose:"translate worker-market value into ledger entries" }),
   Object.freeze({ from:"kash-korner", to:"koin-kob", purpose:"provide validated financial state for economic simulations" }),
