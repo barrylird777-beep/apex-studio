@@ -1092,17 +1092,9 @@ app.post('/api/rapid/preview', async (req, res) => {
     const brief = String(req.body?.brief || '').trim().slice(0, 4000);
     const platform = String(req.body?.platform || 'Short-form social').trim().slice(0, 80);
     if (!brief) return res.status(400).json({ success: false, error: 'brief is required' });
-    if (!durableWorkerEnabled()) return res.status(503).json({ success: false, error: 'Preview queue is temporarily unavailable' });
-    const orderId = crypto.randomUUID();
-    const result = await enqueueWorkerTask({
-      id: orderId, workerId: 'rapid-preview-intake', role: 'rapid-preview',
-      task: 'rapid-video-preview',
-      payload: { orderId, name, type, brief, platform, submittedAt: new Date().toISOString() },
-      maxAttempts: 1,
-      dedupeKey: `rapid-preview:${crypto.createHash('sha256').update(JSON.stringify({ name, type, brief, platform })).digest('hex')}`,
-      traceId: orderId
-    });
-    return res.status(202).json({ success: true, orderId: result.id, status: 'queued', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}` });
+    await rapidVideoPureWalQueue.init();
+    const result = await rapidVideoPureWalQueue.enqueuePreview({ name, type, brief, platform });
+    return res.status(202).json({ success: true, orderId: result.orderId, status: result.status, durable: true, storage: 'local-pure-wal', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.orderId)}` });
   } catch (error) {
     console.error('[rapid-preview]', error);
     return res.status(500).json({ success: false, error: 'Unable to queue preview' });
@@ -1111,16 +1103,12 @@ app.post('/api/rapid/preview', async (req, res) => {
 
 app.post('/api/rapid/orders', async (req, res) => {
   try {
-    // Never take payment while durable fulfillment is unavailable.
-    const dbHealth = await durableWorkerHealth({ force: true });
-    if (!dbHealth.available) {
-      return res.status(503).json({ success: false, error: 'Checkout is temporarily paused while order fulfillment is recovering' });
-    }
+    // Checkout and fulfillment use the durable local Pure-WAL queue; PostgreSQL
+    // availability is not a prerequisite for safely accepting new orders.
     try {
-      const { ensureWorkerTaskSchema } = await import('./src/core/mesh/durable-worker-store.mjs');
-      await ensureWorkerTaskSchema();
+      await rapidVideoPureWalQueue.init();
     } catch {
-      return res.status(503).json({ success: false, error: 'Checkout is temporarily paused while order fulfillment is recovering' });
+      return res.status(503).json({ success: false, error: 'Checkout is paused because durable local order storage is unavailable' });
     }
     const name = String(req.body?.name || '').trim().slice(0, 120);
     const type = String(req.body?.type || '').trim().slice(0, 160);
@@ -1138,19 +1126,29 @@ app.post('/api/rapid/orders', async (req, res) => {
     }
     const orderId = crypto.randomUUID();
     const origin = `${req.headers['x-forwarded-proto'] || req.protocol || 'https'}://${req.get('host')}`;
-    const checkout = await createRapidCheckout({
-      orderId, name, type, brief, platform, email,
-      successUrl: origin + '/rapid-video.html?paid=1&orderId=' + encodeURIComponent(orderId),
-      cancelUrl: origin + '/rapid-video.html?canceled=1#order'
-    });
-    return res.status(201).json({
-      success: true,
-      orderId,
-      status: 'payment_required',
-      price: 25,
-      checkoutUrl: checkout.url,
-      statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
-    });
+    await rapidVideoPureWalQueue.createCheckoutRecord({ orderId, name, type, brief, platform, email });
+    try {
+      const checkout = await createRapidCheckout({
+        orderId, name, type, brief, platform, email,
+        successUrl: origin + '/rapid-video.html?paid=1&orderId=' + encodeURIComponent(orderId),
+        cancelUrl: origin + '/rapid-video.html?canceled=1#order'
+      });
+      await rapidVideoPureWalQueue.updateCheckoutRecord(orderId, {
+        status: 'payment_required', stripeSessionId: checkout.id, checkoutUrl: checkout.url
+      });
+      return res.status(201).json({
+        success: true,
+        orderId,
+        status: 'payment_required',
+        price: 25,
+        checkoutUrl: checkout.url,
+        statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`,
+        fulfillmentStorage: 'local-pure-wal'
+      });
+    } catch (error) {
+      await rapidVideoPureWalQueue.updateCheckoutRecord(orderId, { status: 'checkout_failed', error: String(error?.message || error).slice(0, 1000) }).catch(() => {});
+      throw error;
+    }
   } catch (error) {
     console.error('[rapid-order]', error);
     return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
