@@ -209,6 +209,7 @@ async function migrateLegacySqliteIfPresent() {
 
   let db;
   try {
+    const sourceHashBefore = await hashFile(legacyDbFile);
     const sqliteModule = await import('sqlite3');
     const sqlite3 = sqliteModule.default || sqliteModule;
     db = await openLegacySqlite(sqlite3, legacyDbFile);
@@ -258,6 +259,7 @@ async function migrateLegacySqliteIfPresent() {
     for (const row of tables.budget_items) await putIfMissing('budgetItem', row.id, { projectId: String(row.project_id), category: row.category || '', description: row.description || '', estimated: Number(row.estimated) || 0, actual: Number(row.actual) || 0, notes: row.notes || '' });
     for (const row of tables.script_notes) await putIfMissing('scriptNote', row.id, { projectId: String(row.project_id), sceneId: row.scene_id == null ? null : String(row.scene_id), scriptureReference: row.scripture_ref || '', dialogue: row.dialogue || '', versionNotes: row.version_notes || '' });
     const sourceHash = await hashFile(legacyDbFile);
+    if (sourceHash !== sourceHashBefore) throw new Error('Legacy SQLite file changed during the read-only import; retry migration');
     const result = { status: 'completed', sourceHash, imported, source: 'legacy-sqlite-read-only', completedAt: now() };
     await sovereignAppFabric.put(APP, MIGRATION_KEY, { recordType: 'migration-marker', ...result });
     return result;
