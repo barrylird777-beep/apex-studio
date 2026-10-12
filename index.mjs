@@ -73,15 +73,21 @@ async function executeEpisodeProductionTask(payload = {}) {
 async function executeVoiceoverSynthesis(payload = {}) {
   const text = String(payload?.text || "").trim();
   if (!text) throw new Error("Voiceover synthesis requires text");
-  const { synthesizeSpeech } = await import("./src/core/audio-station.mjs");
+  const { synthesizeSpeech, listVoiceOptions } = await import("./src/core/audio-station.mjs");
   const { createUploadUrl, createDownloadUrl } = await import("./src/storage/cloud-object-store.mjs");
   const { readFile, unlink } = await import("node:fs/promises");
   const outputDir = path.join(os.tmpdir(), "apex-voiceover");
   let rendered;
   try {
+    let voice = String(payload.voice || process.env.APEX_VOICEOVER_DEFAULT_VOICE || "");
+    if (!voice) {
+      const voices = await listVoiceOptions();
+      voice = voices.find(item => item.engine === "espeak-ng" || item.engine === "espeak")?.id || "";
+    }
+    if (!voice) throw new Error("No installed local TTS engine found; install Piper/eSpeak-ng or configure a supported provider");
     rendered = await synthesizeSpeech({
       text,
-      voice: payload.voice,
+      voice,
       language: payload.language || "en-US",
       speed: payload.speed || 1,
       pitch: payload.pitch || 0,
