@@ -13,7 +13,7 @@ Apex consists of exactly three primary systems:
 The six canonical apps are application surfaces inside the Apex ecosystem, not additional Apex systems:
 
 1. **PlanetApeX** — the world and planetary Apex environment.
-2. **KoBlocks** — modular building and reusable Apex blocks.
+2. **XShield** — ad blocking, tracker blocking and network protection.
 3. **KernelVision** — finished-work viewing through KernelVision Theatre and the Kornmax cinematic display experience.
 4. **KoinKob** — economy, value, barter and autonomous worker markets.
 5. **KashKorner** — cash, ledger and financial state.
