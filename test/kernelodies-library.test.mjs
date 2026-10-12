@@ -46,11 +46,13 @@ test("Kernelodies library protects access and persists audio across app restarts
     const createdResponse = await fetch(runtime.base + "/api/kernelodies/library", {
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },
-      body: JSON.stringify({ title: "Study Atmosphere", artist: "Jesus Freaks", album: "TheQuietDesk" })
+      body: JSON.stringify({ title: "Study Atmosphere", artist: "Jesus Freaks", album: "TheQuietDesk", genre: "Ambient", year: 2026 })
     });
     assert.equal(createdResponse.status, 201);
     const created = await createdResponse.json();
     assert.equal(created.track.title, "Study Atmosphere");
+    assert.equal(created.track.genre, "Ambient");
+    assert.equal(created.track.year, 2026);
 
     const audioBytes = Buffer.from("RIFF-test-audio-payload");
     const upload = await fetch(runtime.base + `/api/kernelodies/library/${created.track.id}/audio`, {
@@ -64,6 +66,8 @@ test("Kernelodies library protects access and persists audio across app restarts
     const list = await beforeRestart.json();
     assert.equal(list.tracks.length, 1);
     assert.equal(list.tracks[0].checksum.length, 64);
+    assert.equal(list.tracks[0].genre, "Ambient");
+    assert.equal(list.tracks[0].year, 2026);
 
     await runtime.close();
     runtime = await startApp(storageDir);
