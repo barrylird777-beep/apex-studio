@@ -214,7 +214,7 @@ export function createRapidVideoPureWalQueue({
     while(!stopRequested){
       try{
         await init();
-        if(Date.now()-lastRecoveryAt>30000){await store.recoverExpired(100);lastRecoveryAt=Date.now();}
+        if(Date.now()-lastRecoveryAt>30000){await store.recoverExpired(100,ROLE);lastRecoveryAt=Date.now();}
         const result=await processOne({workerId});
         if(!result.worked)await sleep(pollMs);
       }catch(error){
