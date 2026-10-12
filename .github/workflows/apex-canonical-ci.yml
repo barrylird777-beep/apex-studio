@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install system media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
