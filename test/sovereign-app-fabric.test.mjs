@@ -13,7 +13,7 @@ import { savePlanetApexRecord, getPlanetApexRecord } from '../src/apps/planet-ap
 import { saveKoBlocksRecord, getKoBlocksRecord } from '../src/apps/ko-blocks.mjs';
 import { saveKernelVisionRecord, getKernelVisionRecord } from '../src/apps/kernel-vision.mjs';
 import { saveKoinKobRecord, getKoinKobRecord } from '../src/apps/koin-kob.mjs';
-import { saveKashKornerRecord, getKashKornerRecord } from '../src/apps/kash-korner.mjs';
+import { saveKashKornerRecord, getKashKornerRecord, excludeOpportunityRecords } from '../src/apps/kash-korner.mjs';
 import { saveKernelodiesRecord, getKernelodiesRecord } from '../src/apps/kernelodies.mjs';
 
 
@@ -76,4 +76,18 @@ test('phone dispatch is durably queued and the runtime daemon alone writes the m
     if(prior===undefined)delete process.env.APEX_SOVEREIGN_PEER_ID;else process.env.APEX_SOVEREIGN_PEER_ID=prior;
     await fs.rm(dir,{recursive:true,force:true});
   }
+});
+
+
+test('KashKorner ledger excludes opportunity records without deleting them from the sovereign namespace', () => {
+  const rows = [
+    { id: 'cash-1', record: { id: 'cash-1', recordType: 'transaction', amount: 12, currency: 'USD' } },
+    { id: 'opportunity-1', record: { id: 'opportunity-1', recordType: 'opportunity', estimated_net_profit_usd: 4.2 } },
+    { id: 'cash-2', record: { id: 'cash-2', recordType: 'transaction', amount: -3, currency: 'USD' } }
+  ];
+  assert.deepEqual(excludeOpportunityRecords(rows), [
+    { id: 'cash-1', recordType: 'transaction', amount: 12, currency: 'USD' },
+    { id: 'cash-2', recordType: 'transaction', amount: -3, currency: 'USD' }
+  ]);
+  assert.equal(rows[1].record.recordType, 'opportunity', 'filtering the ledger must not delete opportunity data');
 });
