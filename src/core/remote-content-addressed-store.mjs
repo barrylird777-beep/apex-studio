@@ -92,28 +92,40 @@ export class RemoteContentAddressedStore {
   }
   async writeRef(namespace, key, value, { expectedHash = undefined } = {}) {
     await this.init();
-    const current = await this.readManifest(namespace, key);
-    const actual = current?.hash ?? null;
+    const initial = await this.readManifest(namespace, key);
+    const actual = initial?.hash ?? null;
     if (expectedHash !== undefined && actual !== expectedHash) {
       const error = new Error("Manifest compare-and-swap conflict");
       error.code = "CAS_CONFLICT"; error.expectedHash = expectedHash; error.actualHash = actual; throw error;
     }
     const object = await this.putObject(value);
-    const manifest = { version: 1, namespace: String(namespace), key: String(key), hash: object.hash, updatedAt: new Date().toISOString() };
-    try {
-      const response = await this.client.send(new PutObjectCommand({
-        Bucket: this.bucket, Key: this.refKey(namespace, key), Body: canonical(manifest) + "\n",
-        ContentType: "application/json",
-        ...(current ? { IfMatch: current.etag } : { IfNoneMatch: "*" })
-      }));
-      return { ...manifest, etag: String(response.ETag || "").replaceAll('"', ""), uri: object.uri, bytes: object.bytes };
-    } catch (error) {
-      if (conflict(error)) {
-        const conflictError = new Error("Manifest compare-and-swap conflict");
-        conflictError.code = "CAS_CONFLICT"; conflictError.cause = error; throw conflictError;
+    const maxAttempts = expectedHash === undefined ? 8 : 1;
+    let current = initial;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) current = await this.readManifest(namespace, key);
+      if (expectedHash !== undefined && (current?.hash ?? null) !== expectedHash) {
+        const error = new Error("Manifest compare-and-swap conflict");
+        error.code = "CAS_CONFLICT"; error.expectedHash = expectedHash; error.actualHash = current?.hash ?? null; throw error;
       }
-      throw error;
+      const manifest = { version: 1, namespace: String(namespace), key: String(key), hash: object.hash, updatedAt: new Date().toISOString() };
+      try {
+        const response = await this.client.send(new PutObjectCommand({
+          Bucket: this.bucket, Key: this.refKey(namespace, key), Body: canonical(manifest) + "\n",
+          ContentType: "application/json",
+          ...(current ? { IfMatch: current.etag } : { IfNoneMatch: "*" })
+        }));
+        return { ...manifest, etag: String(response.ETag || "").replaceAll('"', ""), uri: object.uri, bytes: object.bytes };
+      } catch (error) {
+        if (!conflict(error)) throw error;
+        if (expectedHash !== undefined || attempt === maxAttempts - 1) {
+          const conflictError = new Error("Manifest compare-and-swap conflict");
+          conflictError.code = "CAS_CONFLICT"; conflictError.cause = error; throw conflictError;
+        }
+        // Unconditional writes are last-writer-wins. Retry against the newest
+        // manifest ETag so concurrent peers cannot crash the sovereign runtime.
+      }
     }
+    throw new Error("Remote CAS write exhausted retries");
   }
   async listRefs(namespace) {
     await this.init();
