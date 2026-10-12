@@ -238,7 +238,7 @@ export class ContentAddressedStore {
       };
       if (this.remoteRefsEnabled) {
         const serialized = canonical(manifest) + "\n";
-        await this.remoteObjects.putRef(namespace, key, serialized);
+        await this.remoteObjects.compareAndSwapRef(namespace, key, actual, serialized);
         const readBack = await this.remoteObjects.getRef(namespace, key);
         if (readBack !== serialized) throw new Error("Remote manifest write/read-back verification failed: " + namespace + "/" + key);
       } else {
@@ -284,7 +284,7 @@ export class ContentAddressedStore {
         throw error;
       }
       if (this.remoteRefsEnabled) {
-        await this.remoteObjects.deleteRef(namespace, key);
+        await this.remoteObjects.deleteRefIfMatch(namespace, key, current.hash);
         const readBack = await this.remoteObjects.getRef(namespace, key);
         if (readBack !== null) throw new Error("Remote manifest delete/read-back verification failed: " + namespace + "/" + key);
       } else {
