@@ -171,7 +171,9 @@ async function sendSovereignEnvelope(stream, envelope) {
     if (typeof stream?.sink === 'function') return stream.sink([bytes]);
     throw new TypeError('unsupported sovereign peer stream write interface');
   }
-  if (stream.send(bytes)) return;
+  // Some libp2p stream implementations return undefined after accepting a write;
+  // only wait for drain when send explicitly reports backpressure.
+  if (stream.send(bytes) !== false) return;
   if (typeof stream.onDrain === 'function') {
     await stream.onDrain({ signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000)) });
     return;
