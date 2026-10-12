@@ -2,6 +2,7 @@ import { handleStudioAdBlockDoH, initializeStudioAdBlock, studioAdBlockStatus } 
 import { studioAdBlockMobileConfig } from "../network/studio-adblock-profile.mjs";
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from "../network/apex-content-filter.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
+import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
 const APP = getApexApp("xshield");
 
@@ -30,5 +31,9 @@ export function classifyXShieldRequest(url, options = {}) {
 export function xshieldMobileConfig() {
   return studioAdBlockMobileConfig();
 }
+
+export const saveXShieldRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
+export const getXShieldRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
+export const listXShieldRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);
 
 export { handleStudioAdBlockDoH };
