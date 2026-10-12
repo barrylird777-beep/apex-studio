@@ -86,6 +86,7 @@ export function createRapidVideoPureWalQueue({
 
   async function enqueuePaidOrder(payment={}){
     await init();
+    if(payment.paid!==true||Number(payment.amount)!==2500||String(payment.currency||"").toUpperCase()!=="USD")throw Object.assign(new Error("Rapid order requires a verified USD $25 payment"),{status:400});
     const orderId=safeId(payment.orderId);
     const stored=await fabric.get("kash-korner",orderKey(orderId));
     const sessionId=String(payment.stripeSessionId||"");
@@ -100,6 +101,7 @@ export function createRapidVideoPureWalQueue({
         error:"No matching Pure-WAL checkout record; do not auto-fulfil a legacy payment."
       };
       await fabric.put("kash-korner",orderKey(orderId),reconciliation);
+      await recordObservedSale(orderId,payment);
       return {queued:false,needsReconciliation:true,orderId};
     }
 
