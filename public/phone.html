@@ -29,12 +29,12 @@ input,textarea,select{width:100%;border-radius:13px;border:1px solid var(--line)
 <div class="card wide"><h2>Network truth</h2><div class="notice">Apex separates phone telemetry from server-side observations. “Connected” means the phone reached Apex. It does not claim Apex controls Wi-Fi, cellular, carrier routing, or iPhone modem bonding.</div><div class="row"><span>Phone → Apex RTT</span><b id="rtt">—</b></div><div class="row"><span>Browser network API</span><b id="netApi">—</b></div><div class="row"><span>Apex server path</span><b id="serverPath">—</b></div><div class="row"><span>Multipath</span><b id="multipath">Not verified</b></div></div>
 <div class="card wide"><h2>Live diagnostics</h2><div class="actions"><button class="primary" id="refreshBtn" onclick="refreshAll()">Refresh</button><button id="benchBtn" onclick="benchmark()">Test 8 MiB</button></div><div id="benchmark" class="notice" style="margin-top:9px">No throughput test run.</div><div id="diag" class="mono" style="margin-top:9px">Waiting for diagnostics…</div></div>
 <div class="card wide"><h2>Six apps</h2><div class="apps">
-<a class="app" href="/planet-apex.html"><b>PlanetApeX</b><span>World builder</span></a>
-<a class="app" href="/xshield.html"><b>XShield</b><span>Network protection</span></a>
-<a class="app" href="/kernel-vision.html"><b>KernelVision</b><span>Presentation</span></a>
-<a class="app" href="/koin-kob.html"><b>KoinKob</b><span>Worker economy</span></a>
-<a class="app" href="/kash-korner.html"><b>KashKorner</b><span>Ledger</span></a>
-<a class="app" href="/kernelodies.html"><b>Kernelodies</b><span>Music identity</span></a>
+<a class="app" href="/planet-apex.html"><b>PlanetApeX</b><span>Brain · Bible, research and AI</span></a>
+<a class="app" href="/xshield.html"><b>XShield</b><span>Shield · security and ad blocking</span></a>
+<a class="app" href="/kernel-vision.html"><b>KernelVision</b><span>Eyes · create, render and publish</span></a>
+<a class="app" href="/koin-kob.html"><b>KoinKob</b><span>Economy · value and worker markets</span></a>
+<a class="app" href="/kash-korner.html"><b>KashKorner</b><span>Cash flow, ledger and connectivity</span></a>
+<a class="app" href="/kernelodies.html"><b>Kernelodies</b><span>Ears · music and sound</span></a>
 </div></div>
 <div class="card wide"><h2>Sovereign fabric · six apps</h2><div class="small">Save and load app records through the shared Pure-WAL store. Dispatches are queued durably; peer delivery is shown as pending until the runtime confirms it.</div><button style="width:100%;margin:8px 0" onclick="refreshSovereign()">Check sovereign runtime</button><div id="sovereignStatus" class="notice">Runtime status not checked.</div><label class="label" for="fabricApp">App namespace</label><select id="fabricApp"><option value="planet-apex">PlanetApeX</option><option value="xshield">XShield</option><option value="kernel-vision">KernelVision</option><option value="koin-kob">KoinKob</option><option value="kash-korner">KashKorner</option><option value="kernelodies">Kernelodies</option></select><label class="label" for="fabricRecordId">Record ID</label><input id="fabricRecordId" value="iphone-record-1" maxlength="128" autocomplete="off"><label class="label" for="fabricRecord">Record JSON / dispatch payload</label><textarea id="fabricRecord" spellcheck="false">{
   "source": "iphone",
