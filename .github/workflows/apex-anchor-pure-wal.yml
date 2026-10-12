@@ -16,10 +16,10 @@ jobs:
     env:
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
-      APEX_SE_X_ROOT: ${{ runner.temp }}/apex-anchor-se-x
-      APEX_PROJECTS_DIR: ${{ runner.temp }}/apex-anchor-se-x/projects
-      APEX_WAL_DIR: ${{ runner.temp }}/apex-anchor-se-x/wal
-      APEX_WAL_FILE: ${{ runner.temp }}/apex-anchor-se-x/wal/ring.wal.jsonl
+      APEX_SE_X_ROOT: ${{ github.workspace }}/.apex-anchor-se-x
+      APEX_PROJECTS_DIR: ${{ github.workspace }}/.apex-anchor-se-x/projects
+      APEX_WAL_DIR: ${{ github.workspace }}/.apex-anchor-se-x/wal
+      APEX_WAL_FILE: ${{ github.workspace }}/.apex-anchor-se-x/wal/ring.wal.jsonl
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
