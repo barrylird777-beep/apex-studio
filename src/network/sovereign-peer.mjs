@@ -288,26 +288,32 @@ export async function sendToPeer(node, multiaddr, envelope) {
     throw new Error('outgoing sovereign peer is not allowlisted');
   }
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
-  const stream = await node.dialProtocol(target, PROTOCOL, {
-    signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
-  });
-  // Outbound streams are already flowing; do not resume them again while waiting for the ACK.
-  const responsePromise = readSovereignEnvelope(stream, { resume: false });
-  try {
-    // Observe the ACK promise at the same time as the write. If the ACK times
-    // out while send() is backpressured, Promise.all keeps that rejection
-    // handled instead of letting Node terminate the sovereign runtime.
-    const [, response] = await Promise.all([
-      sendSovereignEnvelope(stream, envelope),
-      responsePromise
-    ]);
-    if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
-    return response;
-  } finally {
-    try { await stream.close?.(); } catch {}
+  // Retry only transport failures on a fresh stream; never retry peer rejection.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let stream;
+    try {
+      stream = await node.dialProtocol(target, PROTOCOL, {
+        signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
+      });
+      const responsePromise = readSovereignEnvelope(stream, { resume: false });
+      const [, response] = await Promise.all([
+        sendSovereignEnvelope(stream, envelope),
+        responsePromise
+      ]);
+      if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
+      console.log('[SOVEREIGN PEER] outbound acknowledged', JSON.stringify({ destinationPeerId, remotePeerId: response.peerId || null, attempt: attempt + 1 }));
+      return response;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const transportFailure = /stream (?:has been reset|is closed|closed)|Cannot write to a stream that is closed|timed out|connection reset|ECONNRESET|EPIPE/i.test(message);
+      if (!transportFailure || attempt === 1) throw error;
+      console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ destinationPeerId, attempt: attempt + 1, error: message }));
+    } finally {
+      try { await stream?.close?.(); } catch {}
+    }
   }
+  throw new Error('sovereign peer send failed after transport retry');
 }
-
 export { PROTOCOL };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
