@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createReadStream } from "node:fs";
-import { access, mkdir, realpath, stat, unlink } from "node:fs/promises";
+import { access, mkdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { assembleVideo, probeVideo, checkSpec } from "./assemble.mjs";
 import { validateHookPlan } from "./hook.mjs";
@@ -108,9 +108,9 @@ export async function produceKernelVisionEpisode(input={},options={}){
   };
   let renderResult,probe,qc,spec,artifact;
   try{
-    renderResult=await (options.assemble||assembleVideo)({shots,narration:narrationPath,music:musicPath,outPath,ffmpegPath:options.ffmpegPath||process.env.FFMPEG_PATH||"ffmpeg"});
+    renderResult=await (options.assemble||assembleVideo)({shots,narration:narrationPath,music:musicPath,outPath,fps:24,ffmpegPath:options.ffmpegPath||process.env.FFMPEG_PATH||"ffmpeg"});
     probe=await (options.probe||probeVideo)(outPath,{ffprobePath:options.ffprobePath||process.env.FFPROBE_PATH||"ffprobe"});
-    spec=checkSpec(probe,{expectedSec:totalDuration,toleranceSec:0.75});
+    spec=checkSpec(probe,{expectedSec:totalDuration,toleranceSec:0.75,expectedFps:24});
     qc=await (options.qc||runRenderQC)({mediaPath:outPath,expectedWidth:1920,expectedHeight:1080,expectedAspect:16/9,expectedDurationSeconds:totalDuration,toleranceSeconds:0.75});
     const qcPassed=spec.ok&&qc?.ok===true;
     const outputStat=await stat(outPath);
