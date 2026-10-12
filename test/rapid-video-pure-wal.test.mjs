@@ -32,6 +32,7 @@ test("paid checkout and fulfillment remain durable without PostgreSQL and dedupe
     assert.equal(final.status,"completed");
     assert.equal(final.result.url,"/files/rapid_order_paid-order-1_f1.mp4");
     assert.equal(orderRuns,1);
+    await queue.updateCheckoutRecord("paid-order-1",{status:"payment_required"}); // Simulate a crash between durable job completion and order projection update.
     const duplicate=await queue.enqueuePaidOrder({...payment,stripeEventId:"evt_retry_2"});
     assert.equal(duplicate.duplicate,true);
     assert.equal(orderRuns,1);
