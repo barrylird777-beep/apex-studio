@@ -10,7 +10,7 @@ import { buildAdaptiveTransferController } from "../network/throughput-profile.m
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
   isCI
-    ? path.join(os.tmpdir(), "apex-test-storage")
+    ? (process.env.APEX_TEST_STORAGE_DIR || path.join(os.tmpdir(), "apex-test-storage"))
     : (process.env.STORAGE_DIR || "/srv/apex/se-x/projects")
 );
 const PROJECT_FILE = path.join(STORAGE_DIR, "manifest.json");
