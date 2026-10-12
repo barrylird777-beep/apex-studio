@@ -907,8 +907,8 @@ app.post('/api/projects/:id/auto-schedule', requireControlPlaneAuth, async (req,
 // Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
 app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) => {
   try {
-    const { listKashKornerRecords, cashFlowSummary } = await import('./src/apps/kash-korner.mjs');
-    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
+    const { listKashKornerRecords, cashFlowSummary, excludeOpportunityRecords } = await import('./src/apps/kash-korner.mjs');
+    const entries = excludeOpportunityRecords(await listKashKornerRecords());
     const currencies = [...new Set(entries.map(entry => String(entry.currency || 'USD').toUpperCase()))];
     const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
     return res.json({ success: true, entries, summaries });
@@ -919,10 +919,10 @@ app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) =
 
 app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) => {
   try {
-    const { recordCashEntry, saveKashKornerRecord, listKashKornerRecords } = await import('./src/apps/kash-korner.mjs');
+    const { recordCashEntry, saveKashKornerRecord, listKashKornerRecords, excludeOpportunityRecords } = await import('./src/apps/kash-korner.mjs');
     const entry = recordCashEntry(req.body || {});
     await saveKashKornerRecord(entry.id, entry);
-    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
+    const entries = excludeOpportunityRecords(await listKashKornerRecords());
     return res.status(201).json({ success: true, entry, entries });
   } catch (error) {
     return res.status(400).json({ success: false, error: String(error?.message || error) });

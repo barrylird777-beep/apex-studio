@@ -61,6 +61,13 @@ export function kashKornerStatus() {
 
 
 // Shared durable records for this app; inject a test/local fabric when needed.
+export function excludeOpportunityRecords(entries = []) {
+  const rows = Array.isArray(entries) ? entries : [];
+  return rows
+    .map(row => row?.record || row)
+    .filter(entry => entry?.recordType !== "opportunity");
+}
+
 export const saveKashKornerRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
 export const getKashKornerRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
 export const listKashKornerRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);
