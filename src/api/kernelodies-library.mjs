@@ -36,7 +36,7 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
       try {
         const handle = await fs.open(lockPath, "wx", 0o600);
         try {
-          await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }) + "\\n", "utf8");
+          await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }) + "\n", "utf8");
           await handle.sync();
         } catch (error) {
           await handle.close().catch(() => {});
@@ -92,7 +92,7 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
         temp = manifestPath + ".tmp-" + crypto.randomUUID();
         const handle = await fs.open(temp, "wx", 0o600);
         try {
-          await handle.writeFile(JSON.stringify(manifest, null, 2) + "\\n", "utf8");
+          await handle.writeFile(JSON.stringify(manifest, null, 2) + "\n", "utf8");
           await handle.sync();
         } finally { await handle.close(); }
         await fs.rename(temp, manifestPath);
