@@ -128,8 +128,8 @@ async function publishRuntimeIdentity(status = 'online') {
   if (!peerNode) return;
   const now = Date.now();
   const peerId = peerNode.peerId.toString();
-  const publicHost = String(process.env.APEX_P2P_PUBLIC_HOST || '').trim();
-  const publicPort = Number(process.env.APEX_P2P_PUBLIC_PORT || 0);
+  const publicHost = String(process.env.APEX_P2P_PUBLIC_HOST || process.env.RAILWAY_TCP_PROXY_DOMAIN || '').trim();
+  const publicPort = Number(process.env.APEX_P2P_PUBLIC_PORT || process.env.RAILWAY_TCP_PROXY_PORT || 0);
   const publicPeerAddress = publicHost && /^[A-Za-z0-9.-]+$/.test(publicHost) && Number.isInteger(publicPort) && publicPort > 0 && publicPort <= 65535
     ? `/dns4/${publicHost}/tcp/${publicPort}/p2p/${peerId}`
     : null;
