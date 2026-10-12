@@ -179,6 +179,9 @@ if (!workerOnly) {
   const remoteWorkerToken = String(process.env.APEX_WORKER_TOKEN || "");
   const remoteWorkerId = String(process.env.APEX_WORKER_ID || process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "apex-worker").slice(0, 255);
   if (remoteWorkerApiUrl && !remoteWorkerToken) throw new Error("APEX_WORKER_API_URL requires APEX_WORKER_TOKEN");
+  const recoveryBatchSize = Math.max(1, Math.min(25, Number(process.env.APEX_WORKER_RECOVERY_BATCH_SIZE || 25)));
+  const recoveryIntervalMs = Math.max(5000, Number(process.env.APEX_WORKER_RECOVERY_INTERVAL_MS || 15000));
+  let nextRecoveryAt = 0;
 
   async function remoteWorkerRequest(route, body) {
     const response = await fetch(new URL(route, remoteWorkerApiUrl), {
@@ -199,8 +202,8 @@ if (!workerOnly) {
     ? (await remoteWorkerRequest("/api/internal/worker/claim", { limit, leaseMs, workerId: remoteWorkerId })).tasks || []
     : claimNextWorkerTasks(limit, leaseMs);
   const queueRecover = async () => remoteWorkerApiUrl
-    ? (await remoteWorkerRequest("/api/internal/worker/recover", { limit: 500 })).recovered || 0
-    : requeueExpiredWorkerTasks();
+    ? (await remoteWorkerRequest("/api/internal/worker/recover", { limit: recoveryBatchSize })).recovered || 0
+    : requeueExpiredWorkerTasks(recoveryBatchSize);
   const queueHeartbeat = async (task, leaseMs) => remoteWorkerApiUrl
     ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/heartbeat", { leaseMs, leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
     : heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence);
@@ -330,7 +333,13 @@ if (!workerOnly) {
     if (!ready) break;
 
     try {
-      await queueRecover();
+      if (Date.now() >= nextRecoveryAt) {
+        // Recovery rewrites WAL records under the same cross-process mutation lock as claims and completions.
+        // Keep each recovery batch small and periodic so a large expired backlog cannot starve live work.
+        nextRecoveryAt = Date.now() + recoveryIntervalMs;
+        const recovered = await queueRecover();
+        if (recovered > 0) console.log("[apex-worker] reclaimed expired tasks", recovered);
+      }
       const available = Math.max(0, concurrency - inFlight.size);
       if (!available) {
         await sleep(100);
