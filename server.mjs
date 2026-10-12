@@ -505,93 +505,93 @@ app.get('/api/canon/trajectory', async (_req, res) => {
   }
 });
 
-app.post('/api/canon/handoff', async (req, res) => {
+app.post('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
   try {
-    const { publishCanonicalHandoff } = await import('./src/apps/canonical-handoff-bus.mjs');
-    const event = publishCanonicalHandoff({
-      from: req.body?.from,
-      to: req.body?.to,
-      payload: req.body?.payload,
-      correlationId: req.body?.correlationId
+    const source = String(req.body?.from || '').trim();
+    const target = String(req.body?.to || '').trim();
+    const payload = req.body?.payload == null ? {} : req.body.payload;
+    const correlationId = req.body?.correlationId == null ? null : String(req.body.correlationId).slice(0, 256);
+    if (!source || !target) return res.status(400).json({ success: false, error: 'Handoff source and target are required' });
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return res.status(400).json({ success: false, error: 'Handoff payload must be an object' });
+    if (Buffer.byteLength(JSON.stringify(payload), 'utf8') > 262144) return res.status(413).json({ success: false, error: 'Handoff payload exceeds configured size limit' });
+    const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
+    if (!canonicalNeighbors(source).some(edge => edge.from === source && edge.to === target)) {
+      return res.status(400).json({ success: false, error: 'Invalid canonical handoff: ' + source + ' -> ' + target });
+    }
+    const waveId = correlationId
+      ? 'canonical-' + crypto.createHash('sha256').update(JSON.stringify({ source, target, correlationId, payload })).digest('hex')
+      : crypto.randomUUID();
+    const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
+    const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
+    const queued = await sovereignAppFabric.dispatch(source, {
+      action: 'canonical.handoff',
+      data: { to: target, payload, correlationId },
+      waveId,
+      source: 'api.canon.handoff'
     });
+    const event = {
+      id: waveId,
+      contractVersion: 'apex-canonical-handoff.v1',
+      from: source,
+      to: target,
+      correlationId,
+      payload,
+      durable: true,
+      peerPending: Boolean(queued.peerPending),
+      peerAcknowledged: Boolean(queued.peerAcknowledged),
+      jobId: queued.jobId,
+      status: queued.status,
+      createdAt: new Date().toISOString()
+    };
+    await apexPureStore.put('apex_canonical_handoffs', waveId, event);
     return res.status(202).json({ success: true, event });
   } catch (error) {
     const message = String(error?.message || error);
-    const status = /Invalid canonical handoff|Unknown Apex app/.test(message) ? 400 : 422;
-    return res.status(status).json({ success: false, error: message });
+    const status = /Invalid canonical handoff|Unknown Apex app|Handoff payload/.test(message) ? 400 : 503;
+    return res.status(status).json({ success: false, error: message.slice(0, 500) });
   }
 });
 
-app.get('/api/canon/handoff', async (req, res) => {
-  try {
-    const { listCanonicalHandoffs } = await import('./src/apps/canonical-handoff-bus.mjs');
-    return res.json({ success: true, events: listCanonicalHandoffs({
-      appId: req.query?.appId || null,
-      limit: req.query?.limit
-    }) });
-  } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
-  }
-});
-
-app.get('/api/canon/handoff/status', async (_req, res) => {
-  try {
-    const { canonicalHandoffStatus } = await import('./src/apps/canonical-handoff-bus.mjs');
-    return res.json({ success: true, ...canonicalHandoffStatus() });
-  } catch (error) {
-    return res.status(503).json({ success: false, error: 'Canonical handoff status unavailable' });
-  }
-});
-
-app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
+app.get('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
   try {
     const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
-    return res.json({ success: true, appId: req.params.appId, neighbors: canonicalNeighbors(req.params.appId) });
+    const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
+    const appId = req.query?.appId ? String(req.query.appId) : null;
+    if (appId) canonicalNeighbors(appId);
+    await apexPureStore.refresh();
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(req.query?.limit) || 50)));
+    const records = (await apexPureStore.list('apex_canonical_handoffs'))
+      .map(row => row?.record || row)
+      .filter(event => !appId || event.from === appId || event.to === appId)
+      .slice(-limit);
+    return res.json({ success: true, events: records, durable: true });
   } catch (error) {
-    const message = String(error?.message || error);
-    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
-    console.error('[canonical-neighbors]', error);
-    return res.status(503).json({ success: false, error: 'Canonical app neighbors unavailable' });
+    return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 500) });
   }
 });
 
-app.get('/api/canon/apps', async (_req, res) => {
+app.get('/api/canon/handoff/status', requireControlPlaneAuth, async (_req, res) => {
   try {
-    const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
-    return res.json({ success: true, apps: await canonicalAppsStatus(), checkedAt: new Date().toISOString() });
+    const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
+    const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
+    await apexPureStore.refresh();
+    const fabric = await sovereignAppFabric.status();
+    const records = await apexPureStore.list('apex_canonical_handoffs');
+    return res.json({
+      success: true,
+      contractVersion: 'apex-canonical-handoff.v1',
+      durable: true,
+      queued: records.length,
+      maxEvents: 1000,
+      maxPayloadBytes: 262144,
+      pendingDispatches: fabric.pendingDispatches,
+      pendingPeerAcks: fabric.mesh.pendingPeerAcks,
+      externalPeerConnectivityReady: fabric.mesh.externalPeerConnectivityReady,
+      checkedAt: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('[canonical-apps]', error);
-    return res.status(503).json({ success: false, error: 'Canonical app registry unavailable' });
+    return res.status(503).json({ success: false, error: 'Canonical durable handoff status unavailable' });
   }
-});
-
-app.get('/api/canon/apps/:appId/status', async (req, res) => {
-  try {
-    const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
-    return res.json(await canonicalAppStatus(req.params.appId));
-  } catch (error) {
-    const message=String(error?.message||error);
-    if(message.startsWith('Unknown Apex app:')) return res.status(404).json({success:false,error:message});
-    console.error('[canonical-app-status]',error);
-    return res.status(503).json({success:false,error:'Canonical app status unavailable'});
-  }
-});
-
-app.get('/api/planet-apex/status', async (_req, res) => {
-  try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({success:true,...planetApexStatus()}); }
-  catch { return res.status(503).json({success:false,error:'PlanetApeX status unavailable'}); }
-});
-app.get('/api/kernel-vision/status', async (_req, res) => {
-  try { const { kernelVisionStatus } = await import('./src/apps/kernel-vision.mjs'); return res.json({success:true,...kernelVisionStatus()}); }
-  catch { return res.status(503).json({success:false,error:'KernelVision status unavailable'}); }
-});
-app.get('/api/kash-korner/status', async (_req, res) => {
-  try { const { kashKornerStatus } = await import('./src/apps/kash-korner.mjs'); return res.json({success:true,...kashKornerStatus()}); }
-  catch { return res.status(503).json({success:false,error:'KashKorner status unavailable'}); }
-});
-app.get('/api/kernelodies/status', async (_req, res) => {
-  try { const { kernelodiesStatus } = await import('./src/apps/kernelodies.mjs'); return res.json({success:true,...await kernelodiesStatus()}); }
-  catch { return res.status(503).json({success:false,error:'Kernelodies status unavailable'}); }
 });
 
 // Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
