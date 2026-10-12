@@ -114,3 +114,33 @@ test('replicated peer events retain the verified source record across restart', 
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+
+test('legacy mesh migration replays multiple newline-delimited records without losing history', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-sovereign-legacy-multiline-'));
+  const first = {
+    seq: 1, waveId: 'legacy-wave-1', peerId: 'legacy-peer',
+    action: 'legacy.import', timestamp: '2026-10-01T00:00:00.000Z',
+    status: 'DISPATCHED', payload: { legacy: true, index: 1 }
+  };
+  first.checksum = sovereignRecordChecksum(first);
+  const second = {
+    seq: 2, waveId: 'legacy-wave-2', peerId: 'legacy-peer',
+    action: 'legacy.import', timestamp: '2026-10-01T00:00:01.000Z',
+    status: 'DISPATCHED', payload: { legacy: true, index: 2 }
+  };
+  second.checksum = sovereignRecordChecksum(second);
+  try {
+    await fs.writeFile(path.join(dir, 'apex-ring-wal.ndjson'), JSON.stringify(first) + '\\n' + JSON.stringify(second) + '\\n', { mode: 0o600 });
+    const engine = new SovereignMeshEngine(dir);
+    await engine.ready();
+    assert.equal(engine.size, 2);
+    assert.deepEqual(engine.get('legacy-wave-1'), first);
+    assert.deepEqual(engine.get('legacy-wave-2'), second);
+    const recovered = new SovereignMeshEngine(dir);
+    await recovered.ready();
+    assert.equal(recovered.size, 2);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
