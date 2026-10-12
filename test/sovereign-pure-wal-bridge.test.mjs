@@ -11,7 +11,9 @@ import { createSovereignDurableBridge } from '../src/core/sovereign-durable-brid
 test('sovereign bridge persists a wave to Pure-WAL without a database client', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-pure-wal-bridge-'));
   const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
+  const previousRequirePeer = process.env.APEX_REQUIRE_PEER_ACK;
   process.env.APEX_SOVEREIGN_PEER_ID = 'test-peer';
+  process.env.APEX_REQUIRE_PEER_ACK = 'false';
   try {
     const store = new ApexPureStore({
       root: path.join(dir, 'projects'),
@@ -43,6 +45,8 @@ test('sovereign bridge persists a wave to Pure-WAL without a database client', a
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
     else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
+    if (previousRequirePeer === undefined) delete process.env.APEX_REQUIRE_PEER_ACK;
+    else process.env.APEX_REQUIRE_PEER_ACK = previousRequirePeer;
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
