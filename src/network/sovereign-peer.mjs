@@ -16,6 +16,21 @@ const PROTOCOL = '/apex/sovereign/1.0.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
+  const encoded = String(process.env.APEX_PEER_PRIVATE_KEY_BASE64 || '').trim();
+  const identityRequired = String(process.env.NODE_ENV || '').toLowerCase() === 'production' ||
+    String(process.env.APEX_PEER_IDENTITY_REQUIRED || '').toLowerCase() === 'true';
+  if (encoded) {
+    const normalized = encoded.replace(/\\s+/g, '');
+    const bytes = Buffer.from(normalized, 'base64');
+    if (!bytes.length || bytes.toString('base64') !== normalized) {
+      throw new Error('APEX_PEER_PRIVATE_KEY_BASE64 must contain canonical base64 key bytes');
+    }
+    try { return privateKeyFromProtobuf(bytes); }
+    catch { throw new Error('APEX_PEER_PRIVATE_KEY_BASE64 does not contain a valid libp2p private key'); }
+  }
+  if (identityRequired) {
+    throw new Error('Stable sovereign peer identity is required; refusing local key-file fallback');
+  }
   const target = path.resolve(file);
   await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
   try {
@@ -234,6 +249,11 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
       dht: kadDHT({ clientMode: false, kBucketSize: 20 })
     }
   });
+  const expectedPeerId = String(process.env.APEX_EXPECTED_PEER_ID || '').trim();
+  if (expectedPeerId && node.peerId.toString() !== expectedPeerId) {
+    await node.stop().catch(() => {});
+    throw new Error('Configured sovereign peer identity does not match APEX_EXPECTED_PEER_ID');
+  }
 
   node.addEventListener('peer:discovery', event => {
     const discoveredId = event.detail?.id?.toString?.() || '';
