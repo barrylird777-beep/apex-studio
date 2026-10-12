@@ -70,7 +70,7 @@
     if (!mimeType) return status("Unsupported audio type. Choose MP3, M4A, AAC, WAV, OGG, FLAC, or WebM.");
     try {
       status("Saving track metadata…");
-      const created = await api("/api/kernelodies/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: $("kl-title").value || file.name.replace(/\\.[^.]+$/, ""), artist: $("kl-artist").value, album: $("kl-album").value }) });
+      const created = await api("/api/kernelodies/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: $("kl-title").value || file.name.replace(/\.[^.]+$/, ""), artist: $("kl-artist").value, album: $("kl-album").value }) });
       status("Uploading audio to persistent storage…");
       await api("/api/kernelodies/library/" + created.track.id + "/audio", { method: "PUT", headers: { "Content-Type": mimeType }, body: file });
       $("kl-file").value = ""; await refresh();
