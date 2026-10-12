@@ -2617,7 +2617,7 @@ if (String(process.env.APEX_BROADCAST_AUTOSTART || 'false').toLowerCase() === 't
 async function runInlineRapidTask(task) {
   const leaseMs = Math.max(15000, Number(process.env.APEX_RAPID_INLINE_LEASE_MS || 45000));
   const heartbeat = setInterval(() => {
-    void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
+    void heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence).catch(error => {
       console.error('[rapid-inline-worker] heartbeat failed:', error?.message || error);
     });
   }, Math.max(5000, Math.floor(leaseMs / 3)));
@@ -2626,10 +2626,10 @@ async function runInlineRapidTask(task) {
     const result = task.task === 'rapid-video-preview'
       ? await executeRapidVideoPreview(task.payload || {})
       : await executeRapidVideoOrder(task.payload || {});
-    const completed = await completeWorkerTask(task.id, result, task.lease_token);
+    const completed = await completeWorkerTask(task.id, result, task.lease_token, task.lease_fence);
     if (!completed) console.warn('[rapid-inline-worker] completion fenced out', task.id);
   } catch (error) {
-    await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
+    await failWorkerTask(task.id, error, task.lease_token, task.lease_fence).catch(failure => {
       console.error('[rapid-inline-worker] failure update failed:', failure?.message || failure);
     });
     console.error('[rapid-inline-worker] task failed:', task.id, error?.message || error);
