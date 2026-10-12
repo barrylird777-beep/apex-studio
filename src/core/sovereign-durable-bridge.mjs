@@ -42,7 +42,7 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
   async function acceptRecord(record, options = {}) {
     const job = await persist(record, options);
     let peerAcceptance = null;
-    const requirePeer = process.env.APEX_REQUIRE_PEER_ACK === 'true';
+    const requirePeer = process.env.APEX_REQUIRE_PEER_ACK !== 'false';
     if (requirePeer && !(peerNode && peerAddress && sendPeer)) {
       throw new Error('peer acknowledgement is required but no peer transport is configured');
     }
