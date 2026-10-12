@@ -58,10 +58,11 @@ export class RemoteApexRingWAL {
     }
   }
   async init() { if (this.ready) return this; await this.cas.init(); await this.replay({ retainRing: true }); this.ready = true; return this; }
-  async _records({ onRecord = async () => {}, retainRing = true } = {}) {
+  async _records({ onRecord = async () => {}, retainRing = true, allowHeadLag = false, repairHead = false } = {}) {
     this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0;
     const refs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r")).sort((a,b) => String(a.key).localeCompare(String(b.key)));
     let previous = ZERO, sequence = 0, bytes = 0;
+    const hashAtSequence = new Map([[0, ZERO]]);
     for (const ref of refs) {
       const record = ref.value;
       const { hash, ...body } = record || {};
@@ -70,12 +71,22 @@ export class RemoteApexRingWAL {
       }
       bytes += Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
       if (retainRing) this._load(record); else { this.seq = record.seq; this.lastHash = record.hash; }
-      previous = record.hash; sequence = record.seq; await onRecord(record);
+      previous = record.hash; sequence = record.seq; hashAtSequence.set(sequence, previous); await onRecord(record);
     }
     this.offset = bytes;
     const head = await this.cas.readRef("system", this.headKey);
-    if (head && (Number(head.value.seq) !== sequence || String(head.value.lastHash) !== previous)) {
+    const headSeq = head ? Number(head.value?.seq) : 0;
+    const headHash = head ? String(head.value?.lastHash || "") : ZERO;
+    const exact = headSeq === sequence && headHash === previous;
+    const validLag = allowHeadLag && Number.isSafeInteger(headSeq) && headSeq >= 0 && headSeq < sequence && hashAtSequence.get(headSeq) === headHash;
+    const missingHeadWithRecords = allowHeadLag && !head && sequence > 0;
+    if (!exact && !validLag && !missingHeadWithRecords) {
       throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL head does not match record chain.");
+    }
+    // A crash can occur after the immutable record is committed but before its
+    // head ref advances. Repair only while the caller holds the remote append lock.
+    if (repairHead && !exact) {
+      await this.cas.writeRef("system", this.headKey, { seq: sequence, lastHash: previous, updatedAt: new Date().toISOString() }, { expectedHash: head?.hash ?? null });
     }
     return sequence;
   }
@@ -106,7 +117,7 @@ export class RemoteApexRingWAL {
   }
   async replay({ onRecord = async () => {}, retainRing = true } = {}) {
     await this.cas.init();
-    const count = await this._records({ onRecord, retainRing }); this.ready = true; return count;
+    const count = await this._records({ onRecord, retainRing, allowHeadLag: true }); this.ready = true; return count;
   }
   async replayReadOnly({ onRecord = async () => {}, retainRing = false } = {}) {
     await this.cas.init();
