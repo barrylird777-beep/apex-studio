@@ -23,13 +23,57 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
   const root = path.join(path.resolve(storageDir), "kernelodies-library");
   const manifestPath = path.join(root, "library.json");
   let writes = Promise.resolve();
+  const lockPath = manifestPath + ".lock";
+
+  async function syncDirectory(dir) {
+    const handle = await fs.open(dir, "r");
+    try { await handle.sync(); } finally { await handle.close(); }
+  }
+
+  async function acquireManifestLock() {
+    const started = Date.now();
+    while (true) {
+      try {
+        const handle = await fs.open(lockPath, "wx", 0o600);
+        try {
+          await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }) + "\\n", "utf8");
+          await handle.sync();
+        } catch (error) {
+          await handle.close().catch(() => {});
+          await fs.unlink(lockPath).catch(() => {});
+          throw error;
+        }
+        await handle.close();
+        return async () => {
+          await fs.unlink(lockPath).catch(error => { if (error?.code !== "ENOENT") throw error; });
+          await syncDirectory(root);
+        };
+      } catch (error) {
+        if (error?.code !== "EEXIST") throw error;
+        let stale = false;
+        try { stale = Date.now() - (await fs.stat(lockPath)).mtimeMs > 120_000; }
+        catch (statError) { if (statError?.code === "ENOENT") continue; throw statError; }
+        if (stale) {
+          await fs.unlink(lockPath).catch(unlinkError => { if (unlinkError?.code !== "ENOENT") throw unlinkError; });
+          continue;
+        }
+        if (Date.now() - started > 30_000) throw new Error("Timed out waiting for the Kernelodies library lock");
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+    }
+  }
 
   async function init() {
     await fs.mkdir(root, { recursive: true, mode: 0o700 });
-    try { await fs.access(manifestPath); }
-    catch (error) {
+    const rootInfo = await fs.lstat(root);
+    if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) throw new Error("Kernelodies storage root must be a real directory");
+    try {
+      const manifestInfo = await fs.lstat(manifestPath);
+      if (manifestInfo.isSymbolicLink() || !manifestInfo.isFile()) throw new Error("Kernelodies manifest must be a regular file");
+    } catch (error) {
       if (error?.code !== "ENOENT") throw error;
       await fs.writeFile(manifestPath, JSON.stringify({ version: 1, tracks: [] }, null, 2), { flag: "wx", mode: 0o600 }).catch(e => { if (e?.code !== "EEXIST") throw e; });
+      await syncDirectory(root);
     }
   }
   async function readManifest() {
@@ -40,12 +84,25 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
   }
   function updateManifest(fn) {
     const run = writes.then(async () => {
-      const manifest = await readManifest();
-      const result = await fn(manifest);
-      const temp = manifestPath + ".tmp-" + crypto.randomUUID();
-      await fs.writeFile(temp, JSON.stringify(manifest, null, 2), { mode: 0o600 });
-      await fs.rename(temp, manifestPath);
-      return result;
+      const release = await acquireManifestLock();
+      let temp;
+      try {
+        const manifest = await readManifest();
+        const result = await fn(manifest);
+        temp = manifestPath + ".tmp-" + crypto.randomUUID();
+        const handle = await fs.open(temp, "wx", 0o600);
+        try {
+          await handle.writeFile(JSON.stringify(manifest, null, 2) + "\\n", "utf8");
+          await handle.sync();
+        } finally { await handle.close(); }
+        await fs.rename(temp, manifestPath);
+        temp = null;
+        await syncDirectory(root);
+        return result;
+      } finally {
+        if (temp) await fs.unlink(temp).catch(() => {});
+        await release();
+      }
     });
     writes = run.catch(() => {});
     return run;
@@ -96,7 +153,19 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
       if (!record) return res.status(404).json({ ok: false, error: "Track record not found" });
       const filename = id + "." + extension;
       const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
-      await fs.writeFile(path.join(root, filename), bytes, { mode: 0o600, flag: "wx" });
+      const finalPath = path.join(root, filename);
+      const tempPath = path.join(root, "." + filename + ".tmp-" + crypto.randomUUID());
+      const handle = await fs.open(tempPath, "wx", 0o600);
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } finally { await handle.close(); }
+      try {
+        await fs.link(tempPath, finalPath);
+      } finally {
+        await fs.unlink(tempPath).catch(() => {});
+      }
+      await syncDirectory(root);
       await updateManifest(manifest => {
         const track = manifest.tracks.find(item => item.id === id);
         if (!track) throw new Error("Track record disappeared");
