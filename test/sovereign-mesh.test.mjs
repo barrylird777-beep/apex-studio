@@ -5,6 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import SovereignMeshEngine, { sovereignRecordChecksum } from '../src/core/sovereign-mesh-engine.mjs';
 
+// These tests exercise the local CAS implementation; production sets remote mode on purpose.
+// Remote-mode behavior is covered separately by sovereign-mesh-remote-cas.test.mjs.
+process.env.APEX_CAS_REMOTE_ENABLED = "false";
+
 test('sovereign content-addressed state persists without a WAL, deduplicates, and recovers', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-sovereign-'));
   const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
