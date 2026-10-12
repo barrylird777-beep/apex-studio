@@ -28,3 +28,9 @@ test("environment template is sovereign and does not restore SQLite or obsolete 
   assert.doesNotMatch(source, /DATABASE_URL|APEX_PRODUCTION_DB_FILE|sqlite/i);
   assert.doesNotMatch(source, /BIBLICALLYUNSEEN/i);
 });
+
+test("default index startup fails closed instead of launching the retired SQLite AV1 daemon", async () => {
+  const source = await readFile(new URL("../index.mjs", import.meta.url), "utf8");
+  assert.match(source, /The legacy SQLite AV1 daemon is retired/);
+  assert.doesNotMatch(source, /import\(["']\.\/src\/workers\/av1-production-daemon\.mjs/);
+});
