@@ -2785,7 +2785,7 @@ app.get('/api/media/status', (_req, res) => {
 // 6. STATUS & HEALTH
 // ============================================================
 
-app.get('/api/project', async (_req, res) => {
+app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
   try {
     const state = await getProjectState();
     return res.json({ success: true, ...state });
@@ -3316,7 +3316,7 @@ app.post('/api/korn-knob/worker-job', requireControlPlaneAuth, async (req, res) 
   }
 });
 
-app.get('/api/engine-apex/chat-runtime/state', async (req, res) => {
+app.get('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async (req, res) => {
   try {
     const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.json({ success: true, ...(await getChatRuntimeState(req.query?.scope || 'default')) });
@@ -3346,7 +3346,7 @@ app.patch('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async 
   }
 });
 
-app.get('/api/engine-apex/chat-runtime/events', async (req, res) => {
+app.get('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async (req, res) => {
   try {
     const { listChatRuntimeEvents } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.json({ success: true, ...(await listChatRuntimeEvents(req.query?.scope || 'default', req.query?.limit)) });
@@ -3374,7 +3374,7 @@ app.post('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async 
   }
 });
 
-app.get('/api/engine-apex/chat-runtime/status', async (_req, res) => {
+app.get('/api/engine-apex/chat-runtime/status', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
     const snapshot = await getChatRuntimeState('default');
@@ -3392,7 +3392,7 @@ app.get('/api/engine-apex/chat-runtime/status', async (_req, res) => {
   }
 });
 
-app.get('/api/engine-apex/snapshot', async (_req, res) => {
+app.get('/api/engine-apex/snapshot', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
     return res.json({ success: true, ...(await getEngineSnapshot()) });

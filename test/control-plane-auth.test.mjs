@@ -99,7 +99,12 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["delete", "/api/scenes/:id"],
     ["post", "/api/projects/:id/shoot-days"],
     ["post", "/api/shoot-days/:id/scenes"],
-    ["post", "/api/projects/:id/auto-schedule"]
+    ["post", "/api/projects/:id/auto-schedule"],
+    ["get", "/api/project"],
+    ["get", "/api/engine-apex/chat-runtime/state"],
+    ["get", "/api/engine-apex/chat-runtime/events"],
+    ["get", "/api/engine-apex/chat-runtime/status"],
+    ["get", "/api/engine-apex/snapshot"]
   ];
   for (const [method, route] of protectedRoutes) {
     assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
