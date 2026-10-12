@@ -5,7 +5,7 @@ export async function acknowledgeLocalPeerReceive(engine, waveId, peerId = '') {
   const record = engine.get(waveId);
   if (!record || record.status !== 'DISPATCHED' || record.action !== 'PeerReceive') return false;
   await engine.acknowledge(waveId, {
-    storage: 'local-pure-wal',
+    storage: 'content-addressed',
     status: 'LOCAL_RECEIPT',
     peer: String(peerId || record.peerId || '')
   });

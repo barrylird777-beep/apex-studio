@@ -30,7 +30,7 @@ test("KashKorner opportunity writes are durable and listing ranks net profit", a
   const rows = new Map();
   const fabric = {
     async put(appId, id, record) {
-      const result = { appId, id, record: { ...record, id }, durable: true, storage: "local-pure-wal" };
+      const result = { appId, id, record: { ...record, id }, durable: true, storage: "content-addressed" };
       rows.set(id, result);
       return result;
     },

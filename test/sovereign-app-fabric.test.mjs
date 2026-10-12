@@ -35,7 +35,7 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
     }
     const status=await fabric.status();
     assert.equal(status.ok,true);
-    assert.equal(status.storage,'local-pure-wal');
+    assert.equal(status.storage,'content-addressed');
     assert.equal(status.canonicalAppCount,6);
     assert.equal(new Set((await fabric.list('planet-apex')).map(x=>x.id)).size,1);
     await assert.rejects(fabric.put('unknown-app','x',{value:1}),/Unknown canonical Apex app/);

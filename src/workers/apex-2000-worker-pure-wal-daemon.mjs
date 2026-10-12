@@ -41,7 +41,7 @@ async function main() {
     maxInFlight,
     pollMs,
     leaseMs,
-    storage: "local-pure-wal",
+    storage: "content-addressed",
     note: "logical identities are fixed; concurrent execution is resource-bounded"
   }));
 

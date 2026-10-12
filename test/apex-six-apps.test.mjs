@@ -141,7 +141,7 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
   const records = new Map();
   const fabric = {
     async put(appId, id, record) {
-      const entry = { appId, id, record, durable: true, storage: "local-pure-wal" };
+      const entry = { appId, id, record, durable: true, storage: "content-addressed" };
       records.set(appId + ":" + id, entry);
       return entry;
     },

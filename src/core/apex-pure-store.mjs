@@ -2,6 +2,8 @@ import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
+import { ContentAddressedStore } from "./content-addressed-store.mjs";
+import { createHash } from "node:crypto";
 
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const PROJECTS=process.env.APEX_PROJECTS_DIR||path.join(ROOT,"projects");
@@ -26,19 +28,36 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.mutationChain=Promise.resolve();}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     await mkdir(this.root,{recursive:true,mode:0o700});
-    await this.wal.init();
-    await this.wal.replay({onRecord:r=>this.apply(r)});
-    this.ready=true;return this;
-  }
-  async refresh(){
-    await this.init();
-    await this.wal.refresh({onRecord:r=>this.apply(r)});
+    await this.cas.init();
+    let migrated=false;
+    try{await stat(this.migrationFile);migrated=true;}catch(e){if(e.code!=="ENOENT")throw e;}
+    if(!migrated){
+      let legacyExists=false;
+      try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
+      if(legacyExists){
+        await this.wal.replay({onRecord:r=>this.apply(r)});
+        for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);await this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)});}
+        for(const [id,job] of this.jobsState)await this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)});
+      }
+      await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
+    }
+    this.ready=true;
+    await this.loadReferences();
     return this;
   }
+  async loadReferences(){
+    this.state.clear();this.jobsState.clear();
+    for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null)this.state.set(this.key(v.collection,v.id),clone(v.record));}
+    for(const ref of await this.cas.listRefs("jobs")){const v=ref.value;if(v?.id!=null&&v?.job)this.jobsState.set(String(v.id),clone(v.job));}
+  }
+  async refresh(){await this.init();await this.loadReferences();return this;}
+  refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
+  async persistJob(job){await this.cas.writeRef("jobs",this.refKey("job",job.id),{id:String(job.id),job:clone(job)});}
+  async persistState(collection,id,record){await this.cas.writeRef("state",this.refKey(collection,id),{collection:String(collection),id:String(id),record:clone(record)});}
   async withMutationLock(operation){
     await mkdir(this.root,{recursive:true,mode:0o700});
     const lockFile=path.join(this.root,".apex-queue-mutations.lock");
@@ -123,8 +142,10 @@ export class ApexPureStore {
     await this.refresh();
     const target=await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
-    const r=await this.wal.append("state.put",{collection:String(collection),id:String(id),record:value});
-    for(const external of r.externalRecords||[])this.apply(external);this.apply(r);await this.atomic(target,value);return clone(value);
+    await this.persistState(collection,id,value);
+    this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
+    await this.atomic(target,value);
+    return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
   async get(collection,id){await this.refresh();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
@@ -133,10 +154,8 @@ export class ApexPureStore {
   async delete(collection,id){
     await this.refresh();
     const target=await this.checkedFile(collection,id);
-    const r=await this.wal.append("state.delete",{collection:String(collection),id:String(id)});
-    for(const external of r.externalRecords||[])this.apply(external);this.apply(r);
-    // The WAL is authoritative. Removing a projection is best-effort only after
-    // its path has passed the same containment and symlink checks.
+    await this.cas.deleteRef("state",this.refKey(collection,id));
+    this.state.delete(this.key(collection,id));
     const { unlink }=await import("node:fs/promises");
     try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
     return true;
@@ -151,9 +170,8 @@ export class ApexPureStore {
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
       const job={id:String(id),type:String(type),payload:clone(payload),priority:Number(priority)||0,status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
-      const r=await this.wal.append("job.enqueue",{id:job.id,job});
-      for(const external of r.externalRecords||[])this.apply(external);
-      this.apply(r);
+      await this.persistJob(job);
+      this.apply({type:"job.enqueue",payload:{id:job.id,job}});
       return {durable:true,id:job.id};
     });
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
@@ -168,9 +186,8 @@ export class ApexPureStore {
         const current=this.jobsState.get(String(j.id));if(!current||current.status!=="queued")continue;
         const token=randomUUID(),fence=Number(current.leaseFence||0)+1;
         const patch={status:"running",attempts:Number(current.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+Math.max(1000,Number(leaseMs)||45000),updatedAt:new Date().toISOString()};
-        const r=await this.wal.append("job.transition",{id:current.id,patch});
-        for(const external of r.externalRecords||[])this.apply(external);
-        this.apply(r);out.push({...current,...patch});
+        const updated={...current,...patch};await this.persistJob(updated);
+        this.apply({type:"job.transition",payload:{id:current.id,patch}});out.push(updated);
       }
       return out;
     });
@@ -184,9 +201,8 @@ export class ApexPureStore {
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
       if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
       if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
-      const r=await this.wal.append("job.transition",{id:j.id,patch});
-      for(const external of r.externalRecords||[])this.apply(external);
-      this.apply(r);return true;
+      await this.persistJob({...j,...patch});
+      this.apply({type:"job.transition",payload:{id:j.id,patch}});return true;
     });
   }
   async recoverExpired(limit=500){
@@ -194,14 +210,13 @@ export class ApexPureStore {
       await this.refresh();let n=0;const now=Date.now();
       for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
-        const r=await this.wal.append("job.transition",{id:j.id,patch});
-        for(const external of r.externalRecords||[])this.apply(external);
-        this.apply(r);n++;
+        await this.persistJob({...j,...patch});
+        this.apply({type:"job.transition",payload:{id:j.id,patch}});n++;
       }
       return n;
     });
   }
-  async snapshot(){await this.refresh();return {root:this.root,jobs:this.jobs(),state:[...this.state.values()].map(clone),wal:await this.wal.snapshot()};}
+  async snapshot(){await this.refresh();return {root:this.root,storage:"content-addressed",jobs:this.jobs(),state:[...this.state.values()].map(clone)};}
 }
 export const apexPureStore=new ApexPureStore();
 

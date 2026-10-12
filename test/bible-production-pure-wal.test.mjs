@@ -54,7 +54,7 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
 
     const status=await request("/status");
     assert.equal(status.response.status,200);
-    assert.equal(status.body.storage,"local-pure-wal");
+    assert.equal(status.body.storage,"content-addressed");
     assert.equal(status.body.databaseDependency,false);
     assert.equal(status.body.migration.status,"completed");
 
