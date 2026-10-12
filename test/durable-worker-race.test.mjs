@@ -46,6 +46,21 @@ test("lease heartbeat extends the active fence and token checks reject stale wor
   assert.equal(await completeWorkerTask(id,{ok:true},task.lease_token,task.lease_fence),true);
 });
 
+
+test("expired worker leases cannot complete and are safely reclaimed with a higher fence", async () => {
+  const id=crypto.randomUUID();
+  await enqueueWorkerTask({id,workerId:"expiry-test",role:"expiry-test",task:"expiry-test",maxAttempts:3});
+  const first=await claimWorkerTask(id,1000);
+  assert.ok(first?.lease_token);
+  await new Promise(resolve=>setTimeout(resolve,1100));
+  assert.equal(await completeWorkerTask(id,{stale:true},first.lease_token,first.lease_fence),false);
+  assert.equal(await (await import("../src/core/mesh/durable-worker-store.mjs")).requeueExpiredWorkerTasks(),1);
+  const second=await claimWorkerTask(id,15000);
+  assert.ok(second?.lease_token);
+  assert.ok(second.lease_fence>first.lease_fence);
+  assert.equal(await completeWorkerTask(id,{recovered:true},second.lease_token,second.lease_fence),true);
+});
+
 test("external effect idempotency admits exactly one concurrent caller", async () => {
   const key="pure-wal-effect-"+crypto.randomUUID();
   const [a,b]=await Promise.all([claimExternalEffect(key),claimExternalEffect(key)]);
