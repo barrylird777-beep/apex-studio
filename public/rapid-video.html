@@ -109,9 +109,9 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
 </section>
 
 <section class="section">
- <div class="sectionHead"><h2>Proof before<br>production.</h2><p>Apex separates the creative decision from the production commitment. See a real direction first. If it hits, send it into the full queue.</p></div>
+ <div class="sectionHead"><h2>Proof before<br>production.</h2><p>KernelVision separates the creative decision from the production commitment. See a 10-second motion-graphics proof first. If it hits, order the 30-second version.</p></div>
  <div class="grid">
-  <article class="card"><div class="label">THE APEX LOOP</div><h3>See it. Then make it bigger.</h3><p>A real visual proof gives the idea something tangible to react to. The winning direction can then move into full production.</p><div class="stats"><div class="stat"><b>10s</b><span>proof</span></div><div class="stat"><b>30–60s</b><span>final</span></div><div class="stat"><b>9:16</b><span>social</span></div></div></article>
+  <article class="card"><div class="label">THE KERNELVISION LOOP</div><h3>See it. Then make it bigger.</h3><p>A real visual proof gives the idea something tangible to react to. The winning direction can then move into full production.</p><div class="stats"><div class="stat"><b>10s</b><span>proof</span></div><div class="stat"><b>30s</b><span>final</span></div><div class="stat"><b>9:16</b><span>social</span></div></div></article>
   <article class="card">
    <div class="label">FROM VISION TO POST</div>
    <div class="step"><div class="stepNum">01</div><div><b>Drop the vision</b><span>Rough is fine. Start with the idea.</span></div></div>
@@ -123,7 +123,7 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
 </section>
 
 <section class="section" id="order">
- <div class="priceBox"><div><h2>One finished short.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4<br>Delivered through your order flow.</p></div><div class="price">$25</div></div>
+ <div class="priceBox"><div><h2>One finished 30-second short.</h2><p>Hook · animated typography · 432 Hz reference bed · MP4 delivery<br>Motion-graphics offer; not a composed score or full cinematic-anime commission.</p></div><div class="price">$25</div></div>
  <div class="order">
   <div class="orderHead"><h2>Send it into production.</h2><span>Secure checkout powered by Stripe</span></div>
   <div class="orderGrid">
@@ -137,7 +137,7 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
  </div>
 </section>
 
-<footer>APEX STUDIO · RAPID VIDEO</footer>
+<footer>KERNELVISION · SHORT-FORM VIDEO</footer>
 </div>
 </main>
 <script>
@@ -155,8 +155,8 @@ function getBrief(){return document.getElementById('brief').value.trim();}
 function setStatus(id,text){document.getElementById(id).textContent=text||'';}
 async function makePreview(){
  const button=document.getElementById('previewButton'),result=document.getElementById('previewResult'),brief=getBrief();
- if(!brief){setStatus('previewStatus','Give Apex an idea first.');document.getElementById('brief').focus();return;}
- button.disabled=true;setStatus('previewStatus','Apex is forging your proof…');result.hidden=true;result.replaceChildren();
+ if(!brief){setStatus('previewStatus','Give KernelVision an idea first.');document.getElementById('brief').focus();return;}
+ button.disabled=true;setStatus('previewStatus','KernelVision is generating your proof…');result.hidden=true;result.replaceChildren();
  try{
   const response=await fetch('/api/rapid/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Preview visitor',type:'Creative proof',brief,platform:document.getElementById('previewPlatform').value})});
   const body=await response.json();if(!response.ok)throw new Error(body.error||'Preview could not be created');
@@ -178,7 +178,7 @@ async function pollPreview(id){
     actions.append(make,share);result.append(video,actions);result.hidden=false;setStatus('previewStatus','Proof ready. If the direction is right, make the full version.');document.getElementById('previewButton').disabled=false;return;
    }
    if(body.status==='failed'){setStatus('previewStatus','Proof failed: '+(body.error||'unknown error'));document.getElementById('previewButton').disabled=false;return;}
-   setStatus('previewStatus','Apex is working… '+String(body.status||'queued'));
+   setStatus('previewStatus','KernelVision is working… '+String(body.status||'queued'));
   }catch{}
  }
  setStatus('previewStatus','The proof is taking longer than expected. Keep this page open and try again.');document.getElementById('previewButton').disabled=false;
@@ -203,7 +203,7 @@ async function startOrder(){
 function initPaymentState(){
  const params=new URLSearchParams(location.search),orderId=params.get('orderId'),status=document.getElementById('orderStatus');
  if(params.get('canceled')==='1'){status.textContent='Checkout canceled. Your idea is still here when you are ready.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
- if(params.get('paid')==='1'&&orderId){status.textContent='Payment received. Apex is starting production…';document.getElementById('order').scrollIntoView({behavior:'smooth'});pollPaidOrder(orderId);}
+ if(params.get('paid')==='1'&&orderId){status.textContent='Payment received. KernelVision is starting production…';document.getElementById('order').scrollIntoView({behavior:'smooth'});pollPaidOrder(orderId);}
 }
 async function pollPaidOrder(id){
  const status=document.getElementById('orderStatus');
