@@ -95,3 +95,5 @@ test("two sovereign peers exchange an envelope only when both identities are all
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+// Verification snapshot marker: exercise the sovereign peer transport on a stable branch.
