@@ -7,6 +7,11 @@ import CryptoKit
 /// Nearby, carrier-independent app-to-app transport. It does not provide general internet access.
 public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendable {
     public static let serviceType = "apex-fabric"
+
+    public static func makePairingSecret() -> String {
+        let key = SymmetricKey(size: .bits256)
+        return key.withUnsafeBytes { Data($0).base64EncodedString() }
+    }
     private let localPeer: MCPeerID
     private let session: MCSession
     private var advertiser: MCNearbyServiceAdvertiser?
