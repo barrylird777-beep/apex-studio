@@ -43,24 +43,45 @@ export class ApexPureStore {
     await mkdir(this.root,{recursive:true,mode:0o700});
     const lockFile=path.join(this.root,".apex-queue-mutations.lock");
     const started=Date.now();
+    let handle, token;
     while(true){
       try{
-        const handle=await open(lockFile,"wx",0o600);
-        try{await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now()}),"utf8");await handle.sync();}
-        catch(error){await handle.close().catch(()=>{});await unlink(lockFile).catch(()=>{});throw error;}
-        await handle.close();
+        token=randomUUID();
+        handle=await open(lockFile,"wx",0o600);
+        await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now(),token}),"utf8");
+        await handle.sync();
         break;
       }catch(error){
+        if(handle){await handle.close().catch(()=>{});handle=undefined;}
         if(error.code!=="EEXIST")throw error;
         let stale=false;
-        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>60000;}catch(e){if(e.code==="ENOENT")continue;throw e;}
-        if(stale){await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});continue;}
-        if(Date.now()-started>65000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
+        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
+        catch(e){if(e.code==="ENOENT")continue;throw e;}
+        if(stale){
+          const quarantine=lockFile+".stale."+randomUUID();
+          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
+          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+          continue;
+        }
+        if(Date.now()-started>180000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
         await sleep(20+Math.floor(Math.random()*31));
       }
     }
+    const heartbeat=setInterval(()=>{const now=new Date();handle?.utimes(now,now).catch(()=>{});},10000);
+    heartbeat.unref?.();
     try{return await operation();}
-    finally{await unlink(lockFile).catch(error=>{if(error.code!=="ENOENT")throw error;});}
+    finally{
+      clearInterval(heartbeat);
+      const ownedHandle=handle;
+      handle=undefined;
+      let ownsPath=false;
+      try{
+        const [opened,current,contents]=await Promise.all([ownedHandle.stat(),stat(lockFile),readFile(lockFile,"utf8")]);
+        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+      }catch(e){if(e.code!=="ENOENT"&&!(e instanceof SyntaxError))throw e;}
+      await ownedHandle.close().catch(()=>{});
+      if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+    }
   }
   key(c,id){return String(c)+"::"+String(id);}
   apply(r){
