@@ -233,9 +233,13 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     }
   });
 
-  // libp2p v3 passes a handler context object, not positional stream/connection arguments.
-  // libp2p v3 passes the stream and connection as separate arguments.
-  node.handle(PROTOCOL, async (stream, connection) => {
+  // libp2p v3 handlers receive a context object ({ stream, connection });
+  // accept the older positional form too, so the transport adapter is explicit.
+  node.handle(PROTOCOL, async (streamOrContext, maybeConnection) => {
+    const contextForm = streamOrContext && typeof streamOrContext === 'object' && 'stream' in streamOrContext;
+    const stream = contextForm ? streamOrContext.stream : streamOrContext;
+    const connection = contextForm ? streamOrContext.connection : maybeConnection;
+    if (!stream || typeof stream !== 'object') throw new TypeError('libp2p handler did not provide a stream');
     // Pause immediately so an early peer message cannot arrive before the
     // envelope reader attaches its message listener.
     stream.pause?.();
