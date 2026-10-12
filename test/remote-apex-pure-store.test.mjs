@@ -6,6 +6,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
 import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
+import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
@@ -40,14 +41,18 @@ test("remote Pure-WAL mode persists records and jobs without creating local reco
     const cas = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
     await store.init();
-    assert.equal(store.wal, null, "remote mode must not construct or activate any WAL");
+    assert.ok(store.wal instanceof RemoteApexRingWAL, "remote mode must use the remote CAS WAL");
+    const walRecord = await store.wal.append("proof.record", { durable: true });
+    assert.equal(walRecord.seq, 1);
+    assert.equal((await store.wal.snapshot()).sequence, 1);
     const durable = await store.put("app_records", "no-wal-proof", { durable: true });
     assert.equal(durable.id, "no-wal-proof");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
     const reloaded = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
     await reloaded.init();
     assert.deepEqual(await reloaded.get("app_records", "no-wal-proof"), durable);
-    assert.equal(reloaded.wal, null, "restart must not activate a WAL");
+    assert.ok(reloaded.wal instanceof RemoteApexRingWAL, "restart must retain remote WAL mode");
+    assert.equal((await reloaded.wal.snapshot()).sequence, 1, "remote WAL records must survive reinitialization");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
     const saved = await store.put("app_records", "record-1", { title: "durable remotely" });
     assert.equal(saved.id, "record-1");
