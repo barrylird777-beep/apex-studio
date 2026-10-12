@@ -210,16 +210,28 @@ export class ApexPureStore {
         if(marker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
         let indexed=0;
         const refs=await this.cas.listRefs("jobs");
+        const dedupeRecords=new Map();
+        for(const ref of refs){
+          const job=ref.value?.job;
+          if(!job||job.id==null||job.dedupeKey==null||!String(job.dedupeKey))continue;
+          const key=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
+          const active=job.status==="queued"||job.status==="running";
+          const previous=dedupeRecords.get(key);
+          const previousActive=previous&&(previous.status==="queued"||previous.status==="running");
+          if(!previous||active&&!previousActive||(active===Boolean(previousActive)&&String(job.updatedAt||"")>String(previous.updatedAt||""))){
+            dedupeRecords.set(key,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||"")});
+          }
+        }
+        const dedupeItems=[...dedupeRecords.entries()];
+        for(let offset=0;offset<dedupeItems.length;offset+=32){
+          await Promise.all(dedupeItems.slice(offset,offset+32).map(([key,value])=>this.cas.writeRef("dedupe",key,value)));
+        }
         for(let offset=0;offset<refs.length;offset+=32){
           const batch=refs.slice(offset,offset+32);
           const counts=await Promise.all(batch.map(async ref=>{
             const job=ref.value?.job;
             if(!job||job.id==null)return 0;
             const key=this.refKey("job",job.id);
-            if(job.dedupeKey!=null&&String(job.dedupeKey)){
-              const dedupeKey=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
-              await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||"")});
-            }
             const current=await this.cas.readRef("queue",key);
             if(job.status==="queued"){
               const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
