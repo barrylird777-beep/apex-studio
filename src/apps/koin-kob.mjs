@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
+import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
 const APP = getApexApp("koin-kob");
 const n = (value, fallback = 0) => {
@@ -246,3 +247,9 @@ export function koinKobStatus() {
     checkedAt: new Date().toISOString()
   };
 }
+
+
+// Shared durable records for this app; inject a test/local fabric when needed.
+export const saveKoinKobRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
+export const getKoinKobRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
+export const listKoinKobRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);
