@@ -305,7 +305,7 @@ router.get('/status', async (req, res) => {
       listType('project'), listType('character'), listType('scene'), listType('shootDay'),
       listType('callSheet'), listType('budgetItem'), listType('scriptNote')
     ]);
-    res.json({ ok: true, storage: 'local-pure-wal', databaseDependency: false, migration: marker?.record || { status: 'not-present' }, counts: { projects: projects.length, characters: characters.length, scenes: scenes.length, shootDays: shootDays.length, callSheets: callSheets.length, budgetItems: budgetItems.length, scriptNotes: scriptNotes.length } });
+    res.json({ ok: true, storage: 'content-addressed', databaseDependency: false, migration: marker?.record || { status: 'not-present' }, counts: { projects: projects.length, characters: characters.length, scenes: scenes.length, shootDays: shootDays.length, callSheets: callSheets.length, budgetItems: budgetItems.length, scriptNotes: scriptNotes.length } });
   } catch (error) { res.status(503).json({ error: 'Production status unavailable' }); }
 });
 
