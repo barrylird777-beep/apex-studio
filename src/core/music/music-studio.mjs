@@ -18,6 +18,7 @@ export const musicTrackSchema = z.object({
   mood: z.array(z.string()).default([]),
   bpm: z.number().positive().optional(),
   durationSeconds: z.number().nonnegative().optional(),
+  tuningHz: z.number().positive().optional(),
   gardenPackage: z.object({
     system: z.literal("garden-of-apex"),
     graphVersion: z.string().min(1),
@@ -42,12 +43,19 @@ export function createMusicTrack(input = {}) {
   if (domain === "korn" && !input.gardenPackage) {
     throw new Error("Korn music requires a verified Garden of Apex package");
   }
+  const role = String(input.role || "music");
+  const requestedTuningHz = input.tuningHz == null ? undefined : Number(input.tuningHz);
+  const requires432Hz = domain === "korn" && !["narration", "dialogue", "sfx"].includes(role);
+  if (requires432Hz && requestedTuningHz != null && requestedTuningHz !== 432) {
+    throw new Error("Jesus Freaks music must use 432 Hz only");
+  }
   const track = {
     trackId: String(input.trackId || crypto.randomUUID()),
     projectId: String(input.projectId || crypto.randomUUID()),
     title: String(input.title || "Untitled"),
-    role: String(input.role || "music"),
+    role,
     contentDomain: domain,
+    tuningHz: requires432Hz ? 432 : requestedTuningHz,
     genre: Array.isArray(input.genre) ? input.genre.map(String) : [],
     mood: Array.isArray(input.mood) ? input.mood.map(String) : [],
     bpm: input.bpm == null ? undefined : Number(input.bpm),
@@ -65,10 +73,22 @@ export function createMusicTrack(input = {}) {
 
 export function buildMusicProductionPlan(input = {}) {
   const domain = normalizeContentDomain(input.contentDomain);
-  const tracks = (Array.isArray(input.tracks) ? input.tracks : []).map(createMusicTrack);
+  const requestedTuningHz = input.tuningHz == null ? undefined : Number(input.tuningHz);
   if (domain === "korn" && !input.gardenPackage) {
     throw new Error("Korn music production requires a Garden package");
   }
+  if (domain === "korn" && requestedTuningHz != null && requestedTuningHz !== 432) {
+    throw new Error("Jesus Freaks music must use 432 Hz only");
+  }
+  const tracks = (Array.isArray(input.tracks) ? input.tracks : []).map(trackInput => {
+    const trackDomain = normalizeContentDomain(trackInput.contentDomain || domain);
+    if (trackDomain !== domain) throw new Error("Music track content domain must match its production plan");
+    return createMusicTrack({
+      ...trackInput,
+      contentDomain: trackDomain,
+      gardenPackage: trackInput.gardenPackage || (domain === "korn" ? input.gardenPackage : undefined)
+    });
+  });
   return {
     contractVersion: "apex-music-production.v1",
     projectId: String(input.projectId || crypto.randomUUID()),
@@ -79,7 +99,8 @@ export function buildMusicProductionPlan(input = {}) {
       fusion: Array.isArray(input.fusion) ? input.fusion : [],
       mood: Array.isArray(input.mood) ? input.mood : [],
       christianMode: input.christianMode === true,
-      purpose: input.purpose || "full-audio"
+      purpose: input.purpose || "full-audio",
+      ...(domain === "korn" ? { tuningHz: 432 } : requestedTuningHz != null ? { tuningHz: requestedTuningHz } : {})
     },
     tracks,
     roles: [...AUDIO_PRODUCTION_ROLES],
@@ -98,7 +119,15 @@ export function verifyMusicGardenPackage(plan, verifiedGardenIds = []) {
   return { verified: true, references: pkg.references };
 }
 
-export function buildMusicPrompt({ title, genre = [], mood = [], fusion = [], purpose = "film-score", gardenPackage = null } = {}) {
+export function buildMusicPrompt({ title, genre = [], mood = [], fusion = [], purpose = "film-score", gardenPackage = null, contentDomain, tuningHz } = {}) {
+  const domain = contentDomain ? normalizeContentDomain(contentDomain) : (gardenPackage ? "korn" : "bible");
+  const requestedTuningHz = tuningHz == null ? undefined : Number(tuningHz);
+  if (domain === "korn" && requestedTuningHz != null && requestedTuningHz !== 432) {
+    throw new Error("Jesus Freaks music must use 432 Hz only");
+  }
+  const tuning = domain === "korn"
+    ? "Tuning reference: A4 = 432 Hz only; do not use 440 Hz."
+    : requestedTuningHz != null ? `Tuning reference: A4 = ${requestedTuningHz} Hz.` : "";
   const world = gardenPackage
     ? `Garden package ${gardenPackage.graphVersion} / ${gardenPackage.packageHash}; references: ${gardenPackage.references.join(", ")}.`
     : "No Garden package; do not invent Garden canon.";
@@ -109,6 +138,7 @@ export function buildMusicPrompt({ title, genre = [], mood = [], fusion = [], pu
     `Fusion: ${fusion.join(", ") || "none"}.`,
     `Mood: ${mood.join(", ") || "cinematic"}.`,
     `Purpose: ${purpose}.`,
+    tuning,
     world,
     "Preserve continuity and provenance. Do not invent world facts."
   ].join(" ");
