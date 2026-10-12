@@ -289,7 +289,7 @@ const ready = (async () => {
   await defaultProject();
   return true;
 })();
-router.use((req, res, next) => ready.then(() => next()).catch(error => res.status(503).json({ error: 'KernelVision production storage is unavailable' })));
+router.use((req, res, next) => ready.then(() => next()).catch(error => { console.error('[bible-production] storage initialization failed:', clean(error?.message || error, 500)); return res.status(503).json({ error: 'KernelVision production storage is unavailable' }); }));
 
 router.get('/status', async (req, res) => {
   try {
