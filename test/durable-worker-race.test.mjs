@@ -55,6 +55,7 @@ test("expired worker leases cannot complete and are safely reclaimed with a high
   await new Promise(resolve=>setTimeout(resolve,1100));
   assert.equal(await completeWorkerTask(id,{stale:true},first.lease_token,first.lease_fence),false);
   assert.equal(await (await import("../src/core/mesh/durable-worker-store.mjs")).requeueExpiredWorkerTasks(),1);
+  await new Promise(resolve=>setTimeout(resolve,1100));
   const second=await claimWorkerTask(id,15000);
   assert.ok(second?.lease_token);
   assert.ok(second.lease_fence>first.lease_fence);
