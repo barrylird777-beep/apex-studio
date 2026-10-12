@@ -140,7 +140,7 @@ export function createKernelodiesLibraryRouter({
   router.get("/", async (_req, res) => {
     try {
       const manifest = await readManifest();
-      res.json({ ok: true, tracks: manifest.tracks.map(({ id, title, artist, album, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl }) => ({ id, title, artist, album, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl })) });
+      res.json({ ok: true, tracks: manifest.tracks.map(({ id, title, artist, album, genre, year, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl }) => ({ id, title, artist, album, genre, year, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl })) });
     } catch (error) { res.status(503).json({ ok: false, error: "Kernelodies library unavailable" }); }
   });
 
@@ -175,6 +175,8 @@ export function createKernelodiesLibraryRouter({
         id, title,
         artist: String(req.body?.artist || "Unknown artist").trim().slice(0, 200),
         album: String(req.body?.album || "").trim().slice(0, 200),
+        genre: String(req.body?.genre || "").trim().slice(0, 100),
+        year: Number.isInteger(Number(req.body?.year)) && Number(req.body?.year) >= 1000 && Number(req.body?.year) <= 9999 ? Number(req.body.year) : null,
         durationSeconds: Number.isFinite(Number(req.body?.durationSeconds)) && Number(req.body?.durationSeconds) >= 0 ? Number(req.body.durationSeconds) : null,
         mimeType: null, bytes: 0, checksum: null, audioUrl: null, createdAt: new Date().toISOString()
       };
