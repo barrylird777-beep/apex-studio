@@ -40,16 +40,78 @@ export class RemoteCasObjectBackend {
     }
     return "apex-cas/refs/" + ns + "/" + id + ".json";
   }
-  async getRef(namespace, key) {
+  async getRefSnapshot(namespace, key) {
     if (!this.enabled) return null;
     try {
       const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.refKey(namespace, key) }));
       if (!response.Body) throw new Error("Remote CAS manifest response has no body");
-      return await response.Body.transformToString("utf-8");
+      if (!response.ETag) throw new Error("Remote CAS provider omitted manifest ETag; refusing unsafe mutation");
+      return { body: await response.Body.transformToString("utf-8"), etag: response.ETag };
     } catch (error) {
       const status = error?.$metadata?.httpStatusCode;
       const code = error?.name || error?.Code || error?.code;
       if (status === 404 || code === "NoSuchKey" || code === "NotFound") return null;
+      throw error;
+    }
+  }
+  async getRef(namespace, key) {
+    const snapshot = await this.getRefSnapshot(namespace, key);
+    return snapshot?.body ?? null;
+  }
+  async compareAndSwapRef(namespace, key, expectedHash, body) {
+    if (!this.enabled) return false;
+    const snapshot = await this.getRefSnapshot(namespace, key);
+    let actualHash = null;
+    if (snapshot) {
+      try { actualHash = JSON.parse(snapshot.body)?.hash ?? null; }
+      catch { throw new Error("Remote CAS manifest is invalid; refusing conditional update"); }
+    }
+    if (actualHash !== expectedHash) {
+      const error = new Error("Manifest compare-and-swap conflict");
+      error.code = "CAS_CONFLICT";
+      error.expectedHash = expectedHash;
+      error.actualHash = actualHash;
+      throw error;
+    }
+    try {
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.bucket, Key: this.refKey(namespace, key), Body: String(body),
+        ContentLength: Buffer.byteLength(String(body)), ContentType: "application/json",
+        ...(snapshot ? { IfMatch: snapshot.etag } : { IfNoneMatch: "*" })
+      }));
+      return true;
+    } catch (error) {
+      if ([409, 412].includes(error?.$metadata?.httpStatusCode) || ["PreconditionFailed", "ConditionalRequestConflict"].includes(error?.name)) {
+        const conflict = new Error("Manifest compare-and-swap conflict");
+        conflict.code = "CAS_CONFLICT";
+        throw conflict;
+      }
+      throw error;
+    }
+  }
+  async deleteRefIfMatch(namespace, key, expectedHash) {
+    if (!this.enabled) return false;
+    const snapshot = await this.getRefSnapshot(namespace, key);
+    if (!snapshot) return false;
+    let actualHash = null;
+    try { actualHash = JSON.parse(snapshot.body)?.hash ?? null; }
+    catch { throw new Error("Remote CAS manifest is invalid; refusing conditional delete"); }
+    if (actualHash !== expectedHash) {
+      const error = new Error("Manifest compare-and-swap conflict");
+      error.code = "CAS_CONFLICT";
+      error.expectedHash = expectedHash;
+      error.actualHash = actualHash;
+      throw error;
+    }
+    try {
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.refKey(namespace, key), IfMatch: snapshot.etag }));
+      return true;
+    } catch (error) {
+      if ([409, 412].includes(error?.$metadata?.httpStatusCode) || ["PreconditionFailed", "ConditionalRequestConflict"].includes(error?.name)) {
+        const conflict = new Error("Manifest compare-and-swap conflict");
+        conflict.code = "CAS_CONFLICT";
+        throw conflict;
+      }
       throw error;
     }
   }
