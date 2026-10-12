@@ -18,6 +18,7 @@
     "verify:migrations": "node scripts/verify-migrations.mjs --dir drizzle --expect scripts/spec005-expectations.json",
     "smoke:005": "node scripts/smoke-005.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
+    "smoke:sovereign-render": "node scripts/smoke-sovereign-render-artifact.mjs",
     "db:migrate:postgres": "node scripts/migrate-postgres.mjs",
     "test:search:planner": "node scripts/adversarial-bible-trigram-planner.mjs",
     "test:warp": "node src/tests/load/warp_swarm_benchmark.mjs",
