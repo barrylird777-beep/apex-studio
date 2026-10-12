@@ -106,7 +106,9 @@ export class ContentAddressedStore {
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const lock = file + ".lock";
     const started = Date.now();
-    const staleAfterMs = 30000;
+    // A manifest write may wait on a slow or nearly-full volume; do not steal a
+    // live writer's lock based on a short 30-second age threshold.
+    const staleAfterMs = 120000;
     let handle, token;
     while (!handle) {
       token = randomUUID();
@@ -115,18 +117,50 @@ export class ContentAddressedStore {
         await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now(), token }), "utf8");
         await handle.sync();
       } catch (error) {
-        if (handle) { await handle.close().catch(() => {}); handle = undefined; }
+        if (handle) {
+          // Failed metadata writes (notably ENOSPC) must not strand a lock file.
+          try {
+            const [opened, current] = await Promise.all([handle.stat(), stat(lock)]);
+            if (opened.dev === current.dev && opened.ino === current.ino) await unlink(lock).catch(e => { if (e.code !== "ENOENT") throw e; });
+          } catch (cleanupError) { if (cleanupError.code !== "ENOENT") {} }
+          await handle.close().catch(() => {});
+          handle = undefined;
+        }
         if (error.code !== "EEXIST") throw error;
         let stale = false;
         try { stale = Date.now() - (await stat(lock)).mtimeMs > staleAfterMs; }
         catch (statError) { if (statError.code === "ENOENT") continue; throw statError; }
         if (stale) {
-          const quarantine = lock + ".stale." + randomUUID();
+          // Only one waiter may recover a stale lock. Otherwise a second waiter
+          // can rename the new lock acquired immediately after the first recovery.
+          const reaper = lock + ".reaper";
+          let reapHandle;
+          try { reapHandle = await open(reaper, "wx", 0o600); }
+          catch (recoveryLockError) {
+            if (recoveryLockError.code === "EEXIST") { await sleep(25); continue; }
+            throw recoveryLockError;
+          }
           try {
-            await rename(lock, quarantine);
-            await unlink(quarantine).catch(e => { if (e.code !== "ENOENT") throw e; });
-          } catch (recoveryError) {
-            if (recoveryError.code !== "ENOENT" && recoveryError.code !== "EEXIST") throw recoveryError;
+            await sleep(250);
+            let stillStale = false;
+            try { stillStale = Date.now() - (await stat(lock)).mtimeMs > staleAfterMs; }
+            catch (statError) { if (statError.code === "ENOENT") continue; throw statError; }
+            if (stillStale) {
+              const quarantine = lock + ".stale." + randomUUID();
+              try {
+                await rename(lock, quarantine);
+                await unlink(quarantine).catch(e => { if (e.code !== "ENOENT") throw e; });
+              } catch (recoveryError) {
+                if (recoveryError.code !== "ENOENT" && recoveryError.code !== "EEXIST") throw recoveryError;
+              }
+            }
+          } finally {
+            const owned = reapHandle;
+            try {
+              const [opened, current] = await Promise.all([owned.stat(), stat(reaper)]);
+              if (opened.dev === current.dev && opened.ino === current.ino) await unlink(reaper).catch(e => { if (e.code !== "ENOENT") throw e; });
+            } catch (cleanupError) { if (cleanupError.code !== "ENOENT") {} }
+            await owned.close().catch(() => {});
           }
           continue;
         }
