@@ -65,6 +65,7 @@ export async function enqueueWorkerTask({
       priority:Number(priority) || 0
     },
     maxAttempts:Math.max(1,Number(maxAttempts) || 5),
+    priority:Number(priority)||0,
     dedupeKey:dedupeKey == null ? null : String(dedupeKey)
   });
   return { durable:true, id:String(result.id), duplicate:Boolean(result.duplicate), status:result.status || "queued", storage:"local-pure-wal" };
@@ -172,6 +173,7 @@ export async function completeExternalEffect(idempotencyKey,result=null) {
 
 export async function getWorkerTask(id) {
   if (!durableWorkerEnabled()) return null;
+  await apexPureStore.refresh();
   return unwrap(apexPureStore.jobs().find(job=>job.id===String(id)));
 }
 
