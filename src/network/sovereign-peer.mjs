@@ -123,7 +123,9 @@ function readerFor(stream) {
   }
 
   streamReaders.set(stream, reader);
-  stream.resume?.();
+  // Outbound libp2p streams are already flowing. Resume only a stream we
+  // explicitly paused in the inbound handler; resuming a closing stream throws.
+  if (stream.status === 'paused') stream.resume?.();
   return reader;
 }
 
