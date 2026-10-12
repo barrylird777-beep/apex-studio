@@ -228,16 +228,6 @@ app.post('/api/internal/store/get', requireWorkerAuth, async (req, res) => {
   }
 });
 
-app.post('/api/internal/store/list', requireWorkerAuth, async (req, res) => {
-  try {
-    const collection = String(req.body?.collection || '');
-    if (!validTeeVeeStoreCollection(collection)) return res.status(400).json({ success: false, error: 'Invalid store collection' });
-    return res.json({ success: true, records: await apexPureStore.list(collection) });
-  } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
-  }
-});
-
 app.post('/api/internal/store/query', requireWorkerAuth, async (req, res) => {
   try {
     const collection = String(req.body?.collection || '');
