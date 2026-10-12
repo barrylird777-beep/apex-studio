@@ -10,7 +10,7 @@ import SovereignMeshEngine from '../src/core/sovereign-mesh-engine.mjs';
 import { createSovereignAppFabric } from '../src/core/sovereign-app-fabric.mjs';
 import { drainSovereignAppDispatchQueue } from '../src/core/sovereign-app-dispatch-queue.mjs';
 import { savePlanetApexRecord, getPlanetApexRecord } from '../src/apps/planet-apex.mjs';
-import { saveKoBlocksRecord, getKoBlocksRecord } from '../src/apps/ko-blocks.mjs';
+import { saveXShieldRecord, getXShieldRecord } from '../src/apps/ko-blocks.mjs';
 import { saveKernelVisionRecord, getKernelVisionRecord } from '../src/apps/kernel-vision.mjs';
 import { saveKoinKobRecord, getKoinKobRecord } from '../src/apps/koin-kob.mjs';
 import { saveKashKornerRecord, getKashKornerRecord } from '../src/apps/kash-korner.mjs';
