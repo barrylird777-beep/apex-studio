@@ -80,10 +80,14 @@ async function applyPriority(dev) {
 
 export async function selectNetworkPath() {
   const devices = await interfaces();
-  const results = await Promise.all(devices.map(async device => {
+  // Containers can expose no usable named interfaces. In that case report a
+  // clearly labelled runtime connectivity probe instead of returning selected:null.
+  // This describes the server path only; it never claims to identify the user's phone radio.
+  const observedDevices = devices.length ? devices : ['runtime'];
+  const results = await Promise.all(observedDevices.map(async device => {
     const result = await probe(device);
     const network = classify(device);
-    return { device, network, ...result, score: score(device, result), source: 'server-interface-observation' };
+    return { device, network, ...result, score: score(device, result), source: device === 'runtime' ? 'runtime-connectivity-fallback' : 'server-interface-observation' };
   }));
   // Never turn the server's own internet connection into a fake iPhone path.
   // A server probe can prove Apex has internet access, not which radio/path the
