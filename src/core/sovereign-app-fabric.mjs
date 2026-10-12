@@ -41,13 +41,16 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
     const jobs=store.jobs();
     const pendingDispatches=jobs.filter(job=>job.type==="sovereign.app.dispatch"&&["queued","running"].includes(job.status)).length;
     const online=liveRuntime(runtime);
+    const publicPeerAddress=String(runtime?.publicPeerAddress||process.env.APEX_SOVEREIGN_PEER_ADDRESS||process.env.APEX_EDGE_PEER_ADDRESS||"").trim();
+    const externalPeerAllowlistConfigured=Boolean(String(process.env.APEX_ALLOWED_PEER_IDS||"").trim());
+    const bootstrapPeersConfigured=Boolean(String(process.env.APEX_BOOTSTRAP_PEERS||"").trim());
     return {
       ok:true,
       storage:"local-pure-wal",
       durableStoreReady:true,
       canonicalAppCount:APP_LIST.length,
       apps:APP_LIST.map(app=>({...app,storageNamespace:`app-${app.id}`})),
-      mesh:{runtimeOnline:online,peerIdentityConfigured:Boolean(online&&runtime.peerId),peerId:online?runtime.peerId:null,publicPeerAddress:online?runtime.publicPeerAddress||null:null,externalPeerAllowlistConfigured:Boolean(String(process.env.APEX_ALLOWED_PEER_IDS||"").trim()),bootstrapPeersConfigured:Boolean(String(process.env.APEX_BOOTSTRAP_PEERS||"").trim()),peerAddressConfigured:Boolean(String(process.env.APEX_SOVEREIGN_PEER_ADDRESS||process.env.APEX_EDGE_PEER_ADDRESS||"").trim()),externalPeerConnectivityReady:Boolean(online&&String(process.env.APEX_ALLOWED_PEER_IDS||"").trim()&&String(process.env.APEX_BOOTSTRAP_PEERS||"").trim()&&String(process.env.APEX_SOVEREIGN_PEER_ADDRESS||process.env.APEX_EDGE_PEER_ADDRESS||"").trim()),transportOwner:"sovereign-runtime-daemon",dispatchMode:"durable-queue",pendingDispatches,pendingPeerAcks:online?Number(runtime.pendingPeerAcks||0):null},
+      mesh:{runtimeOnline:online,peerIdentityConfigured:Boolean(online&&runtime.peerId),peerId:online?runtime.peerId:null,publicPeerAddress:online?runtime.publicPeerAddress||null:null,externalPeerAllowlistConfigured,bootstrapPeersConfigured,peerAddressConfigured:Boolean(publicPeerAddress),externalPeerConnectivityReady:Boolean(online&&externalPeerAllowlistConfigured&&bootstrapPeersConfigured&&publicPeerAddress),transportOwner:"sovereign-runtime-daemon",dispatchMode:"durable-queue",pendingDispatches,pendingPeerAcks:online?Number(runtime.pendingPeerAcks||0):null},
       checkedAt:new Date().toISOString()
     };
   }

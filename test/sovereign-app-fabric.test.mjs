@@ -77,3 +77,28 @@ test('phone dispatch is durably queued and the runtime daemon alone writes the m
     await fs.rm(dir,{recursive:true,force:true});
   }
 });
+
+
+test('fabric status recognizes the runtime-advertised public peer address without claiming external connectivity', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-peer-status-'));
+  const names=['APEX_ALLOWED_PEER_IDS','APEX_BOOTSTRAP_PEERS','APEX_SOVEREIGN_PEER_ADDRESS','APEX_EDGE_PEER_ADDRESS'];
+  const prior=Object.fromEntries(names.map(name=>[name,process.env[name]]));
+  for(const name of names)delete process.env[name];
+  try {
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    await store.init();
+    const peerId='12D3KooWPeerId';
+    await store.put('sovereign_runtime','identity',{
+      status:'online',
+      peerId,
+      leaseExpiresAt:Date.now()+60000,
+      publicPeerAddress:'/dns4/proxy.example.net/tcp/24068/p2p/'+peerId
+    });
+    const status=await createSovereignAppFabric({store}).status();
+    assert.equal(status.mesh.peerAddressConfigured,true);
+    assert.equal(status.mesh.externalPeerConnectivityReady,false,'a public address alone is not proof of bootstrap or allowlist readiness');
+  } finally {
+    for(const name of names)if(prior[name]===undefined)delete process.env[name];else process.env[name]=prior[name];
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});
