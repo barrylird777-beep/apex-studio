@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
 import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 import { xshieldStatus } from "./xshield.mjs";
+import { xshieldStatus } from "./xshield.mjs";
 
 const APP = getApexApp("ko-blocks");
 const clone = value => structuredClone(value);
