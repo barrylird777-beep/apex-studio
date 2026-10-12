@@ -74,7 +74,7 @@ export class ApexPureStore {
         let legacyExists=false;
         try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
         if(legacyExists){
-          await this.wal.replay({onRecord:r=>this.apply(r)});
+          await this.wal.replay({onRecord:r=>this.apply(r),retainRing:false});
           const migrationWrites=[];
           for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);migrationWrites.push(()=>this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)}));}
           for(const [id,job] of this.jobsState)migrationWrites.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
