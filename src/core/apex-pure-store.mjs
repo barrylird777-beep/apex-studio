@@ -209,30 +209,33 @@ export class ApexPureStore {
         let indexed=0;
         await this.withRemoteLock("queue-mutations",async()=>{
           const refs=await this.cas.listRefs("jobs");
-          for(const ref of refs){
-            const job=ref.value?.job;
-            if(!job||job.id==null)continue;
-            const key=this.refKey("job",job.id);
-            const current=await this.cas.readRef("queue",key);
-            if(job.status==="queued"){
-              const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
-              if(!current||JSON.stringify(current.value)!==JSON.stringify(value)){
-                await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+          for(let offset=0;offset<refs.length;offset+=32){
+            const batch=refs.slice(offset,offset+32);
+            const counts=await Promise.all(batch.map(async ref=>{
+              const job=ref.value?.job;
+              if(!job||job.id==null)return 0;
+              const key=this.refKey("job",job.id);
+              const current=await this.cas.readRef("queue",key);
+              if(job.status==="queued"){
+                const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+                if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+                const running=await this.cas.readRef("running",key);
+                if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
+                return 1;
               }
-              const running=await this.cas.readRef("running",key);
-              if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-              indexed++;
-            }else if(job.status==="running"){
-              const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
-              const running=await this.cas.readRef("running",key);
-              if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
-              if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
-              indexed++;
-            }else{
+              if(job.status==="running"){
+                const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+                const running=await this.cas.readRef("running",key);
+                if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+                if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+                return 1;
+              }
               if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
               const running=await this.cas.readRef("running",key);
               if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-            }
+              return 0;
+            }));
+            indexed+=counts.reduce((sum,count)=>sum+count,0);
           }
           await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-queue-index",indexed,createdAt:new Date().toISOString()},{expectedHash:null});
         });
