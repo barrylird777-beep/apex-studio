@@ -83,8 +83,7 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["post", "/api/network/rogue-ap/observations"]
   ];
   for (const [method, route] of protectedRoutes) {
-    const pattern = new RegExp("app\\." + method + "\\(['\\"]" + route + "['\\"],\\s*requireControlPlaneAuth\\s*,");
-    assert.match(server, pattern, method.toUpperCase() + " " + route + " must require control-plane auth");
+    assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
   }
   assert.match(server, /app\.get\(['"]\/api\/health['"],/);
   assert.match(server, /app\.get\(['"]\/api\/canon\/apps['"],/);
