@@ -102,7 +102,7 @@ export async function listVoiceCatalog() {
 }
 
 export async function voiceoverWorkerStatus({ store = apexPureStore } = {}) {
-  const remoteUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\\/+$/, "");
+  const remoteUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\/+$/, "");
   const token = String(process.env.APEX_WORKER_TOKEN || "");
   if (remoteUrl && token) {
     const response = await fetch(new URL("/api/internal/worker/stats", remoteUrl), {
