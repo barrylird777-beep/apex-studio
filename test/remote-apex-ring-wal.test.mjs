@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
+import { createRingWal } from "../src/core/apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
@@ -79,4 +80,26 @@ test("remote WAL repairs a stale head after a crash between record and head writ
   const records = [];
   assert.equal(await verified.replay({ onRecord: record => records.push(record) }), 2);
   assert.deepEqual(records.map(record => record.payload.id), ["committed-before-crash", "after-recovery"]);
+});
+
+
+test("createRingWal factory honors remote mode and never creates its requested local path", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-factory-"));
+  const localFile = path.join(parent, "wal", "ring.jsonl");
+  const previous = process.env.APEX_CAS_REMOTE_ENABLED;
+  try {
+    process.env.APEX_CAS_REMOTE_ENABLED = "true";
+    const cas = new MemoryCAS();
+    const wal = createRingWal({ file: localFile, cas, scope: "remote-wal-factory-test" });
+    assert.match(wal.file, /^remote:\/\//);
+    await wal.append("factory.test", { persisted: true });
+    const records = await wal.readAll();
+    assert.equal(records.length, 1);
+    assert.equal(records[0].payload.persisted, true);
+    await assert.rejects(access(path.dirname(localFile)), { code: "ENOENT" });
+  } finally {
+    if (previous === undefined) delete process.env.APEX_CAS_REMOTE_ENABLED;
+    else process.env.APEX_CAS_REMOTE_ENABLED = previous;
+    await rm(parent, { recursive: true, force: true });
+  }
 });
