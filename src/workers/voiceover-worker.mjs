@@ -1,44 +1,135 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import { Pool } from "pg";
+import { apexPureStore } from "../core/apex-pure-store.mjs";
 import { synthesizeSpeech, listVoiceOptions } from "../core/audio-station.mjs";
 
-const DATABASE_URL=process.env.DATABASE_URL;
-if(!DATABASE_URL) throw new Error("DATABASE_URL is required; SQLite voiceover storage is disabled.");
-const pool=new Pool({connectionString:DATABASE_URL,max:Math.min(8,Math.max(1,Number(process.env.APEX_VOICEOVER_DB_POOL_MAX||4))),idleTimeoutMillis:30000,connectionTimeoutMillis:10000});
-const CONCURRENCY=Math.max(1,Number(process.env.APEX_VOICEOVER_CONCURRENCY||process.env.APEX_JOB_CONCURRENCY||4));
-const POLL_MS=Math.max(250,Number(process.env.APEX_VOICEOVER_POLL_MS||1000));
-const OUT_DIR=process.env.APEX_VOICEOVER_DIR||path.join(process.env.STORAGE_DIR||"./data/runtime/storage","voiceover");
-const MAX_ATTEMPTS=Math.max(1,Number(process.env.APEX_VOICEOVER_MAX_ATTEMPTS||3));
-const sleep=ms=>new Promise(r=>setTimeout(r,ms)); let stopping=false; let initialized=false;
+const CONCURRENCY = Math.max(1, Number(process.env.APEX_VOICEOVER_CONCURRENCY || process.env.APEX_JOB_CONCURRENCY || 4));
+const POLL_MS = Math.max(250, Number(process.env.APEX_VOICEOVER_POLL_MS || 1000));
+const LEASE_MS = Math.max(15000, Number(process.env.APEX_WORKER_LEASE_MS || 45000));
+const OUT_DIR = process.env.APEX_VOICEOVER_DIR || path.join(process.env.STORAGE_DIR || "/srv/apex/se-x", "voiceover");
+const MAX_ATTEMPTS = Math.max(1, Number(process.env.APEX_VOICEOVER_MAX_ATTEMPTS || 3));
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+let stopping = false;
 
-async function initSchema(){if(initialized)return;await pool.query(`CREATE TABLE IF NOT EXISTS voiceover_jobs(
-id UUID PRIMARY KEY,text TEXT NOT NULL,provider TEXT NOT NULL DEFAULT 'auto',voice TEXT,language TEXT,
-speed REAL NOT NULL DEFAULT 1,pitch REAL NOT NULL DEFAULT 0,format TEXT NOT NULL DEFAULT 'wav',
-status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','completed','failed')),
-attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts>=0),priority INTEGER NOT NULL DEFAULT 0,
-available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-started_at TIMESTAMPTZ,finished_at TIMESTAMPTZ,output_path TEXT,bytes BIGINT,error TEXT,result_json JSONB)`);
-await pool.query("CREATE INDEX IF NOT EXISTS idx_voiceover_pick ON voiceover_jobs(status,available_at,priority DESC,created_at)");initialized=true;}
+function voiceoverPayload(input = {}) {
+  const text = String(input.text || "").trim().slice(0, 100000);
+  if (!text) throw new TypeError("Voiceover text is required");
+  return {
+    text,
+    provider: String(input.provider || "local").slice(0, 40),
+    voice: input.voice ? String(input.voice).slice(0, 200) : null,
+    language: String(input.language || "en-US").slice(0, 32),
+    speed: Math.max(0.5, Math.min(2, Number(input.speed) || 1)),
+    pitch: Math.max(-20, Math.min(20, Number(input.pitch) || 0)),
+    format: String(input.format || "wav").toLowerCase().slice(0, 8)
+  };
+}
 
-export async function enqueueVoiceoverJob(input={},options={}){await initSchema();const id=options.id||input.id||crypto.randomUUID();await pool.query(`INSERT INTO voiceover_jobs(id,text,provider,voice,language,speed,pitch,format,priority) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING`,[id,String(input.text||""),String(input.provider||"auto"),input.voice||null,input.language||"en-US",Number(input.speed||1),Number(input.pitch||0),String(input.format||"wav"),Number(options.priority||input.priority||0)]);return id;}
+export async function enqueueVoiceoverJob(input = {}, options = {}) {
+  const id = String(options.id || input.id || crypto.randomUUID());
+  const payload = voiceoverPayload(input);
+  const result = await apexPureStore.enqueue({
+    id,
+    type: "voiceover.synthesize",
+    payload: { ...payload, _apex_worker: { role: "voiceover" } },
+    maxAttempts: Math.max(1, Math.min(10, Number(options.maxAttempts || MAX_ATTEMPTS))),
+    priority: Number(options.priority || input.priority || 0),
+    dedupeKey: options.dedupeKey || input.dedupeKey || null
+  });
+  return result.id;
+}
 
-async function synth(job){const p={voice:job.voice,language:job.language,speed:job.speed,pitch:job.pitch,format:job.format};const order=job.provider==="auto"?String(process.env.APEX_VOICEOVER_PROVIDER_ORDER||"local").split(",").map(x=>x.trim()).filter(Boolean):[job.provider];let last;
-for(const provider of order){try{let b,file;
-if(provider==="local"){file=(await synthesizeSpeech({...p,text:job.text,outputDir:OUT_DIR})).path;return{provider,file,bytes:(await fs.stat(file)).size};}
-if(provider==="elevenlabs"&&process.env.ELEVENLABS_API_KEY){const voice=p.voice||process.env.ELEVENLABS_VOICE_ID;if(!voice)throw Error("ElevenLabs voice_id required");const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_192`,{method:"POST",headers:{"xi-api-key":process.env.ELEVENLABS_API_KEY,"content-type":"application/json"},body:JSON.stringify({text:job.text,model_id:process.env.ELEVENLABS_MODEL||"eleven_multilingual_v2",voice_settings:{speed:Number(p.speed||1)}})});if(!r.ok)throw Error("ElevenLabs "+r.status);b=Buffer.from(await r.arrayBuffer());}
-else if(provider==="google"&&process.env.GOOGLE_TTS_API_KEY){const voice=p.voice||process.env.GOOGLE_TTS_VOICE||"en-US-Neural2-D";const r=await fetch("https://texttospeech.googleapis.com/v1/text:synthesize?key="+encodeURIComponent(process.env.GOOGLE_TTS_API_KEY),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({input:{text:job.text},voice:{languageCode:p.language||"en-US",name:voice},audioConfig:{audioEncoding:"MP3",speakingRate:Number(p.speed||1),pitch:Number(p.pitch||0)}})});if(!r.ok)throw Error("Google TTS "+r.status);b=Buffer.from((await r.json()).audioContent||"","base64");}
-else continue;
-await fs.mkdir(OUT_DIR,{recursive:true});file=path.join(OUT_DIR,job.id+".mp3");await fs.writeFile(file,b);return{provider,file,bytes:b.length};}catch(e){last=e;}}
-throw last||Error("No voiceover provider available");}
+async function synth(job) {
+  const p = voiceoverPayload(job.payload || {});
+  await fs.mkdir(OUT_DIR, { recursive: true, mode: 0o700 });
+  const result = await synthesizeSpeech({ ...p, outputDir: OUT_DIR });
+  const info = await fs.stat(result.path);
+  return {
+    provider: "local",
+    file: result.path,
+    bytes: info.size,
+    contentType: p.format === "mp3" ? "audio/mpeg" : p.format === "ogg" ? "audio/ogg" : "audio/wav",
+    completedAt: new Date().toISOString()
+  };
+}
 
-async function claim(){await initSchema();const c=await pool.connect();try{await c.query("BEGIN");const {rows}=await c.query(`SELECT * FROM voiceover_jobs WHERE status='queued' AND available_at<=NOW() ORDER BY priority DESC,created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`);if(!rows[0]){await c.query("COMMIT");return null;}const {rows:u}=await c.query(`UPDATE voiceover_jobs SET status='running',attempts=attempts+1,started_at=NOW() WHERE id=$1 AND status='queued' RETURNING *`,[rows[0].id]);await c.query("COMMIT");return u[0]||null;}catch(e){await c.query("ROLLBACK").catch(()=>{});throw e;}finally{c.release();}}
+async function loop() {
+  const workerId = "voiceover-" + crypto.randomUUID();
+  while (!stopping) {
+    let job = null;
+    try {
+      const tasks = await apexPureStore.claim({ workerId, limit: 1, leaseMs: LEASE_MS, role: "voiceover" });
+      job = tasks[0] || null;
+      if (!job) { await sleep(POLL_MS); continue; }
+      const result = await synth(job);
+      await apexPureStore.transition(job.id, "complete", {
+        leaseToken: job.leaseToken,
+        leaseFence: job.leaseFence,
+        result
+      });
+    } catch (error) {
+      if (job) {
+        await apexPureStore.transition(job.id, "fail", {
+          leaseToken: job.leaseToken,
+          leaseFence: job.leaseFence,
+          error,
+          reason: String(error?.message || error)
+        }).catch(() => {});
+      }
+      await sleep(POLL_MS);
+    }
+  }
+}
 
-async function loop(){while(!stopping){const job=await claim();if(!job){await sleep(POLL_MS);continue;}try{const r=await synth(job);await pool.query("UPDATE voiceover_jobs SET status='completed',finished_at=NOW(),output_path=$1,bytes=$2,result_json=$3,error=NULL WHERE id=$4",[r.file,r.bytes,JSON.stringify(r),job.id]);}catch(e){const retry=Number(job.attempts)<MAX_ATTEMPTS;const delay=retry?Math.min(300,2**Number(job.attempts)*5):0;await pool.query("UPDATE voiceover_jobs SET status=$1,available_at=NOW()+($2*INTERVAL '1 second'),error=$3,finished_at=CASE WHEN $1='failed' THEN NOW() ELSE NULL END WHERE id=$4",[retry?"queued":"failed",delay,String(e?.stack||e).slice(0,20000),job.id]);}}}
+export async function startVoiceoverWorker() {
+  if (String(process.env.APEX_WORKER_API_URL || "").trim()) {
+    throw new Error("Voiceover tasks must run through the authoritative remote Pure-WAL worker; start index.mjs instead.");
+  }
+  stopping = false;
+  await apexPureStore.init();
+  await Promise.all(Array.from({ length: CONCURRENCY }, loop));
+}
 
-export async function startVoiceoverWorker(){await initSchema();await Promise.all(Array.from({length:CONCURRENCY},loop));}
-export async function listVoiceCatalog(){return (await listVoiceOptions()).map(v=>({...v,provider:"local"}));}
-export async function voiceoverWorkerStatus(){await initSchema();const {rows:[q]}=await pool.query("SELECT COUNT(*)::int n FROM voiceover_jobs WHERE status='queued'");const {rows:[r]}=await pool.query("SELECT COUNT(*)::int n FROM voiceover_jobs WHERE status='running'");return{concurrency:CONCURRENCY,queued:q?.n||0,running:r?.n||0,providers:{elevenlabs:Boolean(process.env.ELEVENLABS_API_KEY),google:Boolean(process.env.GOOGLE_TTS_API_KEY),local:true}};}
-for(const s of["SIGINT","SIGTERM"])process.once(s,()=>{stopping=true;pool.end().catch(()=>{});});
-if(process.argv[1]&&new URL(import.meta.url).pathname===new URL(process.argv[1],"file:").pathname)await startVoiceoverWorker();
+export async function listVoiceCatalog() {
+  return (await listVoiceOptions()).map(v => ({ ...v, provider: "local" }));
+}
+
+export async function voiceoverWorkerStatus() {
+  const remoteUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\\/+$/, "");
+  const token = String(process.env.APEX_WORKER_TOKEN || "");
+  if (remoteUrl && token) {
+    const response = await fetch(new URL("/api/internal/worker/stats", remoteUrl), {
+      headers: { "x-apex-worker-token": token },
+      signal: AbortSignal.timeout(10000)
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error("Remote Pure-WAL queue status returned " + response.status);
+    return {
+      durable: true,
+      queueOwner: "remote-pure-wal",
+      remoteQueueConfigured: true,
+      concurrency: CONCURRENCY,
+      queued: Number(body.stats?.queued || 0),
+      running: Number(body.stats?.running || 0),
+      providers: { local: true, elevenlabs: Boolean(process.env.ELEVENLABS_API_KEY), google: Boolean(process.env.GOOGLE_TTS_API_KEY) }
+    };
+  }
+  await apexPureStore.refresh();
+  const jobs = apexPureStore.jobs().filter(job => job.type === "voiceover.synthesize");
+  return {
+    durable: true,
+    queueOwner: "local-pure-wal",
+    remoteQueueConfigured: false,
+    concurrency: CONCURRENCY,
+    queued: jobs.filter(job => job.status === "queued").length,
+    running: jobs.filter(job => job.status === "running").length,
+    providers: { local: true, elevenlabs: Boolean(process.env.ELEVENLABS_API_KEY), google: Boolean(process.env.GOOGLE_TTS_API_KEY) }
+  };
+}
+
+for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => { stopping = true; });
+
+if (process.argv[1] && new URL(import.meta.url).pathname === new URL(process.argv[1], "file:").pathname) {
+  await startVoiceoverWorker();
+}
