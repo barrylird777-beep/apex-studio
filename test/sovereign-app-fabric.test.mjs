@@ -26,12 +26,16 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
     assert.equal(apps.length,6);
     assert.deepEqual(new Set(apps.map(app=>app.id)),new Set(Object.values(APEX_APPS).map(app=>app.id)));
     for(const app of apps){
-      const saved=await fabric.put(app.id,'smoke-record',{proof:'durable',app:app.id});
+      const recordId=app.id+'-smoke-record';
+      const saved=await fabric.put(app.id,recordId,{proof:'durable',app:app.id});
       assert.equal(saved.durable,true);
       assert.equal(saved.record.appId,app.id);
-      const read=await fabric.get(app.id,'smoke-record');
+      const read=await fabric.get(app.id,recordId);
       assert.equal(read.record.proof,'durable');
       assert.equal((await fabric.list(app.id)).length,1);
+      for(const other of apps.filter(candidate=>candidate.id!==app.id)){
+        assert.equal(await fabric.get(other.id,recordId),null,app.id+' data must not leak into '+other.id);
+      }
     }
     const status=await fabric.status();
     assert.equal(status.ok,true);

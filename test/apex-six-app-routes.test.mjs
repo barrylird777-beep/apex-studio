@@ -59,3 +59,13 @@ test("KoinKob simulation runs are durably stored and surfaced in history", async
   assert.match(page, /\/api\/koin-kob\/simulations/);
   assert.match(page, /savedRuns/);
 });
+
+test("all six canonical phone surfaces avoid browser-local data stores and share authenticated control", async () => {
+  for (const app of Object.values(APEX_APPS)) {
+    const surface = app.id === "planet-apex" ? "planet-apex.html" : app.entry.slice(1);
+    const page = await read("../public/" + surface);
+    assert.doesNotMatch(page, /localStorage/, app.name + " must not trap app data in browser localStorage");
+    assert.match(page, /api-auth-bridge\.js/, app.name + " must use the shared phone authorization bridge");
+    assert.match(page, /sessionStorage/, app.name + " must keep browser session state temporary");
+  }
+});

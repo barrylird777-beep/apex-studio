@@ -78,7 +78,14 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
     waveId: localWaveId,
     peerId: remotePeerId,
     action: 'PeerReceive',
-    payload: { originWaveId: receiptId, sourcePeerId: remotePeerId, sourceChecksum: envelope.checksum }
+    payload: {
+      originWaveId: receiptId,
+      sourcePeerId: remotePeerId,
+      sourceChecksum: envelope.checksum,
+      // Persist the verified source record inside this peer's own content-addressed history.
+      // A receipt alone proves arrival, not that the actual event can be recovered here.
+      sourceRecord: record
+    }
   });
   await acknowledgeLocalPeerReceive(engine, localWaveId, remotePeerId);
   return true;
