@@ -27,6 +27,7 @@ import { createAiCrewEngine } from './src/core/mesh/ai-crew-engine.mjs';
 import { createMassiveAiWorkforce } from './src/core/mesh/massive-ai-workforce.mjs';
 import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
+import { sovereignAppFabric } from './src/core/sovereign-app-fabric.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
@@ -1024,6 +1025,11 @@ app.post("/api/music-radar/handoff", async (req, res) => {
 });
 
 app.use('/api/mobile', createMobileControlPlane({
+  getSovereignStatus: () => sovereignAppFabric.status(),
+  getSovereignApps: () => sovereignAppFabric.apps(),
+  getSovereignRecord: (appId, recordId) => recordId == null ? sovereignAppFabric.list(appId) : sovereignAppFabric.get(appId, recordId),
+  putSovereignRecord: (appId, recordId, record) => sovereignAppFabric.put(appId, recordId, record),
+  dispatchSovereign: payload => sovereignAppFabric.dispatch(payload),
   getHealth: async () => ({ ok: true, uptime: process.uptime() }),
   getAiStatus: async () => ({ ...unifiedAiStatus(), openai: openAiMaxStatus(), grok: grokStatus() }),
   getCapacity: async () => capacitySnapshot(),
