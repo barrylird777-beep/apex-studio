@@ -88,6 +88,8 @@ async function main() {
   const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
   if (!storageReady) return;
   await engine.ready();
+  const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
+  if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   await peerNode.start();
@@ -165,7 +167,6 @@ async function publishRuntimeIdentity(status = 'online') {
 
 async function runCycle(activeBridge) {
   await publishRuntimeIdentity('online');
-  await acknowledgePendingLocalPeerReceives(engine);
   const queued = await drainSovereignAppDispatchQueue({
     store: apexPureStore,
     engine,
