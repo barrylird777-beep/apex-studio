@@ -18,6 +18,8 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
   const target = path.resolve(file);
   await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
   try {
+    const info = await stat(target);
+    if (!info.isFile() || (info.mode & 0o077) !== 0) throw new Error('sovereign peer identity key permissions are unsafe');
     const bytes = await readFile(target);
     if (!bytes.length) throw new Error('sovereign peer identity key is empty');
     return privateKeyFromProtobuf(bytes);
@@ -40,6 +42,8 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
   } catch (error) {
     await handle?.close().catch(() => {});
     if (error.code !== 'EEXIST') throw error;
+    const info = await stat(target);
+    if (!info.isFile() || (info.mode & 0o077) !== 0) throw new Error('sovereign peer identity key permissions are unsafe');
     const existing = await readFile(target);
     if (!existing.length) throw new Error('sovereign peer identity key was created empty');
     return privateKeyFromProtobuf(existing);
@@ -69,7 +73,9 @@ export async function readSovereignEnvelope(stream) {
 }
 
 export async function createSovereignPeer({ onEnvelope } = {}) {
+  const privateKey = await loadOrCreatePeerPrivateKey();
   const node = await createLibp2p({
+    privateKey,
     addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 0)}`] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
