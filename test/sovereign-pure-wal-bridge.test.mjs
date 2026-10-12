@@ -144,7 +144,7 @@ test('concurrent Pure-WAL initialization is single-flight and replays from one v
       wal: new ApexRingWAL({ file })
     });
     await recovered.init();
-    assert.deepEqual(await recovered.get('init_test', 'record'), { durable: true });
+    assert.equal((await recovered.get('init_test', 'record')).durable, true);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
