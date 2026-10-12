@@ -148,9 +148,11 @@ export class ApexPureStore {
   }
   async initializeRemote(){
     await this.cas.init();
-    if(await this.cas.readRef("system","migration-v1"))return this;
-    await this.withRemoteLock("storage-migration-lock",async()=>{
-      if(await this.cas.readRef("system","migration-v1"))return;
+    const scope=String(process.env.RAILWAY_SERVICE_NAME||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
+    const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
+    if(await this.cas.readRef("system",markerKey))return this;
+    await this.withRemoteLock(lockKey,async()=>{
+      if(await this.cas.readRef("system",markerKey))return;
       for(const namespace of ["state","jobs"]){
         for(const ref of await this.localCas.listRefs(namespace)){
           const current=await this.cas.readRef(namespace,ref.key);
@@ -188,7 +190,7 @@ export class ApexPureStore {
         }});
         await flush();
       }
-      await this.cas.writeRef("system","migration-v1",{version:1,storage:"remote-content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
+      await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-content-addressed",service:scope,migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
     });
     return this;
   }
