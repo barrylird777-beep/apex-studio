@@ -44,22 +44,42 @@ export class ApexRingWAL {
   }
   async _acquireLock(){
     const started=Date.now();
+    let fh,token;
     while(true){
       try{
-        const fh=await open(this.lockFile,"wx",0o600);
-        try{await fh.writeFile(JSON.stringify({pid:process.pid,host:os.hostname(),createdAt:Date.now()})+"\n","utf8");await fh.sync();}
-        catch(e){await fh.close().catch(()=>{});await unlink(this.lockFile).catch(()=>{});throw e;}
-        await fh.close();
-        return async()=>{await unlink(this.lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});await syncDirectory(path.dirname(this.file));};
+        token=randomUUID();
+        fh=await open(this.lockFile,"wx",0o600);
+        await fh.writeFile(JSON.stringify({pid:process.pid,host:os.hostname(),createdAt:Date.now(),token})+"\\n","utf8");
+        await fh.sync();
+        break;
       }catch(e){
+        if(fh){await fh.close().catch(()=>{});fh=undefined;}
         if(e.code!=="EEXIST")throw e;
         let stale=false;
-        try{const info=await stat(this.lockFile);stale=Date.now()-info.mtimeMs>this.staleLockMs;}catch(err){if(err.code==="ENOENT")continue;throw err;}
-        if(stale){await unlink(this.lockFile).catch(err=>{if(err.code!=="ENOENT")throw err;});continue;}
-        if(Date.now()-started>=this.lockTimeoutMs)throw new Error("[WAL_LOCK] Timed out waiting for the cross-process WAL lock.");
+        try{const info=await stat(this.lockFile);stale=Date.now()-info.mtimeMs>Math.max(120000,this.staleLockMs*2);}catch(err){if(err.code==="ENOENT")continue;throw err;}
+        if(stale){
+          const quarantine=this.lockFile+".stale."+randomUUID();
+          try{await (await import("node:fs/promises")).rename(this.lockFile,quarantine);await unlink(quarantine).catch(err=>{if(err.code!=="ENOENT")throw err;});}
+          catch(err){if(err.code!=="ENOENT"&&err.code!=="EEXIST")throw err;}
+          continue;
+        }
+        if(Date.now()-started>=Math.max(180000,this.lockTimeoutMs*2))throw new Error("[WAL_LOCK] Timed out waiting for the cross-process WAL lock.");
         await sleep(20+Math.floor(Math.random()*31));
       }
     }
+    const heartbeat=setInterval(()=>{const now=new Date();fh?.utimes(now,now).catch(()=>{});},10000);
+    heartbeat.unref?.();
+    return async()=>{
+      clearInterval(heartbeat);
+      const owned=fh;fh=undefined;
+      let ownsPath=false;
+      try{
+        const [opened,current,contents]=await Promise.all([owned.stat(),stat(this.lockFile),readFile(this.lockFile,"utf8")]);
+        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+      }catch(err){if(err.code!=="ENOENT"&&!(err instanceof SyntaxError))throw err;}
+      await owned.close().catch(()=>{});
+      if(ownsPath){await unlink(this.lockFile).catch(err=>{if(err.code!=="ENOENT")throw err;});await syncDirectory(path.dirname(this.file));}
+    };
   }
   async _refreshLocked(onRecord=()=>{}){
     this.lastExternalRecords=[];
