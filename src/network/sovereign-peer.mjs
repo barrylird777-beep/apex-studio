@@ -1,6 +1,7 @@
 import { createLibp2p } from 'libp2p';
 import { tcp } from '@libp2p/tcp';
 import { noise } from '@libp2p/noise';
+import { ping } from '@libp2p/ping';
 import { yamux } from '@libp2p/yamux';
 import { mdns } from '@libp2p/mdns';
 import { bootstrap } from '@libp2p/bootstrap';
@@ -42,6 +43,7 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
     ],
     services: {
       identify: identify(),
+      ping: ping(),
       dht: kadDHT({ clientMode: false, kBucketSize: 20 })
     }
   });
