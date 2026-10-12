@@ -70,6 +70,62 @@ async function executeEpisodeProductionTask(payload = {}) {
   };
 }
 
+async function executeVoiceoverSynthesis(payload = {}) {
+  const text = String(payload?.text || "").trim();
+  if (!text) throw new Error("Voiceover synthesis requires text");
+  const { synthesizeSpeech, listVoiceOptions } = await import("./src/core/audio-station.mjs");
+  const { createUploadUrl, createDownloadUrl } = await import("./src/storage/cloud-object-store.mjs");
+  const { readFile, unlink } = await import("node:fs/promises");
+  const outputDir = path.join(os.tmpdir(), "apex-voiceover");
+  let rendered;
+  try {
+    let voice = String(payload.voice || process.env.APEX_VOICEOVER_DEFAULT_VOICE || "");
+    if (!voice) {
+      const voices = await listVoiceOptions();
+      voice = voices.find(item => item.engine === "espeak-ng" || item.engine === "espeak")?.id || "";
+    }
+    if (!voice) throw new Error("No installed local TTS engine found; install Piper/eSpeak-ng or configure a supported provider");
+    rendered = await synthesizeSpeech({
+      text,
+      voice,
+      language: payload.language || "en-US",
+      speed: payload.speed || 1,
+      pitch: payload.pitch || 0,
+      format: payload.format || "wav",
+      outputDir
+    });
+    const bytes = await readFile(rendered.path);
+    const contentType = String(payload.format || "wav").toLowerCase() === "mp3" ? "audio/mpeg" : "audio/wav";
+    const upload = await createUploadUrl({
+      filename: path.basename(rendered.path),
+      contentType,
+      size: bytes.length,
+      prefix: "apex-audio"
+    });
+    const response = await fetch(upload.url, {
+      method: "PUT",
+      headers: { "content-type": contentType },
+      body: bytes,
+      signal: AbortSignal.timeout(30000)
+    });
+    if (!response.ok) throw new Error("Voiceover object upload failed: " + response.status);
+    const rawKey = String(upload.key).replace(/^mobile\/apex-audio\//, "");
+    const download = await createDownloadUrl({ key: rawKey, prefix: "apex-audio" });
+    return {
+      ok: true,
+      provider: "local",
+      voice: rendered.voice || payload.voice || null,
+      objectKey: download.key,
+      downloadUrl: download.url,
+      bytes: bytes.length,
+      contentType,
+      completedAt: new Date().toISOString()
+    };
+  } finally {
+    if (rendered?.path) await unlink(rendered.path).catch(() => {});
+  }
+}
+
 async function executeAiInferenceTask(payload = {}) {
   const provider = String(payload?.provider || "").trim();
   const model = String(payload?.model || "").trim();
@@ -272,6 +328,8 @@ if (!workerOnly) {
           ? await executeMusicAudioHandoffTask(task.payload || {})
           : taskType === "ai-inference"
           ? await executeAiInferenceTask(task.payload || {})
+          : taskType === "voiceover.synthesize"
+          ? await executeVoiceoverSynthesis(task.payload || {})
           : await executePermanentHealthTask(task.payload || {});
       const completed = await queueComplete(task, result);
       if (!completed) {
