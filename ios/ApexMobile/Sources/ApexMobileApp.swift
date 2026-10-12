@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 @main
@@ -43,6 +44,11 @@ struct ApexRootView: View {
                         SecureField("Random shared pairing secret (32+ characters)", text: $pairingSecret)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                        HStack {
+                            Button("Generate key") { pairingSecret = ApexNearbyMesh.makePairingSecret() }
+                            Button("Copy key") { UIPasteboard.general.string = pairingSecret }
+                                .disabled(pairingSecret.isEmpty)
+                        }
                         HStack {
                             Button("Start discovery") {
                                 do { try nearbyMesh.start(pairingSecret: pairingSecret) }
