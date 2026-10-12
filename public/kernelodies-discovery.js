@@ -77,7 +77,7 @@
           button.disabled = true;
           try {
             const response = await api("/api/kernelodies/discovery/saved", { method: "POST", body: JSON.stringify(item) });
-            $("kd-status").textContent = response.duplicate ? "Already saved in Kernelodies." : "Discovery saved to the Kernelodies Pure-WAL namespace.";
+            $("kd-status").textContent = response.duplicate ? "Already saved in Kernelodies." : "Discovery saved to the Kernelodies content-addressed namespace.";
             await refreshSaved();
           } catch (error) {
             $("kd-status").textContent = error.message;
@@ -118,7 +118,7 @@
       const data = await api("/api/kernelodies/discovery/saved");
       saved = Array.isArray(data.discoveries) ? data.discoveries : [];
       renderDiscoveries($("kd-saved"), saved, false);
-      $("kd-status").textContent = saved.length + " saved discoveries in Kernelodies Pure-WAL.";
+      $("kd-status").textContent = saved.length + " saved discoveries in Kernelodies content-addressed.";
     } catch (error) {
       $("kd-status").textContent = error.message;
     }
