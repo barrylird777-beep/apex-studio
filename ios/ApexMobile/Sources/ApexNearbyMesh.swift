@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Combine
 import CryptoKit
 @preconcurrency import MultipeerConnectivity
