@@ -16,7 +16,7 @@ function cleanText(value) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&nbsp;/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -87,8 +87,8 @@ function publicHttpsUrl(raw, base) {
     const host = url.hostname.toLowerCase();
     if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") ||
         host === "127.0.0.1" || host === "::1" || host === "[::1]" ||
-        /^10\\./.test(host) || /^192\\.168\\./.test(host) ||
-        /^169\\.254\\./.test(host) || /^172\\.(1[6-9]|2\\d|3[01])\\./.test(host)) return null;
+        /^10\./.test(host) || /^192\.168\./.test(host) ||
+        /^169\.254\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) return null;
     return url.href;
   } catch {
     return null;
@@ -98,7 +98,7 @@ function publicHttpsUrl(raw, base) {
 function parseDuckDuckGo(html, limit) {
   const results = [];
   const seen = new Set();
-  const anchor = /<a\\b[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+  const anchor = /<a\b[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
   while ((match = anchor.exec(html)) && results.length < limit) {
     let rawUrl = cleanText(match[1]).replace(/&amp;/g, "&");
@@ -113,7 +113,7 @@ function parseDuckDuckGo(html, limit) {
     if (!url || !title || seen.has(url)) continue;
     seen.add(url);
     const region = html.slice(Math.max(0, match.index - 350), Math.min(html.length, anchor.lastIndex + 1400));
-    const snippetMatch = region.match(/class=["'][^"']*result__snippet[^"']*["'][^>]*>([\\s\\S]*?)<\\/(?:div|span|a)>/i);
+    const snippetMatch = region.match(/class=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|a)>/i);
     results.push({ title, url, snippet: cleanText(snippetMatch?.[1] || ""), source: "DuckDuckGo", category: "web" });
   }
   return results;
@@ -190,10 +190,10 @@ async function searchArxiv(query, { fetchImpl, timeoutMs, limit, page }) {
   url.searchParams.set("start", String((page - 1) * limit));
   url.searchParams.set("max_results", String(limit));
   const xml = await requestText(url.href, { fetchImpl, timeoutMs, accept: "application/atom+xml, application/xml, text/xml" });
-  const entries = [...xml.matchAll(/<entry>([\\s\\S]*?)<\\/entry>/gi)].map(match => match[1]);
+  const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)].map(match => match[1]);
   return entries.map(entry => {
     const field = name => cleanText(entry.match(new RegExp("<" + name + "[^>]*>([\\s\\S]*?)</" + name + ">", "i"))?.[1]);
-    const rawId = field("id").replace(/^http:\\/\\//i, "https://");
+    const rawId = field("id").replace(/^http:\/\//i, "https://");
     return {
       title: field("title"),
       url: publicHttpsUrl(rawId),
