@@ -40,10 +40,11 @@ try{
   assert.equal(result.artifact.output.height,1080);
   assert.equal(result.artifact.output.vcodec,"h264");
   assert.equal(result.artifact.output.acodec,"aac");
+  assert.ok(Math.abs(result.artifact.output.fps-24)<0.01,"rendered MP4 must be 24 fps");
   assert.ok(Math.abs(result.artifact.output.durationSec-30)<0.75);
   assert.equal(result.artifact.releaseEligible,false,"synthetic smoke media must never be publication-eligible");
   assert.equal(records.length,1);
-  console.log(JSON.stringify({success:true,synthetic:true,notForPublication:true,bytes:info.size,output:result.artifact.output.path,sha256:result.artifact.output.sha256,durationSec:result.artifact.output.durationSec,qc:result.artifact.quality},null,2));
+  console.log(JSON.stringify({success:true,synthetic:true,notForPublication:true,bytes:info.size,output:result.artifact.output.path,sha256:result.artifact.output.sha256,durationSec:result.artifact.output.durationSec,fps:result.artifact.output.fps,qc:result.artifact.quality},null,2));
 }catch(error){
   console.error("[kernelvision-episode-smoke] failed:",error?.stack||error);
   process.exitCode=1;
