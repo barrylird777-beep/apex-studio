@@ -12,6 +12,7 @@ const child = spawn(process.execPath, ['server.mjs'], {
     PORT: String(port),
     HOST: '127.0.0.1',
     NODE_ENV: 'test',
+    APEX_SHORTCUT_TOKEN: 'apex-smoke-token',
     APEX_SE_X_ROOT: smokeRoot,
     APEX_SHORTCUT_TOKEN: 'apex-smoke-token',
     APEX_PROJECTS_DIR: path.join(smokeRoot, 'projects'),
@@ -75,6 +76,57 @@ try {
     JSON.stringify(actualApps) !== JSON.stringify(expectedApps)
   ) {
     throw new Error(`canonical app readiness check failed; response: ${readiness.body}`);
+  }
+
+  const canonicalAppIds = [
+    ['planet-apex', 'PlanetApeX'],
+    ['ko-blocks', 'KoBlocks'],
+    ['kernel-vision', 'KernelVision'],
+    ['koin-kob', 'KoinKob'],
+    ['kash-korner', 'KashKorner'],
+    ['kernelodies', 'Kernelodies']
+  ];
+
+  for (const [appId, expectedName] of canonicalAppIds) {
+    const status = await getJson(`/api/canon/apps/${appId}/status`);
+    if (status.status !== 200 || status.json?.success !== true ||
+        status.json?.app?.name !== expectedName || status.json?.canonical !== true) {
+      throw new Error(`${expectedName} status smoke failed: ${status.body}`);
+    }
+  }
+
+  const sovereignStatus = await getJson('/api/mobile/sovereign/status', {
+    'x-apex-shortcut-token': 'apex-smoke-token'
+  });
+  if (sovereignStatus.status !== 200 || sovereignStatus.json?.success !== true ||
+      sovereignStatus.json?.storage !== 'local-pure-wal' ||
+      sovereignStatus.json?.canonicalAppCount !== canonicalAppIds.length ||
+      sovereignStatus.json?.durableStoreReady !== true) {
+    throw new Error(`six-app sovereign storage smoke failed: ${sovereignStatus.body}`);
+  }
+
+  for (const [appId, expectedName] of canonicalAppIds) {
+    const payload = { source: 'smoke-production', appId, marker: `verified-${appId}` };
+    const savedResponse = await fetch(`http://127.0.0.1:${port}/api/mobile/apps/${appId}/records/smoke-record`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-apex-shortcut-token': 'apex-smoke-token' },
+      body: JSON.stringify(payload)
+    });
+    const saved = await savedResponse.json();
+    if (savedResponse.status !== 200 || saved.success !== true ||
+        saved.durable !== true || saved.storage !== 'local-pure-wal' ||
+        saved.record?.marker !== payload.marker) {
+      throw new Error(`${expectedName} durable save smoke failed: ${JSON.stringify(saved)}`);
+    }
+
+    const loadedResponse = await fetch(`http://127.0.0.1:${port}/api/mobile/apps/${appId}/records/smoke-record`, {
+      headers: { 'x-apex-shortcut-token': 'apex-smoke-token' }
+    });
+    const loaded = await loadedResponse.json();
+    if (loadedResponse.status !== 200 || loaded.success !== true ||
+        loaded.record?.marker !== payload.marker || loaded.record?.appId !== appId) {
+      throw new Error(`${expectedName} durable load smoke failed: ${JSON.stringify(loaded)}`);
+    }
   }
 
   const canonicalAppIds = [
