@@ -1,6 +1,6 @@
 export const APEX_APPS = Object.freeze({
   PLANET_APEX: Object.freeze({ id:"planet-apex", name:"PlanetApeX", role:"world and planetary Apex environment", entry:"/planet-apex.html", module:"../apps/planet-apex.mjs" }),
-  KO_BLOCKS: Object.freeze({ id:"ko-blocks", name:"KoBlocks", role:"modular building and reusable Apex blocks", entry:"/ko-blocks.html", module:"../apps/ko-blocks.mjs" }),
+  XSHIELD: Object.freeze({ id:"xshield", name:"XShield", role:"ad blocking, tracker blocking and network protection", entry:"/xshield.html", module:"../apps/xshield.mjs" }),
   KERNEL_VISION: Object.freeze({ id:"kernel-vision", name:"KernelVision", role:"finished-work viewing through KernelVision Theatre and Kornmax", entry:"/kernel-vision.html", module:"../apps/kernel-vision.mjs" }),
   KOIN_KOB: Object.freeze({ id:"koin-kob", name:"KoinKob", role:"economy, value, barter and autonomous worker markets", entry:"/koin-kob.html", module:"../apps/koin-kob.mjs" }),
   KASH_KORNER: Object.freeze({ id:"kash-korner", name:"KashKorner", role:"cash, ledger and financial state", entry:"/kash-korner.html", module:"../apps/kash-korner.mjs" }),
