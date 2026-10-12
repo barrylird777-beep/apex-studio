@@ -114,9 +114,13 @@ function requireControlPlaneAuth(req, res, next) {
 }
 
 function requireOpportunityEngineAuth(req, res, next) {
-  const expected = process.env.APEX_OPPORTUNITY_ENGINE_TOKEN;
-  if (!expected) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
-  if (!opportunityEngineTokenMatches(expected, req.get('x-apex-opportunity-token'))) {
+  const expected = [
+    process.env.APEX_OPPORTUNITY_ENGINE_TOKEN,
+    process.env.APEX_OPPORTUNITY_ENGINE_SYNC_TOKEN
+  ].filter(Boolean);
+  if (!expected.length) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
+  const supplied = req.get('x-apex-opportunity-token');
+  if (!expected.some(token => opportunityEngineTokenMatches(token, supplied))) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
   return next();
