@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
 import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+types.setTypeParser(114, value => value); // Preserve JSON text instead of rounding large JSON numbers in JavaScript.
+types.setTypeParser(3802, value => value); // Preserve JSONB text; source column type metadata records its SQL type.
 const BATCH_SIZE = 250;
 const cloneJson = value => JSON.parse(JSON.stringify(value));
 const sha256 = value => createHash("sha256").update(String(value)).digest("hex");
@@ -117,12 +119,18 @@ async function main() {
     for (const table of tableResult.rows) {
       const qualified = quoteSqlIdentifier(table.schema_name) + "." + quoteSqlIdentifier(table.table_name);
       const colsResult = await client.query(`
-        SELECT column_name, ordinal_position
+        SELECT column_name, ordinal_position, data_type, udt_name, is_nullable
         FROM information_schema.columns
         WHERE table_schema=$1 AND table_name=$2
         ORDER BY ordinal_position
       `, [table.schema_name, table.table_name]);
-      const columns = colsResult.rows.map(r => r.column_name);
+      const columns = colsResult.rows.map(r => ({
+        name: r.column_name,
+        position: Number(r.ordinal_position),
+        dataType: r.data_type,
+        databaseType: r.udt_name,
+        nullable: r.is_nullable === "YES"
+      }));
       const pkResult = await client.query(`
         SELECT a.attname AS column_name, array_position(i.indkey, a.attnum) AS key_position
         FROM pg_index i
@@ -152,14 +160,14 @@ async function main() {
       let offset = 0;
       while (true) {
         const result = await client.query(
-          "SELECT row_to_json(src) AS source_row FROM (SELECT * FROM " + qualified +
-          " ORDER BY " + orderBy + " LIMIT $1 OFFSET $2) src",
+          "SELECT * FROM " + qualified +
+          " ORDER BY " + orderBy + " LIMIT $1 OFFSET $2",
           [BATCH_SIZE, offset]
         );
         if (!result.rows.length) break;
         offset += result.rows.length;
         for (const item of result.rows) {
-          const sourceRow = cloneJson(item.source_row);
+          const sourceRow = cloneJson(item);
           const rowKey = canonicalJson(sourceRow);
           const duplicateOrdinal = occurrences.get(rowKey) || 0;
           occurrences.set(rowKey, duplicateOrdinal + 1);
