@@ -46,6 +46,8 @@ jobs:
         run: node --test test/sovereign-app-fabric.test.mjs
       - name: Verify Pure-WAL worker leases, retries and idempotency
         run: node --test test/durable-worker-race.test.mjs
+      - name: Verify remote autonomous AI queue injection
+        run: node --test test/locked-continuous-loop.test.mjs
       - name: Verify persistent peer identity
         run: node --test test/sovereign-peer-identity.test.mjs
       - name: Verify encrypted peer transport and allowlisting
