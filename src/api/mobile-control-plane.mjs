@@ -23,7 +23,7 @@ function tokenMatches(expected, supplied) {
 }
 
 function requireShortcutAuth(req, res, next) {
-  const expected = process.env.APEX_SHORTCUT_TOKEN;
+  const expected = process.env.APEX_SHORTCUT_TOKEN || process.env.APEX_CONTROL_TOKEN;
   if (!expected) {
     return res.status(503).json({ success: false, error: 'Apex Shortcut control plane is not configured' });
   }
