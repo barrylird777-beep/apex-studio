@@ -17,7 +17,8 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
     const worker = getWorker(workerId);
     if (!worker) throw new Error(`unknown fixed APEX worker: ${workerId}`);
 
-    if (typeof store.init === "function") await store.init();
+    if (typeof store.refreshJobs === "function") await store.refreshJobs();
+    else if (typeof store.init === "function") await store.init();
     const normalizedWorkId = String(workId).trim();
     if (!normalizedWorkId) throw new Error("workId is required");
     const taskId = `apex-worker-task:${worker.id}:${normalizedWorkId}`;
