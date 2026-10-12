@@ -64,8 +64,8 @@ test('phone dispatch is durably queued and the runtime daemon alone writes the m
     assert.equal(drained.dispatched,1);
     const record=engine.get('phone-wave-1');
     assert.equal(record.peerId,'test-peer');
-    assert.equal(record.payload.appId,'kernelodies');
-    assert.equal(record.payload.source,'phone-control-plane');
+    assert.equal(record.payload.payload.appId,'kernelodies');
+    assert.equal(record.payload.payload.source,'phone-control-plane');
     assert.match(record.checksum,/^[a-f0-9]{64}$/);
     assert.equal(store.jobs().find(job=>job.id===queued.jobId).status,'completed');
   } finally {
