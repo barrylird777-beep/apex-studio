@@ -38,7 +38,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
         seededEpisodes: episodes.length,
         queuedJobs: jobs.filter(job => job.status === "queued").length,
         runningJobs: jobs.filter(job => job.status === "running").length,
-        storage: "Pure-WAL/Ring-WAL",
+        storage: "content-addressed",
         pipelineEnabled: enabled,
         startBlockedReason: enabled ? null : "Remote worker state and durable artifact handoff are not yet verified.",
         checkedAt: new Date().toISOString()
