@@ -219,7 +219,8 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const node = await createLibp2p({
     privateKey,
-    addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 0)}`] },
+    // Railway TCP proxies forward to the configured internal port; ephemeral port 0 is only for explicit local tests.
+    addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 9000)}`] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
     streamMuxers: [yamux()],
