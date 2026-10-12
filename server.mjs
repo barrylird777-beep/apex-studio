@@ -674,7 +674,7 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const contentDomain = normalizeContentDomain(body.contentDomain || 'bible');
     const creativeBrief = String(body.prompt || '').trim().slice(0, 2000);
-    if (contentDomain === 'korn' && /\\b440\\s*hz\\b/i.test(creativeBrief)) throw new Error('Jesus Freaks music must use 432 Hz only; remove the 440 Hz instruction');
+    if (contentDomain === 'korn' && /\b440\s*hz\b/i.test(creativeBrief)) throw new Error('Jesus Freaks music must use 432 Hz only; remove the 440 Hz instruction');
     let gardenPackage;
     if (contentDomain === 'korn') {
       const { gardenSnapshot, verifiedGardenIds } = await import('./src/garden/lore-graph.mjs');
