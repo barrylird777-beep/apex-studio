@@ -10,6 +10,8 @@ test("production entrypoints and active handlers do not depend on PostgreSQL", a
     "../server.mjs",
     "../scripts/start-apex-stack.mjs",
     "../src/core/sovereign-runtime-daemon.mjs",
+    "../src/api/kernel-vision-schedule.mjs",
+    "../scripts/start-dev.mjs",
     "../src/core/mesh/durable-worker-store.mjs",
     "../src/workers/voiceover-worker.mjs",
     "../src/jobs/teevee-handlers.mjs",
