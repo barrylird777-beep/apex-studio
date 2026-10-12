@@ -87,7 +87,7 @@ export class ApexPureStore {
     if(!inside(root,file))throw new Error("[SECURITY_VIOLATION] Storage target escapes the configured root.");
     return file;
   }
-  async file(c,id){return this.checkedFile(c,id);}
+  file(c,id){return path.join(this.root,safeSegment(c,"collection"),safeSegment(id,"record id")+".json");}
   async atomic(file,value){
     const parent=path.dirname(file);
     const temp=file+"."+process.pid+"."+randomUUID()+".tmp";
