@@ -256,13 +256,16 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     readerFor(stream);
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
+      console.log('[SOVEREIGN PEER] inbound opened', JSON.stringify({ remotePeerId, allowed: isAllowedPeer(remotePeerId), streamStatus: stream.status || null }));
       if (!isAllowedPeer(remotePeerId)) {
         await sendSovereignEnvelope(stream, { accepted: false, error: 'peer is not allowlisted' });
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
+      console.log('[SOVEREIGN PEER] inbound envelope', JSON.stringify({ remotePeerId, type: envelope?.type || null }));
       const accepted = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
       await sendSovereignEnvelope(stream, { accepted: Boolean(accepted), peerId: node.peerId.toString() });
+      console.log('[SOVEREIGN PEER] inbound acknowledgement sent', JSON.stringify({ remotePeerId, accepted: Boolean(accepted), streamStatus: stream.status || null }));
     } catch (error) {
       console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({
         error: error instanceof Error ? error.message : String(error),
@@ -288,10 +291,12 @@ export async function sendToPeer(node, multiaddr, envelope) {
     throw new Error('outgoing sovereign peer is not allowlisted');
   }
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
+  console.log('[SOVEREIGN PEER] outbound dialing', JSON.stringify({ destinationPeerId, protocol: PROTOCOL }));
   const stream = await node.dialProtocol(target, PROTOCOL, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
   // Outbound streams are already flowing; do not resume them again while waiting for the ACK.
+  console.log('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamStatus: stream.status || null }));
   const responsePromise = readSovereignEnvelope(stream, { resume: false });
   try {
     // Observe the ACK promise at the same time as the write. If the ACK times
@@ -302,6 +307,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       responsePromise
     ]);
     if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
+    console.log('[SOVEREIGN PEER] outbound acknowledged', JSON.stringify({ destinationPeerId, remotePeerId: response.peerId || null }));
     return response;
   } finally {
     try { await stream.close?.(); } catch {}

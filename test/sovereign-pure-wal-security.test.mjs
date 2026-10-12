@@ -43,15 +43,14 @@ test('legacy PureStore rejects absolute and parent-traversal paths', async () =>
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
-test('Pure-WAL materialized records are written with restrictive permissions and reopened from WAL', async () => {
+test('Pure store persists records in CAS without a duplicate local JSON copy', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-pure-durable-'));
   try {
     const root=path.join(dir,'projects'),walFile=path.join(dir,'wal','ring.wal.jsonl');
     const store=new ApexPureStore({root,wal:new ApexRingWAL({file:walFile})});
     await store.put('notes','note-1',{value:'durable'});
-    const file=path.join(root,'notes','note-1.json');
-    assert.equal((await fs.stat(file)).isFile(),true);
-    assert.equal((await fs.stat(file)).mode & 0o777,0o600);
+    const duplicateFile=path.join(root,'notes','note-1.json');
+    await assert.rejects(fs.access(duplicateFile),{code:'ENOENT'});
     const reopened=new ApexPureStore({root,wal:new ApexRingWAL({file:walFile})});
     await reopened.init();
     assert.equal((await reopened.get('notes','note-1')).value,'durable');

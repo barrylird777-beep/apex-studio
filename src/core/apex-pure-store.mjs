@@ -53,15 +53,41 @@ export class ApexPureStore {
         await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now(),token}),"utf8");
         await handle.sync();
       }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(error.code==="ENOSPC"&&handle){await handle.sync().catch(()=>{});break;}
+        if(handle){
+          try{
+            const [opened,current]=await Promise.all([handle.stat(),stat(lockFile)]);
+            if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+          }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+          await handle.close().catch(()=>{});handle=undefined;
+        }
         if(error.code!=="EEXIST")throw error;
         let stale=false;
-        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>30000;}
+        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
         catch(e){if(e.code==="ENOENT")continue;throw e;}
         if(stale){
-          const quarantine=lockFile+".stale."+randomUUID();
-          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
-          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+          const reaper=lockFile+".reaper";
+          let reapHandle;
+          try{reapHandle=await open(reaper,"wx",0o600);}
+          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}if(e.code==="ENOSPC"){await sleep(250);let stillStale=false;try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}catch(checkError){if(checkError.code==="ENOENT")continue;throw checkError;}if(stillStale){const quarantine=lockFile+".stale."+randomUUID();try{await rename(lockFile,quarantine);await unlink(quarantine).catch(unlinkError=>{if(unlinkError.code!=="ENOENT")throw unlinkError;});}catch(renameError){if(renameError.code!=="ENOENT"&&renameError.code!=="EEXIST")throw renameError;}}continue;}throw e;}
+          try{
+            await sleep(250);
+            let stillStale=false;
+            try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
+            catch(e){if(e.code==="ENOENT")continue;throw e;}
+            if(stillStale){
+              const quarantine=lockFile+".stale."+randomUUID();
+              try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
+              catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+            }
+          }finally{
+            const owned=reapHandle;
+            try{
+              const [opened,current]=await Promise.all([owned.stat(),stat(reaper)]);
+              if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(reaper).catch(e=>{if(e.code!=="ENOENT")throw e;});
+            }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+            await owned.close().catch(()=>{});
+          }
           continue;
         }
         if(Date.now()-started>600000)throw new Error("[STORE_MIGRATION] Timed out waiting for the cross-process migration lock.");
@@ -80,9 +106,27 @@ export class ApexPureStore {
             const writes=[];
             for(const [key,value] of pendingState){
               if(value===null||value.deleted)writes.push(()=>this.cas.deleteRef("state",this.refKey(value.collection,value.id)));
-              else writes.push(()=>this.cas.writeRef("state",this.refKey(value.collection,value.id),{collection:value.collection,id:value.id,record:clone(value.record)}));
+              else writes.push(async()=>{
+                const refKey=this.refKey(value.collection,value.id);
+                const stored={collection:value.collection,id:value.id,record:clone(value.record)};
+                const current=await this.cas.readRef("state",refKey);
+                if(current&&JSON.stringify(current.value)===JSON.stringify(stored)){
+                  await this.cas.putObject(stored);
+                  return;
+                }
+                await this.cas.writeRef("state",refKey,stored);
+              });
             }
-            for(const [id,job] of pendingJobs)writes.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
+            for(const [id,job] of pendingJobs)writes.push(async()=>{
+              const refKey=this.refKey("job",id);
+              const stored={id,job:clone(job)};
+              const current=await this.cas.readRef("jobs",refKey);
+              if(current&&JSON.stringify(current.value)===JSON.stringify(stored)){
+                await this.cas.putObject(stored);
+                return;
+              }
+              await this.cas.writeRef("jobs",refKey,stored);
+            });
             await runBatched(writes,16,write=>write());
             pendingState.clear();pendingJobs.clear();
           };
@@ -109,7 +153,17 @@ export class ApexPureStore {
           }});
           await flushMigrationBatch();
         }
-        await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
+        if(this.cas.remoteRefsEnabled){
+          for(const namespace of ["state","jobs"]){
+            const refs=await this.cas.listRefs(namespace);
+            await runBatched(refs,16,async ref=>{
+              const remote=await this.cas.remoteObjects.getRef(namespace,ref.key);
+              if(remote===null)await this.cas.writeRef(namespace,ref.key,ref.value);
+            });
+          }
+        }
+        try{await this.atomic(this.migrationFile,{version:1,storage:this.cas.remoteRefsEnabled?"remote-content-addressed":"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});}
+        catch(error){if(error.code!=="ENOSPC")throw error;}
       }
       this.ready=true;
       // Do not scan the entire durable store during process startup. Reads and queue operations
@@ -121,7 +175,7 @@ export class ApexPureStore {
       let ownsPath=false;
       try{
         const [opened,current,contents]=await Promise.all([owned.stat(),stat(lockFile),readFile(lockFile,"utf8")]);
-        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+        if(opened.dev===current.dev&&opened.ino===current.ino){try{ownsPath=JSON.parse(contents).token===token;}catch{ownsPath=true;}}
       }catch(e){if(e.code!=="ENOENT"&&!(e instanceof SyntaxError))throw e;}
       await owned.close().catch(()=>{});
       if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
@@ -159,15 +213,41 @@ export class ApexPureStore {
         await handle.sync();
         break;
       }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(error.code==="ENOSPC"&&handle){await handle.sync().catch(()=>{});break;}
+        if(handle){
+          try{
+            const [opened,current]=await Promise.all([handle.stat(),stat(lockFile)]);
+            if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+          }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+          await handle.close().catch(()=>{});handle=undefined;
+        }
         if(error.code!=="EEXIST")throw error;
         let stale=false;
         try{stale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
         catch(e){if(e.code==="ENOENT")continue;throw e;}
         if(stale){
-          const quarantine=lockFile+".stale."+randomUUID();
-          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
-          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+          const reaper=lockFile+".reaper";
+          let reapHandle;
+          try{reapHandle=await open(reaper,"wx",0o600);}
+          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}if(e.code==="ENOSPC"){await sleep(250);let stillStale=false;try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}catch(checkError){if(checkError.code==="ENOENT")continue;throw checkError;}if(stillStale){const quarantine=lockFile+".stale."+randomUUID();try{await rename(lockFile,quarantine);await unlink(quarantine).catch(unlinkError=>{if(unlinkError.code!=="ENOENT")throw unlinkError;});}catch(renameError){if(renameError.code!=="ENOENT"&&renameError.code!=="EEXIST")throw renameError;}}continue;}throw e;}
+          try{
+            await sleep(250);
+            let stillStale=false;
+            try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
+            catch(e){if(e.code==="ENOENT")continue;throw e;}
+            if(stillStale){
+              const quarantine=lockFile+".stale."+randomUUID();
+              try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
+              catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+            }
+          }finally{
+            const owned=reapHandle;
+            try{
+              const [opened,current]=await Promise.all([owned.stat(),stat(reaper)]);
+              if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(reaper).catch(e=>{if(e.code!=="ENOENT")throw e;});
+            }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+            await owned.close().catch(()=>{});
+          }
           continue;
         }
         if(Date.now()-started>180000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
@@ -184,7 +264,7 @@ export class ApexPureStore {
       let ownsPath=false;
       try{
         const [opened,current,contents]=await Promise.all([ownedHandle.stat(),stat(lockFile),readFile(lockFile,"utf8")]);
-        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+        if(opened.dev===current.dev&&opened.ino===current.ino){try{ownsPath=JSON.parse(contents).token===token;}catch{ownsPath=true;}}
       }catch(e){if(e.code!=="ENOENT"&&!(e instanceof SyntaxError))throw e;}
       await ownedHandle.close().catch(()=>{});
       if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
@@ -229,11 +309,11 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    const target=await this.checkedFile(collection,id,{createDir:true});
+    // Validate path segments without creating redundant per-collection directories.
+    await this.checkedFile(collection,id);
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     await this.persistState(collection,id,value);
     this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
-    await this.atomic(target,value);
     return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
@@ -242,11 +322,8 @@ export class ApexPureStore {
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
-    const target=await this.checkedFile(collection,id);
     await this.cas.deleteRef("state",this.refKey(collection,id));
     this.state.delete(this.key(collection,id));
-    const { unlink }=await import("node:fs/promises");
-    try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
     return true;
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){

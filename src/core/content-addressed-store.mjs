@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import path from "node:path";
+import { RemoteCasObjectBackend } from "./remote-cas-object-backend.mjs";
 
 const canonical = value => JSON.stringify(value);
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -22,6 +23,8 @@ export class ContentAddressedStore {
     this.objects = path.join(this.root, "objects", "sha256");
     this.refs = path.join(this.root, "refs");
     this.lockTimeoutMs = 180000;
+    this.remoteObjects = new RemoteCasObjectBackend();
+    this.remoteRefsEnabled = this.remoteObjects.enabled;
   }
 
   async init() {
@@ -64,6 +67,10 @@ export class ContentAddressedStore {
     await this.init();
     const bytes = canonical(value);
     const digest = hash(bytes);
+    if (this.remoteObjects.enabled) {
+      await this.remoteObjects.put(digest, bytes);
+      return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "object-storage" };
+    }
     const file = this.objectPath(digest);
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     try {
@@ -78,11 +85,18 @@ export class ContentAddressedStore {
         if (hash(existing) !== digest) throw new Error("Object integrity mismatch after concurrent write");
       }
     }
-    return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest };
+    return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "local" };
   }
 
   async getObject(digest) {
     await this.init();
+    if (this.remoteObjects.enabled) {
+      const remoteBytes = await this.remoteObjects.get(digest);
+      if (remoteBytes !== null) {
+        if (hash(remoteBytes) !== digest) throw new Error("Remote object integrity verification failed: " + digest);
+        return JSON.parse(remoteBytes);
+      }
+    }
     const bytes = await readFile(this.objectPath(digest), "utf8");
     if (hash(bytes) !== digest) throw new Error("Object integrity verification failed: " + digest);
     return JSON.parse(bytes);
@@ -90,11 +104,18 @@ export class ContentAddressedStore {
 
   async readRef(namespace, key) {
     await this.init();
-    try {
-      const manifest = JSON.parse(await readFile(this.refPath(namespace, key), "utf8"));
-      if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
-        throw new Error("Invalid content-addressed manifest");
+    const file = this.refPath(namespace, key);
+    if (this.remoteRefsEnabled) {
+      const remote = await this.remoteObjects.getRef(namespace, key);
+      if (remote !== null) {
+        const manifest = JSON.parse(remote);
+        if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid remote content-addressed manifest");
+        return { ...manifest, value: await this.getObject(manifest.hash) };
       }
+    }
+    try {
+      const manifest = JSON.parse(await readFile(file, "utf8"));
+      if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid content-addressed manifest");
       return { ...manifest, value: await this.getObject(manifest.hash) };
     } catch (error) {
       if (error.code === "ENOENT") return null;
@@ -106,7 +127,9 @@ export class ContentAddressedStore {
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const lock = file + ".lock";
     const started = Date.now();
-    const staleAfterMs = 30000;
+    // A manifest write may wait on a slow or nearly-full volume; do not steal a
+    // live writer's lock based on a short 30-second age threshold.
+    const staleAfterMs = 120000;
     let handle, token;
     while (!handle) {
       token = randomUUID();
@@ -115,18 +138,51 @@ export class ContentAddressedStore {
         await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now(), token }), "utf8");
         await handle.sync();
       } catch (error) {
-        if (handle) { await handle.close().catch(() => {}); handle = undefined; }
+        if (error.code === "ENOSPC" && handle) { await handle.sync().catch(() => {}); break; }
+        if (handle) {
+          // Failed metadata writes (notably ENOSPC) must not strand a lock file.
+          try {
+            const [opened, current] = await Promise.all([handle.stat(), stat(lock)]);
+            if (opened.dev === current.dev && opened.ino === current.ino) await unlink(lock).catch(e => { if (e.code !== "ENOENT") throw e; });
+          } catch (cleanupError) { if (cleanupError.code !== "ENOENT") {} }
+          await handle.close().catch(() => {});
+          handle = undefined;
+        }
         if (error.code !== "EEXIST") throw error;
         let stale = false;
         try { stale = Date.now() - (await stat(lock)).mtimeMs > staleAfterMs; }
         catch (statError) { if (statError.code === "ENOENT") continue; throw statError; }
         if (stale) {
-          const quarantine = lock + ".stale." + randomUUID();
+          // Only one waiter may recover a stale lock. Otherwise a second waiter
+          // can rename the new lock acquired immediately after the first recovery.
+          const reaper = lock + ".reaper";
+          let reapHandle;
+          try { reapHandle = await open(reaper, "wx", 0o600); }
+          catch (recoveryLockError) {
+            if (recoveryLockError.code === "EEXIST") { await sleep(25); continue; }
+            throw recoveryLockError;
+          }
           try {
-            await rename(lock, quarantine);
-            await unlink(quarantine).catch(e => { if (e.code !== "ENOENT") throw e; });
-          } catch (recoveryError) {
-            if (recoveryError.code !== "ENOENT" && recoveryError.code !== "EEXIST") throw recoveryError;
+            await sleep(250);
+            let stillStale = false;
+            try { stillStale = Date.now() - (await stat(lock)).mtimeMs > staleAfterMs; }
+            catch (statError) { if (statError.code === "ENOENT") continue; throw statError; }
+            if (stillStale) {
+              const quarantine = lock + ".stale." + randomUUID();
+              try {
+                await rename(lock, quarantine);
+                await unlink(quarantine).catch(e => { if (e.code !== "ENOENT") throw e; });
+              } catch (recoveryError) {
+                if (recoveryError.code !== "ENOENT" && recoveryError.code !== "EEXIST") throw recoveryError;
+              }
+            }
+          } finally {
+            const owned = reapHandle;
+            try {
+              const [opened, current] = await Promise.all([owned.stat(), stat(reaper)]);
+              if (opened.dev === current.dev && opened.ino === current.ino) await unlink(reaper).catch(e => { if (e.code !== "ENOENT") throw e; });
+            } catch (cleanupError) { if (cleanupError.code !== "ENOENT") {} }
+            await owned.close().catch(() => {});
           }
           continue;
         }
@@ -145,7 +201,7 @@ export class ContentAddressedStore {
       let ownsPath = false;
       try {
         const [opened, current, contents] = await Promise.all([handle.stat(), stat(lock), readFile(lock, "utf8")]);
-        ownsPath = opened.dev === current.dev && opened.ino === current.ino && JSON.parse(contents).token === token;
+        if (opened.dev === current.dev && opened.ino === current.ino) { try { ownsPath = JSON.parse(contents).token === token; } catch { ownsPath = true; } }
       } catch (error) {
         if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
       }
@@ -175,35 +231,26 @@ export class ContentAddressedStore {
         hash: object.hash,
         updatedAt: new Date().toISOString()
       };
-      await this.atomicWrite(file, canonical(manifest) + "\n");
-      return { ...manifest, uri: object.uri, bytes: object.bytes };
+      if (this.remoteRefsEnabled) await this.remoteObjects.putRef(namespace, key, canonical(manifest) + "\n");
+      else await this.atomicWrite(file, canonical(manifest) + "\n");
+      return { ...manifest, uri: object.uri, bytes: object.bytes, backend: this.remoteRefsEnabled ? "object-storage" : "local" };
     });
   }
 
   async listRefs(namespace) {
     await this.init();
+    const keys = new Set();
+    if (this.remoteRefsEnabled) for (const key of await this.remoteObjects.listRefs(namespace)) keys.add(key);
     const dir = path.join(this.refs, String(namespace));
-    let names;
-    try { names = await (await import("node:fs/promises")).readdir(dir); }
-    catch (error) { if (error.code === "ENOENT") return []; throw error; }
-    const candidates = names.filter(name => name.endsWith(".json"));
+    try {
+      const names = await (await import("node:fs/promises")).readdir(dir);
+      for (const name of names) if (name.endsWith(".json")) keys.add(name.slice(0, -5));
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
+    const candidates = [...keys];
     const out = [];
-    // Bound concurrent file opens while avoiding one fsync/read round trip per
-    // manifest in series. This matters during first boot after WAL migration.
     const batchSize = 32;
     for (let offset = 0; offset < candidates.length; offset += batchSize) {
-      const batch = await Promise.all(candidates.slice(offset, offset + batchSize).map(async name => {
-        try {
-          const manifest = JSON.parse(await readFile(path.join(dir, name), "utf8"));
-          if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
-            throw new Error("Invalid content-addressed manifest");
-          }
-          return { ...manifest, value: await this.getObject(manifest.hash) };
-        } catch (error) {
-          if (error.code === "ENOENT") return null;
-          throw error;
-        }
-      }));
+      const batch = await Promise.all(candidates.slice(offset, offset + batchSize).map(async key => this.readRef(namespace, key)));
       out.push(...batch.filter(Boolean));
     }
     return out;
@@ -220,8 +267,9 @@ export class ContentAddressedStore {
         error.code = "CAS_CONFLICT";
         throw error;
       }
-      await unlink(file);
-      await syncDir(path.dirname(file));
+      if (this.remoteRefsEnabled) await this.remoteObjects.deleteRef(namespace, key);
+      try { await unlink(file); await syncDir(path.dirname(file)); }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
       return true;
     });
   }
