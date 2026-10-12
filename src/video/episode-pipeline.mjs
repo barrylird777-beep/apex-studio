@@ -40,10 +40,10 @@ function normalizeProvenance(value,defaultSource){
     notes:safeText(input.notes,1000)||null
   };
 }
-function publishable(p){
+function provenanceComplete(p){
+  if(!p?.source||/^unverified\b/i.test(p.source))return false;
   if(p.classification==="generated")return true;
-  if(p.classification==="licensed")return Boolean(p.licenseRef);
-  if(p.classification==="imported")return Boolean(p.licenseRef);
+  if(p.classification==="licensed"||p.classification==="imported")return Boolean(p.licenseRef);
   return false;
 }
 
@@ -119,8 +119,8 @@ export async function produceKernelVisionEpisode(input={},options={}){
     artifact={
       id,projectId,episodeId,title,contentDomain,passage,
       status:qcPassed?"ready":"qc-failed",
-      releaseEligible:qcPassed&&Object.values(mediaProvenance).flatMap(v=>Array.isArray(v)?v:[v]).filter(Boolean).every(publishable),
-      publicationState:"not-published",
+      technicalReady:qcPassed,
+      publicationState:qcPassed?"awaiting-human-approval":"blocked-qc",
       downloadPath:"/api/episodes/"+encodeURIComponent(episodeId)+"/"+encodeURIComponent(id)+"/download",
       output:{path:path.relative(root,outPath),subtitlePath:path.relative(root,renderResult.srtPath||srtPath),bytes:outputStat.size,sha256:await sha256File(outPath),format:"mp4",...probe},
       subtitles:{path:path.relative(root,renderResult.srtPath||srtPath),sha256:await sha256File(renderResult.srtPath||srtPath)},
@@ -130,13 +130,18 @@ export async function produceKernelVisionEpisode(input={},options={}){
       quality:{spec,qc},
       createdAt,completedAt:new Date().toISOString()
     };
+    const provenanceItems=Object.values(mediaProvenance).flatMap(value=>Array.isArray(value)?value:[value]).filter(Boolean);
+    artifact.provenanceReady=provenanceItems.every(provenanceComplete);
+    artifact.releaseEligible=false; // Publishing requires a separate human approval tied to the exact artifact hash.
+    artifact.releaseBlockers=[...(artifact.provenanceReady?[]:["media-provenance-incomplete"]),"human-release-approval-required"];
+    artifact.publicationState="awaiting-human-approval";
     const fabric=options.fabric||sovereignAppFabric;
     await fabric.put("kernel-vision","episode-"+episodeId+"-"+id,artifact);
     if(!qcPassed)throw Object.assign(new Error("Episode export failed QC: "+[...(spec.errors||[]),...(qc?.failures||[])].join(", ")),{code:"RENDER_QC_FAILED",artifact});
     return {success:true,artifact,render:renderResult};
   }catch(error){
     if(!artifact){
-      artifact={id,projectId,episodeId,title,contentDomain,passage,status:"render-failed",releaseEligible:false,output:{path:path.relative(root,outPath)},openingHook:{valid:true,durationSec:hook.totalSec,shotCount:10},mediaProvenance,provenance:{source:"KernelVision episode export pipeline",verified:false},error:safeText(error?.message||error,2000),createdAt,completedAt:new Date().toISOString()};
+      artifact={id,projectId,episodeId,title,contentDomain,passage,status:"render-failed",technicalReady:false,releaseEligible:false,publicationState:"blocked-render",releaseBlockers:["render-failed"],output:{path:path.relative(root,outPath)},openingHook:{valid:true,durationSec:hook.totalSec,shotCount:10},mediaProvenance,provenance:{source:"KernelVision episode export pipeline",verified:false},error:safeText(error?.message||error,2000),createdAt,completedAt:new Date().toISOString()};
       await (options.fabric||sovereignAppFabric).put("kernel-vision","episode-"+episodeId+"-"+id,artifact).catch(()=>{});
     }
     throw error;
