@@ -71,11 +71,6 @@ export class ContentAddressedStore {
     const digest = hash(bytes);
     if (this.remoteObjects.enabled) {
       await this.remoteObjects.put(digest, bytes);
-      return { hash: digest, bytes: Buffer.byteLength(bytes), uri: "cas://sha256/" + digest, backend: "object-storage" };
-    }
-    if (this.remoteObjects.enabled) {
-      // Remote-required mode never creates a local object or falls back to one.
-      await this.remoteObjects.put(digest, bytes);
       const verified = await this.remoteObjects.get(digest);
       if (verified === null || hash(verified) !== digest || verified !== bytes) {
         throw new Error("Remote object write/read-back verification failed: " + digest);
@@ -280,7 +275,7 @@ export class ContentAddressedStore {
   async deleteRef(namespace, key, { expectedHash = undefined } = {}) {
     await this.init();
     const file = this.refPath(namespace, key);
-    return this.withRefLock(file, async () => {
+    const remove = async () => {
       const current = await this.readRef(namespace, key);
       if (!current) return false;
       if (expectedHash !== undefined && current.hash !== expectedHash) {
@@ -288,10 +283,16 @@ export class ContentAddressedStore {
         error.code = "CAS_CONFLICT";
         throw error;
       }
-      if (this.remoteRefsEnabled) await this.remoteObjects.deleteRef(namespace, key);
-      try { await unlink(file); await syncDir(path.dirname(file)); }
-      catch (error) { if (error.code !== "ENOENT") throw error; }
+      if (this.remoteRefsEnabled) {
+        await this.remoteObjects.deleteRef(namespace, key);
+        const readBack = await this.remoteObjects.getRef(namespace, key);
+        if (readBack !== null) throw new Error("Remote manifest delete/read-back verification failed: " + namespace + "/" + key);
+      } else {
+        try { await unlink(file); await syncDir(path.dirname(file)); }
+        catch (error) { if (error.code !== "ENOENT") throw error; }
+      }
       return true;
-    });
+    };
+    return this.remoteRefsEnabled ? remove() : this.withRefLock(file, remove);
   }
 }
