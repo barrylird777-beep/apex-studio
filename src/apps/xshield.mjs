@@ -2,6 +2,7 @@ import { handleStudioAdBlockDoH, initializeStudioAdBlock, studioAdBlockStatus } 
 import { studioAdBlockMobileConfig } from "../network/studio-adblock-profile.mjs";
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from "../network/apex-content-filter.mjs";
 import { getApexApp } from "./apex-six-apps.mjs";
+import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
 const APP = getApexApp("xshield");
 
@@ -35,6 +36,6 @@ export { handleStudioAdBlockDoH };
 
 // XShield records share the sovereign durable namespace without moving
 // filtering/security policy into KernelVision or another application.
-export const saveXShieldRecord=(id,record,fabric)=>import("../core/sovereign-app-fabric.mjs").then(({sovereignAppFabric})=>(fabric||sovereignAppFabric).put(APP.id,id,record));
-export const getXShieldRecord=(id,fabric)=>import("../core/sovereign-app-fabric.mjs").then(({sovereignAppFabric})=>(fabric||sovereignAppFabric).get(APP.id,id));
-export const listXShieldRecords=(fabric)=>import("../core/sovereign-app-fabric.mjs").then(({sovereignAppFabric})=>(fabric||sovereignAppFabric).list(APP.id));
+export const saveXShieldRecord=(id,record,fabric=sovereignAppFabric)=>fabric.put(APP.id,id,record);
+export const getXShieldRecord=(id,fabric=sovereignAppFabric)=>fabric.get(APP.id,id);
+export const listXShieldRecords=(fabric=sovereignAppFabric)=>fabric.list(APP.id);
