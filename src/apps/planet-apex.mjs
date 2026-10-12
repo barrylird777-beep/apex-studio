@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
+import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
 const APP = getApexApp("planet-apex");
 const clone = value => structuredClone(value);
@@ -77,3 +78,9 @@ export function planetApexStatus() {
     checkedAt: new Date().toISOString()
   };
 }
+
+
+// Shared durable records for this app; inject a test/local fabric when needed.
+export const savePlanetApexRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
+export const getPlanetApexRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
+export const listPlanetApexRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);
