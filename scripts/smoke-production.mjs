@@ -149,6 +149,28 @@ try {
     throw new Error(`KoinKob sovereign opportunity get failed: ${JSON.stringify(fetchedOpportunity)}`);
   }
 
+  const opportunityBulk = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/bulk`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
+    body: JSON.stringify({ items: [
+      { collection: 'koin_kob_opportunities', id: 'smoke-opportunity', record: { fingerprint: 'must-not-overwrite', kind: 'arbitrage' } },
+      { collection: 'koin_kob_opportunities', id: 'smoke-opportunity-2', record: { fingerprint: 'smoke-fingerprint-2', kind: 'arbitrage', estimated_net_profit_usd: 10 } }
+    ] })
+  });
+  const bulkResult = await opportunityBulk.json();
+  if (opportunityBulk.status !== 200 || bulkResult.written !== 1 || bulkResult.existing !== 1) {
+    throw new Error(`KoinKob Pure-WAL bulk idempotency failed: ${JSON.stringify(bulkResult)}`);
+  }
+  const originalAfterBulk = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/get`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
+    body: JSON.stringify({ collection: 'koin_kob_opportunities', id: 'smoke-opportunity' })
+  });
+  const originalAfterBulkBody = await originalAfterBulk.json();
+  if (originalAfterBulkBody.record?.fingerprint !== 'smoke-fingerprint') {
+    throw new Error('KoinKob Pure-WAL bulk write overwrote an existing record');
+  }
+
   const invalidOpportunityCollection = await fetch(`http://127.0.0.1:${port}/api/internal/opportunity-engine/store/put`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'test-opportunity-engine-token' },
