@@ -117,15 +117,44 @@ export class ApexPureStore {
         await handle.sync();
         break;
       }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(handle){
+          // If lock creation succeeded but writing its metadata failed (for example ENOSPC),
+          // remove only the exact inode this attempt created; never leave a poisoned lock.
+          try{
+            const [opened,current]=await Promise.all([handle.stat(),stat(lockFile)]);
+            if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+          }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+          await handle.close().catch(()=>{});handle=undefined;
+        }
         if(error.code!=="EEXIST")throw error;
         let stale=false;
         try{stale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
         catch(e){if(e.code==="ENOENT")continue;throw e;}
         if(stale){
-          const quarantine=lockFile+".stale."+randomUUID();
-          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
-          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+          // Serialize stale-lock recovery. Without this guard, two waiters can race:
+          // the second waiter may rename a freshly acquired lock belonging to the first.
+          const reaper=lockFile+".reaper";
+          let reapHandle;
+          try{reapHandle=await open(reaper,"wx",0o600);}
+          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}throw e;}
+          try{
+            await sleep(250);
+            let stillStale=false;
+            try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
+            catch(e){if(e.code==="ENOENT")continue;throw e;}
+            if(stillStale){
+              const quarantine=lockFile+".stale."+randomUUID();
+              try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
+              catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+            }
+          }finally{
+            const owned=reapHandle;reapHandle=undefined;
+            try{
+              const [opened,current]=await Promise.all([owned.stat(),stat(reaper)]);
+              if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(reaper).catch(e=>{if(e.code!=="ENOENT")throw e;});
+            }catch(e){if(e.code!=="ENOENT"){}}
+            await owned.close().catch(()=>{});
+          }
           continue;
         }
         if(Date.now()-started>180000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
