@@ -291,11 +291,19 @@ export async function sendToPeer(node, multiaddr, envelope) {
   });
   // Outbound streams are already flowing; do not resume them again while waiting for the ACK.
   const responsePromise = readSovereignEnvelope(stream, { resume: false });
-  await sendSovereignEnvelope(stream, envelope);
-  const response = await responsePromise;
-  await stream.close?.();
-  if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
-  return response;
+  try {
+    // Observe the ACK promise at the same time as the write. If the ACK times
+    // out while send() is backpressured, Promise.all keeps that rejection
+    // handled instead of letting Node terminate the sovereign runtime.
+    const [, response] = await Promise.all([
+      sendSovereignEnvelope(stream, envelope),
+      responsePromise
+    ]);
+    if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
+    return response;
+  } finally {
+    try { await stream.close?.(); } catch {}
+  }
 }
 
 export { PROTOCOL };

@@ -163,3 +163,42 @@ test("outgoing peer ACK reader does not resume a stream that may be closing", as
     else process.env.APEX_ALLOWED_PEER_IDS = previous;
   }
 });
+
+
+test("ACK timeout during a backpressured write is handled and closes the peer stream", async () => {
+  const priorIds = process.env.APEX_ALLOWED_PEER_IDS;
+  const priorTimeout = process.env.APEX_PEER_DIAL_TIMEOUT_MS;
+  process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
+  process.env.APEX_PEER_DIAL_TIMEOUT_MS = "25";
+  const listeners = new Map();
+  let closed = false;
+  const fakeStream = {
+    status: "open",
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    removeEventListener(type) { listeners.delete(type); },
+    send() { return false; },
+    onDrain({ signal }) {
+      return new Promise((resolve, reject) => {
+        if (signal.aborted) reject(new Error("write timed out"));
+        else signal.addEventListener("abort", () => reject(new Error("write timed out")), { once: true });
+      });
+    },
+    async close() { closed = true; }
+  };
+  try {
+    await assert.rejects(
+      sendToPeer(
+        { async dialProtocol() { return fakeStream; } },
+        "/ip4/127.0.0.1/tcp/1234/p2p/allowed-peer",
+        { type: "test" }
+      ),
+      /timed out/
+    );
+    assert.equal(closed, true);
+  } finally {
+    if (priorIds === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = priorIds;
+    if (priorTimeout === undefined) delete process.env.APEX_PEER_DIAL_TIMEOUT_MS;
+    else process.env.APEX_PEER_DIAL_TIMEOUT_MS = priorTimeout;
+  }
+});
