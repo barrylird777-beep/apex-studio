@@ -1,4 +1,4 @@
-import { appendFile, mkdir, open, readFile, unlink, stat } from "node:fs/promises";
+import { mkdir, open, readFile, unlink, stat, lstat } from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
@@ -21,7 +21,12 @@ export class ApexRingWAL {
   }
   _reset(){this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(this.ringSize);this.head=0;this.count=0;}
   _load(record){this.seq=Number(record.seq);this.lastHash=String(record.hash);this.ring[this.head]=record;this.head=(this.head+1)%this.ringSize;this.count=Math.min(this.count+1,this.ringSize);}
+  async _assertWalIsRegular(){
+    try{const info=await lstat(this.file);if(info.isSymbolicLink()||!info.isFile())throw new Error("[SECURITY_VIOLATION] WAL path must be a regular file, not a symlink.");}
+    catch(e){if(e.code!=="ENOENT")throw e;}
+  }
   async _readAndVerify(){
+    await this._assertWalIsRegular();
     this._reset();
     let text="";
     try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
@@ -40,8 +45,8 @@ export class ApexRingWAL {
   async init(){
     if(this.ready)return this;
     await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
-    await this._readAndVerify();
-    this.ready=true;return this;
+    const release=await this._acquireLock();
+    try{await this._assertWalIsRegular();await this._readAndVerify();this.ready=true;return this;}finally{await release();}
   }
   async _acquireLock(){
     const started=Date.now();
