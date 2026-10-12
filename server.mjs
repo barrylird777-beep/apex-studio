@@ -201,6 +201,43 @@ app.get('/api/internal/worker/health', requireWorkerAuth, async (_req, res) => {
   return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'local-pure-wal', health });
 });
 
+app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
+  try {
+    return res.json({ success: true, stats: await queueStats() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => {
+  try {
+    const item = req.body || {};
+    const allowedRoles = new Set(['scripture-research', 'story-architecture', 'visual-direction', 'audio-direction', 'production-engineering', 'network-engineering', 'qa-review', 'architecture-review']);
+    const payload = item.payload && typeof item.payload === 'object' && !Array.isArray(item.payload) ? item.payload : null;
+    if (item.task !== 'ai-inference' || !allowedRoles.has(String(item.role || '')) || !payload || !String(payload.prompt || '').trim()) {
+      return res.status(400).json({ success: false, error: 'Only validated autonomous AI inference tasks may be enqueued by remote workers' });
+    }
+    if (!['openrouter', 'google'].includes(String(payload.provider || ''))) {
+      return res.status(400).json({ success: false, error: 'AI provider is not allowlisted for autonomous work' });
+    }
+    payload.prompt = String(payload.prompt).slice(0, 12000);
+    payload.system = String(payload.system || 'Apex Studio autonomous worker.').slice(0, 3000);
+    const result = await enqueueWorkerTask({
+      id: item.id,
+      workerId: String(item.workerId || 'ai-autonomous').slice(0, 255),
+      role: String(item.role),
+      task: 'ai-inference',
+      payload,
+      maxAttempts: Math.max(1, Math.min(10, Number(item.maxAttempts) || 5)),
+      dedupeKey: String(item.dedupeKey || '').slice(0, 512) || null,
+      traceId: item.traceId
+    });
+    return res.status(202).json({ success: true, task: result });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
 app.post('/api/internal/worker/claim', requireWorkerAuth, async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(20, Math.floor(Number(req.body?.limit) || 1)));
