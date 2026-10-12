@@ -74,3 +74,42 @@ test('sovereign content-addressed objects reject tampering during recovery', asy
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('replicated peer events retain the verified source record across restart', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-sovereign-replica-'));
+  const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
+  process.env.APEX_SOVEREIGN_PEER_ID = 'replica-peer';
+  const sourceRecord = {
+    seq: 41,
+    waveId: 'origin-wave-41',
+    peerId: 'origin-peer',
+    action: 'app.publish',
+    timestamp: '2026-10-12T00:00:00.000Z',
+    status: 'DISPATCHED',
+    payload: { appId: 'PlanetApeX', data: { sovereignty: true } },
+    checksum: 'verified-at-ingress'
+  };
+
+  try {
+    const first = new SovereignMeshEngine(dir);
+    await first.ready();
+    await first.dispatchAutonomousPayload({
+      waveId: 'peer-origin-wave-41',
+      peerId: 'origin-peer',
+      action: 'PeerReceive',
+      payload: {
+        originWaveId: sourceRecord.waveId,
+        sourcePeerId: 'origin-peer',
+        sourceRecord
+      }
+    });
+
+    const recovered = new SovereignMeshEngine(dir);
+    await recovered.ready();
+    assert.deepEqual(recovered.get('peer-origin-wave-41').payload.sourceRecord, sourceRecord);
+  } finally {
+    if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
+    else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
