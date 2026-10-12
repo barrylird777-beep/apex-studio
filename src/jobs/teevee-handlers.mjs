@@ -10,7 +10,7 @@ import { apexPureStore } from "../core/apex-pure-store.mjs";
 import { createRemotePureStore } from "../core/remote-pure-store.mjs";
 
 
-const ROOT = process.env.TEEVEE_OUTPUT_DIR || path.join(process.env.STORAGE_DIR || "/srv/apex/se-x", "teevee");
+const ROOT = process.env.TEEVEE_OUTPUT_DIR || path.join(process.env.STORAGE_DIR || (process.env.APEX_WORKER_API_URL ? "/tmp/apex-se-x" : "/srv/apex/se-x"), "teevee");
 const teeveeStore = process.env.APEX_WORKER_API_URL && process.env.APEX_WORKER_TOKEN ? createRemotePureStore() : apexPureStore;
 
 function teeveeObjectStore() {
