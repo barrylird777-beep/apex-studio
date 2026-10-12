@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const files = {
+  'src/core/mesh/gemini-mesh-provider.mjs': "export class GeminiMeshProvider {\n  constructor() {\n    this.apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';\n    this.endpoint = (process.env.GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com/v1beta/models').replace(/\\/$/, '');\n    this.model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';\n  }\n\n  async generate(prompt, options = {}) {\n    if (!this.apiKey) throw new Error('Gemini not configured');\n    const model = options.model || this.model;\n    const response = await fetch(`${this.endpoint}/${encodeURIComponent(model)}:generateContent`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },\n      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: String(prompt) }] }] })\n    });\n    if (!response.ok) {\n      const detail = (await response.text()).slice(0, 300).replace(/\\s+/g, ' ');\n      throw new Error(`Gemini API Error: ${response.status}${detail ? `: ${detail}` : ''}`);\n    }\n    const data = await response.json();\n    return data.candidates?.[0]?.content?.parts?.map(p => p?.text || '').join('') || '';\n  }\n\n  async getStatus() {\n    return { provider: 'Gemini', configured: Boolean(this.apiKey), model: this.model, authHeader: 'x-goog-api-key' };\n  }\n}\n\nexport default GeminiMeshProvider;\n",
+  'src/core/mesh/claude-mesh-provider.mjs': "export class ClaudeMeshProvider {\n  constructor() {\n    this.apiKey = process.env.ANTHROPIC_API_KEY || '';\n    this.endpoint = process.env.ANTHROPIC_ENDPOINT || 'https://api.anthropic.com/v1/messages';\n    this.model = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-5';\n  }\n\n  async generate(prompt, options = {}) {\n    if (!this.apiKey) throw new Error('Claude not configured');\n    const model = options.model || this.model;\n    const response = await fetch(this.endpoint, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' },\n      body: JSON.stringify({\n        model, max_tokens: Number(options.maxTokens || 4096),\n        messages: [{ role: 'user', content: String(prompt) }]\n      })\n    });\n    if (!response.ok) {\n      const detail = (await response.text()).slice(0, 300).replace(/\\s+/g, ' ');\n      throw new Error(`Claude API Error: ${response.status}${detail ? `: ${detail}` : ''}`);\n    }\n    const data = await response.json();\n    return data.content?.filter(p => p?.type === 'text').map(p => p.text).join('') || '';\n  }\n\n  async getStatus() {\n    return { provider: 'Claude', configured: Boolean(this.apiKey), model: this.model };\n  }\n}\n\nexport default ClaudeMeshProvider;\n"
+};
+
+for (const [filePath, content] of Object.entries(files)) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf8');
+  console.log('[CREATED]', filePath);
+}
+console.log('[SETUP] AI mesh providers installed.');

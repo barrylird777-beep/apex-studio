@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apex Coder Titan</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:20px;background:#0b0d10;color:#f4f6f8}
+input,textarea,button{width:100%;box-sizing:border-box;margin:8px 0;padding:12px;border-radius:8px;border:1px solid #39414d;background:#151a21;color:inherit}
+textarea{min-height:180px}button{cursor:pointer;font-weight:700}button:disabled{opacity:.5;cursor:not-allowed}
+pre{white-space:pre-wrap;background:#11151b;padding:14px;border-radius:8px;overflow:auto;min-height:180px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+</style>
+</head>
+<body>
+<h1>Apex Coder Titan</h1>
+<p>Isolated implementation, specialist audits, repair passes, live evidence, and King Cob gate.</p>
+<label>Repository path</label>
+<input id="repo" value="/workspaces/apex-studio">
+<label>Assignment</label>
+<textarea id="assignment">Inspect Apex and implement the requested engineering work. Verify every change with the repository's discovered checks. Do not touch remote Git.</textarea>
+<div class="row">
+<button id="run">START TITAN</button>
+<button id="cancel" disabled>CANCEL RUN</button>
+</div>
+<pre id="out">Ready.</pre>
+<script>
+const out=document.querySelector("#out");
+const runButton=document.querySelector("#run");
+const cancelButton=document.querySelector("#cancel");
+let runId=null;
+let source=null;
+
+function print(value){out.textContent=typeof value==="string"?value:JSON.stringify(value,null,2)}
+
+runButton.onclick=async()=>{
+  runButton.disabled=true;
+  cancelButton.disabled=false;
+  print("Starting Titan...");
+  try{
+    const response=await fetch("/api/titan/run",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        repoPath:document.querySelector("#repo").value,
+        assignment:document.querySelector("#assignment").value
+      })
+    });
+    const started=await response.json();
+    if(!response.ok) throw new Error(started.error||"Titan could not start.");
+    runId=started.runId;
+    source=new EventSource(started.eventsUrl);
+    source.onmessage=event=>{
+      const item=JSON.parse(event.data);
+      out.textContent += "\n"+JSON.stringify(item);
+      out.scrollTop=out.scrollHeight;
+    };
+    source.onerror=()=>{};
+    const poll=async()=>{
+      const result=await fetch(started.resultUrl).then(r=>r.json());
+      if(result.status==="running") return setTimeout(poll,1000);
+      if(source) source.close();
+      print(result);
+      runButton.disabled=false;
+      cancelButton.disabled=true;
+      runId=null;
+    };
+    poll();
+  }catch(error){
+    print(error.message);
+    runButton.disabled=false;
+    cancelButton.disabled=true;
+  }
+};
+
+cancelButton.onclick=async()=>{
+  if(!runId)return;
+  await fetch("/api/titan/run/"+encodeURIComponent(runId)+"/cancel",{method:"POST"});
+};
+</script>
+</body>
+</html>

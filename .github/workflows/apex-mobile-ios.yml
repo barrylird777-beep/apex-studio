@@ -1,0 +1,86 @@
+name: Apex Mobile iOS Build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "ios/ApexMobile/**"
+      - ".github/workflows/apex-mobile-ios.yml"
+  push:
+    branches:
+      - main
+      - upgrade/apex-universal-mobile-swarm
+      - fix/apex-mobile-llama-swift-module
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: brew install cmake xcodegen
+
+      - name: Build official llama.cpp iOS XCFramework with Metal
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git ios/ApexMobile/llama.cpp
+          cd ios/ApexMobile/llama.cpp
+          ./build-xcframework.sh ios-device
+          cd ..
+          mkdir -p Frameworks
+          cp -R llama.cpp/build-apple/llama.xcframework Frameworks/llama.xcframework
+          # The upstream XCFramework can ship C headers without a Swift module map.
+          # Add a framework module map so Swift's import llama resolves during compilation.
+          while IFS= read -r -d '' header; do
+            framework="${header%/Headers/llama.h}"
+            mkdir -p "$framework/Modules"
+            cat > "$framework/Modules/module.modulemap" <<'MODULEMAP'
+          framework module llama {
+            umbrella header "llama.h"
+            export *
+            module * { export * }
+          }
+          MODULEMAP
+          done < <(find Frameworks/llama.xcframework -path '*/llama.framework/Headers/llama.h' -print0)
+          test -n "$(find Frameworks/llama.xcframework -path '*/llama.framework/Modules/module.modulemap' -print -quit)"
+
+      - name: Generate Xcode project
+        working-directory: ios/ApexMobile
+        run: xcodegen generate
+
+      - name: Build unsigned iOS application
+        working-directory: ios/ApexMobile
+        run: |
+          xcodebuild \
+            -project ApexMobile.xcodeproj \
+            -scheme ApexMobile \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Verify app and embedded llama runtime, then package
+        working-directory: ios/ApexMobile
+        run: |
+          set -euo pipefail
+          app_path="build/Build/Products/Release-iphoneos/ApexMobile.app"
+          executable="$app_path/ApexMobile"
+          runtime="$app_path/Frameworks/llama.framework/llama"
+          test -d "$app_path"
+          test -f "$app_path/Info.plist"
+          test -s "$executable"
+          test -s "$runtime"
+          /usr/bin/otool -L "$executable" | grep -F "@rpath/llama.framework/llama"
+          /usr/bin/otool -hv "$runtime" | grep -E "ARM64|arm64"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" build/ApexMobile-unsigned.zip
+          test -s build/ApexMobile-unsigned.zip
+          ls -lh "$executable" "$runtime" build/ApexMobile-unsigned.zip
+
+      - name: Upload unsigned build
+        uses: actions/upload-artifact@v6
+        with:
+          name: apex-mobile-unsigned
+          path: ios/ApexMobile/build/ApexMobile-unsigned.zip
+          if-no-files-found: error

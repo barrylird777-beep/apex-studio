@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "world": "Garden of Apex",
+  "rules": [
+    {"id":"life-stage-transition","kind":"lifecycle","rule":"A Jesus Freak life-stage transition MUST be represented by an explicit verified graph relation; agents MUST NOT invent a transition."},
+    {"id":"resource-conservation","kind":"resource","rule":"KornucopiaHall resources MUST have an explicit availability/capacity state before an episode can consume them."},
+    {"id":"place-inhabitation","kind":"ontology","rule":"A character's inhabitation of a Garden place MUST be represented by INHABITS or an equivalent verified relation."},
+    {"id":"continuity","kind":"continuity","rule":"A production artifact MUST reference the Garden package version used to create it."}
+  ]
+}

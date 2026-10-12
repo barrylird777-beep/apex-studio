@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TeeVee · Apex</title>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#07090d;color:#f3f5f8;font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1100px;margin:auto;padding:28px 20px 70px}a{color:#a9cbff}.top{display:flex;justify-content:space-between;gap:20px;align-items:end;border-bottom:1px solid #29303a;padding-bottom:24px}.eyebrow{color:#7e8998;font-size:12px;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(42px,8vw,78px);line-height:.9;margin:8px 0}h2{margin-top:0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}.card{border:1px solid #29303a;border-radius:16px;background:#10141b;padding:18px}.metric{font-size:28px;font-weight:800}.ok{color:#8be3aa}.muted{color:#9ba4af}pre{white-space:pre-wrap;overflow:auto;max-height:520px;font-size:12px}.links{display:flex;gap:8px;flex-wrap:wrap}.links a{border:1px solid #3b4552;border-radius:999px;padding:8px 12px;text-decoration:none}.small{font-size:13px}
+</style>
+</head>
+<body><main>
+<header class="top"><div><div class="eyebrow">Apex application surface</div><h1>TeeVee</h1><p class="muted">24/7 television network and continuous programming.</p></div><div class="links"><a href="/">ApexStudio</a><a href="/teevee-buyer.html">Buyer surface</a></div></header>
+<section class="grid">
+<article class="card"><div class="eyebrow">Runtime</div><div id="runtime" class="metric">Loading…</div><p id="runtimeDetail" class="muted small">Reading the implemented app contract.</p></article>
+<article class="card"><div class="eyebrow">Buyer package</div><div id="buyer" class="metric">Loading…</div><p id="buyerDetail" class="muted small">Reading the machine-readable buyer package.</p></article>
+</section>
+<section class="card" style="margin-top:18px"><h2>Evidence</h2><pre id="output">Loading…</pre></section>
+<script>
+async function load(){
+ try{
+  const [statusResponse,buyerResponse]=await Promise.all([fetch('/api/apex/apps/teevee/status',{cache:'no-store'}),fetch('/api/teevee/buyer',{cache:'no-store'})]);
+  const status=await statusResponse.json(); const buyer=await buyerResponse.json();
+  if(!statusResponse.ok) throw new Error(status.error||'TeeVee status unavailable');
+  document.getElementById('runtime').textContent=status.app?.name||'TeeVee';
+  document.getElementById('runtimeDetail').textContent=(status.mode||'continuous')+' · scheduling: '+(status.scheduling||'n/a')+' · broadcast: '+(status.broadcast||'n/a');
+  document.getElementById('buyer').textContent=buyer.product||'TeeVee';
+  document.getElementById('buyerDetail').textContent=(buyer.payment?.state||buyer.paymentStatus||'payment status not reported');
+  document.getElementById('output').textContent=JSON.stringify({status,buyer},null,2);
+ }catch(error){
+  document.getElementById('runtime').textContent='UNAVAILABLE';
+  document.getElementById('runtimeDetail').textContent=error.message||String(error);
+  document.getElementById('output').textContent=error.message||String(error);
+ }
+}
+load();setInterval(load,30000);
+</script>
+</main></body></html>

@@ -1,0 +1,10 @@
+{
+  "tokens": ["APEX_URL_FILTER_TOKEN"],
+  "usecases": [
+    {
+      "fileStem": "url",
+      "shardCount": 1,
+      "name": "com.barrylird777.apex.ApexURLFilterControlProvider.url.filtering"
+    }
+  ]
+}

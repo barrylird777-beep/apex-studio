@@ -1,0 +1,27 @@
+name: SPEC-005 generate Drizzle migration
+on:
+  push:
+    branches: ["spec/005-scheduling"]
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm install
+      - run: npm run db:generate
+      - name: Commit generated migration
+        run: |
+          if git diff --quiet -- drizzle; then
+            echo "No generated Drizzle changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add drizzle
+          git commit -m "Generate SPEC-005 SQLite migration"
+          git push

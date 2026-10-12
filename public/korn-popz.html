@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KornPopz · ApexStudio</title>
+<style>
+body{margin:0;background:#080808;color:#eee;font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:900px;margin:auto;padding:32px 22px 80px}
+a{color:#eee}.tag{color:#999;text-transform:uppercase;letter-spacing:.14em;font-size:12px}
+.card{margin-top:14px;padding:22px;border:1px solid #303030;border-radius:18px;background:#111}
+pre{white-space:pre-wrap;background:#080808;border:1px solid #303030;border-radius:12px;padding:14px;color:#aaa}
+</style>
+</head>
+<body><main>
+<p><a href="/">ApexStudio</a> · <a href="/garden-of-apex.html">GardenOfApex</a></p>
+<p class="tag">ApexStudio rating system</p>
+<h1>KornPopz</h1>
+<p>Rating system for Apex movies and shows.</p>
+<div class="card"><h2>System</h2><pre id="status">Loading…</pre></div>
+<div class="card"><h2>Rating dimensions</h2><pre id="dimensions">Loading…</pre></div>
+</main>
+<script>
+const status={ratingSystem:"KornPopz",purpose:"rating system for Apex movies and shows",targetTypes:["movie","show"],scale:{min:0,max:10,step:.1},dimensions:["story","characters","visuals","audio","entertainment","rewatchability"]};
+document.getElementById("status").textContent=JSON.stringify(status,null,2);
+document.getElementById("dimensions").textContent=status.dimensions.map((x,i)=>(i+1)+". "+x).join("\n");
+</script>
+</body></html>

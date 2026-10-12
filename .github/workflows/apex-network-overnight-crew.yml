@@ -1,0 +1,107 @@
+name: Apex Network Overnight Crew
+
+on:
+  schedule:
+    - cron: "20 0,2,4,6,8,10,12,14,16,18 6,7 10 *"
+      timezone: "America/Chicago"
+  workflow_dispatch:
+
+concurrency:
+  group: apex-network-overnight-crew
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  network-crew:
+    name: Network usability production crew
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run Gemini autonomous crew
+        uses: google-github-actions/run-gemini-cli@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          workflow_name: apex-network-overnight-crew
+          settings: |-
+            {
+              "general": {
+                "defaultApprovalMode": "yolo"
+              },
+              "model": {
+                "maxSessionTurns": 50
+              }
+            }
+          prompt: |-
+            You are the Apex Studio overnight Network production crew and lead implementer.
+
+            OBJECTIVE:
+            Make Apex Studio's Network subsystem genuinely usable and production-ready for the user tomorrow afternoon. This is NOT a request to add a benchmark only. Work on the actual interface and operational behavior.
+
+            SCOPE:
+            - Network dashboard navigation and clickability.
+            - iPhone/mobile touch usability and responsive layout.
+            - Clear network state, selected path, failover, diagnostics, loading, empty, timeout and error states.
+            - Real client-to-Apex throughput measurement and useful repeated measurements.
+            - Server-side path observation, adaptive lane/connection policy, reuse and failover where the runtime actually supports them.
+            - Keep client-device telemetry explicitly separate from Railway/server telemetry.
+            - Improve recovery from failed/stale network requests.
+            - Add or strengthen focused network tests.
+            - Remove obvious broken/dead Network controls discovered during this work.
+            - Preserve PostgreSQL and the durable worker architecture. NEVER reintroduce SQLite.
+
+            OPERATING RULES:
+            1. Inspect the current main branch before changing anything.
+            2. Work directly in the checked-out repository.
+            3. Make concrete code changes; do not merely write a report.
+            4. Keep changes tightly scoped to Network usability/operations and directly related tests.
+            5. Do not fabricate 6G, Starlink, iPhone modem, Wi-Fi/cellular bonding, or multipath capabilities. Only report what code/tests/runtime evidence verifies.
+            6. Do not add secrets, fake credentials, paid infrastructure, Redis, or unrelated services.
+            7. Do not replace PostgreSQL with SQLite.
+            8. Do not weaken existing security or CI gates.
+            9. Run the strongest relevant tests after each meaningful batch. At minimum run targeted Network tests and syntax/build checks appropriate to the files changed.
+            10. If a test exposes an existing defect relevant to Network usability, fix it rather than hiding or skipping the test.
+            11. Check git diff carefully before committing. Revert unrelated changes.
+            12. If the implementation is verified, commit the changes directly to main with a clear conventional commit message. Do not claim production-ready if verification failed.
+            13. If no safe code change remains, perform verification against the current implementation and document the exact remaining limitation in the workflow summary.
+            14. Never wait for human approval during this scheduled run.
+
+            PRIORITY ORDER:
+            P0: Network button/navigation and dashboard actually usable.
+            P0: Real operational network path/status behavior works.
+            P0: Failure/recovery paths work.
+            P1: Mobile/iPhone usability.
+            P1: Diagnostics and repeated measurements.
+            P1: Focused regression tests.
+            P2: Performance polish and visual cleanup.
+
+            At the end:
+            - run tests;
+            - inspect git diff;
+            - commit only verified Network-related changes to main;
+            - print a concise summary of files changed, tests run, commit SHA, and any blocker that remains.
+
+      - name: Verify repository state
+        run: |
+          git status --short
+          git log -1 --oneline

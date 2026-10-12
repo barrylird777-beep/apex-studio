@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "concurrency": 6,
+  "surfaces": [
+    {
+      "id": "korn-knob",
+      "name": "KornKnob",
+      "goal": "audio and music capability"
+    },
+    {
+      "id": "teevee",
+      "name": "TeeVee",
+      "goal": "24/7 television network and continuous programming"
+    },
+    {
+      "id": "paypex",
+      "name": "PayPex",
+      "goal": "money-making stock, market, business and monetization intelligence"
+    },
+    {
+      "id": "apex-studio",
+      "name": "ApexStudio",
+      "goal": "creative production, editing, mastering, QC and delivery"
+    },
+    {
+      "id": "garden-of-apex",
+      "name": "GardenOfApex",
+      "goal": "knowledge, Scripture, research and creative world"
+    },
+    {
+      "id": "xshield",
+      "name": "XShield",
+      "goal": "ad blocking, tracker blocking and network filtering"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.apex_auth/
+apex-production.sqlite
+apex-production.sqlite-*
+uploads/
+backups/postgres/
+
+# Gemini CLI settings and runtime artifacts
+.gemini/
+gha-creds-*.json

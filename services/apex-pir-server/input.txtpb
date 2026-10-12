@@ -1,0 +1,19 @@
+rows: [
+  { keyword: "doubleclick.net", value: "1" },
+  { keyword: "googlesyndication.com", value: "1" },
+  { keyword: "googleadservices.com", value: "1" },
+  { keyword: "googletagmanager.com", value: "1" },
+  { keyword: "googletagservices.com", value: "1" },
+  { keyword: "adservice.google.com", value: "1" },
+  { keyword: "adsrvr.org", value: "1" },
+  { keyword: "adnxs.com", value: "1" },
+  { keyword: "taboola.com", value: "1" },
+  { keyword: "outbrain.com", value: "1" },
+  { keyword: "scorecardresearch.com", value: "1" },
+  { keyword: "zedo.com", value: "1" },
+  { keyword: "rubiconproject.com", value: "1" },
+  { keyword: "criteo.com", value: "1" },
+  { keyword: "pubmatic.com", value: "1" },
+  { keyword: "openx.net", value: "1" },
+  { keyword: "app-measurement.com", value: "1" }
+]

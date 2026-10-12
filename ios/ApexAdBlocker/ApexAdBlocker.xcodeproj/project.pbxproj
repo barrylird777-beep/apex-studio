@@ -1,0 +1,89 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+		111111111111111111111111 /* ApexAdBlockerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlockerApp.swift; sourceTree = "<group>"; };
+		222222222222222222222222 /* DNSSettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSSettingsController.swift; sourceTree = "<group>"; };
+		333333333333333333333333 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		444444444444444444444444 /* ApexAdBlocker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ApexAdBlocker.entitlements; sourceTree = "<group>"; };
+		555555555555555555555555 /* ApexAdBlocker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ApexAdBlocker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		666666666666666666666666 /* ApexAdBlocker */ = {
+			isa = PBXGroup;
+			children = (111111111111111111111111,222222222222222222222222,333333333333333333333333,444444444444444444444444);
+			path = ApexAdBlocker;
+			sourceTree = "<group>";
+		};
+		777777777777777777777777 /* Products */ = {isa = PBXGroup; children = (555555555555555555555555); name = Products; sourceTree = "<group>"; };
+		888888888888888888888888 /* ApexAdBlocker */ = {isa = PBXGroup; children = (666666666666666666666666,777777777777777777777777); sourceTree = "<group>"; };
+
+		999999999999999999999999 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (AAAAAAAAAAAAAAAAAAAAAAAA /* ApexAdBlockerApp.swift */,BBBBBBBBBBBBBBBBBBBBBBBB /* DNSSettingsController.swift */); runOnlyForDeploymentPostprocessing = 0; };
+		CCCCCCCCCCCCCCCCCCCCCCCC /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		DDDDDDDDDDDDDDDDDDDDDDDD /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (EEEEEEEEEEEEEEEEEEEEEEEE /* NetworkExtension.framework */); runOnlyForDeploymentPostprocessing = 0; };
+
+		AAAAAAAAAAAAAAAAAAAAAAAA /* ApexAdBlockerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111111111111111111111111; };
+		BBBBBBBBBBBBBBBBBBBBBBBB /* DNSSettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 222222222222222222222222; };
+		EEEEEEEEEEEEEEEEEEEEEEEE /* NetworkExtension.framework */ = {isa = PBXBuildFile; fileRef = FFFFFFFFFFFFFFFFFFFFFFFF; };
+		FFFFFFFFFFFFFFFFFFFFFFFF /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+
+		121212121212121212121212 /* ApexAdBlocker target */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 343434343434343434343434;
+			buildPhases = (999999999999999999999999,DDDDDDDDDDDDDDDDDDDDDDDD,CCCCCCCCCCCCCCCCCCCCCCCC);
+			buildRules = ();
+			dependencies = ();
+			name = ApexAdBlocker;
+			productName = ApexAdBlocker;
+			productReference = 555555555555555555555555;
+			productType = "com.apple.product-type.application";
+		};
+		565656565656565656565656 /* Project */ = {
+			isa = PBXProject;
+			attributes = { LastUpgradeCheck = 1600; TargetAttributes = { 121212121212121212121212 = { CreatedOnToolsVersion = 16.0; }; };
+			};
+			buildConfigurationList = 787878787878787878787878;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en,Base);
+			mainGroup = 888888888888888888888888;
+			productRefGroup = 777777777777777777777777;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (121212121212121212121212);
+		};
+
+		343434343434343434343434 /* Target configs */ = {isa = XCConfigurationList; buildConfigurations = (898989898989898989898989,909090909090909090909090); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		787878787878787878787878 /* Project configs */ = {isa = XCConfigurationList; buildConfigurations = (ABABABABABABABABABABABAB,CDCDCDCDCDCDCDCDCDCDCDCD); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+
+		898989898989898989898989 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+			ASSETCATALOG_COMPILER_APPICON_NAME = "";
+			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker/ApexAdBlocker.entitlements;
+			CODE_SIGN_STYLE = Automatic;
+			DEVELOPMENT_TEAM = "";
+			INFOPLIST_FILE = ApexAdBlocker/Info.plist;
+			IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+			PRODUCT_BUNDLE_IDENTIFIER = com.apex.studio.adblocker;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SWIFT_VERSION = 5.9;
+			TARGETED_DEVICE_FAMILY = "1,2";
+		}; name = Debug; };
+		909090909090909090909090 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker/ApexAdBlocker.entitlements;
+			CODE_SIGN_STYLE = Automatic;
+			DEVELOPMENT_TEAM = "";
+			INFOPLIST_FILE = ApexAdBlocker/Info.plist;
+			IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+			PRODUCT_BUNDLE_IDENTIFIER = com.apex.studio.adblocker;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SWIFT_VERSION = 5.9;
+			TARGETED_DEVICE_FAMILY = "1,2";
+		}; name = Release; };
+		ABABABABABABABABABABABAB /* Project Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		CDCDCDCDCDCDCDCDCDCDCDCD /* Project Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+	};
+	rootObject = 565656565656565656565656;
+}

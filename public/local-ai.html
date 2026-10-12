@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<title>Local AI · Apex Studio</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#080b12;color:#f4f6fa}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 50% -10%,#1b2a3d,transparent 65%),#080b12}
+main{max-width:850px;margin:auto;padding:clamp(16px,4vw,32px) 14px 56px}
+a{color:#9fd0ff;overflow-wrap:anywhere}.eyebrow{font-size:11px;letter-spacing:.14em;font-weight:800;color:#a6b5c7;margin:0 0 8px}
+h1{font-size:clamp(32px,8vw,48px);letter-spacing:-.04em;margin:0 0 10px}h2{font-size:20px;margin:0 0 12px}p{line-height:1.55;color:#c3ccd8}
+.card{border:1px solid #344254;background:#111925;border-radius:18px;padding:clamp(16px,4vw,24px);margin-top:16px;min-width:0}
+.pills{display:flex;flex-wrap:wrap;gap:7px}.pill{font-size:11px;border:1px solid #3b4a5c;border-radius:999px;padding:6px 9px;color:#d5deea}
+label{display:block;font-weight:700;margin:14px 0 7px}input[type=file],textarea{width:100%;max-width:100%;border:1px solid #425166;border-radius:10px;background:#0b111a;color:#f4f6fa;padding:12px}
+textarea{resize:vertical;min-height:110px;font:inherit;line-height:1.5}button{min-height:44px;border:1px solid #729bc5;border-radius:11px;background:#d6e8fa;color:#102034;font-weight:800;padding:10px 15px;max-width:100%}button:disabled{opacity:.45}button.secondary{background:#172334;color:#e1eaf5;border-color:#45556a}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0}.output{white-space:pre-wrap;overflow-wrap:anywhere;min-height:100px;padding:13px;border-radius:10px;border:1px solid #344254;background:#080d14;color:#e8edf5}
+.status{font-size:14px;color:#cbd7e6}.error{color:#ffb4ad;border:1px solid #84433f;border-radius:10px;padding:12px;overflow-wrap:anywhere}.pass{color:#b9f2cc}.help{font-size:13px;color:#aebccc}.confirm{display:flex;gap:10px;align-items:flex-start;font-weight:500}.confirm input{margin-top:5px;flex-shrink:0}
+progress{width:100%;height:12px}header a{display:inline-block;margin-bottom:16px}
+</style>
+</head>
+<body>
+<main>
+<header><a href="/">← Back to Apex Studio</a><p class="eyebrow">APEX STUDIO · ON-DEVICE INTELLIGENCE</p><h1>Local AI</h1><p>Load a GGUF model into this browser and generate text on your iPhone. The AI runtime and WebAssembly assets are served by Apex Studio. The offline test is only marked passed after a response returns while you report Wi-Fi and cellular data are off.</p><div class="pills"><span id="browser" class="pill">Checking browser…</span><span id="isolation" class="pill">Checking secure runtime…</span><span id="network" class="pill">Checking network…</span><span id="runtimeState" class="pill">Runtime: not loaded</span><span id="modelState" class="pill">Model: not loaded</span><span id="offlineCacheState" class="pill">Offline cache: preparing…</span></div></header>
+<section class="card"><p class="eyebrow">STEP 1</p><h2>Load a GGUF model</h2><p class="help">Choose a .gguf file in the iPhone Files picker. The <a href="https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf" target="_blank" rel="noreferrer">19 MB TinyLlama story model</a> is only for testing that local inference works; it is not an instruction-following chat model. For a small instruction-tuned test, try <a href="https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf?download=true" target="_blank" rel="noreferrer">SmolLM2-360M-Instruct Q4_K_M (~271 MB)</a>. Download that larger file on Wi-Fi if possible, then choose it here from Files. The page applies its ChatML prompt format when it recognizes that model filename.</p><input id="model" type="file" accept=".gguf,application/octet-stream"><label class="confirm"><input id="persistModel" type="checkbox"> Keep a copy of this model in this iPhone browser for later sessions.</label><div class="actions"><button id="restoreModel" class="secondary" disabled>Restore saved model</button><button id="deleteSavedModel" class="secondary" disabled>Delete saved copy</button></div><p id="storageStatus" class="help" role="status">Checking for a saved model…</p><p id="status" class="status" role="status">Checking browser requirements…</p><div id="error" hidden class="error" role="alert"></div><div id="modelinfo" class="help"></div></section>
+<section class="card"><p class="eyebrow">STEP 2</p><h2>Run a prompt</h2><label for="prompt">Your prompt</label><textarea id="prompt">Explain artificial intelligence in simple terms, using three short sentences.</textarea><div class="actions"><button id="run" disabled>Run locally</button><button id="reset" class="secondary">Reset prompt</button></div><label for="output">Generated response</label><div id="output" class="output" aria-live="polite">Your model response will appear here.</div></section>
+<section class="card"><p class="eyebrow">STEP 3 · REAL DEVICE CHECK</p><h2>Verify offline inference</h2><p class="help">After the model loads, turn on Airplane Mode or turn off both Wi-Fi and cellular data. Keep this page open, confirm below, and run the check. A response is evidence that inference ran locally for that attempt; this is not an independent network audit.</p><label class="confirm"><input id="offline" type="checkbox"> I turned off Wi-Fi and cellular data on this iPhone.</label><div class="actions"><button id="offlineRun" disabled>Run offline inference check</button></div><p id="proof" class="help" role="status"></p></section>
+<p class="help">Your selected model is not uploaded by this screen. The pinned Wllama runtime and WebAssembly assets are served by Apex Studio; model inference runs in this browser. Keep the page open during the offline test.</p>
+</main>
+<script type="module">
+let Wllama = null;
+const $=id=>document.getElementById(id);
+let engine=null,ready=false,working=false,savedModelAvailable=false,loadedModelName="",sharedMemoryAvailable=false;
+$("runtimeState").textContent="Runtime: not loaded";
+$("modelState").textContent="Model: not loaded";
+async function prepareOfflineCache(){
+  if(!("serviceWorker" in navigator)){
+    $("offlineCacheState").textContent="Offline shell cache unavailable";
+    return false;
+  }
+  try{
+    await navigator.serviceWorker.register("/local-ai-sw.js",{scope:"/"});
+    await navigator.serviceWorker.ready;
+    if(!navigator.serviceWorker.controller){
+      await Promise.race([
+        new Promise(resolve=>navigator.serviceWorker.addEventListener("controllerchange",resolve,{once:true})),
+        new Promise(resolve=>setTimeout(resolve,2500))
+      ]);
+    }
+    if(!navigator.serviceWorker.controller){
+      $("offlineCacheState").textContent="Cache installed — reload while online to activate";
+      return false;
+    }
+    $("offlineCacheState").textContent="Offline cache active";
+    return true;
+  }catch(err){
+    $("offlineCacheState").textContent="Offline cache unavailable";
+    return false;
+  }
+}
+void prepareOfflineCache();
+const MODEL_DB="apex-local-ai-models-v1";
+const MODEL_STORE="saved-models";
+function openModelDb(){
+  return new Promise((resolve,reject)=>{
+    if(!("indexedDB" in window)){reject(new Error("IndexedDB is unavailable in this browser."));return}
+    const request=indexedDB.open(MODEL_DB,1);
+    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(MODEL_STORE))db.createObjectStore(MODEL_STORE)};
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error||new Error("Could not open local model storage."));
+  });
+}
+async function storeModel(file){
+  const db=await openModelDb();
+  try{await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MODEL_STORE,"readwrite");
+    tx.objectStore(MODEL_STORE).put({name:file.name,size:file.size,lastModified:file.lastModified||Date.now(),blob:new Blob([file],{type:file.type||"application/octet-stream"})}, "active");
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("Could not save model"));tx.onabort=()=>reject(tx.error||new Error("Model save was aborted"));
+  })}finally{db.close()}
+}
+async function readSavedModel(){
+  const db=await openModelDb();
+  try{return await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MODEL_STORE,"readonly"),request=tx.objectStore(MODEL_STORE).get("active");
+    request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error||new Error("Could not read saved model"));
+  })}finally{db.close()}
+}
+async function removeSavedModel(){
+  const db=await openModelDb();
+  try{await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MODEL_STORE,"readwrite");tx.objectStore(MODEL_STORE).delete("active");
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("Could not delete saved model"));tx.onabort=()=>reject(tx.error||new Error("Model deletion was aborted"));
+  })}finally{db.close()}
+}
+async function refreshSavedModelStatus(){
+  try{
+    const saved=await readSavedModel(),exists=Boolean(saved?.blob?.size);
+    savedModelAvailable=exists;
+    $("restoreModel").disabled=!exists||working;
+    $("deleteSavedModel").disabled=!exists||working;
+    $("storageStatus").textContent=exists
+      ? "Saved on this device: "+saved.name+" · "+(saved.size/1048576).toFixed(1)+" MB. Safari may clear site data; this is not permanent archival storage."
+      : "No saved model found on this device. Saving is optional and uses local browser storage.";
+    return saved;
+  }catch(err){
+    savedModelAvailable=false;$("restoreModel").disabled=true;$("deleteSavedModel").disabled=true;
+    $("storageStatus").textContent="Local model storage unavailable: "+(err?.message||String(err));
+    return null;
+  }
+}
+const apple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+$("browser").textContent=apple?"Apple mobile browser detected":"Browser detected";
+$("network").textContent=navigator.onLine?"Network reported online":"Browser reports offline";
+function setStatus(s){$("status").textContent=s}
+function setError(s){$("error").textContent=s;$("error").hidden=!s}
+function setBusy(v){working=v;$("model").disabled=v;$("run").disabled=v||!ready;$("offlineRun").disabled=v||!ready||!$("offline").checked;$("restoreModel").disabled=v||!savedModelAvailable;$("deleteSavedModel").disabled=v||!savedModelAvailable}
+async function checkSupport(){
+  if(typeof WebAssembly==="undefined"||typeof WebAssembly.instantiate!=="function")return "This browser does not support the WebAssembly runtime.";
+  if(!window.crossOriginIsolated)return "This page is missing cross-origin isolation. The server must send COOP: same-origin and COEP: require-corp headers.";
+  if(!navigator.storage||typeof navigator.storage.getDirectory!=="function")return "This browser does not expose Origin Private File System storage required by this runtime.";
+  // Probe shared memory with a tiny allocation. A 4 GiB maximum can fail on iPhone memory limits even when shared WASM memory is supported. Wllama can fall back to single-threaded inference when it is not.
+  sharedMemoryAvailable=false;
+  try{new WebAssembly.Memory({initial:1,maximum:1,shared:true});sharedMemoryAvailable=true}catch{}
+  try {
+    await Promise.race([
+      navigator.storage.getDirectory(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Storage check timed out")), 5000))
+    ]);
+  } catch(e) { return "Private browser storage is unavailable: "+(e?.message||e); }
+  return "";
+}
+setStatus("Preparing browser checks…");
+$("model").addEventListener("change",async e=>{
+  const file=e.currentTarget.files?.[0];e.currentTarget.value="";if(file)await loadModelFile(file,false);
+});
+async function loadModelFile(file,fromSaved=false){
+  setError("");$("proof").textContent="";$("output").textContent="Your model response will appear here.";ready=false;setBusy(true);
+  if(engine){try{await engine.exit()}catch{}engine=null}
+  try{
+    if(!file.name.toLowerCase().endsWith(".gguf"))throw new Error("Choose a .gguf file.");
+    if(!file.size)throw new Error("The selected file is empty.");
+    const issue=await checkSupport();if(issue)throw new Error(issue);
+    let modelSaved=fromSaved;
+    if(!fromSaved&&$("persistModel").checked){
+      $("storageStatus").textContent="Saving a local copy before loading…";
+      try{
+        await storeModel(file);modelSaved=true;
+        $("storageStatus").textContent="Saved "+file.name+" on this device · "+(file.size/1048576).toFixed(1)+" MB. Keep in mind Safari may clear site data.";
+        savedModelAvailable=true;
+      }catch(saveErr){
+        $("storageStatus").textContent="Could not save a persistent copy: "+(saveErr?.message||String(saveErr))+". The model will still try to load for this session.";
+      }
+    }
+    await prepareOfflineCache();
+    setStatus("Loading the self-hosted AI runtime…");
+    $("runtimeState").textContent="Runtime: loading…";
+    $("modelState").textContent="Model: loading…";
+    let runtime;
+    try {
+      runtime = await Promise.race([
+        import("/vendor/wllama/runtime.js"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Local runtime download timed out after 20 seconds. Confirm the deployment includes /vendor/wllama/runtime.js.")), 20000))
+      ]);
+    } catch (err) {
+      throw new Error("AI runtime download failed: " + (err?.message || String(err)) + " Check that the self-hosted runtime bundle exists in this deployment.");
+    }
+    if (typeof runtime?.Wllama !== "function") throw new Error("AI runtime initialization failed: the local bundle did not export Wllama.");
+    Wllama = runtime.Wllama;
+    $("runtimeState").textContent="Runtime: loaded";
+
+    setStatus("Downloading and validating the self-hosted WebAssembly runtime…");
+    try {
+      // The main WASM build uses newer features that older Safari lacks.
+      // Compile only the build expected to run on this browser.
+      const wasmUrl = apple
+        ? "/vendor/wllama-compat/wasm/wllama.wasm"
+        : "/vendor/wllama/src/wasm/wllama.wasm";
+      const wasmResponse = await fetch(wasmUrl, { cache: "force-cache" });
+      if (!wasmResponse.ok) throw new Error("HTTP " + wasmResponse.status + " for local WASM asset " + wasmUrl);
+      const wasmBytes = await wasmResponse.arrayBuffer();
+      if (!wasmBytes.byteLength) throw new Error("The WASM asset was empty");
+      await WebAssembly.compile(wasmBytes);
+    } catch (err) {
+      throw new Error("WASM download/validation failed: " + (err?.message || String(err)) + " Check that the pinned Wllama WASM assets were copied into this deployment.");
+    }
+
+    setStatus("Preparing the local WASM worker…");
+    try {
+      engine = new Wllama({ default: "/vendor/wllama/src/wasm/wllama.wasm" });
+      if (apple) {
+        const compatWorkerResponse = await fetch("/vendor/wllama-compat/wasm/wllama.js", { cache: "force-cache" });
+        if (!compatWorkerResponse.ok) throw new Error("HTTP " + compatWorkerResponse.status + " for local Safari-compat worker");
+        const compatWorkerCode = await compatWorkerResponse.text();
+        if (!compatWorkerCode.trim()) throw new Error("The Safari-compat worker asset was empty");
+        engine.setCompat({
+          wasm: "/vendor/wllama-compat/wasm/wllama.wasm",
+          worker: { code: compatWorkerCode }
+        });
+      } else {
+        engine.setCompat(null);
+      }
+    } catch (err) {
+      throw new Error("WASM runtime setup failed: " + (err?.message || String(err)));
+    }
+
+    setStatus("Initializing WASM and loading the GGUF model into browser memory. Keep this page open…");
+    // Wllama initializes its worker/WASM internals during loadModel on versions
+    // that do not expose a separate async init method. Keep this stage distinct
+    // so failures here are reported as model-load/worker-init failures.
+    let loadTimer;
+    try {
+      await Promise.race([
+        engine.loadModel([file], { n_threads: 1, n_ctx: 1024, n_gpu_layers: 0 }),
+        new Promise((_, reject) => {
+          loadTimer = setTimeout(() => reject(new Error("Timed out after 90 seconds. The model may exceed available memory, or WASM worker initialization did not finish.")), 90000);
+        })
+      ]);
+    } catch (err) {
+      throw new Error("GGUF model loading failed (including any deferred WASM worker initialization): " + (err?.message || String(err)));
+    } finally {
+      clearTimeout(loadTimer);
+    }
+    ready=true;loadedModelName=file.name;$("modelState").textContent="Model: ready";const modelHint=file.name.toLowerCase().includes("smollm2-360m-instruct")?"Instruction-tuned model recognized; ChatML prompt formatting is enabled.":file.name.toLowerCase().includes("stories15m")?"Story-completion model: good for offline testing, not for following instructions.":"Prompt format not auto-detected for this model; instruction-following may be limited."; $("modelinfo").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · loaded in this browser session"+(modelSaved?" · saved on this device for later sessions":"")+" · "+modelHint;
+    setStatus("Model loaded. Run a prompt, then test offline.");$("run").disabled=false;$("offlineRun").disabled=!$("offline").checked;
+  }catch(err){
+    const message=err?.message||String(err);
+    if(engine){try{await Promise.race([engine.exit(),new Promise(resolve=>setTimeout(resolve,1500))])}catch{}engine=null}
+    ready=false;$("modelState").textContent="Model: not ready";
+    if(message.includes("AI runtime download failed"))$("runtimeState").textContent="Runtime: unavailable";
+    setError(message);
+    setStatus("Model did not load. Controls are available again so you can retry.");
+  }
+  finally{setBusy(false);$("model").disabled=false;$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked;await refreshSavedModelStatus()}
+}
+$("restoreModel").addEventListener("click",async()=>{
+  setError("");
+  try{
+    const saved=await readSavedModel();
+    if(!saved?.blob?.size)throw new Error("No saved model is available on this device.");
+    const file=new File([saved.blob],saved.name,{type:"application/octet-stream",lastModified:saved.lastModified||Date.now()});
+    await loadModelFile(file,true);
+  }catch(err){setError("Could not restore saved model: "+(err?.message||String(err)));await refreshSavedModelStatus()}
+});
+$("deleteSavedModel").addEventListener("click",async()=>{
+  if(!confirm("Delete the saved model copy from this iPhone browser? This does not delete the original file in Files."))return;
+  try{await removeSavedModel();$("modelinfo").textContent="";$("storageStatus").textContent="Saved model copy deleted from this browser.";await refreshSavedModelStatus()}
+  catch(err){$("storageStatus").textContent="Could not delete saved copy: "+(err?.message||String(err))}
+});
+void refreshSavedModelStatus();
+async function infer(offlineTest){
+  if(!engine||!ready)return;
+  if(offlineTest&&!$("offline").checked){setError("Turn off Wi-Fi and cellular data, then confirm above.");return}
+  const prompt=$("prompt").value.trim();if(!prompt){setError("Enter a prompt first.");return}
+  setError("");$("output").textContent="";$("proof").textContent="";setBusy(true);setStatus(offlineTest?"Running offline inference check…":"Generating on device…");
+  let result="";
+  try{
+    const modelName=loadedModelName.toLowerCase();const completionPrompt=modelName.includes("smollm2-360m-instruct")?"<|im_start|>system\nYou are a helpful assistant. Follow the user’s instructions exactly. Keep answers concise.\n<|im_end|>\n<|im_start|>user\n"+prompt+"\n<|im_end|>\n<|im_start|>assistant\n":prompt;
+    const stream = await engine.createCompletion({prompt:completionPrompt,max_tokens:128,temperature:.2,top_k:40,top_p:.9,stream:true});
+    for await (const chunk of stream) {
+      const choice = chunk?.choices?.[0];
+      result += choice?.text ?? choice?.delta?.content ?? "";
+      $("output").textContent = result;
+    }
+    if(!result.trim())throw new Error("The runtime returned no text. Try a shorter prompt or another small model.");
+    if(offlineTest){$("proof").textContent="PASS — a response was generated after you confirmed Wi-Fi and cellular data were off. This is evidence of local inference for this run, not an independent network audit.";$("proof").className="help pass";$("modelState").textContent="Model: ready · offline pass"}
+    else $("proof").textContent="Response received. Offline operation has not yet been verified.";
+    setStatus("Generation finished.");
+  }catch(err){setError(err?.message||String(err));setStatus("Generation failed.");}
+  finally{setBusy(false);$("run").disabled=!ready;$("offlineRun").disabled=!ready||!$("offline").checked}
+}
+$("run").addEventListener("click",()=>infer(false));$("offlineRun").addEventListener("click",()=>infer(true));
+$("offline").addEventListener("change",()=>{$("offlineRun").disabled=!ready||working||!$("offline").checked});
+$("reset").addEventListener("click",()=>{$("prompt").value="Explain artificial intelligence in simple terms, using three short sentences.";$("output").textContent="Your model response will appear here.";$("proof").textContent="";setError("")});
+window.addEventListener("online",()=>{$("network").textContent="Network reported online"});window.addEventListener("offline",()=>{$("network").textContent="Browser reports offline"});
+// Attach every control before asynchronous capability checks or CDN requests.
+// A failed/hung AI runtime must never prevent Reset Prompt from working.
+void (async()=>{
+  const supportError=await checkSupport();
+  $("isolation").textContent=supportError?"Runtime requirements missing":sharedMemoryAvailable?"Shared WASM memory available":"Shared memory unavailable · attempting single-thread fallback";
+  if(supportError){setError(supportError);setStatus("Local inference is not ready in this browser session.");}
+  else {setError("");setStatus("Browser checks passed. Choose a GGUF model.");}
+})().catch(err=>{
+  $("isolation").textContent="Runtime check failed";
+  setError("Browser capability check failed: "+(err?.message||String(err)));
+  setStatus("Local inference is not ready in this browser session.");
+});
+</script>
+</body>
+</html>
