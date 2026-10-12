@@ -28,7 +28,12 @@ test("PlanetApeX builds world state",()=>{
   assert.equal(planet.regions.length,1); assert.equal(planet.entities[0].regionId,"r1");
   assert.equal(planetApexStatus().app.name,"PlanetApeX");
 });
-test("KoBlocks is the canonical capability graph app",()=>{\n  const source=defineKoBlock({id:"source",outputs:["out"]});\n  const target=defineKoBlock({id:"target"});\n  const graph=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"}]);\n  assert.equal(validateKoBlockGraph(graph).valid,true);\n  assert.equal(koBlocksStatus().app.name,"KoBlocks");
+test("KoBlocks is the canonical capability graph app",()=>{
+  const source=defineKoBlock({id:"source",outputs:["out"]});
+  const target=defineKoBlock({id:"target"});
+  const graph=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"}]);
+  assert.equal(validateKoBlockGraph(graph).valid,true);
+  assert.equal(koBlocksStatus().app.name,"KoBlocks");
 });
 test("KernelVision creates Theatre and Kornmax viewing sessions",()=>{
   const item=createTheatreItem({id:"film-1",title:"Finished Work"}),session=createViewingSession({item});
