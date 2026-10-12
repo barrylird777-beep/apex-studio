@@ -1,11 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'url';
+
+const execFileAsync = promisify(execFile);
 import { Readable } from 'node:stream';
 import crypto from 'node:crypto';
 
-import { access, readFile, unlink, realpath, stat } from 'node:fs/promises';
+import { access, readFile, unlink, realpath, stat, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
@@ -2101,6 +2106,62 @@ app.post('/api/media/image', async (req, res) => {
   }
 });
 
+async function renderFreeMotionVideoFromStill(prompt, sceneId, duration, aspectRatio) {
+  const sanitizedPrompt = String(prompt || '').trim().slice(0, 1800);
+  if (!sanitizedPrompt) throw new Error('prompt is required for local motion render');
+  const encoded = encodeURIComponent(sanitizedPrompt);
+  const model = encodeURIComponent(process.env.POLLINATIONS_IMAGE_MODEL || 'flux');
+  const seed = Math.floor(Math.random() * 9999999);
+  const stillUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1280&height=720&model=${model}&seed=${seed}&nologo=true`;
+  const response = await fetchWithTimeout(stillUrl, {}, 60000);
+  if (!response.ok) throw new Error(`Free image source returned HTTP ${response.status}`);
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.startsWith('image/')) throw new Error('Free image source did not return an image');
+  const imageBuffer = Buffer.from(await response.arrayBuffer());
+  if (!imageBuffer.length || imageBuffer.length > 15 * 1024 * 1024) throw new Error('Generated still is empty or exceeds the 15 MiB safety limit');
+
+  const workDir = await mkdtemp(path.join(os.tmpdir(), 'apex-kernelvision-motion-'));
+  const imagePath = path.join(workDir, 'still.img');
+  const outputPath = path.join(workDir, 'scene.mp4');
+  const dimensions = aspectRatio === '9:16' ? [1080, 1920] : aspectRatio === '1:1' ? [1080, 1080] : [1920, 1080];
+  const [width, height] = dimensions;
+  const filter = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},zoompan=z='min(zoom+0.001,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=24,format=yuv420p[v]`;
+  try {
+    await writeFile(imagePath, imageBuffer, { mode: 0o600 });
+    await execFileAsync(process.env.FFMPEG_PATH || 'ffmpeg', [
+      '-y','-hide_banner','-loglevel','error',
+      '-loop','1','-framerate','24','-i',imagePath,
+      '-f','lavfi','-i','anullsrc=channel_layout=stereo:sample_rate=48000',
+      '-filter_complex',filter,'-map','[v]','-map','1:a:0',
+      '-t',String(duration),'-r','24','-c:v','libx264','-preset','veryfast',
+      '-crf','18','-pix_fmt','yuv420p','-c:a','aac','-b:a','96k',
+      '-shortest','-movflags','+faststart',outputPath
+    ], { maxBuffer: 8 * 1024 * 1024 });
+    const videoBuffer = await readFile(outputPath);
+    if (!videoBuffer.length) throw new Error('Local FFmpeg motion render produced an empty video');
+    const saved = await saveSceneAsset(sceneId, 'video', videoBuffer, 'mp4');
+    return {
+      success: true,
+      sceneId,
+      url: saved.video,
+      videoUrl: saved.video,
+      contentType: 'video/mp4',
+      bytes: saved.bytes,
+      generation: {
+        visualProvider: 'image.pollinations.ai',
+        videoRenderer: 'local-ffmpeg-motion',
+        fps: 24,
+        width,
+        height,
+        backgroundAudio: 'silent-track; narration is a separate asset',
+        costMode: 'no metered video-generation API used'
+      }
+    };
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
 app.post('/api/media/video', async (req, res) => {
   try {
     const prompt = String(req.body?.prompt || '').trim();
@@ -2115,6 +2176,12 @@ app.post('/api/media/video', async (req, res) => {
     }
     if (!/^[A-Za-z0-9._-]+$/.test(sceneId) || sceneId === '.' || sceneId === '..') {
       return res.status(400).json({ success: false, error: 'Invalid sceneId' });
+    }
+
+    const paidVideoPathEnabled = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() === 'false' && Boolean(pollinationsMediaKey());
+    if (!paidVideoPathEnabled) {
+      const localResult = await renderFreeMotionVideoFromStill(prompt, sceneId, duration, aspectRatio);
+      return res.json(localResult);
     }
 
     const request = buildPollinationsMediaRequest('video', prompt, { model, duration, aspectRatio });
