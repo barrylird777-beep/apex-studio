@@ -95,7 +95,7 @@ TeeVee production is PostgreSQL-backed and uses the durable worker system for qu
 ### Application ownership
 
 - **PlanetApeX** owns the world-level container and world-state boundary.
-- **KoBlocks** owns reusable building blocks and their composition/validation.
+- **XShield** owns ad blocking, tracker blocking and network protection.
 - **KernelVision** owns finished-work viewing through KernelVision Theatre and Kornmax.
 - **KoinKob** owns worker economy primitives, barter, market clearing, systemic events and adversarial economic rounds.
 - **KashKorner** owns cash-ledger primitives and financial state.
