@@ -223,11 +223,12 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    const target=await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
+    // Content-addressed manifests are authoritative. Do not write a duplicate JSON
+    // copy into the volume; that duplicate can exhaust the disk after the CAS write
+    // already succeeded and make a successful durable write appear to fail.
     await this.persistState(collection,id,value);
     this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
-    await this.atomic(target,value);
     return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
@@ -236,11 +237,10 @@ export class ApexPureStore {
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
-    const target=await this.checkedFile(collection,id);
     await this.cas.deleteRef("state",this.refKey(collection,id));
     this.state.delete(this.key(collection,id));
-    const { unlink }=await import("node:fs/promises");
-    try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
+    // Legacy duplicate JSON files are intentionally left untouched. The CAS
+    // manifest is authoritative, and cleanup must never risk deleting old records.
     return true;
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
