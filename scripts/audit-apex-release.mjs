@@ -23,7 +23,7 @@ const REQUIRED = Object.freeze([
 
 const CANONICAL_APP_MODULES = Object.freeze([
   ["PlanetApeX","src/apps/planet-apex.mjs"],
-  ["XShield","src/apps/xshield.mjs"],
+  ["KoBlocks","src/apps/ko-blocks.mjs"],
   ["KernelVision","src/apps/kernel-vision.mjs"],
   ["KoinKob","src/apps/koin-kob.mjs"],
   ["KashKorner","src/apps/kash-korner.mjs"],
