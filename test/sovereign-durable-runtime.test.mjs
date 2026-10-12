@@ -74,3 +74,7 @@ test('durable store claim SQL enforces SKIP LOCKED and monotonic fencing', async
   assert.match(claimSql, /lease_fence = j\.lease_fence \+ 1/);
   assert.match(claimSql, /lease_token = \$3::uuid/);
 });
+
+test('sovereign manifest accepts its configured render resolution', () => {
+  assert.equal(validateManifest(SOVEREIGN_CONFIG_SCHEMA), true);
+});
