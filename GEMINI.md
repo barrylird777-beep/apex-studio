@@ -1,36 +1,28 @@
-# Apex Studio Gemini Review Guide
+# Apex Ecosystem Independent Review Guide
 
 ## Mission
+Review Apex ecosystem changes independently. Find reproducible defects before merge; do not generate noise or certify untested work.
 
-Review Apex Studio pull requests as an independent engineering reviewer. Find real defects before merge; do not generate noise.
+## Canon
+- Six apps: PlanetApeX, KoBlocks, KernelVision, KoinKob, KashKorner, Kernelodies.
+- GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX, not a separate app.
+- Preserve names, app boundaries, data, and historical capabilities.
+- **Pure-WAL / Ring-WAL is the sovereign storage direction. Do not restore PostgreSQL or introduce SQL/SQLite runtime dependencies.** Legacy database code must be checked for active reachability before retirement.
 
-## Priority
+## Review priority
+1. Runtime correctness and production failures.
+2. Authentication, peer identity, allowlists, input validation, and secret handling.
+3. Pure-WAL durability: atomicity, fsync, hash-chain integrity, recovery, corruption resistance, path confinement, and concurrent writers.
+4. Worker leases, retries, fencing, shutdown, and idempotent external side effects.
+5. Real cross-app handoffs and authenticated peer acknowledgements.
+6. iPhone controls, accessibility, and accurate network status.
+7. Search provenance, deduplication, access controls, and partial-result honesty.
+8. CI/CD reliability, performance, and resource leaks.
 
-1. Correctness and runtime failures.
-2. Security and secret handling.
-3. Durable worker correctness: leases, heartbeats, fencing, retries, recovery, and concurrency races.
-4. PostgreSQL correctness and transaction safety.
-5. External side-effect idempotency and duplicate execution risks.
-6. CI/CD and Railway deployment reliability.
-7. Performance and resource leaks.
-8. Maintainability only when it has concrete engineering impact.
-
-## Apex architecture
-
-- Node.js 22+ ES modules.
-- Express API in `server.mjs`.
-- `index.mjs` runs the production daemon or, with `APEX_WORKER_ONLY=true`, the durable worker executor.
-- PostgreSQL is the durable queue when `DATABASE_URL` is configured.
-- API processes enqueue durable work; `apex-workers` claims and executes it.
-- Queue claiming uses PostgreSQL row locking with `FOR UPDATE SKIP LOCKED`.
-- Worker leases are heartbeated and expired leases are reclaimed.
-- Worker execution must be retry-safe and idempotent.
-- Keep process-local worker state separate from durable production state.
-
-## Review rules
-
-- Report only verifiable issues or concrete improvements.
-- Prioritize bugs that can actually break production.
-- Pay special attention to race conditions, stale lease handling, duplicate side effects, schema initialization, startup/shutdown behavior, and missing regression tests.
-- Never recommend weakening tests, security checks, or CI merely to make a build pass.
-- Do not treat documentation/style-only differences as defects unless they create operational risk.
+## Evidence rules
+- Distinguish local runtime health from end-to-end product behavior.
+- A configured public peer address is not proof of a working mesh. A server-side path is not proof of phone multipath.
+- Do not claim provider-independent connectivity, global reach, unlimited access, or automatic failover without end-to-end evidence.
+- Never weaken tests, security, or gates to obtain a green build.
+- Preserve existing data and deployments; do not perform destructive changes as cleanup.
+- King Cob is the independent final inspector; the implementer does not self-certify.

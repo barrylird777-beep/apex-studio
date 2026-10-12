@@ -1,11 +1,12 @@
 /**
- * Apex master architecture contracts.
+ * Legacy capability-ownership contracts retained for compatibility.
  *
- * GardenOfApex = knowledge/research brain.
- * Apex Studio = production/network/distribution system.
- * KORN-KNOB = AI model and media capability layer.
+ * The canonical product registry is src/apps/apex-six-apps.mjs:
+ * PlanetApeX, KoBlocks, KernelVision, KoinKob, KashKorner, Kernelodies.
+ * GardenOfApex is embedded in PlanetApeX; old subsystem identifiers below
+ * are not additional canonical apps.
  *
- * Durable state belongs in PostgreSQL; this module defines boundaries/contracts.
+ * Durable runtime state uses Pure-WAL / Ring-WAL. PostgreSQL-era code is legacy.
  */
 export const ARCHITECTURE_VERSION = "apex-master-architecture.v1";
 
