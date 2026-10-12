@@ -82,8 +82,8 @@ test("record writes avoid a full store refresh on every opportunity insert", asy
 });
 
 
-test("concurrent store instances perform legacy migration only once", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-single-migration-"));
+test("active storage never replays legacy WAL during startup", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-no-wal-replay-"));
   try {
     const walFile = path.join(root, "wal", "legacy.jsonl");
     const seed = new ApexRingWAL({ file: walFile });
@@ -93,47 +93,30 @@ test("concurrent store instances perform legacy migration only once", async () =
       record: { value: 7 }
     });
     let replayCalls = 0;
-    const makeWal = () => {
-      const wal = new ApexRingWAL({ file: walFile });
-      const replay = wal.replay.bind(wal);
-      wal.replay = async options => {
-        replayCalls += 1;
-        await new Promise(resolve => setTimeout(resolve, 25));
-        return replay(options);
-      };
-      return wal;
-    };
-    const first = new ApexPureStore({ root, wal: makeWal() });
-    const second = new ApexPureStore({ root, wal: makeWal() });
+    const wal = new ApexRingWAL({ file: walFile });
+    wal.replay = async () => { replayCalls += 1; throw new Error("legacy WAL replay must never run"); };
+    const first = new ApexPureStore({ root, wal });
+    const second = new ApexPureStore({ root, wal });
     await Promise.all([first.init(), second.init(), first.init()]);
-    assert.equal(replayCalls, 1, "shared volume migration must run once across store instances");
-    assert.equal((await first.get("kash-korner", "legacy-opportunity")).value, 7);
-    assert.equal((await second.get("kash-korner", "legacy-opportunity")).value, 7);
+    assert.equal(replayCalls, 0, "active startup must not read or replay legacy WAL");
+    assert.equal(await first.get("kash-korner", "legacy-opportunity"), null);
+    assert.equal(await second.get("kash-korner", "legacy-opportunity"), null);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-
-test("legacy migration streams batches and preserves final state and job transitions", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-stream-migration-"));
+test("active storage ignores legacy WAL job transitions and state records", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-no-wal-migration-"));
   try {
     const walFile = path.join(root, "wal", "legacy.jsonl");
     const wal = new ApexRingWAL({ file: walFile });
     await wal.append("job.enqueue", { id: "job-stream-1", job: { id: "job-stream-1", status: "queued", attempts: 0 } });
     await wal.append("job.transition", { id: "job-stream-1", patch: { status: "done", attempts: 1 } });
-    await wal.append("state.put", { collection: "kash-korner", id: "deleted-row", record: { value: "old" } });
-    await wal.append("state.delete", { collection: "kash-korner", id: "deleted-row" });
-    for (let i = 0; i < 260; i += 1) {
-      await wal.append("state.put", { collection: "kash-korner", id: "row-" + i, record: { value: i } });
-    }
-
+    await wal.append("state.put", { collection: "kash-korner", id: "legacy-row", record: { value: 259 } });
     const store = new ApexPureStore({ root: path.join(root, "projects"), wal });
     await store.init();
-    assert.equal((await store.get("kash-korner", "row-259")).value, 259);
-    assert.equal(await store.get("kash-korner", "deleted-row"), null);
+    assert.equal(await store.get("kash-korner", "legacy-row"), null);
     await store.refreshJobs();
-    const job = store.jobs().find(item => item.id === "job-stream-1");
-    assert.equal(job.status, "done");
-    assert.equal(job.attempts, 1);
+    assert.equal(store.jobs().some(item => item.id === "job-stream-1"), false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
