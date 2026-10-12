@@ -673,6 +673,8 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
     const { normalizeContentDomain } = await import('./src/core/content/content-domains.mjs');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const contentDomain = normalizeContentDomain(body.contentDomain || 'bible');
+    const creativeBrief = String(body.prompt || '').trim().slice(0, 2000);
+    if (contentDomain === 'korn' && /\\b440\\s*hz\\b/i.test(creativeBrief)) throw new Error('Jesus Freaks music must use 432 Hz only; remove the 440 Hz instruction');
     let gardenPackage;
     if (contentDomain === 'korn') {
       const { gardenSnapshot, verifiedGardenIds } = await import('./src/garden/lore-graph.mjs');
@@ -703,7 +705,7 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
       fusion: Array.isArray(body.fusion) ? body.fusion : [],
       purpose: String(body.purpose || 'film-score'), contentDomain,
       tuningHz: track.tuningHz, gardenPackage
-    });
+    }) + (creativeBrief ? ' Creative brief: ' + creativeBrief : '');
     const record = { ...track, prompt, kind: 'music-track', status: 'concept', createdAt: new Date().toISOString() };
     await saveKernelodiesRecord(track.trackId, record);
     return res.status(201).json({ success: true, track: record, nextStep: 'Production plan saved; audio rendering is a separate step.' });
