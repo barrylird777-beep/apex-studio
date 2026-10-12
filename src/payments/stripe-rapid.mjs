@@ -30,8 +30,8 @@ export async function createRapidCheckout({orderId,name,type,brief,platform,emai
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
   if(String(email||'').trim()) add('customer_email',String(email).trim());
   add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
-  add('line_items[0][price_data][product_data][name]','KornKash Video');
-  add('line_items[0][price_data][product_data][description]','One finished short-form video production.'); add('line_items[0][quantity]','1');
+  add('line_items[0][price_data][product_data][name]','KernelVision Short-Form Video');
+  add('line_items[0][price_data][product_data][description]','One original 30-second motion-graphics short with hook-first animated typography and a 432 Hz reference bed.'); add('line_items[0][quantity]','1');
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
   const body=await new Promise((resolve,reject)=>{
     const request=https.request(STRIPE_API+'/checkout/sessions',{method:'POST',family:4,lookup:(hostname,options,callback)=>dns.lookup(hostname,{family:4,all:false},callback),headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(params.toString())},timeout:15000},response=>{

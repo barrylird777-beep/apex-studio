@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
@@ -34,7 +34,7 @@ function wrapText(value, max = 42, lines = 2) {
     }
   }
   if (out.length < lines && current) out.push(current);
-  return out.length ? out : ["Apex Rapid Video"];
+  return out.length ? out : ["KernelVision"];
 }
 
 function fontPath() {
@@ -54,7 +54,7 @@ function paletteFor(seed) {
   return palettes[hash % palettes.length];
 }
 
-function buildSceneFilters(scenes, duration, palette, brand = "APEX RAPID VIDEO") {
+function buildSceneFilters(scenes, duration, palette, brand = "KERNELVISION SHORT-FORM") {
   const [bg, accent, warm] = palette;
   return scenes.map((scene, i) => {
     const start = i * (duration / scenes.length);
@@ -97,9 +97,9 @@ function commonVideoArgs(output, duration, vf) {
     "-f", "lavfi",
     "-i", `color=c=0x080809:s=1080x1920:r=30:d=${duration}`,
     "-f", "lavfi",
-    "-i", `sine=frequency=110:sample_rate=48000:duration=${duration}`,
+    "-i", `sine=frequency=432:sample_rate=48000:duration=${duration}`,
     "-vf", vf,
-    "-af", `volume=0.04,afade=t=in:st=0:d=0.5,afade=t=out:st=${Math.max(0, duration - 1.5)}:d=1.5`,
+    "-af", `volume=0.02,afade=t=in:st=0:d=0.5,afade=t=out:st=${Math.max(0, duration - 1.5)}:d=1.5`,
     "-c:v", "libx264",
     "-preset", process.env.APEX_VIDEO_PRESET || "veryfast",
     "-crf", process.env.APEX_VIDEO_CRF || "17",
@@ -119,7 +119,8 @@ export async function executeRapidVideoPreview(payload = {}) {
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
   const outputDir = path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "previews");
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
-  const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
+  const suffix = cleanText(payload.attemptSuffix, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + (suffix ? "_" + suffix : "") + ".mp4";
   const output = path.join(outputDir, filename);
   const [bg, accent, warm] = paletteFor(brief + platform);
   const hook = await generateHook(brief, platform, payload.provider, payload.model);
@@ -133,6 +134,7 @@ export async function executeRapidVideoPreview(payload = {}) {
   const progress = `drawbox=x=70:y=120:w='940*t/10':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 10, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
   await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf), { maxBuffer: 1024 * 1024 * 4 });
+  const outputInfo = await stat(output);
   return {
     ok: true,
     type: "rapid-video-preview",
@@ -144,6 +146,8 @@ export async function executeRapidVideoPreview(payload = {}) {
     stage: "rendered",
     durationSeconds: 10,
     format: "mp4",
+    bytes: outputInfo.size,
+    artifactName: filename,
     url: "/files/previews/" + encodeURIComponent(filename),
     generatedAt: new Date().toISOString()
   };
@@ -160,7 +164,8 @@ export async function executeRapidVideoOrder(payload = {}) {
   const outputDir = process.env.STORAGE_DIR || "/srv/apex/se-x/projects";
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
 
-  const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
+  const suffix = cleanText(payload.attemptSuffix, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + (suffix ? "_" + suffix : "") + ".mp4";
   const output = path.join(outputDir, filename);
   const hook = await generateHook(brief, platform, payload.provider, payload.model);
   const scenes = [
@@ -168,13 +173,14 @@ export async function executeRapidVideoOrder(payload = {}) {
     ["BUILD THE HOOK.", "Open hard. Give the viewer a reason to stay."],
     ["BUILD THE STORY.", "Turn the core idea into a fast, clear visual sequence."],
     ["MAKE IT FEEL BIG.", "Cinematic motion, strong typography, music and pacing."],
-    ["READY TO POST.", platform + " — Apex Rapid Video"]
+    ["READY TO POST.", platform + " — KernelVision"]
   ];
   const [bg, accent, warm] = paletteFor(brief + name);
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/30':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 30, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
   await execFileAsync("ffmpeg", commonVideoArgs(output, 30, vf), { maxBuffer: 1024 * 1024 * 4 });
+  const outputInfo = await stat(output);
 
   return {
     ok: true,
@@ -188,6 +194,8 @@ export async function executeRapidVideoOrder(payload = {}) {
     stage: "rendered",
     durationSeconds: 30,
     format: "mp4",
+    bytes: outputInfo.size,
+    artifactName: filename,
     url: "/files/" + encodeURIComponent(filename),
     generatedAt: new Date().toISOString()
   };

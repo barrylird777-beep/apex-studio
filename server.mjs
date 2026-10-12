@@ -46,6 +46,7 @@ import { createResearchRouter } from './src/api/research-routes.mjs';
 import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
+import { rapidVideoPureWalQueue } from './src/workers/rapid-video-pure-wal.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
@@ -496,6 +497,13 @@ app.get('/api/kernelodies/status', async (_req, res) => {
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
 });
+const enableRapidPureWalWorker = String(process.env.APEX_RAPID_PURE_WAL_WORKER ?? (process.env.RAILWAY_ENVIRONMENT ? 'true' : 'false')).toLowerCase() === 'true';
+if (enableRapidPureWalWorker) {
+  void rapidVideoPureWalQueue.runForever().catch(error => console.error('[rapid-video-pure-wal] worker stopped:', error));
+  process.once('SIGTERM', () => rapidVideoPureWalQueue.stop());
+  process.once('SIGINT', () => rapidVideoPureWalQueue.stop());
+}
+
 server.on('error', (error) => {
   runtimeFault = {
     type: 'listenError',
@@ -519,36 +527,33 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
-    if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
-
-    const existing = await getWorkerTask(metadata.orderId);
-    if (existing) return res.json({ received: true, duplicate: true, orderId: metadata.orderId });
-
-    await enqueueWorkerTask({
-      id: metadata.orderId,
-      workerId: 'rapid-video-intake',
-      role: 'rapid-video',
-      task: 'rapid-video-order',
-      payload: {
-        orderId: metadata.orderId,
-        name: metadata.name,
-        type: metadata.type,
-        brief: metadata.brief,
-        platform: metadata.platform,
-        email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
-        price: 25,
-        paid: true,
-        stripeSessionId: String(session.id || ''),
-        paidAt: new Date().toISOString()
-      },
-      maxAttempts: 3,
-      dedupeKey: 'rapid-paid:' + metadata.orderId,
-      traceId: metadata.orderId
-    });
-    return res.json({ received: true, queued: true, orderId: metadata.orderId });
+    const payment = {
+      orderId: metadata.orderId,
+      name: metadata.name,
+      type: metadata.type,
+      brief: metadata.brief,
+      platform: metadata.platform,
+      email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
+      price: 25,
+      paid: true,
+      amount,
+      currency: String(session.currency || '').toUpperCase(),
+      stripeSessionId: String(session.id || ''),
+      stripeEventId: String(event.id || ''),
+      paidAt: new Date().toISOString()
+    };
+    const queued = await rapidVideoPureWalQueue.enqueuePaidOrder(payment);
+    if (queued.needsReconciliation) {
+      console.warn('[rapid-stripe-webhook] legacy paid order needs manual reconciliation', metadata.orderId);
+      return res.json({ received: true, queued: false, needsReconciliation: true, orderId: metadata.orderId });
+    }
+    return res.json({ received: true, queued: Boolean(queued.queued), duplicate: Boolean(queued.duplicate), orderId: metadata.orderId });
   } catch (error) {
     console.error('[rapid-stripe-webhook]', error);
-    return res.status(400).json({ received: false, error: error.message || 'Webhook verification failed' });
+    const message = String(error?.message || error || '');
+    const isSignatureError = /Stripe-Signature|Stripe signature|Invalid Stripe|Expired Stripe|webhook JSON/i.test(message);
+    if (isSignatureError) return res.status(400).json({ received: false, error: message || 'Webhook verification failed' });
+    return res.status(503).json({ received: false, error: 'Payment event could not be queued; retry is safe' });
   }
 });
 
@@ -1084,17 +1089,9 @@ app.post('/api/rapid/preview', async (req, res) => {
     const brief = String(req.body?.brief || '').trim().slice(0, 4000);
     const platform = String(req.body?.platform || 'Short-form social').trim().slice(0, 80);
     if (!brief) return res.status(400).json({ success: false, error: 'brief is required' });
-    if (!durableWorkerEnabled()) return res.status(503).json({ success: false, error: 'Preview queue is temporarily unavailable' });
-    const orderId = crypto.randomUUID();
-    const result = await enqueueWorkerTask({
-      id: orderId, workerId: 'rapid-preview-intake', role: 'rapid-preview',
-      task: 'rapid-video-preview',
-      payload: { orderId, name, type, brief, platform, submittedAt: new Date().toISOString() },
-      maxAttempts: 1,
-      dedupeKey: `rapid-preview:${crypto.createHash('sha256').update(JSON.stringify({ name, type, brief, platform })).digest('hex')}`,
-      traceId: orderId
-    });
-    return res.status(202).json({ success: true, orderId: result.id, status: 'queued', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}` });
+    await rapidVideoPureWalQueue.init();
+    const result = await rapidVideoPureWalQueue.enqueuePreview({ name, type, brief, platform });
+    return res.status(202).json({ success: true, orderId: result.orderId, status: result.status, durable: true, storage: 'local-pure-wal', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.orderId)}` });
   } catch (error) {
     console.error('[rapid-preview]', error);
     return res.status(500).json({ success: false, error: 'Unable to queue preview' });
@@ -1103,16 +1100,12 @@ app.post('/api/rapid/preview', async (req, res) => {
 
 app.post('/api/rapid/orders', async (req, res) => {
   try {
-    // Never take payment while durable fulfillment is unavailable.
-    const dbHealth = await durableWorkerHealth({ force: true });
-    if (!dbHealth.available) {
-      return res.status(503).json({ success: false, error: 'Checkout is temporarily paused while order fulfillment is recovering' });
-    }
+    // Checkout and fulfillment use the durable local Pure-WAL queue; PostgreSQL
+    // availability is not a prerequisite for safely accepting new orders.
     try {
-      const { ensureWorkerTaskSchema } = await import('./src/core/mesh/durable-worker-store.mjs');
-      await ensureWorkerTaskSchema();
+      await rapidVideoPureWalQueue.init();
     } catch {
-      return res.status(503).json({ success: false, error: 'Checkout is temporarily paused while order fulfillment is recovering' });
+      return res.status(503).json({ success: false, error: 'Checkout is paused because durable local order storage is unavailable' });
     }
     const name = String(req.body?.name || '').trim().slice(0, 120);
     const type = String(req.body?.type || '').trim().slice(0, 160);
@@ -1130,19 +1123,29 @@ app.post('/api/rapid/orders', async (req, res) => {
     }
     const orderId = crypto.randomUUID();
     const origin = `${req.headers['x-forwarded-proto'] || req.protocol || 'https'}://${req.get('host')}`;
-    const checkout = await createRapidCheckout({
-      orderId, name, type, brief, platform, email,
-      successUrl: origin + '/rapid-video.html?paid=1&orderId=' + encodeURIComponent(orderId),
-      cancelUrl: origin + '/rapid-video.html?canceled=1#order'
-    });
-    return res.status(201).json({
-      success: true,
-      orderId,
-      status: 'payment_required',
-      price: 25,
-      checkoutUrl: checkout.url,
-      statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
-    });
+    await rapidVideoPureWalQueue.createCheckoutRecord({ orderId, name, type, brief, platform, email });
+    try {
+      const checkout = await createRapidCheckout({
+        orderId, name, type, brief, platform, email,
+        successUrl: origin + '/rapid-video.html?paid=1&orderId=' + encodeURIComponent(orderId),
+        cancelUrl: origin + '/rapid-video.html?canceled=1#order'
+      });
+      await rapidVideoPureWalQueue.updateCheckoutRecord(orderId, {
+        status: 'payment_required', stripeSessionId: checkout.id, checkoutUrl: checkout.url
+      });
+      return res.status(201).json({
+        success: true,
+        orderId,
+        status: 'payment_required',
+        price: 25,
+        checkoutUrl: checkout.url,
+        statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`,
+        fulfillmentStorage: 'local-pure-wal'
+      });
+    } catch (error) {
+      await rapidVideoPureWalQueue.updateCheckoutRecord(orderId, { status: 'checkout_failed', error: String(error?.message || error).slice(0, 1000) }).catch(() => {});
+      throw error;
+    }
   } catch (error) {
     console.error('[rapid-order]', error);
     return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
@@ -1151,6 +1154,26 @@ app.post('/api/rapid/orders', async (req, res) => {
 
 app.get('/api/rapid/orders/:id', async (req, res) => {
   try {
+    const pureWalOrder = await rapidVideoPureWalQueue.getOrder(req.params.id);
+    if (pureWalOrder && pureWalOrder.status !== 'manual-reconciliation-required') return res.json(pureWalOrder);
+
+    // If a legacy order had already completed before the Pure-WAL cutover, retain
+    // its verified delivery status rather than showing a false manual-review state.
+    const dbHealth = await durableWorkerHealth();
+    if (pureWalOrder?.status === 'manual-reconciliation-required' && dbHealth.available) {
+      const legacyCompleted = await getWorkerTask(req.params.id);
+      if (legacyCompleted?.status === 'completed' && ['rapid-video-order','rapid-video-preview'].includes(legacyCompleted.task)) {
+        return res.json({
+          success: true, orderId: legacyCompleted.id, status: 'completed', legacy: true,
+          result: legacyCompleted.result ? { url: legacyCompleted.result.url || null, format: legacyCompleted.result.format || null, durationSeconds: legacyCompleted.result.durationSeconds || null, generatedAt: legacyCompleted.result.generatedAt || null } : null,
+          createdAt: legacyCompleted.created_at, updatedAt: legacyCompleted.updated_at
+        });
+      }
+    }
+    if (pureWalOrder) return res.json(pureWalOrder);
+    // Read-only compatibility for historical orders that were queued before the
+    // Pure-WAL cutover. Never enqueue or re-run a legacy order from this branch.
+    if (!dbHealth.available) return res.status(404).json({ success: false, error: 'Order not found in the active durable queue' });
     const task = await getWorkerTask(req.params.id);
     if (!task || !['rapid-video-order','rapid-video-preview'].includes(task.task)) {
       return res.status(404).json({ success: false, error: 'Order not found' });
@@ -1161,14 +1184,14 @@ app.get('/api/rapid/orders/:id', async (req, res) => {
       status: task.status,
       attempts: task.attempts,
       maxAttempts: task.max_attempts,
-      result: task.result || null,
+      result: task.result ? { url: task.result.url || null, format: task.result.format || null, durationSeconds: task.result.durationSeconds || null, generatedAt: task.result.generatedAt || null } : null,
       error: task.last_error || null,
       createdAt: task.created_at,
       updatedAt: task.updated_at
     });
   } catch (error) {
     console.error('[rapid-order-status]', error);
-    return res.status(500).json({ success: false, error: 'Order status unavailable' });
+    return res.status(Number(error?.status)===400?400:503).json({ success: false, error: 'Order status unavailable' });
   }
 });
 
@@ -2669,6 +2692,18 @@ async function runInlineRapidTask(task) {
   }, Math.max(5000, Math.floor(leaseMs / 3)));
   heartbeat.unref?.();
   try {
+    // The Pure-WAL queue is authoritative for new orders. If a matching record
+    // exists, never run a duplicate legacy PostgreSQL task for the same order.
+    // If Pure-WAL cannot be checked, fail/defer rather than risk duplicate fulfilment.
+    const pureWalOrder = await rapidVideoPureWalQueue.getOrder(task.id);
+    if (pureWalOrder) {
+      const completed = await completeWorkerTask(task.id, {
+        status: 'superseded-by-pure-wal',
+        pureWalStatus: pureWalOrder.status
+      }, task.lease_token);
+      if (!completed) console.warn('[rapid-inline-worker] legacy duplicate completion fenced out', task.id);
+      return;
+    }
     const result = task.task === 'rapid-video-preview'
       ? await executeRapidVideoPreview(task.payload || {})
       : await executeRapidVideoOrder(task.payload || {});
