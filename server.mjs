@@ -598,7 +598,7 @@ app.get('/api/kernelodies/status', async (_req, res) => {
 app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listKashKornerRecords, cashFlowSummary } = await import('./src/apps/kash-korner.mjs');
-    const entries = await listKashKornerRecords();
+    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
     const currencies = [...new Set(entries.map(entry => String(entry.currency || 'USD').toUpperCase()))];
     const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
     return res.json({ success: true, entries, summaries });
@@ -612,7 +612,7 @@ app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) =
     const { recordCashEntry, saveKashKornerRecord, listKashKornerRecords } = await import('./src/apps/kash-korner.mjs');
     const entry = recordCashEntry(req.body || {});
     await saveKashKornerRecord(entry.id, entry);
-    const entries = await listKashKornerRecords();
+    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
     return res.status(201).json({ success: true, entry, entries });
   } catch (error) {
     return res.status(400).json({ success: false, error: String(error?.message || error) });
@@ -622,7 +622,7 @@ app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) =
 app.get('/api/kernel-vision/items', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
-    const records = await listKernelVisionRecords();
+    const records = (await listKernelVisionRecords()).map(row => row?.record || row);
     return res.json({ success: true, items: records.filter(record => record.recordType === 'theatre-item') });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error) });
@@ -650,7 +650,7 @@ app.post('/api/kernel-vision/sessions', requireControlPlaneAuth, async (req, res
 app.get('/api/kernel-vision/sessions', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
-    const records = await listKernelVisionRecords();
+    const records = (await listKernelVisionRecords()).map(row => row?.record || row);
     return res.json({ success: true, sessions: records.filter(record => record.recordType === 'viewing-session') });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error) });
@@ -660,7 +660,7 @@ app.get('/api/kernel-vision/sessions', requireControlPlaneAuth, async (_req, res
 app.get('/api/kernelodies/tracks', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listKernelodiesRecords } = await import('./src/apps/kernelodies.mjs');
-    const records = await listKernelodiesRecords();
+    const records = (await listKernelodiesRecords()).map(row => row?.record || row);
     return res.json({ success: true, tracks: records.filter(record => record.kind === 'music-track') });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error) });
