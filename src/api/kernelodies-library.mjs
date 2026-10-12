@@ -92,6 +92,7 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
   }
   function updateManifest(fn) {
     const run = writes.then(async () => {
+      await init();
       const release = await acquireManifestLock();
       let temp;
       try {
