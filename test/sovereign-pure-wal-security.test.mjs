@@ -83,3 +83,19 @@ test('WAL refuses a symlinked log file instead of following it', async () => {
     await assert.rejects(wal.init(),/SECURITY_VIOLATION/);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
+
+test('independent Pure-WAL store instances observe each other’s durable records', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-pure-shared-state-'));
+  try {
+    const root=path.join(dir,'projects'),file=path.join(dir,'wal','ring.wal.jsonl');
+    const a=new ApexPureStore({root,wal:new ApexRingWAL({file})});
+    const b=new ApexPureStore({root,wal:new ApexRingWAL({file})});
+    await Promise.all([
+      a.put('shared','record-a',{writer:'a'}),
+      b.put('shared','record-b',{writer:'b'})
+    ]);
+    assert.equal((await a.get('shared','record-b')).writer,'b');
+    assert.equal((await b.get('shared','record-a')).writer,'a');
+    assert.equal((await a.list('shared')).length,2);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
