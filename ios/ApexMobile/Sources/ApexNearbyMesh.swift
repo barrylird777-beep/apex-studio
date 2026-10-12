@@ -20,6 +20,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     private var peerIndex: [String: MCPeerID] = [:]
     private var signingKey: SymmetricKey?
     private var seenNonces: [String: TimeInterval] = [:]
+    private var seenMessageIDs: [String: TimeInterval] = [:]
 
     @Published public private(set) var status = "Stopped"
     @Published public private(set) var nearbyPeers: [String] = []
@@ -49,6 +50,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         stateLock.lock()
         signingKey = SymmetricKey(data: Data(pairingSecret.utf8))
         seenNonces.removeAll()
+        seenMessageIDs.removeAll()
         stateLock.unlock()
         advertiser?.stopAdvertisingPeer()
         browser?.stopBrowsingForPeers()
@@ -72,6 +74,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         signingKey = nil
         peerIndex.removeAll()
         seenNonces.removeAll()
+        seenMessageIDs.removeAll()
         stateLock.unlock()
         DispatchQueue.main.async {
             self.nearbyPeers = []
@@ -129,7 +132,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     }
 
     public func send(_ message: String) throws {
-        guard let key = keySnapshot() else {
+        guard keySnapshot() != nil else {
             throw NSError(domain: "ApexNearbyMesh", code: 2, userInfo: [NSLocalizedDescriptionKey: "Start nearby mesh with a shared pairing secret first."])
         }
         guard !session.connectedPeers.isEmpty else {
@@ -139,21 +142,39 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         guard body.count <= 16_384 else {
             throw NSError(domain: "ApexNearbyMesh", code: 4, userInfo: [NSLocalizedDescriptionKey: "Nearby message exceeds the 16 KiB safety limit."])
         }
+        let messageID = UUID().uuidString
         let timestamp = String(Int(Date().timeIntervalSince1970))
-        let nonce = UUID().uuidString
-        let payload = body.base64EncodedString()
-        let signedBytes = Data("1\n\(timestamp)\n\(nonce)\n\(payload)".utf8)
-        let signature = HMAC<SHA256>.authenticationCode(for: signedBytes, using: key)
-        let packet: [String: String] = [
+        stateLock.lock()
+        seenMessageIDs[messageID] = Date().timeIntervalSince1970
+        stateLock.unlock()
+        let packet = try makePacket(messageID: messageID, origin: localPeer.displayName, timestamp: timestamp, nonce: UUID().uuidString, ttl: 8, hop: 0, payload: body.base64EncodedString())
+        try transmit(packet, to: session.connectedPeers)
+        DispatchQueue.main.async { self.lastMessage = "Sent authenticated mesh message; waiting for a peer relay." }
+    }
+
+    private func makePacket(messageID: String, origin: String, timestamp: String, nonce: String, ttl: Int, hop: Int, payload: String) throws -> [String: String] {
+        guard let key = keySnapshot() else {
+            throw NSError(domain: "ApexNearbyMesh", code: 5, userInfo: [NSLocalizedDescriptionKey: "Nearby mesh is stopped."])
+        }
+        let signed = Data("1\n\(messageID)\n\(origin)\n\(timestamp)\n\(nonce)\n\(ttl)\n\(hop)\n\(payload)".utf8)
+        let signature = HMAC<SHA256>.authenticationCode(for: signed, using: key)
+        return [
             "version": "1",
+            "id": messageID,
+            "origin": origin,
             "timestamp": timestamp,
             "nonce": nonce,
+            "ttl": String(ttl),
+            "hop": String(hop),
             "payload": payload,
             "signature": Data(signature).base64EncodedString()
         ]
+    }
+
+    private func transmit(_ packet: [String: String], to peers: [MCPeerID]) throws {
+        guard !peers.isEmpty else { return }
         let encoded = try JSONSerialization.data(withJSONObject: packet, options: [.sortedKeys])
-        try session.send(encoded, toPeers: session.connectedPeers, with: .reliable)
-        DispatchQueue.main.async { self.lastMessage = "Sent authenticated message to \(self.session.connectedPeers.count) peer(s)." }
+        try session.send(encoded, toPeers: peers, with: .reliable)
     }
 
     private func keySnapshot() -> SymmetricKey? {
@@ -178,28 +199,32 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         }
     }
 
-    private func verify(_ data: Data) -> String? {
+    private func verify(_ data: Data) -> [String: String]? {
         guard let key = keySnapshot(),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
               object["version"] == "1",
+              let messageID = object["id"], UUID(uuidString: messageID) != nil,
+              let origin = object["origin"], !origin.isEmpty, origin.utf8.count <= 48,
               let timestampText = object["timestamp"],
               let timestamp = TimeInterval(timestampText),
               abs(Date().timeIntervalSince1970 - timestamp) <= 300,
               let nonce = object["nonce"], UUID(uuidString: nonce) != nil,
+              let ttlText = object["ttl"], let ttl = Int(ttlText), (0...8).contains(ttl),
+              let hopText = object["hop"], let hop = Int(hopText), (0...8).contains(hop),
               let payloadText = object["payload"],
+              let payload = Data(base64Encoded: payloadText), payload.count <= 16_384,
               let signatureText = object["signature"],
-              let payload = Data(base64Encoded: payloadText),
               let signature = Data(base64Encoded: signatureText) else { return nil }
-        let signedBytes = Data("1\n\(timestampText)\n\(nonce)\n\(payloadText)".utf8)
-        guard HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: signedBytes, using: key) else { return nil }
+        let signed = Data("1\n\(messageID)\n\(origin)\n\(timestampText)\n\(nonce)\n\(ttlText)\n\(hopText)\n\(payloadText)".utf8)
+        guard HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: signed, using: key) else { return nil }
         stateLock.lock()
         seenNonces = seenNonces.filter { Date().timeIntervalSince1970 - $0.value <= 300 }
-        let isReplay = seenNonces[nonce] != nil
-        if !isReplay { seenNonces[nonce] = timestamp }
+        let replay = seenNonces[nonce] != nil
+        if !replay { seenNonces[nonce] = timestamp }
         stateLock.unlock()
-        guard !isReplay, let message = String(data: payload, encoding: .utf8) else { return nil }
-        return message
+        return replay ? nil : object
     }
+
 }
 
 extension ApexNearbyMesh: MCNearbyServiceAdvertiserDelegate {
@@ -239,11 +264,34 @@ extension ApexNearbyMesh: MCSessionDelegate {
     }
 
     public func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
-        guard let message = verify(data) else {
-            setStatus("Rejected an unauthenticated or malformed peer message.")
+        guard let packet = verify(data),
+              let messageID = packet["id"],
+              let origin = packet["origin"],
+              let timestamp = packet["timestamp"],
+              let payloadText = packet["payload"],
+              let payload = Data(base64Encoded: payloadText),
+              let message = String(data: payload, encoding: .utf8),
+              let ttl = Int(packet["ttl"] ?? ""),
+              let hop = Int(packet["hop"] ?? "") else {
+            setStatus("Rejected an unauthenticated, replayed, or malformed peer message.")
             return
         }
-        DispatchQueue.main.async { self.lastMessage = "From \(peerID.displayName): \(message)" }
+        stateLock.lock()
+        seenMessageIDs = seenMessageIDs.filter { Date().timeIntervalSince1970 - $0.value <= 300 }
+        let duplicate = seenMessageIDs[messageID] != nil
+        if !duplicate { seenMessageIDs[messageID] = Date().timeIntervalSince1970 }
+        stateLock.unlock()
+        guard !duplicate else { return }
+        DispatchQueue.main.async { self.lastMessage = "Mesh message from claimed origin \(origin), \(hop) hop(s): \(message)" }
+        let targets = session.connectedPeers.filter { $0 != peerID }
+        guard ttl > 0, !targets.isEmpty else { return }
+        do {
+            let forwarded = try makePacket(messageID: messageID, origin: origin, timestamp: timestamp, nonce: UUID().uuidString, ttl: ttl - 1, hop: hop + 1, payload: payloadText)
+            try transmit(forwarded, to: targets)
+            setStatus("Relayed an authenticated mesh message across \(targets.count) peer link(s).")
+        } catch {
+            setStatus("Message received; relay attempt failed: \(error.localizedDescription)")
+        }
     }
 
     public func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
