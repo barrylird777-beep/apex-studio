@@ -211,7 +211,7 @@ if (!workerOnly) {
 
   const executeTask = async (task) => {
     const heartbeat = setInterval(() => {
-      void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
+      void heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence).catch(error => {
         console.error("[apex-worker] heartbeat failed:", error?.message || error);
       });
     }, Math.max(5000, Math.floor(leaseMs / 3)));
@@ -229,14 +229,14 @@ if (!workerOnly) {
           : taskType === "ai-inference"
           ? await executeAiInferenceTask(task.payload || {})
           : await executePermanentHealthTask(task.payload || {});
-      const completed = await completeWorkerTask(task.id, result, task.lease_token);
+      const completed = await completeWorkerTask(task.id, result, task.lease_token, task.lease_fence);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
         return;
       }
       console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
-      await failWorkerTask(task.id, error, task.lease_token).then(ok => {
+      await failWorkerTask(task.id, error, task.lease_token, task.lease_fence).then(ok => {
         if (!ok) console.warn("[apex-worker] failure update fenced out", task.id);
       }).catch(failure => {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
