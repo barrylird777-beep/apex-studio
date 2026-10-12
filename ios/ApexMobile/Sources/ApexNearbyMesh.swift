@@ -14,6 +14,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     private let stateLock = NSLock()
     private var peerIndex: [String: MCPeerID] = [:]
     private var signingKey: SymmetricKey?
+    private var seenNonces: [String: TimeInterval] = [:]
 
     @Published public private(set) var status = "Stopped"
     @Published public private(set) var nearbyPeers: [String] = []
@@ -36,10 +37,13 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     /// Use the same strong, privately exchanged pairing secret on both devices (16+ UTF-8 bytes).
     /// The secret stays in memory only and authenticates every application message with HMAC-SHA256.
     public func start(pairingSecret: String) throws {
-        guard pairingSecret.utf8.count >= 16 else {
-            throw NSError(domain: "ApexNearbyMesh", code: 1, userInfo: [NSLocalizedDescriptionKey: "Pairing secret must be at least 16 UTF-8 bytes."])
+        guard pairingSecret.utf8.count >= 32 else {
+            throw NSError(domain: "ApexNearbyMesh", code: 1, userInfo: [NSLocalizedDescriptionKey: "Use a randomly generated pairing secret of at least 32 UTF-8 bytes."])
         }
         signingKey = SymmetricKey(data: Data(pairingSecret.utf8))
+        stateLock.lock()
+        seenNonces.removeAll()
+        stateLock.unlock()
         advertiser?.stopAdvertisingPeer()
         browser?.stopBrowsingForPeers()
         let info = ["role": "apex-nearby-node", "protocol": "1"]
@@ -92,10 +96,16 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
             throw NSError(domain: "ApexNearbyMesh", code: 4, userInfo: [NSLocalizedDescriptionKey: "Nearby message exceeds the 16 KiB safety limit."])
         }
         let key = signingKey!
-        let signature = HMAC<SHA256>.authenticationCode(for: body, using: key)
+        let timestamp = String(Int(Date().timeIntervalSince1970))
+        let nonce = UUID().uuidString
+        let payload = body.base64EncodedString()
+        let signedBytes = Data("1\\n\\(timestamp)\\n\\(nonce)\\n\\(payload)".utf8)
+        let signature = HMAC<SHA256>.authenticationCode(for: signedBytes, using: key)
         let packet: [String: String] = [
             "version": "1",
-            "payload": body.base64EncodedString(),
+            "timestamp": timestamp,
+            "nonce": nonce,
+            "payload": payload,
             "signature": Data(signature).base64EncodedString()
         ]
         let encoded = try JSONSerialization.data(withJSONObject: packet, options: [.sortedKeys])
@@ -123,12 +133,22 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         guard let key = signingKey,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
               object["version"] == "1",
+              let timestampText = object["timestamp"],
+              let timestamp = TimeInterval(timestampText),
+              abs(Date().timeIntervalSince1970 - timestamp) <= 300,
+              let nonce = object["nonce"], UUID(uuidString: nonce) != nil,
               let payloadText = object["payload"],
               let signatureText = object["signature"],
               let payload = Data(base64Encoded: payloadText),
-              let signature = Data(base64Encoded: signatureText),
-              HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: payload, using: key),
-              let message = String(data: payload, encoding: .utf8) else { return nil }
+              let signature = Data(base64Encoded: signatureText) else { return nil }
+        let signedBytes = Data("1\\n\\(timestampText)\\n\\(nonce)\\n\\(payloadText)".utf8)
+        guard HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: signedBytes, using: key) else { return nil }
+        stateLock.lock()
+        seenNonces = seenNonces.filter { Date().timeIntervalSince1970 - $0.value <= 300 }
+        let isReplay = seenNonces[nonce] != nil
+        if !isReplay { seenNonces[nonce] = timestamp }
+        stateLock.unlock()
+        guard !isReplay, let message = String(data: payload, encoding: .utf8) else { return nil }
         return message
     }
 }
