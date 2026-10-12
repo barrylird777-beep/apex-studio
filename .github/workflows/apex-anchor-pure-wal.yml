@@ -39,11 +39,18 @@ jobs:
           node --check src/core/apex-pure-store.mjs
           node --check src/core/mesh/durable-worker-store.mjs
           node --check src/core/sovereign-app-fabric.mjs
+          node --check src/core/sovereign-mesh-engine.mjs
+          node --check src/core/sovereign-durable-bridge.mjs
+          node --check src/core/sovereign-runtime-daemon.mjs
+          node --check src/network/sovereign-peer.mjs
+          node --check src/core/autonomy/locked-continuous-loop.mjs
           node --check scripts/run-tests-with-diagnostics.mjs
       - name: Verify six-app identity and handoff contract
         run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs
       - name: Verify isolated Pure-WAL app namespaces and dispatch queue
         run: node --test test/sovereign-app-fabric.test.mjs
+      - name: Verify Pure-WAL security and peer acknowledgements
+        run: node --test test/sovereign-pure-wal-security.test.mjs test/sovereign-pure-wal-bridge.test.mjs
       - name: Verify Pure-WAL worker leases, retries and idempotency
         run: node --test test/durable-worker-race.test.mjs
       - name: Verify remote autonomous AI queue injection
