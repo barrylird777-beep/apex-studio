@@ -10,7 +10,7 @@ import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveSceneAsset } from './src/services/projectManager.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
