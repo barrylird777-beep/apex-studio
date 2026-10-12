@@ -8,6 +8,7 @@ import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
 import { retryWalStartup } from './wal-startup-retry.mjs';
+import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
@@ -128,11 +129,7 @@ async function publishRuntimeIdentity(status = 'online') {
   if (!peerNode) return;
   const now = Date.now();
   const peerId = peerNode.peerId.toString();
-  const publicHost = String(process.env.APEX_P2P_PUBLIC_HOST || process.env.RAILWAY_TCP_PROXY_DOMAIN || '').trim();
-  const publicPort = Number(process.env.APEX_P2P_PUBLIC_PORT || process.env.RAILWAY_TCP_PROXY_PORT || 0);
-  const publicPeerAddress = publicHost && /^[A-Za-z0-9.-]+$/.test(publicHost) && Number.isInteger(publicPort) && publicPort > 0 && publicPort <= 65535
-    ? `/dns4/${publicHost}/tcp/${publicPort}/p2p/${peerId}`
-    : null;
+  const publicPeerAddress = buildPublicPeerAddress(peerId);
   await apexPureStore.put('sovereign_runtime', 'identity', {
     status,
     peerId,
