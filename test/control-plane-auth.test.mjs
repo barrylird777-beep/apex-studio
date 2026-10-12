@@ -56,6 +56,7 @@ test("control-plane auth accepts a bearer token without exposing it in the URL",
 test("high-cost API routes require control-plane auth and public flows remain explicitly rate-limited", async () => {
   const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   const home = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const bridge = await readFile(new URL("../public/api-auth-bridge.js", import.meta.url), "utf8");
   const protectedRoutes = [
     ["post", "/api/oracle"],
     ["post", "/api/forge"],
@@ -88,8 +89,13 @@ test("high-cost API routes require control-plane auth and public flows remain ex
   assert.match(server, /app\.get\(['"]\/api\/health['"],/);
   assert.match(server, /app\.get\(['"]\/api\/canon\/apps['"],/);
   assert.match(server, /app\.get\(['"]\/api\/search['"],/);
-  assert.match(home, /apex\.phone\.sessionToken/);
-  assert.match(home, /x-apex-shortcut-token/);
+  assert.match(home, /api-auth-bridge\.js/);
+  assert.match(bridge, /apex\.phone\.sessionToken/);
+  assert.match(bridge, /x-apex-shortcut-token/);
+  for (const page of ["production.html", "shield-apex.html", "engine-apex.html", "korn-knob.html", "teevee.html"]) {
+    const html = await readFile(new URL("../public/" + page, import.meta.url), "utf8");
+    assert.match(html, /api-auth-bridge\.js/, page + " must use the shared auth bridge");
+  }
   assert.match(server, /app\.post\(['"]\/api\/paypex\/brief['"],\s*requirePublicRequestSlot,\s*express\.json/);
   assert.match(server, /app\.post\(['"]\/api\/rapid\/preview['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/rapid\/orders['"],\s*requirePublicRequestSlot,/);
