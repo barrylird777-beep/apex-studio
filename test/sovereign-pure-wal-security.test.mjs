@@ -99,3 +99,22 @@ test('independent Pure-WAL store instances observe each other’s durable record
     assert.equal((await a.list('shared')).length,2);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
+
+test('independent store instances cannot claim the same durable job twice', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-claim-lock-'));
+  try {
+    const root=path.join(dir,'projects'),file=path.join(dir,'wal','ring.wal.jsonl');
+    const a=new ApexPureStore({root,wal:new ApexRingWAL({file})});
+    const b=new ApexPureStore({root,wal:new ApexRingWAL({file})});
+    await a.enqueue({id:'claim-once',type:'test.work',payload:{}});
+    const [left,right]=await Promise.all([
+      a.claim({workerId:'worker-a',limit:1}),
+      b.claim({workerId:'worker-b',limit:1})
+    ]);
+    assert.equal(left.length+right.length,1);
+    const claimed=[...left,...right][0];
+    assert.equal(claimed.id,'claim-once');
+    assert.ok(claimed.leaseToken);
+    assert.equal((await a.get('unused','none')),null);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
