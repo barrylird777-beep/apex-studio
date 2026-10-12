@@ -75,3 +75,15 @@ test("mobile control plane accepts the documented control-token fallback", async
     else process.env.APEX_CONTROL_TOKEN = previousControl;
   }
 });
+
+test("Railway liveness endpoint never waits on database health", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const start = server.indexOf("app.get('/health'");
+  const end = server.indexOf("app.get('/api/health'", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const liveness = server.slice(start, end);
+  assert.match(liveness, /status: 'alive'/);
+  assert.doesNotMatch(liveness, /buildHealthSnapshot|durableWorkerHealth/);
+});
