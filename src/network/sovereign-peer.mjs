@@ -125,6 +125,10 @@ function readerFor(stream) {
   }
 
   streamReaders.set(stream, reader);
+  // The inbound handler pauses a new stream before attaching its reader.
+  // Resume only after the iterator/listeners are ready, or both sides can
+  // wait forever for a first envelope that the transport is holding back.
+  stream.resume?.();
   return reader;
 }
 
