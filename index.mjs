@@ -201,13 +201,13 @@ if (!workerOnly) {
     : requeueExpiredWorkerTasks();
   const queueHeartbeat = async (task, leaseMs) => remoteWorkerApiUrl
     ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/heartbeat", { leaseMs, leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
-    : queueHeartbeat(task, leaseMs);
+    : heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence);
   const queueComplete = async (task, result) => remoteWorkerApiUrl
     ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/complete", { result, leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
-    : queueComplete(task, result);
+    : completeWorkerTask(task.id, result, task.lease_token, task.lease_fence);
   const queueFail = async (task, error) => remoteWorkerApiUrl
     ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/fail", { error: String(error?.message || error), leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
-    : queueFail(task, error);
+    : failWorkerTask(task.id, error, task.lease_token, task.lease_fence);
   const queueRelease = async tasks => remoteWorkerApiUrl
     ? (await remoteWorkerRequest("/api/internal/worker/release", { taskIds: tasks.map(task => task.id), leaseTokens: tasks.map(task => task.lease_token) })).released || 0
     : releaseWorkerTasks(tasks.map(task => task.id), tasks.map(task => task.lease_token));
