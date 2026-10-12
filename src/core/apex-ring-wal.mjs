@@ -49,7 +49,7 @@ export class ApexRingWAL {
       try{
         token=randomUUID();
         fh=await open(this.lockFile,"wx",0o600);
-        await fh.writeFile(JSON.stringify({pid:process.pid,host:os.hostname(),createdAt:Date.now(),token})+"\\n","utf8");
+        await fh.writeFile(JSON.stringify({pid:process.pid,host:os.hostname(),createdAt:Date.now(),token})+"\n","utf8");
         await fh.sync();
         break;
       }catch(e){
