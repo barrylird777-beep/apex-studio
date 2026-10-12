@@ -8,7 +8,7 @@ const REQUIRED = Object.freeze([
   ["TeeVee legacy production surface","public/teevee.html"],
   ["TeeVee buyer","public/teevee-buyer.html"],
   ["PayPex legacy intelligence surface","public/paypex.html"],
-  ["XShield legacy network surface","public/xshield.html"],
+  ["XShield","public/xshield.html"],
   ["PlanetApeX","public/planet-apex.html"],
   ["XShield","public/xshield.html"],
   ["KernelVision","public/kernel-vision.html"],
