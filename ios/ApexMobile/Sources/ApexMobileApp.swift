@@ -24,6 +24,7 @@ struct ApexRootView: View {
     @StateObject private var connectivity = ApexPhoneConnectivity()
     @State private var pairingSecret = ""
     @State private var nearbyMessage = "APEX nearby link test"
+    @State private var selectedSection = "Connect"
 
     private var ggufType: UTType {
         UTType(filenameExtension: "gguf", conformingTo: .data) ?? .data
@@ -98,97 +99,126 @@ struct ApexRootView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                nearbyMeshPanel
-
-                Button {
-                    modelImportPresented = true
-                } label: {
-                    Label("Import GGUF Model", systemImage: "square.and.arrow.down")
+                Picker("Workspace", selection: $selectedSection) {
+                    Text("Connect").tag("Connect")
+                    Text("Offline AI").tag("Offline AI")
                 }
-                .buttonStyle(.bordered)
-                .disabled(busy)
+                .pickerStyle(.segmented)
 
-                Text(modelStatus)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                GroupBox("Local model inventory") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Available storage")
-                            Spacer()
-                            Text(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.availableBytes(), countStyle: .file))
-                                .monospacedDigit()
-                        }
-                        if models.isEmpty {
-                            Text("No valid GGUF headers found.")
-                                .font(.footnote)
+                if selectedSection == "Connect" {
+                    nearbyMeshPanel
+                    GroupBox("Connection fallbacks") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Nearby Apex device", systemImage: "dot.radiowaves.left.and.right")
+                                .font(.subheadline.bold())
+                            Text("Keep discovery running and connect to another compatible Apex device nearby. Both devices need Apex Mobile open, local-network permission, and the same secret.")
+                                .font(.caption)
+                            Divider()
+                            Label("Wi-Fi or public hotspot", systemImage: "wifi")
+                                .font(.subheadline.bold())
+                            Text("Join a trusted available network in iPhone Settings. This app reports iOS route status but cannot sign you into a hotspot automatically.")
+                                .font(.caption)
+                            Divider()
+                            Label("Emergency satellite", systemImage: "sos.circle")
+                                .font(.subheadline.bold())
+                            Text("On supported iPhone 14 models and in supported regions, Apple's Emergency SOS via satellite may reach emergency services when other connections fail. It is for emergencies, not normal internet or general messaging.")
+                                .font(.caption)
+                            Text("No software can guarantee a connection when no compatible radio, nearby peer, Wi-Fi, cellular, or supported satellite service is reachable.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(models) { model in
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(model.id).font(.subheadline).lineLimit(2)
-                                    Text("\(model.displaySize) • GGUF v\(model.ggufVersion) • \(model.tensorCount) tensors • header valid")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Text("Estimated working set: \(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.estimatedWorkingSetBytes(modelBytes: model.sizeBytes), countStyle: .memory)) • rough estimate only")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Button(selectedModelID == model.id ? "Selected for inference" : "Use this model") {
-                                        selectedModelID = model.id
+                        }
+                    }
+                } else {
+                    Button {
+                        modelImportPresented = true
+                    } label: {
+                        Label("Import GGUF Model", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(busy)
+    
+                    Text(modelStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+    
+                    GroupBox("Local model inventory") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Available storage")
+                                Spacer()
+                                Text(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.availableBytes(), countStyle: .file))
+                                    .monospacedDigit()
+                            }
+                            if models.isEmpty {
+                                Text("No valid GGUF headers found.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(models) { model in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(model.id).font(.subheadline).lineLimit(2)
+                                        Text("\(model.displaySize) • GGUF v\(model.ggufVersion) • \(model.tensorCount) tensors • header valid")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Text("Estimated working set: \(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.estimatedWorkingSetBytes(modelBytes: model.sizeBytes), countStyle: .memory)) • rough estimate only")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Button(selectedModelID == model.id ? "Selected for inference" : "Use this model") {
+                                            selectedModelID = model.id
+                                        }
+                                        .font(.caption)
+                                        .disabled(busy)
                                     }
-                                    .font(.caption)
-                                    .disabled(busy)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Divider()
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                Divider()
+                            }
+                            Button("Refresh inventory") { refreshInventory() }
+                                .font(.footnote)
+                        }
+                    }
+    
+                    TextEditor(text: $prompt)
+                        .frame(minHeight: 110)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
+    
+                    Button(busy ? "Running locally…" : "Execute") {
+                        Task {
+                            busy = true
+                            error = nil
+                            defer { busy = false }
+                            let start = ContinuousClock.now
+                            do {
+                                let modelPath = models.first(where: { $0.id == selectedModelID })?.url.path
+                                let result = try await ApexLocalRuntime.shared.generate(prompt, modelPath: modelPath)
+                                output = result
+                                let elapsed = start.duration(to: .now)
+                                let components = elapsed.components
+                                let milliseconds = Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000)
+                                lastInferenceMilliseconds = milliseconds
+                                lastRunLabel = "Inference completed • \(milliseconds) ms • response characters: \(result.count)"
+                            } catch {
+                                self.error = error.localizedDescription
+                                lastRunLabel = "Inference failed • \(error.localizedDescription)"
                             }
                         }
-                        Button("Refresh inventory") { refreshInventory() }
-                            .font(.footnote)
                     }
-                }
-
-                TextEditor(text: $prompt)
-                    .frame(minHeight: 110)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
-
-                Button(busy ? "Running locally…" : "Execute") {
-                    Task {
-                        busy = true
-                        error = nil
-                        defer { busy = false }
-                        let start = ContinuousClock.now
-                        do {
-                            let modelPath = models.first(where: { $0.id == selectedModelID })?.url.path
-                            let result = try await ApexLocalRuntime.shared.generate(prompt, modelPath: modelPath)
-                            output = result
-                            let elapsed = start.duration(to: .now)
-                            let components = elapsed.components
-                            let milliseconds = Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000)
-                            lastInferenceMilliseconds = milliseconds
-                            lastRunLabel = "Inference completed • \(milliseconds) ms • response characters: \(result.count)"
-                        } catch {
-                            self.error = error.localizedDescription
-                            lastRunLabel = "Inference failed • \(error.localizedDescription)"
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(busy || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Text(lastRunLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                ScrollView {
-                    Text(output.isEmpty ? "Ready." : output)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    
+                    Text(lastRunLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+    
+                    ScrollView {
+                        Text(output.isEmpty ? "Ready." : output)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 220)
                 }
-                .frame(maxHeight: 220)
                 Spacer(minLength: 0)
                 }
                 .padding()
