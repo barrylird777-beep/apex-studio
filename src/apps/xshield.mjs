@@ -19,6 +19,9 @@ export function xshieldStatus() {
     contentFilter: contentFilterStatus(),
     safariRules: buildSafariContentBlockerRules().length,
     filtering: true,
+    role: APP.role,
+    capabilities: ["DNS ad/tracker blocking", "request classification", "Safari content blocker rules", "mobile filtering profile"],
+    canonical: true,
     firstPartyPolicy: "always-allow",
     checkedAt: new Date().toISOString()
   };
