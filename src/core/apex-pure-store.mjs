@@ -52,7 +52,15 @@ export class ApexPureStore {
         await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now(),token}),"utf8");
         await handle.sync();
       }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(handle){
+          // If lock creation succeeded but metadata write failed (for example ENOSPC),
+          // remove only the exact inode created by this attempt before retrying.
+          try{
+            const [opened,current]=await Promise.all([handle.stat(),stat(lockFile)]);
+            if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+          }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+          await handle.close().catch(()=>{});handle=undefined;
+        }
         if(error.code!=="EEXIST")throw error;
         let stale=false;
         try{stale=Date.now()-(await stat(lockFile)).mtimeMs>30000;}
