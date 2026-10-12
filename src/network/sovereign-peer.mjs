@@ -10,6 +10,7 @@ import { mdns } from '@libp2p/mdns';
 import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
+import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
@@ -130,7 +131,8 @@ export async function sendToPeer(node, multiaddr, envelope) {
   if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) {
     throw new Error('outgoing sovereign peer is not allowlisted');
   }
-  const stream = await node.dialProtocol(multiaddr, PROTOCOL, {
+  const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
+  const stream = await node.dialProtocol(target, PROTOCOL, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
   await stream.sink([encoder.encode(JSON.stringify(envelope) + '\n')]);
