@@ -219,7 +219,8 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const node = await createLibp2p({
     privateKey,
-    addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 0)}`] },
+    // Match Railway's TCP proxy target. Set APEX_P2P_PORT=0 explicitly for local ephemeral-port tests.
+    addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 9000)}`] },
     transports: [tcp()],
     connectionEncrypters: [noise()],
     streamMuxers: [yamux()],
@@ -249,9 +250,10 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     const stream = contextForm ? streamOrContext.stream : streamOrContext;
     const connection = contextForm ? streamOrContext.connection : maybeConnection;
     if (!stream || typeof stream !== 'object') throw new TypeError('libp2p handler did not provide a stream');
-    // Pause immediately so an early peer message cannot arrive before the
-    // envelope reader attaches its message listener.
-    stream.pause?.();
+    // Attach the message listener immediately. EventTarget does not replay
+    // messages emitted before a listener is registered, so pausing first can
+    // lose the first envelope during fast cross-region handshakes.
+    readerFor(stream);
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       if (!isAllowedPeer(remotePeerId)) {
