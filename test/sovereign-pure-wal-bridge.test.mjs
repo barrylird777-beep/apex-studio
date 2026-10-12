@@ -40,6 +40,7 @@ test('sovereign bridge persists a wave to Pure-WAL without a database client', a
       wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
     });
     await reopened.init();
+    await reopened.refreshJobs();
     assert.equal(reopened.jobs().length, 1);
     assert.equal(reopened.jobs()[0].payload.waveId, 'pure-wal-wave-1');
   } finally {
