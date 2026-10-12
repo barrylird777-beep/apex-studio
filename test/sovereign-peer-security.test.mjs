@@ -102,7 +102,10 @@ test("two sovereign peers exchange an envelope only when both identities are all
   try {
     a = await createSovereignPeer({
       keyFile: path.join(dir, "peer-a.key"),
-      onEnvelope: async (envelope, context) => { received.push({ envelope, context }); return true; }
+      onEnvelope: async (envelope, context) => {
+        received.push({ envelope, context });
+        return { accepted: true, replica: { waveId: envelope.waveId, checksum: 'roundtrip-checksum' } };
+      }
     });
     b = await createSovereignPeer({
       keyFile: path.join(dir, "peer-b.key"),
@@ -116,6 +119,7 @@ test("two sovereign peers exchange an envelope only when both identities are all
     const envelope = { type: "test.payload", waveId: "roundtrip-1", payload: { appId: "kernelodies" } };
     const response = await sendToPeer(b, address, envelope);
     assert.equal(response.accepted, true);
+    assert.deepEqual(response.replica, { waveId: 'roundtrip-1', checksum: 'roundtrip-checksum' });
     assert.equal(received.length, 1);
     assert.equal(received[0].envelope.waveId, "roundtrip-1");
     assert.equal(received[0].context.remotePeerId, b.peerId.toString());

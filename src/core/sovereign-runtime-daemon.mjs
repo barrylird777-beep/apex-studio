@@ -10,6 +10,7 @@ import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
 import { retryWalStartup } from './wal-startup-retry.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
+import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
@@ -25,11 +26,14 @@ let timer;
 let bridge;
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
-  if (!envelope || !['durable.accept', 'edge.heartbeat'].includes(envelope.type)) {
+  if (!envelope || !['durable.accept', 'durable.read', 'edge.heartbeat'].includes(envelope.type)) {
     throw new Error('unsupported sovereign envelope');
   }
   if (envelope.type === 'edge.heartbeat') return true;
   if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
+  if (envelope.type === 'durable.read') {
+    return { accepted: true, replica: readSovereignPeerReplica(engine, envelope, { remotePeerId }) };
+  }
   if (!envelope.waveId || !envelope.jobId || !envelope.checksum || !envelope.record) throw new Error('incomplete sovereign envelope');
   if (!/^[0-9a-f]{64}$/i.test(envelope.checksum)) throw new Error('invalid sovereign checksum');
   if (!/^[0-9a-f-]{36}$/i.test(envelope.jobId)) throw new Error('invalid sovereign job id');
