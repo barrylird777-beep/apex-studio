@@ -114,7 +114,18 @@ function readerFor(stream) {
     };
     stream.resume?.();
   } else {
-    throw new TypeError('unsupported sovereign peer stream read interface');
+    const shape = {
+      type: typeof stream,
+      keys: stream && typeof stream === 'object' ? Object.keys(stream).slice(0, 20) : [],
+      send: typeof stream?.send,
+      addEventListener: typeof stream?.addEventListener,
+      asyncIterator: typeof stream?.[Symbol.asyncIterator],
+      source: typeof stream?.source,
+      nestedStream: typeof stream?.stream,
+      read: typeof stream?.read,
+      sink: typeof stream?.sink
+    };
+    throw new TypeError('unsupported sovereign peer stream read interface: ' + JSON.stringify(shape));
   }
   streamReaders.set(stream, reader);
   return reader;
