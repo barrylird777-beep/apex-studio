@@ -175,7 +175,7 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     }
   });
 
-  node.handle(PROTOCOL, async ({ stream, connection }) => {
+  node.handle(PROTOCOL, async (stream, connection) => {
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       if (!isAllowedPeer(remotePeerId)) {
