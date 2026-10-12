@@ -18,3 +18,13 @@ test("production worker bootstrap uses the authenticated Pure-WAL API and never 
   assert.doesNotMatch(source, /db:migrate/);
   assert.match(source, /Pure-WAL remote queue/);
 });
+
+test("environment template is sovereign and does not restore SQLite or obsolete channel branding", async () => {
+  const source = await readFile(new URL("../.env.example", import.meta.url), "utf8");
+  assert.match(source, /APEX_SE_X_ROOT/);
+  assert.match(source, /APEX_WAL_FILE/);
+  assert.match(source, /APEX_WORKER_API_URL=/);
+  assert.match(source, /APEX_WORKER_TOKEN=/);
+  assert.doesNotMatch(source, /DATABASE_URL|APEX_PRODUCTION_DB_FILE|sqlite/i);
+  assert.doesNotMatch(source, /BIBLICALLYUNSEEN/i);
+});
