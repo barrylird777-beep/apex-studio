@@ -1,9 +1,10 @@
 import { handleStudioAdBlockDoH, initializeStudioAdBlock, studioAdBlockStatus } from "../network/studio-adblock-doh.mjs";
 import { studioAdBlockMobileConfig } from "../network/studio-adblock-profile.mjs";
 import { classifyNetworkRequest, contentFilterStatus, buildSafariContentBlockerRules } from "../network/apex-content-filter.mjs";
+import { getApexApp } from "./apex-six-apps.mjs";
 import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
-const APP = Object.freeze({ id: "xshield", name: "XShield", role: "supporting network-protection capability", entry: "/xshield.html", module: "./xshield.mjs" });
+const APP = getApexApp("xshield");
 
 export async function initializeXShield() {
   await initializeStudioAdBlock();
