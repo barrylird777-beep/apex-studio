@@ -2099,6 +2099,18 @@ app.post('/api/media/image', async (req, res) => {
     const height = Math.min(Math.max(Number(req.body?.height || 720), 256), 2048);
     const model = String(req.body?.model || process.env.POLLINATIONS_IMAGE_MODEL || 'flux').slice(0, 120);
     const seed = Number.isFinite(Number(req.body?.seed)) ? Number(req.body.seed) : Math.floor(Math.random() * 9999999);
+    const meteredImagePathEnabled = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() === 'false' && Boolean(pollinationsMediaKey());
+    if (!meteredImagePathEnabled) {
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${new URLSearchParams({ width: String(width), height: String(height), model, seed: String(seed), nologo: 'true' })}`;
+      const response = await fetchWithTimeout(url, {}, 60000);
+      if (!response.ok) throw new Error(`Free image source returned HTTP ${response.status}`);
+      const contentType = response.headers.get('content-type') || 'image/png';
+      if (!contentType.toLowerCase().startsWith('image/')) throw new Error('Free image source did not return an image');
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.length || buffer.length > 15 * 1024 * 1024) throw new Error('Generated image is empty or exceeds the 15 MiB safety limit');
+      res.set({ 'Content-Type': contentType, 'Content-Length': buffer.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      return res.send(buffer);
+    }
     return await proxyPollinationsMedia('image', prompt, { model, width, height, seed, nologo: 'true' }, res);
   } catch (error) {
     console.error('[media-image-fatal]', error);
