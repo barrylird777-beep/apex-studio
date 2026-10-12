@@ -107,6 +107,34 @@ async function main() {
     sendPeer: sendToPeer
   });
 
+  const canaryId = String(process.env.APEX_MESH_CANARY_ID || '').trim();
+  if (canaryId) {
+    const waveId = `apex-anchor-live-canary-${canaryId}`;
+    const previousAck = await apexPureStore.get('sovereign_peer_acks', waveId);
+    if (!previousAck) {
+      try {
+        const result = await bridge.dispatch({
+          waveId,
+          peerId: peerNode.peerId.toString(),
+          action: 'APEX_ANCHOR_LIVE_CANARY',
+          payload: { canary: true, canaryId, createdAt: new Date().toISOString() }
+        });
+        console.log('[APEX MESH CANARY]', JSON.stringify({
+          waveId,
+          acknowledged: result.acknowledged?.status === 'ACKNOWLEDGED',
+          peerId: String(result.acknowledged?.payload?.acceptance?.peer?.peerId || peerAddress || '')
+        }));
+      } catch (error) {
+        console.error('[APEX MESH CANARY FAILED]', JSON.stringify({
+          waveId,
+          error: error instanceof Error ? error.message : String(error)
+        }));
+      }
+    } else {
+      console.log('[APEX MESH CANARY]', JSON.stringify({ waveId, acknowledged: true, reused: true }));
+    }
+  }
+
   await runCycle(bridge);
   console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
     workerId,
