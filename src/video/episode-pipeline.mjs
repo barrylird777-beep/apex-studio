@@ -133,8 +133,8 @@ export async function produceKernelVisionEpisode(input={},options={}){
     const provenanceItems=Object.values(mediaProvenance).flatMap(value=>Array.isArray(value)?value:[value]).filter(Boolean);
     artifact.provenanceReady=provenanceItems.every(provenanceComplete);
     artifact.releaseEligible=false; // Publishing requires a separate human approval tied to the exact artifact hash.
-    artifact.releaseBlockers=[...(artifact.provenanceReady?[]:["media-provenance-incomplete"]),"human-release-approval-required"];
-    artifact.publicationState="awaiting-human-approval";
+    artifact.releaseBlockers=[...(qcPassed?[]:["render-qc-failed"]),...(artifact.provenanceReady?[]:["media-provenance-incomplete"]),...(qcPassed?["human-release-approval-required"]:[])];
+    artifact.publicationState=qcPassed?"awaiting-human-approval":"blocked-qc";
     const fabric=options.fabric||sovereignAppFabric;
     await fabric.put("kernel-vision","episode-"+episodeId+"-"+id,artifact);
     if(!qcPassed)throw Object.assign(new Error("Episode export failed QC: "+[...(spec.errors||[]),...(qc?.failures||[])].join(", ")),{code:"RENDER_QC_FAILED",artifact});
