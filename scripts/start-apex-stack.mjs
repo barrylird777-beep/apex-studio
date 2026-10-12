@@ -3,9 +3,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// server.mjs starts the sovereign runtime in-process so both share one Pure-WAL store.
 const services = [
-  { name: "apex-api", script: path.join(root, "server.mjs") },
-  { name: "sovereign-runtime", script: path.join(root, "src/core/sovereign-runtime-daemon.mjs") }
+  { name: "apex-api", script: path.join(root, "server.mjs") }
 ];
 const children = [];
 let stopping = false;
@@ -30,7 +30,7 @@ function stopAll(code = 0, signal = "SIGTERM") {
 for (const service of services) {
   const child = spawn(process.execPath, [service.script], {
     cwd: root,
-    env: process.env,
+    env: { ...process.env, APEX_EMBED_SOVEREIGN_RUNTIME: "true" },
     stdio: "inherit"
   });
   children.push(child);
