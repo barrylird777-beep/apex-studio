@@ -17,6 +17,13 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+    info:
+      properties:
+        NSLocalNetworkUsageDescription: "Apex uses your local network to connect to nearby authorized Apex devices, including when cellular service is unavailable."
+        NSBonjourServices:
+          - _apex-fabric._tcp
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.apex.studio.network.refresh
     dependencies:
       - framework: Frameworks/llama.xcframework
         embed: true
