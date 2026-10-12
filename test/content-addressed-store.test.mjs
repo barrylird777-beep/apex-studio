@@ -79,3 +79,34 @@ test("record writes avoid a full store refresh on every opportunity insert", asy
     assert.equal(saved.value.record.value, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+
+test("concurrent store instances perform legacy migration only once", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-single-migration-"));
+  try {
+    const walFile = path.join(root, "wal", "legacy.jsonl");
+    const seed = new ApexRingWAL({ file: walFile });
+    await seed.append("state.put", {
+      collection: "kash-korner",
+      id: "legacy-opportunity",
+      record: { value: 7 }
+    });
+    let replayCalls = 0;
+    const makeWal = () => {
+      const wal = new ApexRingWAL({ file: walFile });
+      const replay = wal.replay.bind(wal);
+      wal.replay = async options => {
+        replayCalls += 1;
+        await new Promise(resolve => setTimeout(resolve, 25));
+        return replay(options);
+      };
+      return wal;
+    };
+    const first = new ApexPureStore({ root, wal: makeWal() });
+    const second = new ApexPureStore({ root, wal: makeWal() });
+    await Promise.all([first.init(), second.init(), first.init()]);
+    assert.equal(replayCalls, 1, "shared volume migration must run once across store instances");
+    assert.equal((await first.get("kash-korner", "legacy-opportunity")).value, 7);
+    assert.equal((await second.get("kash-korner", "legacy-opportunity")).value, 7);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
