@@ -6,6 +6,37 @@ import path from "node:path";
 import { privateKeyToProtobuf } from "@libp2p/crypto/keys";
 import { loadOrCreatePeerPrivateKey } from "../src/network/sovereign-peer.mjs";
 
+test("sovereign peer identity can load from a secret without touching local storage", async () => {
+  const dir=await mkdtemp(path.join(os.tmpdir(),"apex-peer-env-"));
+  const keyFile=path.join(dir,"identity","peer.key");
+  const previous=process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  try {
+    delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    const generated=await loadOrCreatePeerPrivateKey(keyFile);
+    const encoded=Buffer.from(privateKeyToProtobuf(generated)).toString("base64");
+    await rm(keyFile,{force:true});
+    process.env.APEX_PEER_PRIVATE_KEY_BASE64=encoded;
+    const restored=await loadOrCreatePeerPrivateKey(keyFile);
+    assert.deepEqual(Buffer.from(privateKeyToProtobuf(restored)),Buffer.from(encoded,"base64"));
+    await assert.rejects(stat(keyFile),{code:"ENOENT"});
+  } finally {
+    if(previous===undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    else process.env.APEX_PEER_PRIVATE_KEY_BASE64=previous;
+    await rm(dir,{recursive:true,force:true});
+  }
+});
+
+test("invalid encoded sovereign identity fails closed", async () => {
+  const previous=process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  try {
+    process.env.APEX_PEER_PRIVATE_KEY_BASE64="not valid base64!";
+    await assert.rejects(loadOrCreatePeerPrivateKey("/tmp/apex-identity-must-not-be-created/peer.key"),/valid base64/);
+  } finally {
+    if(previous===undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    else process.env.APEX_PEER_PRIVATE_KEY_BASE64=previous;
+  }
+});
+
 test("sovereign peer identity is persisted with private permissions and survives restart", async () => {
   const dir=await mkdtemp(path.join(os.tmpdir(),"apex-peer-identity-"));
   const file=path.join(dir,"identity","peer.key");
