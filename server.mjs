@@ -153,19 +153,19 @@ function takePublicRequestSlot(req) {
   const forwarded = String(req.get('x-forwarded-for') || '').split(',').map(value => value.trim()).filter(Boolean);
   const key = (forwarded.at(-1) || req.socket?.remoteAddress || 'unknown').slice(0, 160);
   const now = Date.now();
-  let bucket = publicSearchBuckets.get(key);
+  let bucket = publicRequestBuckets.get(key);
   if (!bucket || now - bucket.startedAt >= 60_000) bucket = { startedAt: now, count: 0 };
   if (bucket.count >= 30) return false;
   bucket.count += 1;
-  publicSearchBuckets.set(key, bucket);
-  if (publicSearchBuckets.size > 2000) {
-    for (const [address, item] of publicSearchBuckets) {
-      if (now - item.startedAt >= 60_000) publicSearchBuckets.delete(address);
+  publicRequestBuckets.set(key, bucket);
+  if (publicRequestBuckets.size > 2000) {
+    for (const [address, item] of publicRequestBuckets) {
+      if (now - item.startedAt >= 60_000) publicRequestBuckets.delete(address);
     }
-    while (publicSearchBuckets.size > 2000) {
-      const oldest = publicSearchBuckets.keys().next().value;
+    while (publicRequestBuckets.size > 2000) {
+      const oldest = publicRequestBuckets.keys().next().value;
       if (oldest === undefined) break;
-      publicSearchBuckets.delete(oldest);
+      publicRequestBuckets.delete(oldest);
     }
   }
   return true;
@@ -182,7 +182,7 @@ function requirePublicRequestSlot(req, res, next) {
 }
 
 app.get('/api/search', async (req, res) => {
-  if (!takePublicSearchSlot(req)) {
+  if (!takePublicRequestSlot(req)) {
     return res.status(429).set('Retry-After', '60').json({
       success: false,
       error: 'Search rate limit reached. Please wait a minute and try again.'
