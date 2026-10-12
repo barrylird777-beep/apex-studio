@@ -25,6 +25,11 @@ export function getApexApp(id){
   return Object.values(APEX_APPS).find(app=>app.id===value) ?? LEGACY_SUPPORT_APPS[value] ?? null;
 }
 export function assertApexApp(id){
+  const app=getApexApp(id);
+  if(!app) throw new Error("Unknown Apex app: "+id);
+  return app;
+}
+export function assertCanonicalApexApp(id){
   const value=String(id);
   const app=Object.values(APEX_APPS).find(item=>item.id===value);
   if(!app) throw new Error("Unknown canonical Apex app: "+id);
