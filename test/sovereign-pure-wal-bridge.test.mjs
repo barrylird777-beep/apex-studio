@@ -135,3 +135,41 @@ test('KashKorner ledger excludes opportunity records without deleting them from 
   ]);
   assert.equal(rows[1].record.recordType, 'opportunity', 'filtering the ledger must not delete opportunity data');
 });
+
+
+test('local PeerReceive records are acknowledged in Pure-WAL and excluded from peer reconciliation', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-peer-receipt-loop-'));
+  const store = new ApexPureStore({
+    root: path.join(dir, 'projects'),
+    wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
+  });
+  const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+  try {
+    await store.init();
+    await engine.ready();
+    await engine.dispatchAutonomousPayload({
+      waveId: 'local-peer-receive-wave',
+      peerId: 'remote-peer',
+      action: 'PeerReceive',
+      payload: { originWaveId: 'source-wave', sourcePeerId: 'remote-peer' }
+    });
+
+    const { acknowledgePendingLocalPeerReceives } = await import('../src/core/sovereign-peer-receipts.mjs');
+    assert.equal(await acknowledgePendingLocalPeerReceives(engine), 1);
+    assert.equal(engine.get('local-peer-receive-wave').status, 'ACKNOWLEDGED');
+
+    const entries = (await fs.readFile(engine.walFilePath, 'utf8')).trim().split('\\n').map(line => JSON.parse(line));
+    assert.equal(entries.at(-1).waveId, 'local-peer-receive-wave');
+    assert.equal(entries.at(-1).status, 'ACKNOWLEDGED');
+
+    const bridge = createSovereignDurableBridge({ engine, store, workerId: 'receipt-loop-guard' });
+    const result = await bridge.reconcile();
+    assert.equal(result.scanned, 0);
+    assert.equal(result.persisted, 0);
+    assert.equal(result.failed, 0);
+    assert.deepEqual(store.jobs(), []);
+    assert.equal(await acknowledgePendingLocalPeerReceives(engine), 0);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
