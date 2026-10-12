@@ -9,6 +9,7 @@ const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const PROJECTS=process.env.APEX_PROJECTS_DIR||path.join(ROOT,"projects");
 const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function runBatched(items,batchSize,worker){for(let i=0;i<items.length;i+=batchSize)await Promise.all(items.slice(i,i+batchSize).map(worker));}
 const SEGMENT=/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 
 function safeSegment(value,label){
@@ -40,8 +41,10 @@ export class ApexPureStore {
       try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
       if(legacyExists){
         await this.wal.replay({onRecord:r=>this.apply(r)});
-        for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);await this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)});}
-        for(const [id,job] of this.jobsState)await this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)});
+        const migrationWrites=[];
+        for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);migrationWrites.push(()=>this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)}));}
+        for(const [id,job] of this.jobsState)migrationWrites.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
+        await runBatched(migrationWrites,16,write=>write());
       }
       await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
     }
