@@ -135,7 +135,7 @@ test("two sovereign peers exchange an envelope only when both identities are all
 });
 
 
-test("outgoing peer ACK reader does not resume a stream that may be closing", async () => {
+test("outgoing peer ACK reader tolerates a stream closing during resume", async () => {
   const previous = process.env.APEX_ALLOWED_PEER_IDS;
   process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
   const listeners = new Map();
@@ -161,7 +161,7 @@ test("outgoing peer ACK reader does not resume a stream that may be closing", as
       async dialProtocol() { return fakeStream; }
     }, "/ip4/127.0.0.1/tcp/1234/p2p/allowed-peer", { type: "test.payload" });
     assert.equal(response.accepted, true);
-    assert.equal(resumeCalls, 0);
+    assert.equal(resumeCalls, 1, "open stream is resumed; a close race must be contained");
   } finally {
     if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
     else process.env.APEX_ALLOWED_PEER_IDS = previous;
