@@ -2,11 +2,26 @@ import express from "express";
 import { randomUUID } from "node:crypto";
 import { apexPureStore } from "../core/apex-pure-store.mjs";
 import { buildEpisode, episodeCode, deterministicEpisodeId, TEEVEE_EPISODE_COUNT } from "../core/teevee-production.mjs";
+import { createDownloadUrl } from "../storage/cloud-object-store.mjs";
 
 export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = apexPureStore } = {}) {
   if (typeof enqueue !== "function") throw new TypeError("TeeVee production enqueue function is required");
   const router = express.Router();
   router.use(express.json({ limit: "64kb" }));
+
+  router.get("/assets/:id/download", requireAuth || ((_req, _res, next) => next()), async (req, res) => {
+    try {
+      const asset = await store.get("teevee_episode_assets", String(req.params.id));
+      if (!asset) return res.status(404).json({ success: false, error: "TeeVee asset not found" });
+      const key = String(asset.assetUri || asset.asset_uri || "");
+      if (!key.startsWith("teevee/")) return res.status(404).json({ success: false, error: "Asset is not stored in cloud object storage" });
+      const download = await createDownloadUrl({ key, prefix: "apex-business" });
+      return res.json({ success: true, assetId: asset.id, key: download.key, url: download.url });
+    } catch (error) {
+      const status = Number(error?.status) || 503;
+      return res.status(status).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    }
+  });
 
   router.get("/status", async (_req, res) => {
     try {
