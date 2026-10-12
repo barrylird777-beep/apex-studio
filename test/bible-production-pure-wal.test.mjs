@@ -7,12 +7,11 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
-import sqlite3Module from "sqlite3";
+import { DatabaseSync } from "node:sqlite";
 
-const sqlite3=sqlite3Module.default||sqlite3Module;
-const run=(db,sql,params=[])=>new Promise((resolve,reject)=>db.run(sql,params,function(error){error?reject(error):resolve({id:this.lastID,changes:this.changes});}));
-const exec=(db,sql)=>new Promise((resolve,reject)=>db.exec(sql,error=>error?reject(error):resolve()));
-const close=db=>new Promise(resolve=>db.close(()=>resolve()));
+const run=(db,sql,params=[])=>db.prepare(sql).run(...params);
+const exec=(db,sql)=>db.exec(sql);
+const close=db=>db.close();
 const digest=buffer=>crypto.createHash("sha256").update(buffer).digest("hex");
 
 test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from Pure-WAL",async()=>{
@@ -23,7 +22,7 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
   const oldEnv={APEX_PROJECTS_DIR:process.env.APEX_PROJECTS_DIR,APEX_SOVEREIGN_STORAGE_DIR:process.env.APEX_SOVEREIGN_STORAGE_DIR,APEX_BIBLE_DB:process.env.APEX_BIBLE_DB,APEX_BIBLE_DB_DIR:process.env.APEX_BIBLE_DB_DIR};
   let server;
   try{
-    const db=new sqlite3.Database(legacyDb);
+    const db=new DatabaseSync(legacyDb);
     await exec(db,`
       CREATE TABLE projects(id INTEGER PRIMARY KEY,title TEXT,description TEXT,primary_scripture TEXT,status TEXT,created_at TEXT,updated_at TEXT);
       CREATE TABLE characters(id INTEGER PRIMARY KEY,canonical_name TEXT,aliases TEXT,primary_stories TEXT,relationships TEXT,key_traits TEXT,notes TEXT,scripture_references TEXT);
