@@ -28,6 +28,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
       const episodes = await store.list("teevee_episodes");
       const counts = new Map();
       for (const episode of episodes) counts.set(String(episode.state || "UNKNOWN"), (counts.get(String(episode.state || "UNKNOWN")) || 0) + 1);
+      if (typeof store.refreshJobs === "function") await store.refreshJobs();
       const jobs = typeof store.jobs === "function" ? store.jobs().filter(job => String(job.type || "").startsWith("teevee.episode.")) : [];
       return res.json({
         success: true,
@@ -59,6 +60,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
         await store.put("teevee_episodes", id, episode);
       }
       const dedupeKey = `teevee:${code}:story`;
+      if (typeof store.refreshJobs === "function") await store.refreshJobs();
       const existing = typeof store.jobs === "function"
         ? store.jobs().find(job => job.dedupeKey === dedupeKey && ["queued", "running"].includes(job.status))
         : null;
