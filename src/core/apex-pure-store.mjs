@@ -139,7 +139,7 @@ export class ApexPureStore {
     catch(e){throw e;}
   }
   async put(collection,id,record){
-    await this.refresh();
+    await this.init();
     const target=await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     await this.persistState(collection,id,value);
