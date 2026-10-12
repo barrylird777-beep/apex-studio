@@ -65,7 +65,7 @@ function readerFor(stream) {
   if (!stream?.source || typeof stream.source[Symbol.asyncIterator] !== 'function') {
     throw new TypeError('unsupported sovereign peer stream read interface');
   }
-  reader = { iterator: stream.source[Symbol.asyncIterator](), text: '', bytesRead: 0, pending: null };
+  reader = { iterator: stream.source[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
   streamReaders.set(stream, reader);
   return reader;
 }
@@ -104,7 +104,7 @@ export async function readSovereignEnvelope(stream) {
     }
     if (result) reader.pending = null;
     if (!result || result.done) {
-      reader.text += decoder.decode();
+      reader.text += reader.decoder.decode();
       const finalNewline = reader.text.indexOf('\\n');
       if (finalNewline >= 0) {
         const line = reader.text.slice(0, finalNewline);
@@ -119,7 +119,7 @@ export async function readSovereignEnvelope(stream) {
     const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
     reader.bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
     if (reader.bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
-    reader.text += decoder.decode(bytes, { stream: true });
+    reader.text += reader.decoder.decode(bytes, { stream: true });
   }
 }
 
