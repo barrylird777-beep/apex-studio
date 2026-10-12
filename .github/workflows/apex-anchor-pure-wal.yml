@@ -41,6 +41,7 @@ jobs:
           node --check src/apps/canonical-trajectory.mjs
           node --check src/apps/xshield.mjs
           node --check src/core/apex-pure-store.mjs
+          node --check src/core/remote-apex-ring-wal.mjs
           node --check src/core/sovereign-mesh-engine.mjs
           node --check src/core/remote-content-addressed-store.mjs
           node --check src/core/mesh/durable-worker-store.mjs
@@ -58,7 +59,7 @@ jobs:
           node --check src/video/assemble.mjs
           node --check src/video/episode-pipeline.mjs
       - name: Verify remote sovereign CAS adapter and non-destructive migration
-        run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-pure-store.test.mjs test/sovereign-mesh-remote-cas.test.mjs
+        run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-ring-wal.test.mjs test/remote-apex-pure-store.test.mjs test/sovereign-mesh-remote-cas.test.mjs
       - name: Verify six-app identity and handoff contract
         run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs
       - name: Verify isolated Pure-WAL app namespaces and dispatch queue
