@@ -21,5 +21,6 @@ test("production entrypoints and active handlers do not depend on PostgreSQL", a
     const source = await read(path);
     assert.doesNotMatch(source, /from\s+["']pg["']/i, path + " imports pg");
     assert.doesNotMatch(source, /DATABASE_URL|new\s+Pool\s*\(|pg\.Pool/i, path + " depends on PostgreSQL");
+    assert.doesNotMatch(source, /from\s+["'](?:sqlite3|better-sqlite3)["']|import\(["'](?:sqlite3|better-sqlite3)["']\)|new\s+(?:sqlite3\.)?Database\s*\(/i, path + " depends on SQLite");
   }
 });

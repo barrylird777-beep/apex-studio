@@ -13,6 +13,7 @@ import {
 } from "./src/core/mesh/durable-worker-store.mjs";
 import { generateUnifiedAi } from "./src/providers/unified-ai-router.mjs";
 import { startLockedContinuousAiLoop } from "./src/core/autonomy/locked-continuous-loop.mjs";
+import { startOpportunityEngineScanScheduler } from "./src/core/opportunity-engine-scan-scheduler.mjs";
 import crypto from "node:crypto";
 import { gardenSnapshot, verifiedGardenIds } from "./src/garden/lore-graph.mjs";
 import { assertProductionHandoff, validateScriptGardenReferences } from "./src/core/validation/production-contracts.mjs";
@@ -253,6 +254,7 @@ if (!workerOnly) {
     enqueueTask: remoteWorkerApiUrl ? async item => (await remoteWorkerRequest("/api/internal/worker/enqueue", item)).task : undefined,
     getQueueStats: remoteWorkerApiUrl ? async () => (await remoteWorkerRequest("/api/internal/worker/stats")).stats : undefined
   });
+  const opportunityScanScheduler = startOpportunityEngineScanScheduler();
   const inFlight = new Map();
   const claimed = new Map();
 
@@ -321,6 +323,7 @@ if (!workerOnly) {
         console.error("[apex-worker] release failed:", error?.message || error);
       });
     }
+    opportunityScanScheduler.stop();
     autonomousAiLoop.stop();
     process.exit(0);
   };
