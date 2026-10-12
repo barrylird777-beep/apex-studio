@@ -90,7 +90,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         }
         let timestamp = String(Int(Date().timeIntervalSince1970))
         let nonce = UUID().uuidString
-        let signed = Data("invite|1|\\(timestamp)|\\(nonce)|\\(peer.displayName)".utf8)
+        let signed = Data("invite|1|\(timestamp)|\(nonce)|\(peer.displayName)".utf8)
         let signature = HMAC<SHA256>.authenticationCode(for: signed, using: key)
         let context: [String: String] = [
             "version": "1",
@@ -118,7 +118,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
               let nonce = object["nonce"], UUID(uuidString: nonce) != nil,
               let signatureText = object["signature"],
               let signature = Data(base64Encoded: signatureText) else { return false }
-        let signed = Data("invite|1|\\(timestampText)|\\(nonce)|\\(localPeer.displayName)".utf8)
+        let signed = Data("invite|1|\(timestampText)|\(nonce)|\(localPeer.displayName)".utf8)
         guard HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: signed, using: key) else { return false }
         stateLock.lock()
         seenNonces = seenNonces.filter { Date().timeIntervalSince1970 - $0.value <= 300 }
