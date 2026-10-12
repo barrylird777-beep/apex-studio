@@ -225,7 +225,14 @@ test("Kernelodies browser UI script parses and defaults to local-first mode", ()
   assert.match(source, /music-radar-independent/);
   assert.match(source, /metadata-only\.json/);
   assert.match(source, /Apex shared storage/);
-  assert.match(source, /await audio\.play\(\)/);
+  assert.match(source, /await audio\\.play\\(\\)/);
+  assert.match(source, /id="kl-search-field"/);
+  assert.match(source, /id="kl-genre"/);
+  assert.match(source, /id="kl-year"/);
+  const pagePath = fileURLToPath(new URL("../public/kernelodies.html", import.meta.url));
+  const page = readFileSync(pagePath, "utf8");
+  assert.match(page, /id="content-domain"/);
+  assert.match(page, /Jesus Freaks · 432 Hz only/);
 });
 
 
