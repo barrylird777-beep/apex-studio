@@ -71,9 +71,15 @@ function readerFor(stream) {
     let ended = false;
     let closeError = null;
     const onMessage = event => {
+      const chunk = event?.data;
+      const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+      console.info('[SOVEREIGN PEER] stream message received', JSON.stringify({
+        protocol: stream.protocol || PROTOCOL,
+        bytes: Number(bytes?.byteLength ?? bytes?.length ?? 0)
+      }));
       const waiter = waiters.shift();
-      if (waiter) waiter.resolve({ done: false, value: event?.data });
-      else queue.push(event?.data);
+      if (waiter) waiter.resolve({ done: false, value: chunk });
+      else queue.push(chunk);
     };
     const onClose = event => {
       ended = true;
@@ -190,7 +196,15 @@ async function sendSovereignEnvelope(stream, envelope) {
     if (typeof stream?.sink === 'function') return stream.sink([bytes]);
     throw new TypeError('unsupported sovereign peer stream write interface');
   }
-  if (stream.send(bytes) !== false) return;
+  const sendResult = stream.send(bytes);
+  console.info('[SOVEREIGN PEER] envelope send', JSON.stringify({
+    type: envelope?.type || null,
+    bytes: bytes.byteLength,
+    result: sendResult,
+    writeBufferLength: stream.writeBufferLength ?? null,
+    writableNeedsDrain: stream.writableNeedsDrain ?? null
+  }));
+  if (sendResult !== false) return;
   if (typeof stream.onDrain === 'function') {
     await stream.onDrain({ signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000)) });
     return;
