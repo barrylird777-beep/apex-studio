@@ -87,7 +87,7 @@ export async function readSovereignEnvelope(stream) {
           bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
           if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
           text += localDecoder.decode(bytes, { stream: true });
-          const newline = text.indexOf('\\n');
+          const newline = text.indexOf('\n');
           if (newline < 0) return;
           const line = text.slice(0, newline);
           if (!line) throw new Error('empty sovereign peer envelope');
