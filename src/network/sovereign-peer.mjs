@@ -62,10 +62,15 @@ const streamReaders = new WeakMap();
 function readerFor(stream) {
   let reader = streamReaders.get(stream);
   if (reader) return reader;
-  if (!stream?.source || typeof stream.source[Symbol.asyncIterator] !== 'function') {
-    throw new TypeError('unsupported sovereign peer stream read interface');
-  }
-  reader = { iterator: stream.source[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
+  // libp2p v3 Stream implements [Symbol.asyncIterator]() directly. Keep
+  // source-based support for the older duplex-stream shape used by adapters.
+  const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
+    ? stream.source
+    : stream && typeof stream[Symbol.asyncIterator] === 'function'
+      ? stream
+      : null;
+  if (!iterable) throw new TypeError('unsupported sovereign peer stream read interface');
+  reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
   streamReaders.set(stream, reader);
   return reader;
 }
