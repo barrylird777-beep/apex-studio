@@ -3,8 +3,8 @@ import { APEX_APPS, assertSixAppInvariant } from "./apex-six-apps.mjs";
 const APP_LIST = Object.values(APEX_APPS);
 const APP_IDS = new Set(APP_LIST.map(app => app.id));
 const SPECIFIC_PURPOSES = new Map([
-  ["planet-apex->xshield", "apply network protection to the shared Apex environment"],
-  ["xshield->kernel-vision", "provide protected network access for production and finished-work delivery"],
+  ["planet-apex->ko-blocks", "provide structured knowledge and research blocks to validated workflows"],
+  ["ko-blocks->kernel-vision", "provide validated reusable components to production workflows"],
   ["kernelodies->kernel-vision", "attach music and audio identity to finished work"],
   ["kernel-vision->kash-korner", "hand off customer orders and production fulfillment for payment and ledger tracking"],
   ["kash-korner->kernel-vision", "return verified payment state and fulfillment authorization to production"],
