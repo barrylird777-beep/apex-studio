@@ -63,6 +63,14 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
       status: job.status,
       peer: peerAcceptance
     });
+    if (peerAcceptance) {
+      await store.put('sovereign_peer_acks', record.waveId, {
+        waveId: record.waveId,
+        peerId: String(peerAcceptance.peerId || peerAddress || ''),
+        checksum: record.checksum,
+        acknowledgedAt: new Date().toISOString()
+      });
+    }
     return { record, job, acknowledged };
   }
 
