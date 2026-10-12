@@ -7,7 +7,7 @@
 1. **PlanetApeX — brain:** Bible study, research, knowledge, AI, world/universe analytics and interactive experiences. **GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX**, not a seventh app.
 2. **KoBlocks — workflow blocks:** reusable execution blocks, composition and graph validation for cross-app workflows.
 3. **KernelVision — eyes:** creative production and delivery: direction, scripts, scenes, images, video, animation, VFX, editing, mixing/mastering, rendering, QC, publishing, Special Search and social/manager analytics. KernelVision Theatre and Kornmax are viewing experiences within this app.
-4. **KoinKob — role under recovery:** the current repository implements worker markets, value, barter, market clearing and economic simulation. These are implementation facts, not a locked final-purpose decision.
+4. **KoinKob — autonomous economy:** worker accounts, asset markets, market clearing and settlement, systemic events, adversarial rounds, and a 2,000-worker simulation exploring how a society organizes itself.
 5. **KashKorner — cash/connectivity:** cash flow, ledger and financial state, carrying forward relevant EngineApex/Apexus connectivity lineage without creating extra app identities.
 6. **Kernelodies — ears:** music, sound, audio creation, discovery and audio identity. Jesus Freaks / KORNS PEOPLE music follows the locked 432 Hz rule.
 
