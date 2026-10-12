@@ -181,24 +181,26 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
 
   async function createScene(input = {}) {
     const projectId = Number(input.projectId);
-    if (!Number.isInteger(projectId) || !await getProject(projectId)) return null;
     const scriptureRef = text(input.scriptureRef || input.verses);
     if (!scriptureRef) throw fail("scriptureRef is required");
-    const id = await nextId("scene");
-    const record = {
-      recordType: "schedule-scene", sceneId: id, projectId,
-      sceneNumber: input.sceneNumber == null ? null : number(input.sceneNumber),
-      title: text(input.title) || null, scriptureRef,
-      location: text(input.location) || null,
-      charactersPresent: Array.isArray(input.charactersPresent) ? input.charactersPresent.map(Number).filter(Number.isInteger) : [],
-      actionSummary: text(input.actionSummary) || null,
-      emotionalBeat: typeof input.emotionalBeat === "string" ? input.emotionalBeat : JSON.stringify(input.emotionalBeat ?? null),
-      productionNotes: text(input.productionNotes) || null,
-      estimatedPages: input.estimatedPages == null ? null : Number(input.estimatedPages),
-      dayOrNight: text(input.dayOrNight) || null
-    };
-    await putRecord(sceneKey(id), record);
-    return sceneView(record);
+    return withLock(async () => {
+      if (!Number.isInteger(projectId) || !await getProject(projectId)) return null;
+      const id = await nextIdUnlocked("scene");
+      const record = {
+        recordType: "schedule-scene", sceneId: id, projectId,
+        sceneNumber: input.sceneNumber == null ? null : number(input.sceneNumber),
+        title: text(input.title) || null, scriptureRef,
+        location: text(input.location) || null,
+        charactersPresent: Array.isArray(input.charactersPresent) ? input.charactersPresent.map(Number).filter(Number.isInteger) : [],
+        actionSummary: text(input.actionSummary) || null,
+        emotionalBeat: input.emotionalBeat == null ? null : (typeof input.emotionalBeat === "string" ? input.emotionalBeat : JSON.stringify(input.emotionalBeat)),
+        productionNotes: text(input.productionNotes) || null,
+        estimatedPages: input.estimatedPages == null ? null : Number(input.estimatedPages),
+        dayOrNight: text(input.dayOrNight) || null
+      };
+      await putRecord(sceneKey(id), record);
+      return sceneView(record);
+    });
   }
 
   async function updateScene(id, input = {}) {
