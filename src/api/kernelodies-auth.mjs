@@ -7,7 +7,7 @@ function timingSafeSecret(expected, supplied) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export function createKernelodiesLibraryAuth({ getToken = () => process.env.KERNEL..._TOKEN } = {}) {
+export function createKernelodiesLibraryAuth({ getToken = () => process.env.KERNELODIES_LIBRARY_TOKEN } = {}) {
   return function requireKernelodiesLibraryAuth(req, res, next) {
     const expected = getToken();
     if (!expected) {
