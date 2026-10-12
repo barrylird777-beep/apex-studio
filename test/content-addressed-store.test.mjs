@@ -172,3 +172,8 @@ test("remote-only CAS fails closed when a referenced cloud object is missing", a
     assert.deepEqual(await readdir(root), []);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("remote-only CAS configuration fails closed when production credentials are incomplete", () => {
+  assert.throws(() => new RemoteCasObjectBackend({ NODE_ENV: "production" }), /remote-only CAS is required/i);
+  assert.throws(() => new RemoteCasObjectBackend({ APEX_CAS_REMOTE_ENABLED: "true", APEX_OBJECT_STORAGE_BUCKET: "bucket" }), /remote-only CAS is required/i);
+});
