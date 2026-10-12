@@ -49,6 +49,11 @@ import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } fro
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
 
+// Production stack opts into an in-process sovereign runtime; tests and standalone API runs stay isolated.
+if (String(process.env.APEX_EMBED_SOVEREIGN_RUNTIME || '').toLowerCase() === 'true') {
+  await import('./src/core/sovereign-runtime-daemon.mjs');
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
