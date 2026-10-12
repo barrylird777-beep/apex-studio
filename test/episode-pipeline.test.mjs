@@ -24,6 +24,7 @@ function fakeOptions(records){
   return {
     assemble:async({outPath})=>{await writeFile(outPath,Buffer.from("verified-test-video"));const srtPath=outPath.replace(/\.mp4$/,".srt");await writeFile(srtPath,"1\n00:00:00,000 --> 00:00:03,000\nHook\n");return{outPath,srtPath,durationSec:30};},
     probe:async()=>({...probe}),
+    probeAudio:async()=>({durationSec:30}),
     qc:async()=>({...qc}),
     fabric:{put:async(appId,id,record)=>{records.push({appId,id,record});return record;}}
   };
@@ -86,6 +87,37 @@ test("episode export records QC failures as non-publishable artifacts",async()=>
     await assert.rejects(()=>produceKernelVisionEpisode({projectId:"p",episodeId:"qc-fail",shots:f.shots,narrationPath:f.narrationPath},{mediaRoot:f.root,...options}),/Episode export failed QC/);
     assert.equal(records.length,1);
     assert.equal(records[0].record.status,"qc-failed");
+    assert.equal(records[0].record.releaseEligible,false);
+  }finally{await rm(f.root,{recursive:true,force:true});}
+});
+
+test("episode export rejects narration shorter than the timeline before rendering",async()=>{
+  const f=await fixture(),records=[];
+  try{
+    let rendered=false;
+    const options={...fakeOptions(records),probeAudio:async()=>({durationSec:18}),assemble:async()=>{rendered=true;throw new Error("must not render");}};
+    await assert.rejects(
+      ()=>produceKernelVisionEpisode({projectId:"p",episodeId:"short-narration",shots:f.shots,narrationPath:f.narrationPath},{mediaRoot:f.root,...options}),
+      error=>error.code==="NARRATION_DURATION_MISMATCH"
+    );
+    assert.equal(rendered,false);
+    assert.equal(records.length,1);
+    assert.equal(records[0].record.status,"preflight-failed");
+    assert.equal(records[0].record.audioTiming.narrationDurationSec,18);
+    assert.equal(records[0].record.releaseEligible,false);
+  }finally{await rm(f.root,{recursive:true,force:true});}
+});
+
+test("audio probe rejects an unmeasurable narration duration",async()=>{
+  const f=await fixture(),records=[];
+  try{
+    const options={...fakeOptions(records),probeAudio:async()=>{throw Object.assign(new Error("ffprobe failed"),{code:"NARRATION_DURATION_UNVERIFIED"});}};
+    await assert.rejects(
+      ()=>produceKernelVisionEpisode({projectId:"p",episodeId:"unmeasurable-audio",shots:f.shots,narrationPath:f.narrationPath},{mediaRoot:f.root,...options}),
+      error=>error.code==="NARRATION_DURATION_UNVERIFIED"
+    );
+    assert.equal(records.length,1);
+    assert.equal(records[0].record.status,"preflight-failed");
     assert.equal(records[0].record.releaseEligible,false);
   }finally{await rm(f.root,{recursive:true,force:true});}
 });
