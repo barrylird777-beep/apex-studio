@@ -4,6 +4,7 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
+import { RemoteApexRingWAL } from "./remote-apex-ring-wal.mjs";
 
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const WAL_DIR=process.env.APEX_WAL_DIR||path.join(ROOT,"wal");
@@ -172,7 +173,7 @@ export class ApexRingWAL {
   }
   async snapshot(){await this.init();await this.refresh();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
 }
-export const apexRingWAL=new ApexRingWAL();
+export const apexRingWAL=String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true" ? new RemoteApexRingWAL() : new ApexRingWAL();
 
 /** Compatibility facade: the complete hash chain is retained; compact never truncates it. */
 export function createRingWal({file=FILE,maxBytes=50*1024*1024}={}){
