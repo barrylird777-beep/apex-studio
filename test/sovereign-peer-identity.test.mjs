@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { generateKeyPair, privateKeyToProtobuf } from "@libp2p/crypto/keys";
-import { loadOrCreatePeerPrivateKey } from "../src/network/sovereign-peer.mjs";
+import { createSovereignPeer, loadOrCreatePeerPrivateKey } from "../src/network/sovereign-peer.mjs";
 
 test("sovereign peer identity is persisted with private permissions and survives restart", async () => {
   const dir=await mkdtemp(path.join(os.tmpdir(),"apex-peer-identity-"));
@@ -59,5 +59,18 @@ test("injected stable identity is used without touching local storage", async ()
     if (previousKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64; else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = previousKey;
     if (previousRequired === undefined) delete process.env.APEX_PEER_IDENTITY_REQUIRED; else process.env.APEX_PEER_IDENTITY_REQUIRED = previousRequired;
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("production peer startup requires an expected identity pin", async () => {
+  const previousMode = process.env.NODE_ENV;
+  const previousExpected = process.env.APEX_EXPECTED_PEER_ID;
+  try {
+    process.env.NODE_ENV = "production";
+    delete process.env.APEX_EXPECTED_PEER_ID;
+    await assert.rejects(createSovereignPeer(), /APEX_EXPECTED_PEER_ID is required in production/);
+  } finally {
+    if (previousMode === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousMode;
+    if (previousExpected === undefined) delete process.env.APEX_EXPECTED_PEER_ID; else process.env.APEX_EXPECTED_PEER_ID = previousExpected;
   }
 });
