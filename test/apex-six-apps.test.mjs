@@ -8,7 +8,7 @@ import { handlers as productionHandlers } from "../src/jobs/production-handlers.
 import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
 import { xshieldStatus, classifyXShieldRequest } from "../src/apps/xshield.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
-import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
+import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus, saveKoinKobRecord, listKoinKobRecords } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
 
@@ -134,4 +134,30 @@ test("legacy music idea jobs report canonical app ownership", async () => {
   assert.equal(result.ownerApp, "Kernelodies");
   assert.equal(result.productionOwner, "KernelVision");
   assert.equal(result.durableEvaluation, true);
+});
+
+
+test("KoinKob simulation records persist through the shared Pure-WAL fabric", async () => {
+  const records = new Map();
+  const fabric = {
+    async put(appId, id, record) {
+      const entry = { appId, id, record, durable: true, storage: "local-pure-wal" };
+      records.set(appId + ":" + id, entry);
+      return entry;
+    },
+    async list(appId) {
+      return [...records.values()].filter(entry => entry.appId === appId);
+    }
+  };
+  const saved = await saveKoinKobRecord("simulation-test", {
+    recordType: "simulation",
+    createdAt: "2026-10-12T00:00:00.000Z",
+    workerCount: 20,
+    events: []
+  }, fabric);
+  assert.equal(saved.durable, true);
+  const rows = await listKoinKobRecords(fabric);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].record.workerCount, 20);
+  assert.equal(rows[0].record.recordType, "simulation");
 });

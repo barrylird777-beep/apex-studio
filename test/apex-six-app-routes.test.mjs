@@ -30,3 +30,20 @@ test("every canonical app page references only implemented API routes", async ()
   }
   assert.deepEqual(failures, []);
 });
+
+
+test("KoinKob simulation runs are durably stored and surfaced in history", async () => {
+  const [server, page] = await Promise.all([read("../server.mjs"), read("../public/koin-kob.html")]);
+  const listStart = server.indexOf("app.get('/api/koin-kob/simulations'");
+  const simulationStart = server.indexOf("app.post('/api/koin-kob/simulation'");
+  const nextRoute = server.indexOf("app.get('/api/canon/trajectory'");
+  assert.ok(listStart >= 0 && simulationStart > listStart && nextRoute > simulationStart);
+  const listRoute = server.slice(listStart, simulationStart);
+  const simulationRoute = server.slice(simulationStart, nextRoute);
+  assert.match(listRoute, /requireControlPlaneAuth/);
+  assert.match(listRoute, /listKoinKobRecords/);
+  assert.match(simulationRoute, /saveKoinKobRecord\(simulationId, record\)/);
+  assert.match(simulationRoute, /recordType:\s*['"]simulation['"]/);
+  assert.match(page, /\/api\/koin-kob\/simulations/);
+  assert.match(page, /savedRuns/);
+});
