@@ -19,7 +19,7 @@ ApexStudios, KORNKNOB, XShield, ShieldApex, EngineApex, Apexus, GardenOfApex and
 
 - Keep all six apps distinct, with separate identities and isolated data namespaces.
 - Shared handoffs must be authenticated, validated, durable and idempotent. A queued handoff is not proof of peer delivery; only verified peer acknowledgements count.
-- Preserve the Pure-WAL/Ring-WAL sovereign storage direction. **Do not restore PostgreSQL or introduce SQL/SQLite runtime dependencies.** PostgreSQL-era callers and migration utilities are legacy work to retire; current production is not considered complete until those runtime paths are removed or proven inactive and the queue/storage/recovery tests pass.
+- Use content-addressed durable storage for active writes. **Do not restore WAL writes, PostgreSQL, or SQL/SQLite runtime dependencies.** Legacy WAL files are read-only migration/rollback evidence; current production is not complete until active write paths are removed and the queue/storage/recovery tests pass.
 - Keep path confinement, symlink checks, atomic writes, fsync, hash-chain verification, fail-closed peer authorization and independent inspection.
 - Network status must describe measured client/server paths accurately. Do not claim multipath, failover, or worldwide peer connectivity without end-to-end evidence.
 - Public access should work over authenticated HTTPS; peer-to-peer networking must remain separately authenticated and allowlisted.
