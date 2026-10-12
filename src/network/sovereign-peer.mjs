@@ -241,6 +241,9 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
   // libp2p v3 passes a handler context object, not positional stream/connection arguments.
   // libp2p v3 passes the stream and connection as separate arguments.
   node.handle(PROTOCOL, async (stream, connection) => {
+    // Pause immediately so an early peer message cannot arrive before the
+    // envelope reader attaches its message listener.
+    stream.pause?.();
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       if (!isAllowedPeer(remotePeerId)) {
