@@ -15,7 +15,9 @@ const child = spawn(process.execPath, ['server.mjs'], {
     APEX_SE_X_ROOT: smokeRoot,
     APEX_PROJECTS_DIR: path.join(smokeRoot, 'projects'),
     APEX_WAL_DIR: path.join(smokeRoot, 'wal'),
-    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl')
+    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl'),
+    APEX_SHORTCUT_TOKEN: 'smoke-control-token',
+    APEX_OPPORTUNITY_ENGINE_TOKEN: 'smoke-opportunity-token'
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -104,7 +106,41 @@ try {
     throw new Error(`KoBlocks cycle rejection smoke failed: ${JSON.stringify(cyclicGraph)}`);
   }
 
-  console.log('production server smoke: PASS (health, six canonical apps, KoBlocks valid/cyclic graph validation verified)');
+  const opportunityResponse = await fetch(`http://127.0.0.1:${port}/api/kash-korner/opportunities`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'smoke-opportunity-token' },
+    body: JSON.stringify({
+      fingerprint: 'smoke-opportunity-fingerprint',
+      kind: 'smoke-opportunity',
+      chain_id: 1,
+      token_in: '0x0000000000000000000000000000000000000001',
+      token_out: '0x0000000000000000000000000000000000000002',
+      buy_pool: '0x0000000000000000000000000000000000000003',
+      sell_pool: '0x0000000000000000000000000000000000000004',
+      estimated_net_profit_usd: 3.25,
+      observed_at: new Date().toISOString()
+    })
+  });
+  const opportunitySaved = await opportunityResponse.json();
+  if (opportunityResponse.status !== 202 || opportunitySaved.success !== true) {
+    throw new Error(`KashKorner opportunity write smoke failed: ${JSON.stringify(opportunitySaved)}`);
+  }
+
+  const opportunityFeedResponse = await fetch(`http://127.0.0.1:${port}/api/kash-korner/opportunities?limit=5`);
+  const opportunityFeed = await opportunityFeedResponse.json();
+  if (opportunityFeedResponse.status !== 200 || !opportunityFeed.items?.some(item => item.fingerprint === 'smoke-opportunity-fingerprint')) {
+    throw new Error(`KashKorner opportunity read-back smoke failed: ${JSON.stringify(opportunityFeed)}`);
+  }
+
+  const ledgerResponse = await fetch(`http://127.0.0.1:${port}/api/kash-korner/entries`, {
+    headers: { 'x-apex-shortcut-token': 'smoke-control-token' }
+  });
+  const ledger = await ledgerResponse.json();
+  if (ledgerResponse.status !== 200 || ledger.entries?.some(entry => entry.recordType === 'opportunity')) {
+    throw new Error(`KashKorner ledger isolation smoke failed: ${JSON.stringify(ledger)}`);
+  }
+
+  console.log('production server smoke: PASS (health, six canonical apps, KoBlocks graph validation, KashKorner Pure-WAL opportunity write/read-back, ledger isolation verified)');
 } finally {
   child.kill('SIGTERM');
   await Promise.race([
