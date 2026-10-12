@@ -266,3 +266,67 @@ test("Kernelodies recovers an interrupted media/catalog commit without overwriti
     await fs.rm(storageDir, { recursive: true, force: true });
   }
 });
+
+
+test("Kernelodies repairs missing audio bytes only from a checksum-matching retry", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-missing-media-test-"));
+  let runtime;
+  try {
+    runtime = await startApp(storageDir);
+    const headers = { "x-test-token": "test-secret" };
+    const createdResponse = await fetch(runtime.base + "/api/kernelodies/library", {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ title: "Missing Media Recovery", artist: "Test Artist" })
+    });
+    const { track } = await createdResponse.json();
+    const audioBytes = Buffer.from("exact bytes required to restore the missing media");
+    const uploadUrl = runtime.base + "/api/kernelodies/library/" + track.id + "/audio";
+    const firstUpload = await fetch(uploadUrl, { method: "PUT", headers: { ...headers, "content-type": "audio/wav" }, body: audioBytes });
+    assert.equal(firstUpload.status, 200);
+    await fs.unlink(path.join(storageDir, "kernelodies-library", track.id + ".wav"));
+    const retry = await fetch(uploadUrl, { method: "PUT", headers: { ...headers, "content-type": "audio/wav" }, body: audioBytes });
+    assert.equal(retry.status, 200);
+    const saved = await retry.json();
+    const playback = await fetch(runtime.base + saved.track.audioUrl, { headers });
+    assert.equal(playback.status, 200);
+    assert.deepEqual(Buffer.from(await playback.arrayBuffer()), audioBytes);
+  } finally {
+    if (runtime) await runtime.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
+  }
+});
+
+test("Kernelodies never serves audio through a symlink", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-symlink-audio-test-"));
+  const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-outside-audio-test-"));
+  let runtime;
+  try {
+    runtime = await startApp(storageDir);
+    const headers = { "x-test-token": "test-secret" };
+    const createdResponse = await fetch(runtime.base + "/api/kernelodies/library", {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ title: "Symlink Guard", artist: "Test Artist" })
+    });
+    const { track } = await createdResponse.json();
+    const audioBytes = Buffer.from("safe track bytes");
+    const upload = await fetch(runtime.base + "/api/kernelodies/library/" + track.id + "/audio", {
+      method: "PUT", headers: { ...headers, "content-type": "audio/wav" }, body: audioBytes
+    });
+    assert.equal(upload.status, 200);
+    const audioPath = path.join(storageDir, "kernelodies-library", track.id + ".wav");
+    const outsidePath = path.join(outsideDir, "private.bin");
+    const outsideBytes = Buffer.from("must not be served by the library");
+    await fs.writeFile(outsidePath, outsideBytes, { mode: 0o600 });
+    await fs.unlink(audioPath);
+    await fs.symlink(outsidePath, audioPath);
+    const playback = await fetch(runtime.base + "/api/kernelodies/library/" + track.id + "/audio", { headers });
+    assert.equal(playback.status, 404);
+    assert.deepEqual(await fs.readFile(outsidePath), outsideBytes);
+  } finally {
+    if (runtime) await runtime.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
+    await fs.rm(outsideDir, { recursive: true, force: true });
+  }
+});

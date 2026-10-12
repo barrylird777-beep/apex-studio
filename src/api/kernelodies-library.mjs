@@ -207,10 +207,25 @@ export function createKernelodiesLibraryRouter({
         const record = manifest.tracks.find(track => track.id === id);
         if (!record) return res.status(404).json({ ok: false, error: "Track record not found" });
         if (record.audioUrl) {
-          if (record.mimeType === mimeType && record.bytes === bytes.length && record.checksum === checksum) {
-            return res.json({ ok: true, track: record });
+          if (record.mimeType !== mimeType || record.bytes !== bytes.length || record.checksum !== checksum) {
+            return res.status(409).json({ ok: false, error: "Audio is already attached to this track; it was not overwritten" });
           }
-          return res.status(409).json({ ok: false, error: "Audio is already attached to this track; it was not overwritten" });
+          try {
+            const existingInfo = await fs.lstat(finalPath);
+            if (existingInfo.isSymbolicLink() || !existingInfo.isFile()) {
+              return res.status(409).json({ ok: false, error: "Existing audio path is not a regular file; it was preserved for inspection" });
+            }
+            const existing = await fs.readFile(finalPath);
+            const existingChecksum = crypto.createHash("sha256").update(existing).digest("hex");
+            if (existing.length === bytes.length && existingChecksum === checksum) {
+              return res.json({ ok: true, track: record });
+            }
+            return res.status(409).json({ ok: false, error: "Existing audio does not match its catalog checksum; it was preserved for inspection" });
+          } catch (error) {
+            if (error?.code !== "ENOENT") throw error;
+            // The catalog survived but its media file did not. Restore only
+            // when the user supplies bytes matching the recorded checksum.
+          }
         }
         for (const existingExtension of new Set(Object.values(AUDIO_TYPES))) {
           if (existingExtension === extension) continue;
@@ -223,8 +238,13 @@ export function createKernelodiesLibraryRouter({
         try { availableBytes = Number(await getAvailableBytes(root)); }
         catch (_error) { return res.status(503).json({ ok: false, error: "Unable to verify available storage space" }); }
         let fileExists = false;
-        try { await fs.access(finalPath); fileExists = true; }
-        catch (error) { if (error?.code !== "ENOENT") throw error; }
+        try {
+          const fileInfo = await fs.lstat(finalPath);
+          if (fileInfo.isSymbolicLink() || !fileInfo.isFile()) {
+            return res.status(409).json({ ok: false, error: "Existing audio path is not a regular file; it was preserved for inspection" });
+          }
+          fileExists = true;
+        } catch (error) { if (error?.code !== "ENOENT") throw error; }
         if (!fileExists && (!Number.isFinite(availableBytes) || availableBytes < bytes.length + MIN_FREE_BYTES)) {
           return res.status(507).json({ ok: false, error: "Not enough free space; existing shared storage is protected." });
         }
@@ -271,7 +291,10 @@ export function createKernelodiesLibraryRouter({
       if (!track?.mimeType || !track.audioUrl) return res.status(404).json({ ok: false, error: "Audio is not available for this track" });
       const extension = AUDIO_TYPES[track.mimeType];
       const filename = path.join(root, id + "." + extension);
-      await fs.access(filename);
+      const fileInfo = await fs.lstat(filename);
+      if (fileInfo.isSymbolicLink() || !fileInfo.isFile() || fileInfo.size !== track.bytes) {
+        return res.status(404).json({ ok: false, error: "Audio file is unavailable or failed integrity checks" });
+      }
       res.set("Content-Type", track.mimeType);
       res.set("Content-Length", String(track.bytes));
       res.set("Cache-Control", "private, no-store");
