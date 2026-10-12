@@ -137,8 +137,7 @@ async function main() {
     publicPeerAddress: buildPublicPeerAddress(peerNode.peerId.toString()),
     listenAddresses: peerNode.getMultiaddrs().map(String),
     storageDir: engine.storageDir,
-    walFilePath: engine.walFilePath,
-    durableStore: 'local-pure-wal',
+    durableStore: 'content-addressed',
     reconcileMs
   }));
 
