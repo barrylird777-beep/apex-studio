@@ -97,10 +97,20 @@ export class ApexPureStore {
     return true;
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null}={}){
-    await this.refresh();if(!type)throw new Error("job type required");
-    if(dedupeKey){const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&["queued","running"].includes(j.status));if(existing)return {durable:true,id:existing.id,duplicate:true};}
-    const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
-    const r=await this.wal.append("job.enqueue",{id:job.id,job});for(const external of this.wal.lastExternalRecords||[])this.apply(external);this.apply(r);return {durable:true,id:job.id};
+    if(!type)throw new Error("job type required");
+    const run=async()=>{
+      await this.refresh();
+      if(dedupeKey){
+        const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&["queued","running","completed","dead"].includes(j.status));
+        if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
+      }
+      const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
+      const r=await this.wal.append("job.enqueue",{id:job.id,job});
+      for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+      this.apply(r);
+      return {durable:true,id:job.id};
+    };
+    const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
