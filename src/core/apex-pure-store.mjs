@@ -174,7 +174,7 @@ export class ApexPureStore {
           });
           await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
         };
-        await this.wal.replay({retainRing:false,onRecord:async record=>{
+        await this.wal.replayReadOnly({retainRing:false,onRecord:async record=>{
           const p=record.payload||{};
           if(record.type==="state.put"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});}
           else if(record.type==="state.delete"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,deleted:true});}
