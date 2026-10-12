@@ -52,7 +52,15 @@ export class ApexPureStore {
         await handle.sync();
         break;
       }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(handle){
+          // ENOSPC or an interrupted metadata write can leave a zero-byte lock file
+          // behind. Remove it only if this attempt still owns that exact inode.
+          try{
+            const [opened,current]=await Promise.all([handle.stat(),stat(lockFile)]);
+            if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+          }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+          await handle.close().catch(()=>{});handle=undefined;
+        }
         if(error.code!=="EEXIST")throw error;
         let stale=false;
         try{stale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
