@@ -75,3 +75,52 @@ test("Kernelodies library protects access and persists audio across app restarts
     await fs.rm(storageDir, { recursive: true, force: true });
   }
 });
+
+
+test("Kernelodies metadata updates from separate app instances do not overwrite each other", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-concurrency-test-"));
+  let first;
+  let second;
+  try {
+    first = await startApp(storageDir);
+    second = await startApp(storageDir);
+    const headers = { "x-test-token": "test-secret", "content-type": "application/json" };
+    const writes = await Promise.all(Array.from({ length: 12 }, (_, index) => {
+      const runtime = index % 2 ? first : second;
+      return fetch(runtime.base + "/api/kernelodies/library", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ title: "Concurrent Track " + index, artist: "Test Artist" })
+      });
+    }));
+    assert.ok(writes.every(response => response.status === 201));
+    const listing = await fetch(first.base + "/api/kernelodies/library", { headers: { "x-test-token": "test-secret" } });
+    assert.equal(listing.status, 200);
+    const data = await listing.json();
+    assert.equal(data.tracks.length, 12);
+    assert.equal(new Set(data.tracks.map(track => track.id)).size, 12);
+  } finally {
+    if (first) await first.close().catch(() => {});
+    if (second) await second.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
+  }
+});
+
+test("Kernelodies library refuses a symlinked storage root", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-symlink-test-"));
+  const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-outside-test-"));
+  let runtime;
+  try {
+    await fs.symlink(outsideDir, path.join(storageDir, "kernelodies-library"), "dir");
+    runtime = await startApp(storageDir);
+    const response = await fetch(runtime.base + "/api/kernelodies/library", {
+      headers: { "x-test-token": "test-secret" }
+    });
+    assert.equal(response.status, 503);
+    await assert.rejects(fs.access(path.join(outsideDir, "library.json")), { code: "ENOENT" });
+  } finally {
+    if (runtime) await runtime.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
+    await fs.rm(outsideDir, { recursive: true, force: true });
+  }
+});
