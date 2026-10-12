@@ -51,7 +51,7 @@ test("TeeVee production start is blocked until remote worker state and artifact 
   }
 });
 
-test("TeeVee production routes use Pure-WAL inventory and idempotent durable enqueue", async () => {
+test("TeeVee production routes use content-addressed inventory and idempotent durable enqueue", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "apex-teevee-pure-wal-"));
   const store = new ApexPureStore({
     root: path.join(dir, "projects"),
@@ -76,7 +76,7 @@ test("TeeVee production routes use Pure-WAL inventory and idempotent durable enq
     const base = `http://127.0.0.1:${server.address().port}/api/teevee/production`;
     const initial = await (await fetch(base + "/status")).json();
     assert.equal(initial.success, true);
-    assert.equal(initial.storage, "Pure-WAL/Ring-WAL");
+    assert.equal(initial.storage, "content-addressed");
     assert.equal(initial.inventoryTotal, 2785);
     assert.equal(initial.seededEpisodes, 0);
 
