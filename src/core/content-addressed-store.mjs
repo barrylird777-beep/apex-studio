@@ -106,19 +106,45 @@ export class ContentAddressedStore {
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const lock = file + ".lock";
     const started = Date.now();
-    let handle;
+    const staleAfterMs = 120000;
+    let handle, token;
     while (!handle) {
-      try { handle = await open(lock, "wx", 0o600); }
-      catch (error) {
+      token = randomUUID();
+      try {
+        handle = await open(lock, "wx", 0o600);
+        await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now(), token }), "utf8");
+        await handle.sync();
+      } catch (error) {
+        if (handle) { await handle.close().catch(() => {}); handle = undefined; }
         if (error.code !== "EEXIST") throw error;
+        let stale = false;
+        try { stale = Date.now() - (await stat(lock)).mtimeMs > staleAfterMs; }
+        catch (statError) { if (statError.code === "ENOENT") continue; throw statError; }
+        if (stale) {
+          const quarantine = lock + ".stale." + randomUUID();
+          try {
+            await rename(lock, quarantine);
+            await unlink(quarantine).catch(e => { if (e.code !== "ENOENT") throw e; });
+          } catch (recoveryError) {
+            if (recoveryError.code !== "ENOENT" && recoveryError.code !== "EEXIST") throw recoveryError;
+          }
+          continue;
+        }
         if (Date.now() - started > this.lockTimeoutMs) throw new Error("Timed out waiting for manifest lock");
         await sleep(10 + Math.floor(Math.random() * 20));
       }
     }
     try { return await operation(); }
     finally {
+      let ownsPath = false;
+      try {
+        const [opened, current, contents] = await Promise.all([handle.stat(), stat(lock), readFile(lock, "utf8")]);
+        ownsPath = opened.dev === current.dev && opened.ino === current.ino && JSON.parse(contents).token === token;
+      } catch (error) {
+        if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+      }
       await handle.close().catch(() => {});
-      await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; });
+      if (ownsPath) await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; });
     }
   }
 
