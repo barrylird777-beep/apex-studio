@@ -29,6 +29,7 @@ import { createMassiveAiWorkforce } from './src/core/mesh/massive-ai-workforce.m
 import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.mjs';
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { sovereignAppFabric } from './src/core/sovereign-app-fabric.mjs';
+import { kernelVisionSchedule } from './src/api/kernel-vision-schedule.mjs';
 import { opportunityEngineTokenMatches, listKashKornerOpportunities, saveKashKornerOpportunity } from './src/api/kash-korner-opportunities.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
@@ -789,6 +790,114 @@ app.post('/api/kash-korner/opportunities', requireOpportunityEngineAuth, async (
   } catch (error) {
     return res.status(400).json({ success: false, error: String(error?.message || error) });
   }
+});
+
+// KernelVision production schedule lives in the canonical Pure-WAL namespace.
+const scheduleErrorResponse = (res, error) => res.status(Number(error?.status) || 500).json({
+  success: false,
+  error: String(error?.message || error),
+  ...(error?.code ? { code: error.code } : {})
+});
+
+app.get('/api/projects', requireControlPlaneAuth, async (_req, res) => {
+  try { return res.json(await kernelVisionSchedule.listProjects()); }
+  catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.post('/api/projects', requireControlPlaneAuth, async (req, res) => {
+  try { return res.status(201).json(await kernelVisionSchedule.createProject(req.body || {})); }
+  catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.get('/api/projects/:id/overview', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const project = await kernelVisionSchedule.getProjectOverview(req.params.id);
+    return project ? res.json(project) : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.put('/api/projects/:id', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const project = await kernelVisionSchedule.updateProject(req.params.id, req.body || {});
+    return project ? res.json(project) : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.delete('/api/projects/:id', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const deleted = await kernelVisionSchedule.deleteProject(req.params.id);
+    return deleted ? res.status(204).end() : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.get('/api/projects/:id/scenes', requireControlPlaneAuth, async (req, res) => {
+  try {
+    if (!await kernelVisionSchedule.getProjectOverview(req.params.id)) return res.status(404).json({ error: 'Project not found' });
+    return res.json(await kernelVisionSchedule.listScenes(req.params.id));
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.post('/api/projects/:id/scenes', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const scene = await kernelVisionSchedule.createScene({ ...(req.body || {}), projectId: Number(req.params.id) });
+    return scene ? res.status(201).json(scene) : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.put('/api/scenes/:id', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const scene = await kernelVisionSchedule.updateScene(req.params.id, req.body || {});
+    return scene ? res.json(scene) : res.status(404).json({ error: 'Scene not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.delete('/api/scenes/:id', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const deleted = await kernelVisionSchedule.deleteScene(req.params.id);
+    return deleted ? res.status(204).end() : res.status(404).json({ error: 'Scene not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.delete('/api/scenes/:id/assignment', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const removed = await kernelVisionSchedule.unassignScene(req.params.id);
+    return removed ? res.status(204).end() : res.status(404).json({ error: 'Scene assignment not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.get('/api/projects/:id/shoot-days', requireControlPlaneAuth, async (req, res) => {
+  try {
+    if (!await kernelVisionSchedule.getProjectOverview(req.params.id)) return res.status(404).json({ error: 'Project not found' });
+    return res.json(await kernelVisionSchedule.listShootDays(req.params.id));
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.post('/api/projects/:id/shoot-days', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const day = await kernelVisionSchedule.createShootDay({ ...(req.body || {}), projectId: Number(req.params.id) });
+    return day ? res.status(201).json(day) : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.get('/api/shoot-days/:id', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const day = await kernelVisionSchedule.getShootDay(req.params.id);
+    return day ? res.json(day) : res.status(404).json({ error: 'Shoot day not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.delete('/api/shoot-days/:id', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const deleted = await kernelVisionSchedule.deleteShootDay(req.params.id);
+    return deleted ? res.status(204).end() : res.status(404).json({ error: 'Shoot day not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.post('/api/shoot-days/:id/scenes', requireControlPlaneAuth, async (req, res) => {
+  try { return res.json(await kernelVisionSchedule.assignScenes(req.params.id, req.body?.sceneIds)); }
+  catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.put('/api/shoot-days/:id/order', requireControlPlaneAuth, async (req, res) => {
+  try { return res.json(await kernelVisionSchedule.reorderDay(req.params.id, req.body?.sceneIds)); }
+  catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.get('/api/projects/:id/calendar', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const calendar = await kernelVisionSchedule.getCalendar(req.params.id, req.query);
+    return calendar ? res.json(calendar) : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
+});
+app.post('/api/projects/:id/auto-schedule', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const calendar = await kernelVisionSchedule.runAutoSchedule(req.params.id, req.body || {});
+    return calendar ? res.json(calendar) : res.status(404).json({ error: 'Project not found' });
+  } catch (error) { return scheduleErrorResponse(res, error); }
 });
 
 // Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
