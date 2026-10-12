@@ -57,3 +57,29 @@ test('Pure-WAL materialized records are written with restrictive permissions and
     assert.equal((await reopened.get('notes','note-1')).value,'durable');
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
+
+test('independent WAL instances serialize concurrent appends into one verified chain', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-wal-concurrency-'));
+  try {
+    const file=path.join(dir,'ring.wal.jsonl');
+    const a=new ApexRingWAL({file}),b=new ApexRingWAL({file});
+    await Promise.all(Array.from({length:24},(_,i)=>(i%2?a:b).append('concurrent',{index:i})));
+    const reopened=new ApexRingWAL({file});
+    const records=[];
+    assert.equal(await reopened.replay({onRecord:r=>records.push(r)}),24);
+    assert.deepEqual(records.map(r=>r.seq),Array.from({length:24},(_,i)=>i+1));
+    assert.equal(new Set(records.map(r=>r.hash)).size,24);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
+
+test('WAL refuses a symlinked log file instead of following it', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-wal-symlink-'));
+  try {
+    const outside=path.join(dir,'outside.wal');
+    const target=path.join(dir,'ring.wal.jsonl');
+    await fs.writeFile(outside,'','utf8');
+    await fs.symlink(outside,target);
+    const wal=new ApexRingWAL({file:target});
+    await assert.rejects(wal.init(),/SECURITY_VIOLATION/);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
