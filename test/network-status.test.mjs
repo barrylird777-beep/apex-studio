@@ -41,3 +41,37 @@ test("network policy never claims multipath without multiple verified client pat
   assert.equal(verifiedMultipath.mode, "multipath-verified");
   assert.equal(verifiedMultipath.maxLanes, 16);
 });
+
+test("mobile control plane accepts the documented control-token fallback", async () => {
+  const express = (await import("express")).default;
+  const { createMobileControlPlane } = await import("../src/api/mobile-control-plane.mjs");
+  const previousShortcut = process.env.APEX_SHORTCUT_TOKEN;
+  const previousControl = process.env.APEX_CONTROL_TOKEN;
+  delete process.env.APEX_SHORTCUT_TOKEN;
+  process.env.APEX_CONTROL_TOKEN = "test-control-token-123";
+
+  const app = express();
+  app.use("/api/mobile", createMobileControlPlane({
+    getHealth: async () => ({ ok: true })
+  }));
+  const server = app.listen(0, "127.0.0.1");
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("listening", resolve);
+      server.once("error", reject);
+    });
+    const address = server.address();
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/mobile/status`, {
+      headers: { "x-apex-shortcut-token": "test-control-token-123" }
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).success, true);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    if (previousShortcut === undefined) delete process.env.APEX_SHORTCUT_TOKEN;
+    else process.env.APEX_SHORTCUT_TOKEN = previousShortcut;
+    if (previousControl === undefined) delete process.env.APEX_CONTROL_TOKEN;
+    else process.env.APEX_CONTROL_TOKEN = previousControl;
+  }
+});
