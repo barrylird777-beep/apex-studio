@@ -61,7 +61,7 @@ export class SovereignMeshEngine {
       try { raw = await fs.readFile(this.legacyLogPath, "utf8"); }
       catch (error) { if (error.code !== "ENOENT") throw error; }
       let lastSeq = 0;
-      for (const [index, lineRaw] of raw.split("\\n").entries()) {
+      for (const [index, lineRaw] of raw.split("\n").entries()) {
         const line = lineRaw.trim();
         if (!line) continue;
         let entry;
@@ -81,7 +81,7 @@ export class SovereignMeshEngine {
         await this.cas.writeRef("system", remoteMarkerKey, remoteMarker, { expectedHash: null });
       } else {
         const marker = this.migrationFile + "." + randomUUID() + ".tmp";
-        await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: remoteMarker.migratedAt }) + "\\n", { flag: "wx", mode: 0o600 });
+        await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: remoteMarker.migratedAt }) + "\n", { flag: "wx", mode: 0o600 });
         await fs.rename(marker, this.migrationFile);
       }
     }
