@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createReadStream } from "node:fs";
 import { access, mkdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
@@ -7,6 +9,7 @@ import { validateHookPlan, LABELS, MOTIONS } from "./hook.mjs";
 import { runRenderQC } from "../core/validation/render-qc.mjs";
 import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
+const execFileAsync=promisify(execFile);
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,100}$/;
 const CLASSES=new Set(["generated","imported","licensed","unverified"]);
 const DEFAULT_MEDIA_ROOT=process.env.APEX_KERNELVISION_MEDIA_ROOT||process.env.STORAGE_DIR||path.resolve("data/runtime/storage");
@@ -29,6 +32,15 @@ async function sha256File(file){
   const hash=crypto.createHash("sha256");
   await new Promise((resolve,reject)=>{const stream=createReadStream(file);stream.on("data",chunk=>hash.update(chunk));stream.once("error",reject);stream.once("end",resolve);});
   return hash.digest("hex");
+}
+export async function probeAudioDuration(file,{ffprobePath=process.env.FFPROBE_PATH||"ffprobe",exec=execFileAsync}={}){
+  const {stdout}=await exec(ffprobePath,["-v","error","-select_streams","a:0","-show_entries","stream=duration:format=duration","-of","json",file],{maxBuffer:16*1024*1024});
+  const data=JSON.parse(stdout);
+  const streamDuration=Number(data.streams?.[0]?.duration);
+  const formatDuration=Number(data.format?.duration);
+  const durationSec=Number.isFinite(streamDuration)&&streamDuration>0?streamDuration:formatDuration;
+  if(!Number.isFinite(durationSec)||durationSec<=0)throw Object.assign(new Error("Narration audio duration could not be verified"),{code:"NARRATION_DURATION_UNVERIFIED"});
+  return {durationSec};
 }
 function normalizeProvenance(value,defaultSource){
   const input=value&&typeof value==="object"&&!Array.isArray(value)?value:{};
@@ -108,8 +120,13 @@ export async function produceKernelVisionEpisode(input={},options={}){
     narration:narrationProvenance,
     music:musicProvenance
   };
-  let renderResult,probe,qc,spec,artifact;
+  let renderResult,probe,qc,spec,artifact,narrationProbe;
   try{
+    narrationProbe=await (options.probeAudio||probeAudioDuration)(narrationPath,{ffprobePath:options.ffprobePath||process.env.FFPROBE_PATH||"ffprobe",exec:options.exec});
+    const narrationDurationSec=Number(narrationProbe?.durationSec);
+    if(!Number.isFinite(narrationDurationSec)||narrationDurationSec+0.75<totalDuration){
+      throw Object.assign(new Error("Narration audio is too short for the timeline: "+(Number.isFinite(narrationDurationSec)?narrationDurationSec:"unknown")+"s for "+totalDuration+"s of video"),{code:"NARRATION_DURATION_MISMATCH"});
+    }
     renderResult=await (options.assemble||assembleVideo)({shots,narration:narrationPath,music:musicPath,outPath,fps:24,ffmpegPath:options.ffmpegPath||process.env.FFMPEG_PATH||"ffmpeg"});
     probe=await (options.probe||probeVideo)(outPath,{ffprobePath:options.ffprobePath||process.env.FFPROBE_PATH||"ffprobe"});
     spec=checkSpec(probe,{expectedSec:totalDuration,toleranceSec:0.75,expectedFps:24});
@@ -125,6 +142,7 @@ export async function produceKernelVisionEpisode(input={},options={}){
       output:{path:path.relative(root,outPath),subtitlePath:path.relative(root,renderResult.srtPath||srtPath),bytes:outputStat.size,sha256:await sha256File(outPath),format:"mp4",...probe},
       subtitles:{path:path.relative(root,renderResult.srtPath||srtPath),sha256:await sha256File(renderResult.srtPath||srtPath)},
       openingHook:{valid:hook.ok,durationSec:hook.totalSec,shotCount:10},
+      audioTiming:{requiredDurationSec:totalDuration,narrationDurationSec:narrationProbe.durationSec,coverageRatio:Math.min(1,narrationProbe.durationSec/totalDuration)},
       mediaProvenance,
       provenance:{source:"KernelVision episode export pipeline",verified:qcPassed,verifiedAt:new Date().toISOString(),method:"FFprobe stream/spec validation plus render QC"},
       quality:{spec,qc},
@@ -141,7 +159,8 @@ export async function produceKernelVisionEpisode(input={},options={}){
     return {success:true,artifact,render:renderResult};
   }catch(error){
     if(!artifact){
-      artifact={id,projectId,episodeId,title,contentDomain,passage,status:"render-failed",technicalReady:false,releaseEligible:false,publicationState:"blocked-render",releaseBlockers:["render-failed"],output:{path:path.relative(root,outPath)},openingHook:{valid:true,durationSec:hook.totalSec,shotCount:10},mediaProvenance,provenance:{source:"KernelVision episode export pipeline",verified:false},error:safeText(error?.message||error,2000),createdAt,completedAt:new Date().toISOString()};
+      const preflightFailure=String(error?.code||"").startsWith("NARRATION_");
+      artifact={id,projectId,episodeId,title,contentDomain,passage,status:preflightFailure?"preflight-failed":"render-failed",technicalReady:false,releaseEligible:false,publicationState:preflightFailure?"blocked-preflight":"blocked-render",releaseBlockers:[preflightFailure?"narration-preflight-failed":"render-failed"],output:{path:path.relative(root,outPath)},openingHook:{valid:true,durationSec:hook.totalSec,shotCount:10},audioTiming:{requiredDurationSec:totalDuration,narrationDurationSec:narrationProbe?.durationSec??null},mediaProvenance,provenance:{source:"KernelVision episode export pipeline",verified:false},errorCode:String(error?.code||"RENDER_FAILED"),error:safeText(error?.message||error,2000),createdAt,completedAt:new Date().toISOString()};
       await (options.fabric||sovereignAppFabric).put("kernel-vision","episode-"+episodeId+"-"+id,artifact).catch(()=>{});
     }
     throw error;
