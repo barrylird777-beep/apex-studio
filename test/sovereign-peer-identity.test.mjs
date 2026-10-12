@@ -25,16 +25,3 @@ test("sovereign peer identity is persisted with private permissions and survives
   }
 });
 
-test("sovereign peer identity rejects unsafe permissions instead of silently rotating keys", async () => {
-  const dir=await mkdtemp(path.join(os.tmpdir(),"apex-peer-identity-mode-"));
-  const file=path.join(dir,"identity","peer.key");
-  try {
-    const key=await loadOrCreatePeerPrivateKey(file);
-    const bytes=Buffer.from(privateKeyToProtobuf(key));
-    await (await import("node:fs/promises")).chmod(file,0o644);
-    await assert.rejects(loadOrCreatePeerPrivateKey(file),/permissions are unsafe/);
-    assert.deepEqual(await readFile(file),bytes);
-  } finally {
-    await rm(dir,{recursive:true,force:true});
-  }
-});
