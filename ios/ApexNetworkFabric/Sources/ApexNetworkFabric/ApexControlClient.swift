@@ -63,6 +63,36 @@ public struct ApexControlClient: Sendable {
         try await request(path: "api/mobile/ai", method: "GET")
     }
 
+    public func sovereignStatus() async throws -> Data {
+        try await request(path: "api/mobile/sovereign/status", method: "GET")
+    }
+
+    public func apps() async throws -> Data {
+        try await request(path: "api/mobile/apps", method: "GET")
+    }
+
+    public func appRecords(appId: String) async throws -> Data {
+        try await request(path: "api/mobile/apps/\(pathSegment(appId))/records", method: "GET")
+    }
+
+    public func appRecord(appId: String, recordId: String) async throws -> Data {
+        try await request(path: "api/mobile/apps/\(pathSegment(appId))/records/\(pathSegment(recordId))", method: "GET")
+    }
+
+    public func putAppRecord(appId: String, recordId: String, record: [String: Any]) async throws -> Data {
+        try await putJSON(
+            path: "api/mobile/apps/\(pathSegment(appId))/records/\(pathSegment(recordId))",
+            body: record
+        )
+    }
+
+    public func dispatchSovereign(appId: String, action: String, waveId: String = UUID().uuidString, data: [String: Any] = [:]) async throws -> Data {
+        try await postJSON(
+            path: "api/mobile/sovereign/dispatch",
+            body: ["appId": appId, "action": action, "waveId": waveId, "data": data]
+        )
+    }
+
     public func storageStatus() async throws -> ApexStorageStatus {
         try await decode(path: "api/mobile/storage/status", method: "GET", as: ApexStorageStatus.self)
     }
@@ -288,8 +318,29 @@ public struct ApexControlClient: Sendable {
         let url: URL
     }
 
+    private func pathSegment(_ value: String) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._:")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    }
+
+    private func putJSON(path: String, body: [String: Any]) async throws -> Data {
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
+            throw ApexControlError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue(token, forHTTPHeaderField: "x-apex-shortcut-token")
+        request.setValue(UUID().uuidString, forHTTPHeaderField: "x-request-id")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: request)
+        try validate(response)
+        return data
+    }
+
     private func decode<T: Decodable>(path: String, method: String, as type: T.Type) async throws -> T {
-        try JSONDecoder().decode(T.self, from: request(path: path, method: method))
+        let data = try await request(path: path, method: method)
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     private func postJSON(path: String, body: [String: Any]) async throws -> Data {

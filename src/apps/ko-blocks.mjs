@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
+import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
 const APP = getApexApp("ko-blocks");
 const clone = value => structuredClone(value);
@@ -87,3 +88,9 @@ export function koBlocksStatus() {
     checkedAt: new Date().toISOString()
   };
 }
+
+
+// Shared durable records for this app; inject a test/local fabric when needed.
+export const saveKoBlocksRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
+export const getKoBlocksRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
+export const listKoBlocksRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);

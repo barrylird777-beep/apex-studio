@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 @main
@@ -9,6 +10,7 @@ struct ApexMobileApp: App {
 }
 
 struct ApexRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var prompt = ""
     @State private var output = ""
     @State private var busy = false
@@ -19,112 +21,340 @@ struct ApexRootView: View {
     @State private var selectedModelID: String?
     @State private var lastInferenceMilliseconds: Int?
     @State private var lastRunLabel = "No inference run recorded"
+    @StateObject private var nearbyMesh = ApexNearbyMesh()
+    @StateObject private var connectivity = ApexPhoneConnectivity()
+    @State private var pairingSecret = ""
+    @State private var nearbyMessage = "APEX nearby link test"
+    @State private var controlURL = ""
+    @State private var controlToken = ""
+    @State private var controlStatus = "Not connected to the six-app fabric."
+    @State private var sovereignApps: [ApexSovereignApp] = []
+    @State private var selectedSovereignApp = ""
+    @State private var sovereignAction = "phone.ping"
+    @State private var controlBusy = false
+    @State private var selectedSection = "Connect"
 
     private var ggufType: UTType {
         UTType(filenameExtension: "gguf", conformingTo: .data) ?? .data
     }
 
+    private var nearbyMeshPanel: some View {
+        GroupBox("Carrier-independent nearby mesh") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("System route: " + connectivity.systemRoute).font(.caption).textSelection(.enabled)
+                Text("Wi-Fi: " + connectivity.wifiRoute + " • Cellular: " + connectivity.cellularRoute)
+                    .font(.caption).textSelection(.enabled)
+                Text("iOS route status is not proof of public internet access.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                Divider()
+                Text("Nearby device-to-device messages can work without carrier service. This does not create general internet access.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Keep this screen open while finding peers. Apex will retry server requests after temporary route failures and check again when you return to the app.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                SecureField("Random shared pairing secret (32+ characters)", text: $pairingSecret)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                HStack {
+                    Button("Generate key") { pairingSecret = ApexNearbyMesh.makePairingSecret() }
+                    Button("Copy key") { UIPasteboard.general.string = pairingSecret }
+                        .disabled(pairingSecret.isEmpty)
+                }
+                Text("Generate the key on one device, share it privately with your other Apex device, then start discovery on both.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Start discovery") {
+                        do { try nearbyMesh.start(pairingSecret: pairingSecret) }
+                        catch { self.error = error.localizedDescription }
+                    }
+                    .disabled(pairingSecret.utf8.count < 32)
+                    .buttonStyle(.borderedProminent)
+                    Button("Stop") { nearbyMesh.stop() }
+                        .buttonStyle(.bordered)
+                }
+                Text(nearbyMesh.status).font(.caption).textSelection(.enabled)
+                if !nearbyMesh.nearbyPeers.isEmpty {
+                    Text("Nearby devices").font(.subheadline.bold())
+                    ForEach(nearbyMesh.nearbyPeers, id: \.self) { peer in
+                        HStack {
+                            Text(peer).lineLimit(1)
+                            Spacer()
+                            Button(nearbyMesh.connectedPeers.contains(peer) ? "Connected" : "Connect") {
+                                nearbyMesh.connect(to: peer)
+                            }
+                            .disabled(nearbyMesh.connectedPeers.contains(peer))
+                        }
+                    }
+                }
+                Text("Connected: " + (nearbyMesh.connectedPeers.isEmpty ? "none" : nearbyMesh.connectedPeers.joined(separator: ", ")))
+                    .font(.caption)
+                    .textSelection(.enabled)
+                TextField("Message to nearby peers", text: $nearbyMessage)
+                    .textInputAutocapitalization(.sentences)
+                Button("Send authenticated message") {
+                    do { try nearbyMesh.send(nearbyMessage) }
+                    catch { self.error = error.localizedDescription }
+                }
+                .disabled(nearbyMesh.connectedPeers.isEmpty || nearbyMessage.isEmpty)
+                Text(nearbyMesh.lastMessage)
+                    .font(.caption)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private var sovereignControlPanel: some View {
+        GroupBox("Six-app sovereign control") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Connect to the authenticated Apex server to inspect all six app namespaces and queue a dispatch. The server must be reachable; nearby mesh alone does not provide internet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Apex server URL (https://…)", text: $controlURL)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                SecureField("Apex control token", text: $controlToken)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button(controlBusy ? "Connecting…" : "Refresh six-app status") {
+                    Task { await refreshSovereignControl() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(controlBusy || controlURL.isEmpty || controlToken.isEmpty)
+                Text(controlStatus)
+                    .font(.caption)
+                    .textSelection(.enabled)
+                if !sovereignApps.isEmpty {
+                    Picker("Target app", selection: $selectedSovereignApp) {
+                        ForEach(sovereignApps) { app in
+                            Text(app.name).tag(app.id)
+                        }
+                    }
+                    TextField("Dispatch action", text: $sovereignAction)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button(controlBusy ? "Sending…" : "Queue dispatch for selected app") {
+                        Task { await dispatchSovereignAction() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(controlBusy || selectedSovereignApp.isEmpty || sovereignAction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    ForEach(sovereignApps) { app in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.name).font(.caption.bold())
+                            Text(app.role).font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func makeControlClient() throws -> ApexSovereignControlClient {
+        guard let url = URL(string: controlURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              ["https", "http"].contains(scheme),
+              url.host != nil else {
+            throw ApexSovereignControlError.invalidURL
+        }
+        if scheme != "https" && !["localhost", "127.0.0.1"].contains(url.host?.lowercased() ?? "") {
+            throw ApexSovereignControlError.invalidURL
+        }
+        return ApexSovereignControlClient(baseURL: url, token: controlToken)
+    }
+
+    @MainActor
+    private func refreshSovereignControl() async {
+        guard !controlBusy else { return }
+        controlBusy = true
+        defer { controlBusy = false }
+        do {
+            let client = try makeControlClient()
+            async let status = client.status()
+            let apps = try await client.apps()
+            controlStatus = try await status
+            sovereignApps = apps
+            if !apps.contains(where: { $0.id == selectedSovereignApp }) {
+                selectedSovereignApp = apps.first?.id ?? ""
+            }
+            if apps.count != 6 {
+                controlStatus += " • WARNING: expected six canonical apps."
+            }
+        } catch {
+            controlStatus = "Connection failed: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func dispatchSovereignAction() async {
+        guard !controlBusy else { return }
+        controlBusy = true
+        defer { controlBusy = false }
+        do {
+            let client = try makeControlClient()
+            controlStatus = try await client.dispatch(
+                appID: selectedSovereignApp,
+                action: sovereignAction.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        } catch {
+            controlStatus = "Dispatch failed: \(error.localizedDescription)"
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
+            ScrollView {
+                VStack(spacing: 14) {
                 Text("APEX UNIVERSAL LOCAL AI").font(.headline)
                 Text("On-device inference • Metal when supported • offline-capable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Button {
-                    modelImportPresented = true
-                } label: {
-                    Label("Import GGUF Model", systemImage: "square.and.arrow.down")
+                Picker("Workspace", selection: $selectedSection) {
+                    Text("Connect").tag("Connect")
+                    Text("Offline AI").tag("Offline AI")
                 }
-                .buttonStyle(.bordered)
-                .disabled(busy)
+                .pickerStyle(.segmented)
 
-                Text(modelStatus)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                GroupBox("Local model inventory") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Available storage")
-                            Spacer()
-                            Text(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.availableBytes(), countStyle: .file))
-                                .monospacedDigit()
-                        }
-                        if models.isEmpty {
-                            Text("No valid GGUF headers found.")
-                                .font(.footnote)
+                if selectedSection == "Connect" {
+                    nearbyMeshPanel
+                    GroupBox("Connection fallbacks") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Nearby Apex device", systemImage: "dot.radiowaves.left.and.right")
+                                .font(.subheadline.bold())
+                            Text("Keep discovery running and connect to another compatible Apex device nearby. Both devices need Apex Mobile open, local-network permission, and the same secret.")
+                                .font(.caption)
+                            Divider()
+                            Label("Wi-Fi or public hotspot", systemImage: "wifi")
+                                .font(.subheadline.bold())
+                            Text("Join a trusted available network in iPhone Settings. This app reports iOS route status but cannot sign you into a hotspot automatically.")
+                                .font(.caption)
+                            Divider()
+                            Label("Emergency satellite", systemImage: "sos.circle")
+                                .font(.subheadline.bold())
+                            Text("On supported iPhone 14 models and in supported regions, Apple's Emergency SOS via satellite may reach emergency services when other connections fail. It is for emergencies, not normal internet or general messaging.")
+                                .font(.caption)
+                            Text("No software can guarantee a connection when no compatible radio, nearby peer, Wi-Fi, cellular, or supported satellite service is reachable.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(models) { model in
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(model.id).font(.subheadline).lineLimit(2)
-                                    Text("\(model.displaySize) • GGUF v\(model.ggufVersion) • \(model.tensorCount) tensors • header valid")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Text("Estimated working set: \(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.estimatedWorkingSetBytes(modelBytes: model.sizeBytes), countStyle: .memory)) • rough estimate only")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Button(selectedModelID == model.id ? "Selected for inference" : "Use this model") {
-                                        selectedModelID = model.id
+                        }
+                    }
+                    DisclosureGroup("Apex server & six-app controls") {
+                        sovereignControlPanel
+                    }
+                } else {
+                    Button {
+                        modelImportPresented = true
+                    } label: {
+                        Label("Import GGUF Model", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(busy)
+    
+                    Text(modelStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+    
+                    GroupBox("Local model inventory") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Available storage")
+                                Spacer()
+                                Text(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.availableBytes(), countStyle: .file))
+                                    .monospacedDigit()
+                            }
+                            if models.isEmpty {
+                                Text("No valid GGUF headers found.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(models) { model in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(model.id).font(.subheadline).lineLimit(2)
+                                        Text("\(model.displaySize) • GGUF v\(model.ggufVersion) • \(model.tensorCount) tensors • header valid")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Text("Estimated working set: \(ByteCountFormatter.string(fromByteCount: ApexModelCatalog.estimatedWorkingSetBytes(modelBytes: model.sizeBytes), countStyle: .memory)) • rough estimate only")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Button(selectedModelID == model.id ? "Selected for inference" : "Use this model") {
+                                            selectedModelID = model.id
+                                        }
+                                        .font(.caption)
+                                        .disabled(busy)
                                     }
-                                    .font(.caption)
-                                    .disabled(busy)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Divider()
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                Divider()
+                            }
+                            Button("Refresh inventory") { refreshInventory() }
+                                .font(.footnote)
+                        }
+                    }
+    
+                    TextEditor(text: $prompt)
+                        .frame(minHeight: 110)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
+    
+                    Button(busy ? "Running locally…" : "Execute") {
+                        Task {
+                            busy = true
+                            error = nil
+                            defer { busy = false }
+                            let start = ContinuousClock.now
+                            do {
+                                let modelPath = models.first(where: { $0.id == selectedModelID })?.url.path
+                                let result = try await ApexLocalRuntime.shared.generate(prompt, modelPath: modelPath)
+                                output = result
+                                let elapsed = start.duration(to: .now)
+                                let components = elapsed.components
+                                let milliseconds = Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000)
+                                lastInferenceMilliseconds = milliseconds
+                                lastRunLabel = "Inference completed • \(milliseconds) ms • response characters: \(result.count)"
+                            } catch {
+                                self.error = error.localizedDescription
+                                lastRunLabel = "Inference failed • \(error.localizedDescription)"
                             }
                         }
-                        Button("Refresh inventory") { refreshInventory() }
-                            .font(.footnote)
                     }
-                }
-
-                TextEditor(text: $prompt)
-                    .frame(minHeight: 110)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
-
-                Button(busy ? "Running locally…" : "Execute") {
-                    Task {
-                        busy = true
-                        error = nil
-                        defer { busy = false }
-                        let start = ContinuousClock.now
-                        do {
-                            let modelPath = models.first(where: { $0.id == selectedModelID })?.url.path
-                            let result = try await ApexLocalRuntime.shared.generate(prompt, modelPath: modelPath)
-                            output = result
-                            let elapsed = start.duration(to: .now)
-                            let components = elapsed.components
-                            let milliseconds = Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000)
-                            lastInferenceMilliseconds = milliseconds
-                            lastRunLabel = "Inference completed • \(milliseconds) ms • response characters: \(result.count)"
-                        } catch {
-                            self.error = error.localizedDescription
-                            lastRunLabel = "Inference failed • \(error.localizedDescription)"
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(busy || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Text(lastRunLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                ScrollView {
-                    Text(output.isEmpty ? "Ready." : output)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    
+                    Text(lastRunLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+    
+                    ScrollView {
+                        Text(output.isEmpty ? "Ready." : output)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 220)
                 }
                 Spacer(minLength: 0)
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("Apex")
             .onAppear { refreshInventory() }
+            .onChange(of: connectivity.systemRoute) { _ in
+                guard selectedSection == "Connect",
+                      !controlURL.isEmpty,
+                      !controlToken.isEmpty,
+                      !controlBusy else { return }
+                Task { await refreshSovereignControl() }
+            }
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active,
+                      selectedSection == "Connect",
+                      !controlURL.isEmpty,
+                      !controlToken.isEmpty,
+                      !controlBusy else { return }
+                Task { await refreshSovereignControl() }
+            }
             .fileImporter(
                 isPresented: $modelImportPresented,
                 allowedContentTypes: [ggufType],

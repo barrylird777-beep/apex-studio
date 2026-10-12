@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
+import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
 const APP = getApexApp("kash-korner");
 const currencyOf = value => String(value || 'USD').trim().toUpperCase();
@@ -57,3 +58,9 @@ export function kashKornerStatus() {
     checkedAt: new Date().toISOString()
   };
 }
+
+
+// Shared durable records for this app; inject a test/local fabric when needed.
+export const saveKashKornerRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
+export const getKashKornerRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
+export const listKashKornerRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);
