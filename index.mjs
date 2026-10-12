@@ -3,6 +3,7 @@ import { capacitySnapshot } from "./src/core/capacity.mjs";
 import { getProjectState } from "./src/services/projectManager.mjs";
 import {
   durableWorkerEnabled,
+  ensureWorkerTaskSchema,
   claimNextWorkerTasks,
   heartbeatWorkerTask,
   completeWorkerTask,
@@ -170,16 +171,16 @@ if (!workerOnly) {
   await startProductionDaemon();
 } else {
   process.title = "apex-autonomous-worker";
-  if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
+  if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires durable worker storage");
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  const dbRetryMaxMs = Math.max(5000, Number(process.env.APEX_WORKER_DB_RETRY_MAX_MS || 30000));
+  const storageRetryMaxMs = Math.max(5000, Number(process.env.APEX_WORKER_STORAGE_RETRY_MAX_MS || 30000));
   let dbFailures = 0;
-  const waitForDatabase = async () => {
+  const waitForStorage = async () => {
     while (!stopping) {
       try {
-        await import("./src/core/mesh/durable-worker-store.mjs").then(({ getPool }) => getPool().query("SELECT 1"));
-        if (dbFailures) console.log("[apex-worker] PostgreSQL recovered");
+        await ensureWorkerTaskSchema();
+        if (dbFailures) console.log("[apex-worker] Pure-WAL storage recovered");
         dbFailures = 0;
         return true;
       } catch (error) {
@@ -280,7 +281,7 @@ if (!workerOnly) {
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
   while (!stopping) {
-    const ready = await waitForDatabase();
+    const ready = await waitForStorage();
     if (!ready) break;
 
     try {
