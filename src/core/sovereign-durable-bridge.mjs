@@ -12,6 +12,7 @@ function serializePayload(record) {
     action: record.action,
     timestamp: record.timestamp,
     payload: record.payload,
+    status: record.status,
     checksum: record.checksum
   };
 }
@@ -52,6 +53,7 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
         waveId: record.waveId,
         jobId: job.id,
         checksum: record.checksum,
+        record: payload,
         fence: Number(job.leaseFence ?? job.lease_fence ?? 0)
       });
     }
