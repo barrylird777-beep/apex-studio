@@ -263,14 +263,14 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function deleteShootDay(id) {
-    const day = await getDay(id);
-    if (!day) return false;
-    await withLock(async () => {
+    return withLock(async () => {
+      const day = await getDay(id);
+      if (!day) return false;
       const assignments = await listAssignments(day.projectId);
       await saveAssignments(day.projectId, assignments.filter(assignment => assignment.shootDayId !== day.shootDayId));
       await removeRecord(dayKey(id));
+      return true;
     });
-    return true;
   }
 
   async function assignScenes(shootDayId, sceneIds) {
@@ -300,9 +300,9 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function unassignScene(sceneId) {
-    const scene = await getScene(sceneId);
-    if (!scene) return false;
     return withLock(async () => {
+      const scene = await getScene(sceneId);
+      if (!scene) return false;
       const assignments = await listAssignments(scene.projectId);
       if (!assignments.some(item => item.sceneId === scene.sceneId)) return false;
       const remaining = assignments.filter(item => item.sceneId !== scene.sceneId);
@@ -318,11 +318,11 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function reorderDay(shootDayId, sceneIds) {
-    const day = await getDay(shootDayId);
-    if (!day) throw fail("Shoot day not found", 404, "NOT_FOUND");
     if (!Array.isArray(sceneIds)) throw fail("sceneIds must be an array");
     const ids = [...new Set(sceneIds.map(Number))];
     return withLock(async () => {
+      const day = await getDay(shootDayId);
+      if (!day) throw fail("Shoot day not found", 404, "NOT_FOUND");
       const assignments = await listAssignments(day.projectId);
       const assigned = assignments.filter(item => item.shootDayId === day.shootDayId).map(item => item.sceneId);
       if (assigned.length !== ids.length || assigned.some(id => !ids.includes(id))) throw fail("Order must contain exactly the scenes assigned to this day", 400, "INVALID_ORDER");
