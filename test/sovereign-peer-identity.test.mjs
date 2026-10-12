@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { privateKeyToProtobuf } from "@libp2p/crypto/keys";
+import { generateKeyPair, privateKeyToProtobuf } from "@libp2p/crypto/keys";
 import { loadOrCreatePeerPrivateKey } from "../src/network/sovereign-peer.mjs";
 
 test("sovereign peer identity is persisted with private permissions and survives restart", async () => {
@@ -36,5 +36,28 @@ test("production identity fails closed instead of creating a local key", async (
   } finally {
     if (previousMode === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousMode;
     if (previousKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64; else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = previousKey;
+  }
+});
+
+test("injected stable identity is used without touching local storage", async () => {
+  const previousMode = process.env.NODE_ENV;
+  const previousKey = process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  const previousRequired = process.env.APEX_PEER_IDENTITY_REQUIRED;
+  const dir = await mkdtemp(path.join(os.tmpdir(), "apex-peer-injected-"));
+  const file = path.join(dir, "must-not-exist", "peer.key");
+  try {
+    const generated = await generateKeyPair("Ed25519");
+    const bytes = Buffer.from(privateKeyToProtobuf(generated));
+    process.env.NODE_ENV = "production";
+    process.env.APEX_PEER_PRIVATE_KEY_BASE64 = bytes.toString("base64");
+    delete process.env.APEX_PEER_IDENTITY_REQUIRED;
+    const loaded = await loadOrCreatePeerPrivateKey(file);
+    assert.deepEqual(Buffer.from(privateKeyToProtobuf(loaded)), bytes);
+    await assert.rejects(stat(file), error => error.code === "ENOENT");
+  } finally {
+    if (previousMode === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousMode;
+    if (previousKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64; else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = previousKey;
+    if (previousRequired === undefined) delete process.env.APEX_PEER_IDENTITY_REQUIRED; else process.env.APEX_PEER_IDENTITY_REQUIRED = previousRequired;
+    await rm(dir, { recursive: true, force: true });
   }
 });
