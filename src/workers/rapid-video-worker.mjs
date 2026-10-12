@@ -34,7 +34,7 @@ function wrapText(value, max = 42, lines = 2) {
     }
   }
   if (out.length < lines && current) out.push(current);
-  return out.length ? out : ["Apex Rapid Video"];
+  return out.length ? out : ["KernelVision"];
 }
 
 function fontPath() {
@@ -54,7 +54,7 @@ function paletteFor(seed) {
   return palettes[hash % palettes.length];
 }
 
-function buildSceneFilters(scenes, duration, palette, brand = "APEX RAPID VIDEO") {
+function buildSceneFilters(scenes, duration, palette, brand = "KERNELVISION SHORT-FORM") {
   const [bg, accent, warm] = palette;
   return scenes.map((scene, i) => {
     const start = i * (duration / scenes.length);
@@ -173,7 +173,7 @@ export async function executeRapidVideoOrder(payload = {}) {
     ["BUILD THE HOOK.", "Open hard. Give the viewer a reason to stay."],
     ["BUILD THE STORY.", "Turn the core idea into a fast, clear visual sequence."],
     ["MAKE IT FEEL BIG.", "Cinematic motion, strong typography, music and pacing."],
-    ["READY TO POST.", platform + " — Apex Rapid Video"]
+    ["READY TO POST.", platform + " — KernelVision"]
   ];
   const [bg, accent, warm] = paletteFor(brief + name);
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
