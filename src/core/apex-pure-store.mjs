@@ -189,7 +189,7 @@ export class ApexPureStore {
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null,onlyId=null}={}){
     const run=()=>this.withMutationLock(async()=>{
-      await this.refresh();
+      await this.refreshJobs();
       const now=Date.now(),out=[];
       const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(onlyId==null||String(j.id)===String(onlyId))&&(role?j.payload?._apex_worker?.role===role:j.payload?._apex_worker?.role!=="sovereign-runtime")).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
       for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){
