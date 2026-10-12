@@ -160,7 +160,7 @@ async function main() {
       let offset = 0;
       while (true) {
         const result = await client.query(
-          "SELECT * FROM " + qualified +
+          "SELECT * FROM " + qualified + " AS src" +
           " ORDER BY " + orderBy + " LIMIT $1 OFFSET $2",
           [BATCH_SIZE, offset]
         );
