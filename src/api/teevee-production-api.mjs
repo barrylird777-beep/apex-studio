@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { apexPureStore } from "../core/apex-pure-store.mjs";
 import { buildEpisode, episodeCode, deterministicEpisodeId, TEEVEE_EPISODE_COUNT } from "../core/teevee-production.mjs";
 
-export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = apexPureStore } = {}) {
+export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = apexPureStore, enabled = process.env.TEEVEE_PIPELINE_ENABLED === "true" } = {}) {
   if (typeof enqueue !== "function") throw new TypeError("TeeVee production enqueue function is required");
   const router = express.Router();
   router.use(express.json({ limit: "64kb" }));
@@ -23,6 +23,8 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
         queuedJobs: jobs.filter(job => job.status === "queued").length,
         runningJobs: jobs.filter(job => job.status === "running").length,
         storage: "Pure-WAL/Ring-WAL",
+        pipelineEnabled: enabled,
+        startBlockedReason: enabled ? null : "Remote worker state and durable artifact handoff are not yet verified.",
         checkedAt: new Date().toISOString()
       });
     } catch (error) {
@@ -31,6 +33,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
   });
 
   router.post("/start", requireAuth || ((_req, _res, next) => next()), async (req, res) => {
+    if (!enabled) return res.status(503).json({ success: false, error: "TeeVee production is disabled until remote worker state and durable artifact handoff are verified." });
     const n = Number(req.body?.episodeNumber || 1);
     try {
       const code = episodeCode(n);
