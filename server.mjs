@@ -2224,18 +2224,22 @@ app.get('/api/media/status', (_req, res) => {
   res.json({
     success: true,
     image: {
-      provider: 'pollinations',
+      provider: 'image.pollinations.ai',
       configured: true,
+      publicEndpointFallback: true,
       serverSideKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
       model: process.env.POLLINATIONS_IMAGE_MODEL || 'flux'
     },
     video: {
-      provider: 'pollinations',
+      provider: String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() === 'false' && Boolean(process.env.POLLINATIONS_API_KEY)
+        ? 'pollinations-video'
+        : 'image.pollinations.ai + local-ffmpeg-motion',
       configured: true,
+      localFallbackAvailable: true,
       apiKeyConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
       model: process.env.POLLINATIONS_VIDEO_MODEL || 'alibaba/wan-2.2-fast'
     },
-    note: 'Availability and free usage are controlled by the upstream service. Apex does not bypass provider authentication, quotas, or billing.'
+    note: 'Free-first mode uses a public still-image endpoint and local FFmpeg motion rendering; upstream availability and quotas still apply. Metered video generation remains disabled unless explicitly configured.'
   });
 });
 
