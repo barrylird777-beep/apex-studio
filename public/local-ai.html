@@ -39,16 +39,29 @@ async function prepareOfflineCache(){
     $("offlineCacheState").textContent="Offline shell cache unavailable";
     return false;
   }
+  const isLocalAiController=()=>Boolean(navigator.serviceWorker.controller?.scriptURL.endsWith("/local-ai-sw.js"));
   try{
-    await navigator.serviceWorker.register("/local-ai-sw.js",{scope:"/local-ai"});
-    await navigator.serviceWorker.ready;
-    if(!navigator.serviceWorker.controller){
+    const registration=await navigator.serviceWorker.register("/local-ai-sw.js",{scope:"/local-ai"});
+    const worker=registration.installing||registration.waiting||registration.active;
+    if(worker&&worker.state!=="activated"){
       await Promise.race([
-        new Promise(resolve=>navigator.serviceWorker.addEventListener("controllerchange",resolve,{once:true})),
+        new Promise(resolve=>{
+          const onStateChange=()=>{if(worker.state==="activated"){worker.removeEventListener("statechange",onStateChange);resolve()}};
+          worker.addEventListener("statechange",onStateChange);
+        }),
         new Promise(resolve=>setTimeout(resolve,2500))
       ]);
     }
-    if(!navigator.serviceWorker.controller){
+    if(!isLocalAiController()){
+      await Promise.race([
+        new Promise(resolve=>{
+          const onChange=()=>{if(isLocalAiController()){navigator.serviceWorker.removeEventListener("controllerchange",onChange);resolve()}};
+          navigator.serviceWorker.addEventListener("controllerchange",onChange);
+        }),
+        new Promise(resolve=>setTimeout(resolve,2500))
+      ]);
+    }
+    if(!isLocalAiController()){
       $("offlineCacheState").textContent="Cache installed — reload while online to activate";
       return false;
     }
