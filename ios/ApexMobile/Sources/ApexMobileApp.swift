@@ -61,6 +61,9 @@ struct ApexRootView: View {
                     Button("Copy key") { UIPasteboard.general.string = pairingSecret }
                         .disabled(pairingSecret.isEmpty)
                 }
+                Text("Generate the key on one device, share it privately with your other Apex device, then start discovery on both.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 HStack {
                     Button("Start discovery") {
                         do { try nearbyMesh.start(pairingSecret: pairingSecret) }
@@ -215,9 +218,7 @@ struct ApexRootView: View {
                 .pickerStyle(.segmented)
 
                 if selectedSection == "Connect" {
-                    sovereignControlPanel
-
-                nearbyMeshPanel
+                    nearbyMeshPanel
                     GroupBox("Connection fallbacks") {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("Nearby Apex device", systemImage: "dot.radiowaves.left.and.right")
@@ -238,6 +239,9 @@ struct ApexRootView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                    DisclosureGroup("Apex server & six-app controls") {
+                        sovereignControlPanel
                     }
                 } else {
                     Button {
