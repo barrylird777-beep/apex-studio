@@ -231,6 +231,10 @@ async function sendSovereignEnvelope(stream, envelope) {
 }
 
 export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE } = {}) {
+  const expectedPeerId = String(process.env.APEX_EXPECTED_PEER_ID || '').trim();
+  if (String(process.env.NODE_ENV || '').toLowerCase() === 'production' && !expectedPeerId) {
+    throw new Error('APEX_EXPECTED_PEER_ID is required in production; refusing unpinned sovereign peer identity');
+  }
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const node = await createLibp2p({
     privateKey,
@@ -249,7 +253,6 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
       dht: kadDHT({ clientMode: false, kBucketSize: 20 })
     }
   });
-  const expectedPeerId = String(process.env.APEX_EXPECTED_PEER_ID || '').trim();
   if (expectedPeerId && node.peerId.toString() !== expectedPeerId) {
     await node.stop().catch(() => {});
     throw new Error('Configured sovereign peer identity does not match APEX_EXPECTED_PEER_ID');
