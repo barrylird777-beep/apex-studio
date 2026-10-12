@@ -39,7 +39,7 @@ test("lease heartbeat extends the active fence and token checks reject stale wor
   await enqueueWorkerTask({id,workerId:"heartbeat-test",role:"heartbeat-test",task:"heartbeat-test"});
   const task=await claimWorkerTask(id,15000);
   assert.ok(task?.lease_token);
-  const before=(await import("../src/core/mesh/durable-worker-store.mjs")).getWorkerTask(id);
+  const before=await (await import("../src/core/mesh/durable-worker-store.mjs")).getWorkerTask(id);
   assert.equal(await heartbeatWorkerTask(id,30000,task.lease_token,task.lease_fence),true);
   const after=await (await import("../src/core/mesh/durable-worker-store.mjs")).getWorkerTask(id);
   assert.ok(after.leaseExpiresAt>before.leaseExpiresAt);
@@ -63,6 +63,7 @@ test("shutdown release requires exact task-to-token pairing", async () => {
   const taskIds=tasks.map(task=>task.id);
   assert.equal(await releaseWorkerTasks(taskIds,[tokens[1],tokens[0]]),0);
   assert.equal(await releaseWorkerTasks(taskIds,tokens),2);
+  await new Promise(resolve=>setTimeout(resolve,125));
   for(const task of tasks) {
     const reclaimed=await claimWorkerTask(task.id,15000);
     assert.ok(reclaimed);
