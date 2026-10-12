@@ -12,7 +12,7 @@
       </select>
     </label>
     <p id="kl-mode-note">Audio and metadata stay in this browser. This is not shared storage.</p>
-    <label id="kl-token-label" hidden>Control token <input id="kl-token" type="password" autocomplete="off" placeholder="KERNEL... shared-library token"></label>
+    <label id="kl-token-label" hidden>Control token <input id="kl-token" type="password" autocomplete="off" placeholder="KERNELODIES_LIBRARY_TOKEN"></label>
     <label>Track title <input id="kl-title" maxlength="200" placeholder="Track title (optional)"></label>
     <label>Artist <input id="kl-artist" maxlength="200" placeholder="Artist (optional)"></label>
     <label>Album <input id="kl-album" maxlength="200" placeholder="Album (optional)"></label>
