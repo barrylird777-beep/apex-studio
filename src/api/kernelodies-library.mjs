@@ -2,6 +2,7 @@ import express from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import os from "node:os";
 
 const AUDIO_TYPES = Object.freeze({
   "audio/mpeg": "mp3",
@@ -36,7 +37,7 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
       try {
         const handle = await fs.open(lockPath, "wx", 0o600);
         try {
-          await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }) + "\n", "utf8");
+          await handle.writeFile(JSON.stringify({ pid: process.pid, host: os.hostname(), createdAt: Date.now() }) + "\n", "utf8");
           await handle.sync();
         } catch (error) {
           await handle.close().catch(() => {});
@@ -50,9 +51,16 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
         };
       } catch (error) {
         if (error?.code !== "EEXIST") throw error;
+        let owner;
+        try { owner = JSON.parse(await fs.readFile(lockPath, "utf8")); }
+        catch (readError) { if (readError?.code === "ENOENT") continue; }
         let stale = false;
-        try { stale = Date.now() - (await fs.stat(lockPath)).mtimeMs > 120_000; }
-        catch (statError) { if (statError?.code === "ENOENT") continue; throw statError; }
+        if (owner?.host === os.hostname() && Number.isSafeInteger(owner.pid) && owner.pid > 0) {
+          try { process.kill(owner.pid, 0); }
+          catch (processError) { stale = processError?.code === "ESRCH"; }
+        }
+        // Never remove a lock just because it is old. If the owner is on another
+        // host or cannot be proven dead, fail closed and let an operator inspect it.
         if (stale) {
           await fs.unlink(lockPath).catch(unlinkError => { if (unlinkError?.code !== "ENOENT") throw unlinkError; });
           continue;
