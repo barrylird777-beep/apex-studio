@@ -61,7 +61,7 @@ export function createPureStore({ root = '/srv/apex/se-x/projects' } = {}) {
   }
   async function write(name, value) {
     await ensure();
-    const target = resolveWithinRoot(root, name);
+    const target = await resolveWithinRoot(root, name);
     await durableAtomicWrite(target, value);
     return target;
   }
