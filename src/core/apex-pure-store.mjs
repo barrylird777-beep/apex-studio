@@ -1,7 +1,6 @@
 import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { ApexRingWAL } from "./apex-ring-wal.mjs";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
 import { createHash } from "node:crypto";
 
@@ -29,7 +28,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS}={}){this.root=path.resolve(root);this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -40,92 +39,11 @@ export class ApexPureStore {
   async initialize(){
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
-    const lockFile=path.join(this.root,".apex-cas-migration.lock");
-    const markerExists=async()=>{try{await stat(this.migrationFile);return true;}catch(e){if(e.code==="ENOENT")return false;throw e;}};
-    const started=Date.now();
-    let handle,token;
-    while(!handle){
-      if(await markerExists()){this.ready=true;return this;}
-      try{
-        token=randomUUID();
-        handle=await open(lockFile,"wx",0o600);
-        await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now(),token}),"utf8");
-        await handle.sync();
-      }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
-        if(error.code!=="EEXIST")throw error;
-        let stale=false;
-        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>30000;}
-        catch(e){if(e.code==="ENOENT")continue;throw e;}
-        if(stale){
-          const quarantine=lockFile+".stale."+randomUUID();
-          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
-          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
-          continue;
-        }
-        if(Date.now()-started>600000)throw new Error("[STORE_MIGRATION] Timed out waiting for the cross-process migration lock.");
-        await sleep(50+Math.floor(Math.random()*50));
-      }
-    }
-    const heartbeat=setInterval(()=>{const now=new Date();handle?.utimes(now,now).catch(()=>{});},10000);
-    heartbeat.unref?.();
-    try{
-      if(!await markerExists()){
-        let legacyExists=false;
-        try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
-        if(legacyExists){
-          const pendingState=new Map(),pendingJobs=new Map();
-          const flushMigrationBatch=async()=>{
-            const writes=[];
-            for(const [key,value] of pendingState){
-              if(value===null||value.deleted)writes.push(()=>this.cas.deleteRef("state",this.refKey(value.collection,value.id)));
-              else writes.push(()=>this.cas.writeRef("state",this.refKey(value.collection,value.id),{collection:value.collection,id:value.id,record:clone(value.record)}));
-            }
-            for(const [id,job] of pendingJobs)writes.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
-            await runBatched(writes,16,write=>write());
-            pendingState.clear();pendingJobs.clear();
-          };
-          await this.wal.replay({retainRing:false,onRecord:async r=>{
-            const p=r.payload||{};
-            if(r.type==="state.put"){
-              const collection=String(p.collection),id=String(p.id);
-              pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});
-            }else if(r.type==="state.delete"){
-              const collection=String(p.collection),id=String(p.id);
-              pendingState.set(this.key(collection,id),{collection,id,deleted:true});
-            }else if(r.type==="job.enqueue"){
-              pendingJobs.set(String(p.id),clone(p.job));
-            }else if(r.type==="job.transition"){
-              const id=String(p.id);
-              let job=pendingJobs.get(id);
-              if(!pendingJobs.has(id)){
-                const current=await this.cas.readRef("jobs",this.refKey("job",id));
-                job=current?.value?.job?clone(current.value.job):undefined;
-              }
-              if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
-            }
-            if(pendingState.size+pendingJobs.size>=256)await flushMigrationBatch();
-          }});
-          await flushMigrationBatch();
-        }
-        await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
-      }
-      this.ready=true;
-      // Do not scan the entire durable store during process startup. Reads and queue operations
-      // refresh only the namespace they need; first boot still has migrated records in memory.
-      return this;
-    }finally{
-      clearInterval(heartbeat);
-      const owned=handle;handle=undefined;
-      let ownsPath=false;
-      try{
-        const [opened,current,contents]=await Promise.all([owned.stat(),stat(lockFile),readFile(lockFile,"utf8")]);
-        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
-      }catch(e){if(e.code!=="ENOENT"&&!(e instanceof SyntaxError))throw e;}
-      await owned.close().catch(()=>{});
-      if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
-    }
+    // Content-addressed storage is the sole active store. Legacy WAL replay is intentionally retired.
+    this.ready=true;
+    return this;
   }
+
   async loadStateReferences(){
     this.state.clear();
     for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null)this.state.set(this.key(v.collection,v.id),clone(v.record));}
@@ -154,15 +72,41 @@ export class ApexPureStore {
         await handle.sync();
         break;
       }catch(error){
-        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(error.code==="ENOSPC"&&handle){await handle.sync().catch(()=>{});break;}
+        if(handle){
+          try{
+            const [opened,current]=await Promise.all([handle.stat(),stat(lockFile)]);
+            if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+          }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+          await handle.close().catch(()=>{});handle=undefined;
+        }
         if(error.code!=="EEXIST")throw error;
         let stale=false;
         try{stale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
         catch(e){if(e.code==="ENOENT")continue;throw e;}
         if(stale){
-          const quarantine=lockFile+".stale."+randomUUID();
-          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
-          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+          const reaper=lockFile+".reaper";
+          let reapHandle;
+          try{reapHandle=await open(reaper,"wx",0o600);}
+          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}if(e.code==="ENOSPC"){await sleep(250);let stillStale=false;try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}catch(checkError){if(checkError.code==="ENOENT")continue;throw checkError;}if(stillStale){const quarantine=lockFile+".stale."+randomUUID();try{await rename(lockFile,quarantine);await unlink(quarantine).catch(unlinkError=>{if(unlinkError.code!=="ENOENT")throw unlinkError;});}catch(renameError){if(renameError.code!=="ENOENT"&&renameError.code!=="EEXIST")throw renameError;}}continue;}throw e;}
+          try{
+            await sleep(250);
+            let stillStale=false;
+            try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}
+            catch(e){if(e.code==="ENOENT")continue;throw e;}
+            if(stillStale){
+              const quarantine=lockFile+".stale."+randomUUID();
+              try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
+              catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+            }
+          }finally{
+            const owned=reapHandle;
+            try{
+              const [opened,current]=await Promise.all([owned.stat(),stat(reaper)]);
+              if(opened.dev===current.dev&&opened.ino===current.ino)await unlink(reaper).catch(e=>{if(e.code!=="ENOENT")throw e;});
+            }catch(cleanupError){if(cleanupError.code!=="ENOENT"){}}
+            await owned.close().catch(()=>{});
+          }
           continue;
         }
         if(Date.now()-started>180000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
@@ -179,7 +123,7 @@ export class ApexPureStore {
       let ownsPath=false;
       try{
         const [opened,current,contents]=await Promise.all([ownedHandle.stat(),stat(lockFile),readFile(lockFile,"utf8")]);
-        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+        if(opened.dev===current.dev&&opened.ino===current.ino){try{ownsPath=JSON.parse(contents).token===token;}catch{ownsPath=true;}}
       }catch(e){if(e.code!=="ENOENT"&&!(e instanceof SyntaxError))throw e;}
       await ownedHandle.close().catch(()=>{});
       if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
@@ -223,11 +167,11 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    const target=await this.checkedFile(collection,id,{createDir:true});
+    // Validate path segments without creating redundant per-collection directories.
+    await this.checkedFile(collection,id);
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     await this.persistState(collection,id,value);
     this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
-    await this.atomic(target,value);
     return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
@@ -236,11 +180,8 @@ export class ApexPureStore {
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
-    const target=await this.checkedFile(collection,id);
     await this.cas.deleteRef("state",this.refKey(collection,id));
     this.state.delete(this.key(collection,id));
-    const { unlink }=await import("node:fs/promises");
-    try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
     return true;
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
