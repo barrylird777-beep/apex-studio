@@ -9,10 +9,12 @@ import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
+import { createMonetizationOpportunity, kashKobsStatus } from "../src/apps/kash-kobs.mjs";
+import { xshieldStatus } from "../src/apps/xshield.mjs";
 
 test("Apex exposes the six locked canonical apps",()=>{
   assert.equal(assertSixAppInvariant(),true);
-  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","KernelVision","Kernelodies","KashKorner","KashKobs","XShield"]);
   assert.equal(Object.keys(APEX_APPS).length,6);
 });
 test("all canonical registry entries point to real surfaces and modules",async()=>{
@@ -94,7 +96,8 @@ test("canonical status aggregator reports all six apps",async()=>{
   const { canonicalAppsStatus } = await import("../src/apps/canonical-six.mjs");
   const statuses = await canonicalAppsStatus();
   assert.equal(statuses.length,6);
-  assert.deepEqual(statuses.map(status=>status.app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+  assert.deepEqual(statuses.map(status=>status.app.name),["PlanetApeX","KernelVision","Kernelodies","KashKorner","KashKobs","XShield"]);
+  assert.ok(statuses.every(status=>status.canonical===true));
 });
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
@@ -125,4 +128,20 @@ test("canonical trajectory forms a closed six-app contract",async()=>{
   assert.equal(validateCanonicalTrajectory(trajectory),true);
   assert.throws(()=>validateCanonicalTrajectory({...trajectory,apps:trajectory.apps.slice(0,5)}),/exactly six apps/);
   assert.throws(()=>canonicalNeighbors("not-an-app"),/Unknown Apex app/);
+});
+
+
+test("KashKobs records evidence-labelled monetization ideas without inventing revenue",()=>{
+  const idea=createMonetizationOpportunity({id:"kv-short",title:"KernelVision short video",pricing:{amount:25,currency:"usd"},evidence:{classification:"historical-offer"}});
+  assert.equal(idea.id,"kv-short");
+  assert.equal(idea.product,"KernelVision");
+  assert.equal(idea.pricing.amount,25);
+  assert.equal(idea.evidence.classification,"historical-offer");
+  assert.equal(kashKobsStatus().app.name,"KashKobs");
+  assert.equal(kashKobsStatus().revenueClaims,"observed-only; no sales or earnings inferred");
+});
+test("XShield remains a canonical security surface",()=>{
+  assert.equal(xshieldStatus().app.name,"XShield");
+  assert.equal(xshieldStatus().app.id,"xshield");
+  assert.equal(xshieldStatus().canonical,true);
 });
