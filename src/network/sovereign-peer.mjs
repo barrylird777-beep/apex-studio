@@ -69,9 +69,9 @@ export async function readSovereignEnvelope(stream) {
       bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
       if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
       text += localDecoder.decode(bytes, { stream: true });
-      if (text.includes('\\n')) break;
+      if (text.includes('\n')) break;
     }
-    const line = text.split('\\n')[0];
+    const line = text.split('\n')[0];
     if (!line) throw new Error('empty sovereign peer envelope');
     return JSON.parse(line);
   }
@@ -104,7 +104,7 @@ export async function readSovereignEnvelope(stream) {
         bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
         if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
         text += localDecoder.decode(bytes, { stream: true });
-        const newline = text.indexOf('\\n');
+        const newline = text.indexOf('\n');
         if (newline < 0) return;
         const line = text.slice(0, newline);
         if (!line) throw new Error('empty sovereign peer envelope');
@@ -121,7 +121,7 @@ export async function readSovereignEnvelope(stream) {
 }
 
 async function sendSovereignEnvelope(stream, envelope) {
-  const bytes = encoder.encode(JSON.stringify(envelope) + '\\n');
+  const bytes = encoder.encode(JSON.stringify(envelope) + '\n');
   if (typeof stream?.send !== 'function') {
     // Compatibility for pre-v3 iterable streams.
     if (typeof stream?.sink === 'function') return stream.sink([bytes]);
@@ -179,14 +179,14 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       if (!isAllowedPeer(remotePeerId)) {
-        await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: 'peer is not allowlisted' }) + '\n')]);
+        await sendSovereignEnvelope(stream, { accepted: false, error: 'peer is not allowlisted' });
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
       const accepted = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
-      await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
+      await sendSovereignEnvelope(stream, { accepted: Boolean(accepted), peerId: node.peerId.toString() });
     } catch (error) {
-      await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: error instanceof Error ? error.message : String(error) }) + '\n')]);
+      await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
     }
   });
   return node;
@@ -209,8 +209,9 @@ export async function sendToPeer(node, multiaddr, envelope) {
   const stream = await node.dialProtocol(target, PROTOCOL, {
     signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
   });
-  await stream.sink([encoder.encode(JSON.stringify(envelope) + '\n')]);
-  const response = await readSovereignEnvelope(stream);
+  const responsePromise = readSovereignEnvelope(stream);
+  await sendSovereignEnvelope(stream, envelope);
+  const response = await responsePromise;
   await stream.close?.();
   if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
   return response;
