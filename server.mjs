@@ -1155,11 +1155,24 @@ app.post('/api/rapid/orders', async (req, res) => {
 app.get('/api/rapid/orders/:id', async (req, res) => {
   try {
     const pureWalOrder = await rapidVideoPureWalQueue.getOrder(req.params.id);
-    if (pureWalOrder) return res.json(pureWalOrder);
+    if (pureWalOrder && pureWalOrder.status !== 'manual-reconciliation-required') return res.json(pureWalOrder);
 
+    // If a legacy order had already completed before the Pure-WAL cutover, retain
+    // its verified delivery status rather than showing a false manual-review state.
+    const dbHealth = await durableWorkerHealth();
+    if (pureWalOrder?.status === 'manual-reconciliation-required' && dbHealth.available) {
+      const legacyCompleted = await getWorkerTask(req.params.id);
+      if (legacyCompleted?.status === 'completed' && ['rapid-video-order','rapid-video-preview'].includes(legacyCompleted.task)) {
+        return res.json({
+          success: true, orderId: legacyCompleted.id, status: 'completed', legacy: true,
+          result: legacyCompleted.result ? { url: legacyCompleted.result.url || null, format: legacyCompleted.result.format || null, durationSeconds: legacyCompleted.result.durationSeconds || null, generatedAt: legacyCompleted.result.generatedAt || null } : null,
+          createdAt: legacyCompleted.created_at, updatedAt: legacyCompleted.updated_at
+        });
+      }
+    }
+    if (pureWalOrder) return res.json(pureWalOrder);
     // Read-only compatibility for historical orders that were queued before the
     // Pure-WAL cutover. Never enqueue or re-run a legacy order from this branch.
-    const dbHealth = await durableWorkerHealth();
     if (!dbHealth.available) return res.status(404).json({ success: false, error: 'Order not found in the active durable queue' });
     const task = await getWorkerTask(req.params.id);
     if (!task || !['rapid-video-order','rapid-video-preview'].includes(task.task)) {
@@ -2679,6 +2692,18 @@ async function runInlineRapidTask(task) {
   }, Math.max(5000, Math.floor(leaseMs / 3)));
   heartbeat.unref?.();
   try {
+    // The Pure-WAL queue is authoritative for new orders. If a matching record
+    // exists, never run a duplicate legacy PostgreSQL task for the same order.
+    // If Pure-WAL cannot be checked, fail/defer rather than risk duplicate fulfilment.
+    const pureWalOrder = await rapidVideoPureWalQueue.getOrder(task.id);
+    if (pureWalOrder) {
+      const completed = await completeWorkerTask(task.id, {
+        status: 'superseded-by-pure-wal',
+        pureWalStatus: pureWalOrder.status
+      }, task.lease_token);
+      if (!completed) console.warn('[rapid-inline-worker] legacy duplicate completion fenced out', task.id);
+      return;
+    }
     const result = task.task === 'rapid-video-preview'
       ? await executeRapidVideoPreview(task.payload || {})
       : await executeRapidVideoOrder(task.payload || {});
