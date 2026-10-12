@@ -17,17 +17,16 @@ function expectedHash(record){const {hash,...body}=record;return sha(body);}
 export class ApexRingWAL {
   constructor({file=FILE,ringSize=RING_SIZE,lockTimeoutMs=65000,staleLockMs=60000}={}){
     this.file=path.resolve(file);this.lockFile=this.file+".lock";this.ringSize=ringSize;this.lockTimeoutMs=lockTimeoutMs;this.staleLockMs=staleLockMs;
-    this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.ready=false;
+    this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.offset=0;this.ready=false;
   }
-  _reset(){this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(this.ringSize);this.head=0;this.count=0;}
+  _reset(){this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(this.ringSize);this.head=0;this.count=0;this.offset=0;}
   _load(record){this.seq=Number(record.seq);this.lastHash=String(record.hash);this.ring[this.head]=record;this.head=(this.head+1)%this.ringSize;this.count=Math.min(this.count+1,this.ringSize);}
   async _assertWalIsRegular(){
     try{const info=await lstat(this.file);if(info.isSymbolicLink()||!info.isFile())throw new Error("[SECURITY_VIOLATION] WAL path must be a regular file, not a symlink.");}
     catch(e){if(e.code!=="ENOENT")throw e;}
   }
   async _readAndVerify(){
-    await this._assertWalIsRegular();
-    this._reset();
+    await this._assertWalIsRegular();this._reset();
     let text="";
     try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
     if(text.length&&!text.endsWith("\n"))throw new Error("[WAL_INTEGRITY] Incomplete final WAL record; preserved for inspection.");
@@ -40,13 +39,8 @@ export class ApexRingWAL {
       }
       this._load(record);prev=record.hash;seq=record.seq;count++;
     }
+    this.offset=Buffer.byteLength(text,"utf8");
     return count;
-  }
-  async init(){
-    if(this.ready)return this;
-    await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
-    const release=await this._acquireLock();
-    try{await this._assertWalIsRegular();await this._readAndVerify();this.ready=true;return this;}finally{await release();}
   }
   async _acquireLock(){
     const started=Date.now();
@@ -67,42 +61,78 @@ export class ApexRingWAL {
       }
     }
   }
+  async _refreshLocked(onRecord=()=>{}){
+    await this._assertWalIsRegular();
+    let size=0;
+    try{size=(await stat(this.file)).size;}catch(e){if(e.code==="ENOENT"&&this.offset===0)return 0;throw e;}
+    if(size<this.offset)throw new Error("[WAL_INTEGRITY] WAL was truncated after initialization.");
+    if(size===this.offset)return 0;
+    const fh=await open(this.file,"r");
+    let text="";
+    try{
+      const buffer=Buffer.alloc(size-this.offset);
+      const {bytesRead}=await fh.read(buffer,0,buffer.length,this.offset);
+      if(bytesRead!==buffer.length)throw new Error("[WAL_INTEGRITY] WAL changed while reading appended records.");
+      text=buffer.toString("utf8");
+    }finally{await fh.close();}
+    if(!text.endsWith("\n"))throw new Error("[WAL_INTEGRITY] Incomplete final WAL record; preserved for inspection.");
+    let prev=this.lastHash,seq=this.seq,count=0;
+    for(const line of text.split("\n").filter(Boolean)){
+      let record;
+      try{record=JSON.parse(line);}catch(e){throw new Error("[WAL_INTEGRITY] Invalid appended JSON: "+e.message);}
+      if(!record||!Number.isSafeInteger(record.seq)||record.seq!==seq+1||record.prevHash!==prev||record.hash!==expectedHash(record)){
+        throw new Error("[WAL_INTEGRITY] Appended hash chain or sequence failure at record "+(seq+1)+".");
+      }
+      this._load(record);prev=record.hash;seq=record.seq;count++;await onRecord(record);
+    }
+    this.offset=size;
+    return count;
+  }
+  async init(){
+    if(this.ready)return this;
+    await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
+    const release=await this._acquireLock();
+    try{await this._readAndVerify();this.ready=true;return this;}finally{await release();}
+  }
   async append(type,payload={},meta={}){
     await this.init();
     const run=async()=>{
       const release=await this._acquireLock();
       try{
-        // Re-read and verify under the file lock so independent app/server/worker
-        // processes cannot append duplicate sequence numbers or stale hash links.
-        await this._readAndVerify();
+        await this._refreshLocked();
         const record={version:1,id:randomUUID(),seq:this.seq+1,ts:new Date().toISOString(),type:String(type),payload,meta,prevHash:this.lastHash};
         record.hash=sha(record);
+        const line=JSON.stringify(record)+"\n";
         const fh=await open(this.file,"a",0o600);
-        try{await fh.writeFile(JSON.stringify(record)+"\n","utf8");await fh.sync();}finally{await fh.close();}
+        try{await fh.writeFile(line,"utf8");await fh.sync();}finally{await fh.close();}
         await syncDirectory(path.dirname(this.file));
-        this._load(record);
+        this._load(record);this.offset+=Buffer.byteLength(line,"utf8");
         return record;
       }finally{await release();}
     };
     const next=chain.then(run,run);chain=next.catch(()=>{});return next;
   }
+  async refresh({onRecord=()=>{}}={}){
+    await this.init();
+    const release=await this._acquireLock();
+    try{return await this._refreshLocked(onRecord);}finally{await release();}
+  }
   async replay({onRecord=()=>{}}={}){
     await this.init();
-    // Validate the complete file before exposing any record to a state reducer.
-    const count=await this._readAndVerify();
-    let text="";
-    try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
-    for(const line of text.split("\n").filter(Boolean))await onRecord(JSON.parse(line));
-    return count;
+    const release=await this._acquireLock();
+    try{
+      const count=await this._readAndVerify();
+      let text="";
+      try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
+      for(const line of text.split("\n").filter(Boolean))await onRecord(JSON.parse(line));
+      return count;
+    }finally{await release();}
   }
-  async snapshot(){await this.init();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
+  async snapshot(){await this.init();await this.refresh();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
 }
 export const apexRingWAL=new ApexRingWAL();
 
-/**
- * Compatibility facade for legacy callers.
- * The full hash chain is retained; compact never truncates recovery history.
- */
+/** Compatibility facade: the complete hash chain is retained; compact never truncates it. */
 export function createRingWal({file=FILE,maxBytes=50*1024*1024}={}){
   const wal=new ApexRingWAL({file});
   async function append(type,payload={}){const record=await wal.append(type,payload);return {...record,at:record.ts};}
