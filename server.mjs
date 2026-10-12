@@ -719,9 +719,9 @@ app.post('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
     const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
     const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
     const queued = await sovereignAppFabric.dispatch({
-      appId: source,
+      appId: target,
       action: 'canonical.handoff',
-      data: { to: target, payload, correlationId },
+      data: { from: source, to: target, payload, correlationId },
       waveId
     });
     const event = {
@@ -738,6 +738,7 @@ app.post('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
       status: queued.status,
       createdAt: new Date().toISOString()
     };
+    await sovereignAppFabric.put(target, waveId, { ...event, direction: 'incoming' });
     await apexPureStore.put('apex_canonical_handoffs', waveId, event);
     return res.status(202).json({ success: true, event });
   } catch (error) {
