@@ -30,3 +30,18 @@ test('PureStore confines file paths and durably writes nested records', async ()
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test('PureStore rejects symlink paths that escape the root', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-pure-store-link-'));
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-pure-store-outside-'));
+  try {
+    await fs.symlink(outside, path.join(root, 'escape-link'), 'dir');
+    const store = createPureStore({ root });
+    await assert.rejects(store.write('escape-link/payload.json', { escaped: true }), /STORE_PATH_OUTSIDE_ROOT/);
+    await fs.writeFile(path.join(outside, 'existing.json'), JSON.stringify({ private: true }));
+    await assert.rejects(store.read('escape-link/existing.json'), /STORE_PATH_OUTSIDE_ROOT/);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+    await fs.rm(outside, { recursive: true, force: true });
+  }
+});
