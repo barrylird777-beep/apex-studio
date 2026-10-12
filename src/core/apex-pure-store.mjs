@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
+import { RemoteContentAddressedStore } from "./remote-content-addressed-store.mjs";
 import { createHash } from "node:crypto";
 
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
@@ -30,7 +31,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.remoteMode=String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.localCas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=this.remoteMode?new RemoteContentAddressedStore():this.localCas;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -39,6 +40,7 @@ export class ApexPureStore {
     catch(error){this.initPromise=null;throw error;}
   }
   async initialize(){
+    if(this.remoteMode){await this.initializeRemote();this.ready=true;return this;}
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
     const lockFile=path.join(this.root,".apex-cas-migration.lock");
@@ -127,6 +129,69 @@ export class ApexPureStore {
       if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
     }
   }
+  async withRemoteLock(name,operation){
+    const key=String(name),started=Date.now(),token=randomUUID();
+    let currentHash=null,stopped=false,heartbeatChain=Promise.resolve();
+    while(true){
+      const current=await this.cas.readRef("system",key),now=Date.now();
+      if(current&&Number(current.value?.leaseUntil||0)>now){
+        if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out waiting for "+key);
+        await sleep(40+Math.floor(Math.random()*80));continue;
+      }
+      try{const lock=await this.cas.writeRef("system",key,{token,leaseUntil:now+90000,owner:process.env.RAILWAY_SERVICE_NAME||"apex"},{expectedHash:current?.hash??null});currentHash=lock.hash;break;}
+      catch(error){if(error.code!=="CAS_CONFLICT")throw error;if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out acquiring "+key);await sleep(40+Math.floor(Math.random()*80));}
+    }
+    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:process.env.RAILWAY_SERVICE_NAME||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed",String(error?.message||error).slice(0,250));});},20000);
+    heartbeat.unref?.();
+    try{return await operation();}
+    finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
+  }
+  async initializeRemote(){
+    await this.cas.init();
+    if(await this.cas.readRef("system","migration-v1"))return this;
+    await this.withRemoteLock("storage-migration-lock",async()=>{
+      if(await this.cas.readRef("system","migration-v1"))return;
+      for(const namespace of ["state","jobs"]){
+        for(const ref of await this.localCas.listRefs(namespace)){
+          const current=await this.cas.readRef(namespace,ref.key);
+          if(!current)await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
+        }
+      }
+      let legacyExists=false;
+      try{await stat(this.wal.file);legacyExists=true;}catch(error){if(error.code!=="ENOENT")throw error;}
+      if(legacyExists){
+        const pendingState=new Map(),pendingJobs=new Map();
+        const flush=async()=>{
+          const writes=[];
+          for(const item of pendingState.values())writes.push(async()=>{
+            const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
+            if(item.deleted){if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});}
+            else await this.cas.writeRef("state",key,{collection:item.collection,id:item.id,record:clone(item.record)},{expectedHash:current?.hash??null});
+          });
+          for(const [id,job] of pendingJobs)writes.push(async()=>{
+            const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
+            await this.cas.writeRef("jobs",key,{id,job:clone(job)},{expectedHash:current?.hash??null});
+          });
+          await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
+        };
+        await this.wal.replay({retainRing:false,onRecord:async record=>{
+          const p=record.payload||{};
+          if(record.type==="state.put"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});}
+          else if(record.type==="state.delete"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,deleted:true});}
+          else if(record.type==="job.enqueue")pendingJobs.set(String(p.id),clone(p.job));
+          else if(record.type==="job.transition"){
+            const id=String(p.id);let job=pendingJobs.get(id);
+            if(!pendingJobs.has(id)){const current=await this.cas.readRef("jobs",this.refKey("job",id));job=current?.value?.job?clone(current.value.job):undefined;}
+            if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
+          }
+          if(pendingState.size+pendingJobs.size>=128)await flush();
+        }});
+        await flush();
+      }
+      await this.cas.writeRef("system","migration-v1",{version:1,storage:"remote-content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
+    });
+    return this;
+  }
   async loadStateReferences(){
     this.state.clear();
     for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null)this.state.set(this.key(v.collection,v.id),clone(v.record));}
@@ -147,6 +212,7 @@ export class ApexPureStore {
     // nested acquisition waits on its own lock until the global timeout.
     if(this.mutationContext.getStore()===this)return operation();
     return this.mutationContext.run(this,async()=>{
+    if(this.remoteMode)return this.withRemoteLock("queue-mutations",operation);
     await mkdir(this.root,{recursive:true,mode:0o700});
     const lockFile=path.join(this.root,".apex-queue-mutations.lock");
     const started=Date.now();
@@ -229,11 +295,11 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    const target=await this.checkedFile(collection,id,{createDir:true});
+    const target=this.remoteMode?null:await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     await this.persistState(collection,id,value);
     this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
-    await this.atomic(target,value);
+    if(!this.remoteMode)await this.atomic(target,value);
     return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
@@ -242,11 +308,10 @@ export class ApexPureStore {
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
-    const target=await this.checkedFile(collection,id);
+    const target=this.remoteMode?null:await this.checkedFile(collection,id);
     await this.cas.deleteRef("state",this.refKey(collection,id));
     this.state.delete(this.key(collection,id));
-    const { unlink }=await import("node:fs/promises");
-    try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
+    if(!this.remoteMode){const { unlink }=await import("node:fs/promises");try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}}
     return true;
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
