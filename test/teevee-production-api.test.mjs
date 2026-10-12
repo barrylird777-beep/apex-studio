@@ -12,6 +12,45 @@ test("TeeVee production API requires a durable enqueue function", () => {
   assert.throws(() => createTeeVeeProductionRouter(), /TeeVee production enqueue function is required/);
 });
 
+
+test("TeeVee production start is blocked until remote worker state and artifact handoff are verified", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "apex-teevee-disabled-"));
+  const store = new ApexPureStore({
+    root: path.join(dir, "projects"),
+    wal: new ApexRingWAL({ file: path.join(dir, "wal", "ring.wal.jsonl") })
+  });
+  await store.init();
+  let enqueueCalled = false;
+  const app = express();
+  app.use("/api/teevee/production", createTeeVeeProductionRouter({
+    store,
+    enqueue: async item => { enqueueCalled = true; return item; }
+  }));
+  const server = app.listen(0, "127.0.0.1");
+  try {
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}/api/teevee/production`;
+    const status = await (await fetch(base + "/status")).json();
+    assert.equal(status.pipelineEnabled, false);
+    assert.match(status.startBlockedReason, /artifact handoff/i);
+
+    const response = await fetch(base + "/start", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ episodeNumber: 1 })
+    });
+    const result = await response.json();
+    assert.equal(response.status, 503);
+    assert.equal(result.success, false);
+    assert.match(result.error, /disabled/i);
+    assert.equal(enqueueCalled, false);
+    assert.equal((await store.list("teevee_episodes")).length, 0);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("TeeVee production routes use Pure-WAL inventory and idempotent durable enqueue", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "apex-teevee-pure-wal-"));
   const store = new ApexPureStore({
@@ -22,6 +61,7 @@ test("TeeVee production routes use Pure-WAL inventory and idempotent durable enq
   const app = express();
   app.use("/api/teevee/production", createTeeVeeProductionRouter({
     store,
+    enabled: true,
     enqueue: async item => store.enqueue({
       id: item.id,
       type: item.task,
