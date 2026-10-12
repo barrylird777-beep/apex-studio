@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { apexPureStore } from './apex-pure-store.mjs';
+import { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 
 const DEFAULT_MAX_ATTEMPTS = Number(process.env.APEX_SOVEREIGN_MAX_ATTEMPTS || 8);
 
@@ -56,6 +57,18 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
         record,
         fence: Number(job.leaseFence ?? job.lease_fence ?? 0)
       });
+      const replicaResponse = await sendPeer(peerNode, peerAddress, {
+        type: 'durable.read',
+        waveId: record.waveId,
+        checksum: record.checksum
+      });
+      const replica = replicaResponse?.replica;
+      if (!replicaResponse?.accepted || replica?.waveId !== record.waveId ||
+          replica?.checksum !== record.checksum || replica?.record?.waveId !== record.waveId ||
+          !verifySovereignRecord(replica.record)) {
+        throw new Error('peer accepted the event but failed verified replica read-back');
+      }
+      peerAcceptance = { ...peerAcceptance, replicaVerified: true, replicaChecksum: replica.checksum };
     }
     const acknowledged = await engine.acknowledge(record.waveId, {
       storage: 'accepted',
