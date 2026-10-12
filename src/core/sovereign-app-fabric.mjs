@@ -47,7 +47,7 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
       durableStoreReady:true,
       canonicalAppCount:APP_LIST.length,
       apps:APP_LIST.map(app=>({...app,storageNamespace:`app-${app.id}`})),
-      mesh:{runtimeOnline:online,peerIdentityConfigured:online,peerId:online?runtime.peerId:null,transportOwner:"sovereign-runtime-daemon",dispatchMode:"durable-queue",pendingDispatches},
+      mesh:{runtimeOnline:online,peerIdentityConfigured:online,peerId:online?runtime.peerId:null,transportOwner:"sovereign-runtime-daemon",dispatchMode:"durable-queue",pendingDispatches,pendingPeerAcks:online?Number(runtime.pendingPeerAcks||0):null},
       checkedAt:new Date().toISOString()
     };
   }
