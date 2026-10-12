@@ -50,3 +50,14 @@ test("Pure-WAL inventory rejects non-PostgreSQL connection URLs", async () => {
   assert.equal(result.code, 2);
   assert.match(result.stderr, /postgres:\/\/ or postgresql:\/\//);
 });
+
+test("Pure-WAL inventory queries a real PostgreSQL schema without changing it", { skip: !process.env.DATABASE_URL }, async () => {
+  const result = await run(["--exact-counts"], { DATABASE_URL: process.env.DATABASE_URL });
+  assert.equal(result.code, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.reportType, "apex-postgres-pure-wal-migration-inventory");
+  assert.equal(report.safety.databaseTransaction, "read-only");
+  assert.equal(report.safety.dataChanged, false);
+  assert.ok(report.summary.tableCount > 0, "expected migrated application tables");
+  assert.ok(report.tables.every(table => table.exactRows !== null), "exact counts should exist for every inventoried table");
+});
