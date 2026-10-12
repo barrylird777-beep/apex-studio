@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
+import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
 import { createSovereignAppFabric } from "../src/core/sovereign-app-fabric.mjs";
 import { createRapidVideoPureWalQueue } from "../src/workers/rapid-video-pure-wal.mjs";
 
@@ -12,7 +13,7 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 test("paid checkout and fulfillment remain durable without PostgreSQL and dedupe webhook retries",async()=>{
   const root=await mkdtemp(path.join(tmpdir(),"rapid-pure-wal-"));
   try{
-    const store=new ApexPureStore({root});
+    const store=new ApexPureStore({root,wal:new ApexRingWAL({file:path.join(root,"wal","ring.wal.jsonl")})});
     const fabric=createSovereignAppFabric({store});
     let orderRuns=0;
     const queue=createRapidVideoPureWalQueue({
