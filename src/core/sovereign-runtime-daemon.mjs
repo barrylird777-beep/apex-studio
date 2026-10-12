@@ -112,6 +112,7 @@ async function main() {
     workerId,
     peerId: peerNode.peerId.toString(),
     peerAddress: peerAddress || null,
+    publicPeerAddress: buildPublicPeerAddress(peerNode.peerId.toString()),
     listenAddresses: peerNode.getMultiaddrs().map(String),
     storageDir: engine.storageDir,
     walFilePath: engine.walFilePath,
