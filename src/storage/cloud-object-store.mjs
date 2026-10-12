@@ -74,6 +74,9 @@ export function cloudStorageStatus(prefix = 'apex-business') {
   const config = storageConfig(prefix);
   return {
     configured: Boolean(config.endpoint && config.bucket && config.accessKeyId && config.secretAccessKey),
+    connectivityVerified: false,
+    writeReadVerified: false,
+    authoritativeForCoreStore: false,
     provider: 'railway-s3-compatible',
     bucket: config.bucket || null,
     region: config.region || null,
@@ -89,7 +92,7 @@ export function cloudStorageStatus(prefix = 'apex-business') {
     resumableUploads: true,
     directToObjectStorage: true,
     serverMemoryForLargeUploads: 'not required',
-    note: 'Large media stays in cloud object storage; the iPhone receives streams or signed transfers.'
+    note: 'Configuration presence is not a connectivity test. Upload/download operations must succeed before cloud storage can be considered verified; core app records still use the current store.'
   };
 }
 
