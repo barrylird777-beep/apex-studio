@@ -219,10 +219,8 @@ class SceneController {
 
       const cinematicPrompt = String(forge.cinematicPrompt || prompt);
       const voiceoverScript = String(narrationText || forge.voiceoverScript || prompt).trim();
-      const voiceoverWords = voiceoverScript.split(/\\s+/).filter(Boolean).length;
-      if (voiceoverWords > 25) throw new Error("Keep each narration beat to 25 words or fewer (about 10 seconds). Split longer passages into separate shots to avoid cut-off speech.");
-
       const voiceoverWords = voiceoverScript.split(/\s+/).filter(Boolean).length;
+      if (voiceoverWords > 25) throw new Error("Keep each narration beat to 25 words or fewer (about 10 seconds). Split longer passages into separate shots to avoid cut-off speech.");
       const sceneDuration = Math.min(10, Math.max(4, Math.ceil(voiceoverWords / 2.5)));
       const [videoRes, audioRes] = await Promise.all([
         fetch('/api/media/video', {
