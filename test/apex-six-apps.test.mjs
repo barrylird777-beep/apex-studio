@@ -4,7 +4,7 @@ import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
-import { koBlocksStatus, defineKoBlock, composeKoBlocks, validateKoBlockGraph } from "../src/apps/ko-blocks.mjs";
+import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
@@ -28,11 +28,13 @@ test("PlanetApeX builds world state",()=>{
   assert.equal(planet.regions.length,1); assert.equal(planet.entities[0].regionId,"r1");
   assert.equal(planetApexStatus().app.name,"PlanetApeX");
 });
-test("KoBlocks is the canonical capability graph app",()=>{
+test("KoBlocks composes reusable blocks and rejects invalid execution graphs",()=>{
   const source=defineKoBlock({id:"source",outputs:["out"]});
-  const target=defineKoBlock({id:"target"});
+  const target=defineKoBlock({id:"target",inputs:["in"],outputs:["out"]});
   const graph=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"}]);
   assert.equal(validateKoBlockGraph(graph).valid,true);
+  const cyclic=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"},{from:"target",to:"source",port:"out"}]);
+  assert.equal(validateKoBlockGraph(cyclic).reason,"cycle");
   assert.equal(koBlocksStatus().app.name,"KoBlocks");
 });
 test("KernelVision creates Theatre and Kornmax viewing sessions",()=>{
