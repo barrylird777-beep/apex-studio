@@ -114,6 +114,7 @@ export async function quarantineWorkerTask(id, reason, leaseToken, leaseFence = 
 export async function releaseWorkerTasks(taskIds = [], leaseTokens = []) {
   if (!durableWorkerEnabled() || !taskIds.length) return 0;
   if (leaseTokens.length !== taskIds.length) throw new Error("releaseWorkerTasks requires one lease token per task");
+  await apexPureStore.refreshJobs();
   let released = 0;
   for (let index=0; index<taskIds.length; index++) {
     const job = apexPureStore.jobs().find(item => item.id === String(taskIds[index]));
@@ -134,7 +135,6 @@ export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refill
   const collection="apex_ai_rate_limits", id=String(key).slice(0,128);
   for (;;) {
     const acquired=await apexPureStore.withMutationLock(async()=>{
-      await apexPureStore.refresh();
       const now=Date.now(), current=await apexPureStore.get(collection,id);
       const tokens=Math.min(cap,Number(current?.tokens ?? cap)+Math.max(0,now-Number(current?.updatedAtMs||now))/1000*refill);
       if(tokens<1) { await apexPureStore.put(collection,id,{tokens,updatedAtMs:now}); return false; }
@@ -151,7 +151,6 @@ export async function claimExternalEffect(idempotencyKey) {
   const key=String(idempotencyKey||"").trim();
   if(!key) throw new Error("External side effects require an idempotency key");
   return apexPureStore.withMutationLock(async()=>{
-    await apexPureStore.refresh();
     if(await apexPureStore.get("apex_external_effects",key)) return false;
     await apexPureStore.put("apex_external_effects",key,{status:"started",createdAt:new Date().toISOString()});
     return true;
@@ -163,7 +162,6 @@ export async function completeExternalEffect(idempotencyKey,result=null) {
   const key=String(idempotencyKey||"").trim();
   if(!key) throw new Error("External side effects require an idempotency key");
   return apexPureStore.withMutationLock(async()=>{
-    await apexPureStore.refresh();
     const existing=await apexPureStore.get("apex_external_effects",key);
     if(!existing||existing.status!=="started") return false;
     await apexPureStore.put("apex_external_effects",key,{...existing,status:"completed",result:clone(result),updatedAt:new Date().toISOString()});
@@ -173,18 +171,18 @@ export async function completeExternalEffect(idempotencyKey,result=null) {
 
 export async function getWorkerTask(id) {
   if (!durableWorkerEnabled()) return null;
-  await apexPureStore.refresh();
+  await apexPureStore.refreshJobs();
   return unwrap(apexPureStore.jobs().find(job=>job.id===String(id)));
 }
 
 export async function queueStats() {
   if (!durableWorkerEnabled()) return {durable:false};
-  await apexPureStore.refresh();
+  await apexPureStore.refreshJobs();
   const jobs=apexPureStore.jobs();
   return {durable:true,storage:"content-addressed",queued:jobs.filter(j=>j.status==="queued").length,running:jobs.filter(j=>j.status==="running").length,completed:jobs.filter(j=>j.status==="completed").length,dead:jobs.filter(j=>j.status==="dead").length,total:jobs.length};
 }
 
-export async function closeWorkerStore() { await apexPureStore.refresh(); }
+export async function closeWorkerStore() { await apexPureStore.init(); }
 
 export async function recordWorkerJobEvent(jobId,eventType,payload={},workerId=null) {
   if(!durableWorkerEnabled()) return false;
