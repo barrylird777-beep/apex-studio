@@ -795,7 +795,7 @@ app.post('/api/kash-korner/opportunities', requireOpportunityEngineAuth, async (
 app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listKashKornerRecords, cashFlowSummary } = await import('./src/apps/kash-korner.mjs');
-    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
+    const entries = (await listKashKornerRecords()).map(row => row?.record || row).filter(entry => entry?.recordType !== 'opportunity');
     const currencies = [...new Set(entries.map(entry => String(entry.currency || 'USD').toUpperCase()))];
     const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
     return res.json({ success: true, entries, summaries });
@@ -809,7 +809,7 @@ app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) =
     const { recordCashEntry, saveKashKornerRecord, listKashKornerRecords } = await import('./src/apps/kash-korner.mjs');
     const entry = recordCashEntry(req.body || {});
     await saveKashKornerRecord(entry.id, entry);
-    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
+    const entries = (await listKashKornerRecords()).map(row => row?.record || row).filter(entry => entry?.recordType !== 'opportunity');
     return res.status(201).json({ success: true, entry, entries });
   } catch (error) {
     return res.status(400).json({ success: false, error: String(error?.message || error) });
