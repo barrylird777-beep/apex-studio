@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["apex-anchor/xshield-six-app-network"]
+    branches: ["main", "apex-anchor/xshield-six-app-network"]
   workflow_dispatch:
 
 permissions:
