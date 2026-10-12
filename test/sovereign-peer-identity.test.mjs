@@ -25,3 +25,16 @@ test("sovereign peer identity is persisted with private permissions and survives
   }
 });
 
+
+test("production identity fails closed instead of creating a local key", async () => {
+  const previousMode = process.env.NODE_ENV;
+  const previousKey = process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  try {
+    process.env.NODE_ENV = "production";
+    delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    await assert.rejects(loadOrCreatePeerPrivateKey(path.join(os.tmpdir(), "must-not-create", "peer.key")), /refusing local key-file fallback/);
+  } finally {
+    if (previousMode === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousMode;
+    if (previousKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64; else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = previousKey;
+  }
+});
