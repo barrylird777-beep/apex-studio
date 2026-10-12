@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
+import { mkdir, open, readFile, readdir, link, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -64,9 +64,12 @@ export function createContentAddressedPersistenceAdapter(storageDir) {
         await handle.sync();
         await handle.close();
         handle = undefined;
-        try { await rename(temporaryPath, finalPath); }
-        catch (error) {
-          if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
+        try {
+          // link() creates the final name atomically without overwriting an existing immutable record.
+          await link(temporaryPath, finalPath);
+          await unlink(temporaryPath);
+        } catch (error) {
+          if (error.code !== 'EEXIST') throw error;
           const existing = await readFile(finalPath, 'utf8');
           if (existing !== stableJson(record)) throw new Error('Conflicting immutable record already exists.');
           await unlink(temporaryPath).catch(() => {});
