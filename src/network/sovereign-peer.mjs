@@ -16,6 +16,19 @@ const PROTOCOL = '/apex/sovereign/1.0.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
+  // Production containers may be ephemeral. A per-peer secret can preserve the
+  // libp2p identity without writing its private key to a local filesystem.
+  const encoded = String(process.env.APEX_PEER_PRIVATE_KEY_BASE64 || '').trim();
+  if (encoded) {
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+      throw new Error('APEX_PEER_PRIVATE_KEY_BASE64 must be valid base64-encoded libp2p private-key protobuf');
+    }
+    const bytes = Buffer.from(encoded, 'base64');
+    if (!bytes.length || bytes.toString('base64') !== encoded) {
+      throw new Error('APEX_PEER_PRIVATE_KEY_BASE64 is empty or not canonical base64');
+    }
+    return privateKeyFromProtobuf(bytes);
+  }
   const target = path.resolve(file);
   await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
   try {
