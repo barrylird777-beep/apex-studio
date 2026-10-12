@@ -22,6 +22,6 @@ test("PlanetApeX world builder is wired to authenticated durable record endpoint
 
 test("PlanetApeX record IDs match the durable fabric's safe key format", async () => {
   const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
-  assert.match(html, /function validId\(id\)\{return \^?\/\[A-Za-z0-9\]/);
+  assert.match(html, /function validId\\(id\\)\\{return \/\\^\\[A-Za-z0-9\\]/);
   assert.match(html, /!id\.includes\("\.\."\)/);
 });
