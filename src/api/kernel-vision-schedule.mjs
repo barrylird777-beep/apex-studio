@@ -22,13 +22,14 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   const listRecords = async type => (await fabric.list(APP_ID)).map(row => row.record).filter(record => record?.recordType === type);
   const withLock = operation => store.withMutationLock(operation);
 
+  async function nextIdUnlocked(kind) {
+    const current = await getRecord(SEQUENCE_ID) || { recordType: "schedule-sequences", project: 0, scene: 0, shootDay: 0, character: 0 };
+    const next = Math.max(0, Number(current[kind]) || 0) + 1;
+    await putRecord(SEQUENCE_ID, { ...current, recordType: "schedule-sequences", [kind]: next });
+    return next;
+  }
   async function nextId(kind) {
-    return withLock(async () => {
-      const current = await getRecord(SEQUENCE_ID) || { recordType: "schedule-sequences", project: 0, scene: 0, shootDay: 0, character: 0 };
-      const next = Math.max(0, Number(current[kind]) || 0) + 1;
-      await putRecord(SEQUENCE_ID, { ...current, recordType: "schedule-sequences", [kind]: next });
-      return next;
-    });
+    return withLock(() => nextIdUnlocked(kind));
   }
 
   const projectKey = id => key(PROJECT_PREFIX, id);
@@ -234,15 +235,17 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
 
   async function createShootDay({ projectId, shootDate, callTime = null, notes = "" } = {}) {
     const idProject = Number(projectId);
-    if (!await getProject(idProject)) return null;
     const date = text(shootDate);
     const parsedDate = new Date(date);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) throw fail("shootDate must be a valid YYYY-MM-DD date");
-    if ((await listDays(idProject)).some(day => day.shootDate === date)) throw fail("A shoot day already exists for this project and date", 409, "DUPLICATE_DATE");
-    const id = await nextId("shootDay");
-    const record = { recordType: "schedule-day", shootDayId: id, projectId: idProject, shootDate: date, callTime: text(callTime) || null, notes: String(notes || ""), unit: "1st Unit" };
-    await putRecord(dayKey(id), record);
-    return dayView(record);
+    return withLock(async () => {
+      if (!await getProject(idProject)) return null;
+      if ((await listDays(idProject)).some(day => day.shootDate === date)) throw fail("A shoot day already exists for this project and date", 409, "DUPLICATE_DATE");
+      const id = await nextIdUnlocked("shootDay");
+      const record = { recordType: "schedule-day", shootDayId: id, projectId: idProject, shootDate: date, callTime: text(callTime) || null, notes: String(notes || ""), unit: "1st Unit" };
+      await putRecord(dayKey(id), record);
+      return dayView(record);
+    });
   }
 
   async function deleteShootDay(id) {
