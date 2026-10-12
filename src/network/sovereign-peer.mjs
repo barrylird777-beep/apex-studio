@@ -59,20 +59,94 @@ const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').s
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 export async function readSovereignEnvelope(stream) {
-  let text = '';
-  let bytesRead = 0;
-  for await (const chunk of stream.source) {
-    const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
-    bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
-    if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
-    text += decoder.decode(bytes, { stream: true });
-    if (text.includes('\n')) break;
+  // libp2p v3 streams are EventTargets; keep the iterable adapter for old callers/tests.
+  if (stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function') {
+    let text = '';
+    let bytesRead = 0;
+    const localDecoder = new TextDecoder();
+    for await (const chunk of stream.source) {
+      const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+      bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
+      if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
+      text += localDecoder.decode(bytes, { stream: true });
+      if (text.includes('\\n')) break;
+    }
+    const line = text.split('\\n')[0];
+    if (!line) throw new Error('empty sovereign peer envelope');
+    return JSON.parse(line);
   }
-  const line = text.split('\n')[0];
-  if (!line) throw new Error('empty sovereign peer envelope');
-  return JSON.parse(line);
+
+  if (!stream || typeof stream.addEventListener !== 'function') {
+    throw new TypeError('unsupported sovereign peer stream interface');
+  }
+
+  return new Promise((resolve, reject) => {
+    let text = '';
+    let bytesRead = 0;
+    let settled = false;
+    const localDecoder = new TextDecoder();
+    const cleanup = () => {
+      clearTimeout(timer);
+      stream.removeEventListener?.('message', onMessage);
+      stream.removeEventListener?.('close', onClose);
+    };
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const onMessage = event => {
+      try {
+        const chunk = event.data;
+        const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+        bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
+        if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
+        text += localDecoder.decode(bytes, { stream: true });
+        const newline = text.indexOf('\\n');
+        if (newline < 0) return;
+        const line = text.slice(0, newline);
+        if (!line) throw new Error('empty sovereign peer envelope');
+        finish(null, JSON.parse(line));
+      } catch (error) {
+        finish(error);
+      }
+    };
+    const onClose = event => finish(new Error(event?.error?.message || 'sovereign peer stream closed before an envelope arrived'));
+    const timer = setTimeout(() => finish(new Error('sovereign peer envelope timed out')), Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
+  });
 }
 
+async function sendSovereignEnvelope(stream, envelope) {
+  const bytes = encoder.encode(JSON.stringify(envelope) + '\\n');
+  if (typeof stream?.send !== 'function') {
+    // Compatibility for pre-v3 iterable streams.
+    if (typeof stream?.sink === 'function') return stream.sink([bytes]);
+    throw new TypeError('unsupported sovereign peer stream write interface');
+  }
+  if (stream.send(bytes)) return;
+  if (typeof stream.onDrain === 'function') {
+    await stream.onDrain({ signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000)) });
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => cleanup(new Error('sovereign peer stream write timed out')), Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
+    const cleanup = error => {
+      clearTimeout(timer);
+      stream.removeEventListener?.('drain', onDrain);
+      stream.removeEventListener?.('close', onClose);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onDrain = () => cleanup();
+    const onClose = () => cleanup(new Error('sovereign peer stream closed while backpressured'));
+    stream.addEventListener('drain', onDrain, { once: true });
+    stream.addEventListener('close', onClose, { once: true });
+  });
+}
 export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE } = {}) {
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const node = await createLibp2p({
