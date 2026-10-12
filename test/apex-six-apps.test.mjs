@@ -4,6 +4,7 @@ import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
+import { handlers as productionHandlers } from "../src/jobs/production-handlers.mjs";
 import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
 import { xshieldStatus, classifyXShieldRequest } from "../src/apps/xshield.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
@@ -125,4 +126,12 @@ test("canonical trajectory forms a closed six-app contract",async()=>{
   assert.equal(validateCanonicalTrajectory(trajectory),true);
   assert.throws(()=>validateCanonicalTrajectory({...trajectory,apps:trajectory.apps.slice(0,5)}),/exactly six apps/);
   assert.throws(()=>canonicalNeighbors("not-an-app"),/Unknown Apex app/);
+});
+
+
+test("legacy music idea jobs report canonical app ownership", async () => {
+  const result = await productionHandlers["kornknob.idea.evaluate"]({ payload: { title: "Test track concept", concept: "An original audio-first story" } });
+  assert.equal(result.ownerApp, "Kernelodies");
+  assert.equal(result.productionOwner, "KernelVision");
+  assert.equal(result.durableEvaluation, true);
 });
