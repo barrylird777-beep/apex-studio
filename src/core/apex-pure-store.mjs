@@ -40,24 +40,63 @@ export class ApexPureStore {
   async initialize(){
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
-    let migrated=false;
-    try{await stat(this.migrationFile);migrated=true;}catch(e){if(e.code!=="ENOENT")throw e;}
-    if(!migrated){
-      let legacyExists=false;
-      try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
-      if(legacyExists){
-        await this.wal.replay({onRecord:r=>this.apply(r)});
-        const migrationWrites=[];
-        for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);migrationWrites.push(()=>this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)}));}
-        for(const [id,job] of this.jobsState)migrationWrites.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
-        await runBatched(migrationWrites,16,write=>write());
+    const lockFile=path.join(this.root,".apex-cas-migration.lock");
+    const markerExists=async()=>{try{await stat(this.migrationFile);return true;}catch(e){if(e.code==="ENOENT")return false;throw e;}};
+    const started=Date.now();
+    let handle,token;
+    while(!handle){
+      if(await markerExists()){this.ready=true;return this;}
+      try{
+        token=randomUUID();
+        handle=await open(lockFile,"wx",0o600);
+        await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now(),token}),"utf8");
+        await handle.sync();
+      }catch(error){
+        if(handle){await handle.close().catch(()=>{});handle=undefined;}
+        if(error.code!=="EEXIST")throw error;
+        let stale=false;
+        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>300000;}
+        catch(e){if(e.code==="ENOENT")continue;throw e;}
+        if(stale){
+          const quarantine=lockFile+".stale."+randomUUID();
+          try{await rename(lockFile,quarantine);await unlink(quarantine).catch(e=>{if(e.code!=="ENOENT")throw e;});}
+          catch(e){if(e.code!=="ENOENT"&&e.code!=="EEXIST")throw e;}
+          continue;
+        }
+        if(Date.now()-started>600000)throw new Error("[STORE_MIGRATION] Timed out waiting for the cross-process migration lock.");
+        await sleep(50+Math.floor(Math.random()*50));
       }
-      await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
     }
-    this.ready=true;
-    // Do not scan the entire durable store during process startup. Reads and queue operations
-    // refresh only the namespace they need; first boot still has migrated records in memory.
-    return this;
+    const heartbeat=setInterval(()=>{const now=new Date();handle?.utimes(now,now).catch(()=>{});},10000);
+    heartbeat.unref?.();
+    try{
+      if(!await markerExists()){
+        let legacyExists=false;
+        try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
+        if(legacyExists){
+          await this.wal.replay({onRecord:r=>this.apply(r)});
+          const migrationWrites=[];
+          for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);migrationWrites.push(()=>this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)}));}
+          for(const [id,job] of this.jobsState)migrationWrites.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
+          await runBatched(migrationWrites,16,write=>write());
+        }
+        await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
+      }
+      this.ready=true;
+      // Do not scan the entire durable store during process startup. Reads and queue operations
+      // refresh only the namespace they need; first boot still has migrated records in memory.
+      return this;
+    }finally{
+      clearInterval(heartbeat);
+      const owned=handle;handle=undefined;
+      let ownsPath=false;
+      try{
+        const [opened,current,contents]=await Promise.all([owned.stat(),stat(lockFile),readFile(lockFile,"utf8")]);
+        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+      }catch(e){if(e.code!=="ENOENT"&&!(e instanceof SyntaxError))throw e;}
+      await owned.close().catch(()=>{});
+      if(ownsPath)await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});
+    }
   }
   async loadStateReferences(){
     this.state.clear();
