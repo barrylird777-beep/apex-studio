@@ -46,6 +46,7 @@ import { createResearchRouter } from './src/api/research-routes.mjs';
 import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
+import { rapidVideoPureWalQueue } from './src/workers/rapid-video-pure-wal.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
@@ -496,6 +497,13 @@ app.get('/api/kernelodies/status', async (_req, res) => {
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
 });
+const enableRapidPureWalWorker = String(process.env.APEX_RAPID_PURE_WAL_WORKER ?? (process.env.RAILWAY_ENVIRONMENT ? 'true' : 'false')).toLowerCase() === 'true';
+if (enableRapidPureWalWorker) {
+  void rapidVideoPureWalQueue.runForever().catch(error => console.error('[rapid-video-pure-wal] worker stopped:', error));
+  process.once('SIGTERM', () => rapidVideoPureWalQueue.stop());
+  process.once('SIGINT', () => rapidVideoPureWalQueue.stop());
+}
+
 server.on('error', (error) => {
   runtimeFault = {
     type: 'listenError',
