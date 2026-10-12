@@ -6,6 +6,7 @@ import path from "node:path";
 import { ContentAddressedStore } from "../src/core/content-addressed-store.mjs";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
 import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
+import { RemoteCasObjectBackend } from "../src/core/remote-cas-object-backend.mjs";
 
 test("content-addressed objects verify hashes and round-trip", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-"));
@@ -134,4 +135,13 @@ test("legacy migration streams batches and preserves final state and job transit
     assert.equal(job.status, "done");
     assert.equal(job.attempts, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("remote CAS backend stays disabled unless every storage credential is configured", async () => {
+  const backend = new RemoteCasObjectBackend({});
+  assert.equal(backend.enabled, false);
+  assert.equal(await backend.put("a".repeat(64), "{}"), false);
+  assert.equal(await backend.get("a".repeat(64)), null);
+  assert.equal(backend.key("a".repeat(64)), "apex-cas/objects/sha256/aa/" + "a".repeat(64) + ".json");
+  assert.throws(() => backend.key("../escape"), /Invalid SHA-256 object id/);
 });
