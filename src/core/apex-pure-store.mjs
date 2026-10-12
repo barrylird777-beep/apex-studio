@@ -46,7 +46,7 @@ export class ApexPureStore {
     while(true){
       try{
         const handle=await open(lockFile,"wx",0o600);
-        try{await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now()})+"\\n","utf8");await handle.sync();}
+        try{await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now()}),"utf8");await handle.sync();}
         catch(error){await handle.close().catch(()=>{});await unlink(lockFile).catch(()=>{});throw error;}
         await handle.close();
         break;
