@@ -13,7 +13,7 @@ const EMPTY_STATE = Object.freeze({
 });
 
 function cleanText(value, max = 10000) {
-  return String(value ?? "").replace(/[\\u0000-\\u001f\\u007f]/g, " ").trim().slice(0, max);
+  return [...String(value ?? "")].filter(character => { const code = character.charCodeAt(0); return code > 0x1f && code !== 0x7f; }).join("").trim().slice(0, max);
 }
 
 function json(value, fallback = {}) {
