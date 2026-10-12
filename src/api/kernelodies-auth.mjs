@@ -13,7 +13,7 @@ export function createKernelodiesLibraryAuth({ getToken = () => process.env.KERN
     if (!expected) {
       return res.status(503).json({ ok: false, error: "Kernelodies shared-library authorization is not configured" });
     }
-    const supplied = req.get("x-kernelodies-token") || req.get("authorization")?.replace(/^Bearer\\s+/i, "");
+    const supplied = req.get("x-kernelodies-token") || req.get("authorization")?.replace(/^Bearer\s+/i, "");
     if (!timingSafeSecret(expected, supplied)) {
       return res.status(401).json({ ok: false, error: "Unauthorized" });
     }
