@@ -197,7 +197,7 @@ function readLegacyTable(db, table) {
   return new Promise((resolve, reject) => db.all('SELECT * FROM ' + table, (error, rows) => error ? reject(error) : resolve(rows || [])));
 }
 function readLegacyTableNames(db) {
-  return new Promise((resolve, reject) => db.all("SELECT name FROM sqlite_master WHERE type='table'", (error, rows) => error ? reject(error) : resolve(new Set((rows || []).map(row => String(row.name)))));
+  return new Promise((resolve, reject) => db.all("SELECT name FROM sqlite_master WHERE type='table'", (error, rows) => error ? reject(error) : resolve(new Set((rows || []).map(row => String(row.name))))));
 }
 function closeLegacySqlite(db) {
   return new Promise(resolve => db.close(() => resolve()));
