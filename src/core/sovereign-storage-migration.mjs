@@ -64,6 +64,10 @@ export async function migrateSovereignStorage({
     throw new Error("Legacy sovereign storage root must be a real directory.");
   }
   await fs.mkdir(destinationRoot, { recursive: true, mode: 0o700 });
+  const destinationInfo = await fs.lstat(destinationRoot);
+  if (!destinationInfo.isDirectory() || destinationInfo.isSymbolicLink()) {
+    throw new Error("Persistent sovereign destination must be a real directory, not a symlink.");
+  }
   const copied = [];
   for (const entry of await fs.readdir(source)) {
     await copyMissing(path.join(source, entry), path.join(destinationRoot, entry), copied, destinationRoot);
