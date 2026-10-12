@@ -120,3 +120,32 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
   }
 });
 
+test('concurrent Pure-WAL initialization is single-flight and replays from one verified pass', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-pure-wal-init-'));
+  const file = path.join(dir, 'wal', 'ring.wal.jsonl');
+  try {
+    const wal = new ApexRingWAL({ file });
+    const store = new ApexPureStore({ root: path.join(dir, 'projects'), wal });
+    let reads = 0;
+    const readAndVerify = wal._readAndVerify.bind(wal);
+    wal._readAndVerify = async onRecord => {
+      reads += 1;
+      await new Promise(resolve => setTimeout(resolve, 25));
+      return readAndVerify(onRecord);
+    };
+
+    await Promise.all(Array.from({ length: 12 }, () => store.init()));
+    assert.equal(reads, 1);
+    assert.equal(store.ready, true);
+
+    await store.put('init_test', 'record', { durable: true });
+    const recovered = new ApexPureStore({
+      root: path.join(dir, 'projects'),
+      wal: new ApexRingWAL({ file })
+    });
+    await recovered.init();
+    assert.deepEqual(await recovered.get('init_test', 'record'), { durable: true });
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
