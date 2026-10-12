@@ -63,13 +63,13 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
     const app=assertApp(appId),id=assertId(recordId);
     if(!record||typeof record!=="object"||Array.isArray(record))throw Object.assign(new Error("Record must be a JSON object."),{status:400});
     const saved=await store.put(`app-${app}`,id,{...clone(record),appId:app,id});
-    return {appId:app,id,record:saved,durable:true,storage:"content-addressed"};
+    return {appId:app,id,record:saved,durable:true,storage:"content-addressed",storageAuthority:"local-filesystem",cloudStorageReady:false};
   }
   async function get(appId,recordId){
     await init();
     const app=assertApp(appId),id=assertId(recordId);
     const record=await store.get(`app-${app}`,id);
-    return record?{appId:app,id,record,durable:true,storage:"content-addressed"}:null;
+    return record?{appId:app,id,record,durable:true,storage:"content-addressed",storageAuthority:"local-filesystem",cloudStorageReady:false}:null;
   }
   async function list(appId){
     await init();
