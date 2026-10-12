@@ -17,7 +17,7 @@ export function motionFilter(motion, frames, { fps = FPS } = {}) {
 }
 export function buildFilterGraph(shots, { narIdx, musicIdx = null, fps = FPS }) {
   const chains = shots.map((s, i) => {
-    const frames = Math.round(s.durationSec * FPS);
+    const frames = Math.round(s.durationSec * fps);
     return `[${i}:v]scale=2880:1620:force_original_aspect_ratio=increase,crop=2880:1620,setsar=1,${motionFilter(s.motion, frames, { fps })},format=yuv420p[v${i}]`;
   });
   chains.push(`${shots.map((_, i) => `[v${i}]`).join('')}concat=n=${shots.length}:v=1:a=0[v]`);
