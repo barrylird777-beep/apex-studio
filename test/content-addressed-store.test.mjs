@@ -140,9 +140,21 @@ test("remote-only CAS writes and reads objects and refs without local fallback",
       async put(hash, bytes) { objects.set(hash, bytes); return true; },
       async get(hash) { return objects.get(hash) ?? null; },
       async putRef(ns, key, value) { refs.set(ns + "/" + key, value); return true; },
+      async compareAndSwapRef(ns, key, expectedHash, value) {
+        const id = ns + "/" + key;
+        const old = refs.has(id) ? JSON.parse(refs.get(id)).hash : null;
+        if (old !== expectedHash) { const e = new Error("CAS conflict"); e.code = "CAS_CONFLICT"; throw e; }
+        refs.set(id, value); return true;
+      },
       async getRef(ns, key) { return refs.get(ns + "/" + key) ?? null; },
       async listRefs(ns) { return [...refs.keys()].filter(k => k.startsWith(ns + "/")).map(k => k.slice(ns.length + 1)); },
-      async deleteRef(ns, key) { refs.delete(ns + "/" + key); return true; }
+      async deleteRef(ns, key) { refs.delete(ns + "/" + key); return true; },
+      async deleteRefIfMatch(ns, key, expectedHash) {
+        const id = ns + "/" + key;
+        const old = refs.has(id) ? JSON.parse(refs.get(id)).hash : null;
+        if (old !== expectedHash) { const e = new Error("CAS conflict"); e.code = "CAS_CONFLICT"; throw e; }
+        refs.delete(id); return true;
+      }
     };
     store.remoteRefsEnabled = true;
     await store.init();
