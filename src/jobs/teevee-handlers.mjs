@@ -47,7 +47,8 @@ async function restoreEpisodeArtifacts(episode) {
     const stage = assetType.slice("episode.".length);
     const filename = path.basename(key);
     const localPath = path.join(stagePath(episode.episode_code, stage), filename);
-    const present = await fs.stat(localPath).then(info => info.isFile() && info.size > 0).catch(() => false);
+    const recordedAt = Date.parse(String(asset.createdAt || ""));
+    const present = await fs.stat(localPath).then(info => info.isFile() && info.size > 0 && Number.isFinite(recordedAt) && info.mtimeMs > recordedAt).catch(() => false);
     if (present) continue;
     await fs.mkdir(path.dirname(localPath), { recursive: true });
     const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: `mobile/apex-business/${key}` }));
