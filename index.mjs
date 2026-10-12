@@ -148,8 +148,10 @@ async function executePermanentHealthTask(payload = {}) {
   } else if (["video-engine", "export", "render-cache", "visual-direction"].includes(role)) {
     await new RenderWorker().available();
   } else if (["voiceover", "audio-reference"].includes(role)) {
-    const { voiceoverWorkerStatus } = await import("./src/workers/voiceover-worker.mjs");
-    await voiceoverWorkerStatus();
+    // Health probes must not import the legacy PostgreSQL-backed voiceover queue.
+    // Check local voice capability only; real voiceover jobs remain a separate workflow.
+    const { listVoiceOptions } = await import("./src/core/audio-station.mjs");
+    await listVoiceOptions();
   } else {
     capacitySnapshot();
   }
