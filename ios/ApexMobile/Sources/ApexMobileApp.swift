@@ -24,6 +24,13 @@ struct ApexRootView: View {
     @StateObject private var connectivity = ApexPhoneConnectivity()
     @State private var pairingSecret = ""
     @State private var nearbyMessage = "APEX nearby link test"
+    @State private var controlURL = ""
+    @State private var controlToken = ""
+    @State private var controlStatus = "Not connected to the six-app fabric."
+    @State private var sovereignApps: [ApexSovereignApp] = []
+    @State private var selectedSovereignApp = ""
+    @State private var sovereignAction = "phone.ping"
+    @State private var controlBusy = false
     @State private var selectedSection = "Connect"
 
     private var ggufType: UTType {
@@ -90,6 +97,101 @@ struct ApexRootView: View {
         }
     }
 
+    private var sovereignControlPanel: some View {
+        GroupBox("Six-app sovereign control") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Connect to the authenticated Apex server to inspect all six app namespaces and queue a dispatch. The server must be reachable; nearby mesh alone does not provide internet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Apex server URL (https://…)", text: $controlURL)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                SecureField("Apex control token", text: $controlToken)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button(controlBusy ? "Connecting…" : "Refresh six-app status") {
+                    Task { await refreshSovereignControl() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(controlBusy || controlURL.isEmpty || controlToken.isEmpty)
+                Text(controlStatus)
+                    .font(.caption)
+                    .textSelection(.enabled)
+                if !sovereignApps.isEmpty {
+                    Picker("Target app", selection: $selectedSovereignApp) {
+                        ForEach(sovereignApps) { app in
+                            Text(app.name).tag(app.id)
+                        }
+                    }
+                    TextField("Dispatch action", text: $sovereignAction)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button(controlBusy ? "Sending…" : "Queue dispatch for selected app") {
+                        Task { await dispatchSovereignAction() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(controlBusy || selectedSovereignApp.isEmpty || sovereignAction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    ForEach(sovereignApps) { app in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.name).font(.caption.bold())
+                            Text(app.role).font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func makeControlClient() throws -> ApexSovereignControlClient {
+        guard let url = URL(string: controlURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              ["https", "http"].contains(scheme),
+              url.host != nil else {
+            throw ApexSovereignControlError.invalidURL
+        }
+        if scheme != "https" && !["localhost", "127.0.0.1"].contains(url.host?.lowercased() ?? "") {
+            throw ApexSovereignControlError.invalidURL
+        }
+        return ApexSovereignControlClient(baseURL: url, token: controlToken)
+    }
+
+    @MainActor
+    private func refreshSovereignControl() async {
+        controlBusy = true
+        defer { controlBusy = false }
+        do {
+            let client = try makeControlClient()
+            async let status = client.status()
+            let apps = try await client.apps()
+            controlStatus = try await status
+            sovereignApps = apps
+            if !apps.contains(where: { $0.id == selectedSovereignApp }) {
+                selectedSovereignApp = apps.first?.id ?? ""
+            }
+            if apps.count != 6 {
+                controlStatus += " • WARNING: expected six canonical apps."
+            }
+        } catch {
+            controlStatus = "Connection failed: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func dispatchSovereignAction() async {
+        controlBusy = true
+        defer { controlBusy = false }
+        do {
+            let client = try makeControlClient()
+            controlStatus = try await client.dispatch(
+                appID: selectedSovereignApp,
+                action: sovereignAction.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        } catch {
+            controlStatus = "Dispatch failed: \(error.localizedDescription)"
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -106,7 +208,9 @@ struct ApexRootView: View {
                 .pickerStyle(.segmented)
 
                 if selectedSection == "Connect" {
-                    nearbyMeshPanel
+                    sovereignControlPanel
+
+                nearbyMeshPanel
                     GroupBox("Connection fallbacks") {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("Nearby Apex device", systemImage: "dot.radiowaves.left.and.right")
