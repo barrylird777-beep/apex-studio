@@ -36,6 +36,9 @@ test('peer replica readback returns only the checksummed source record from its 
       }
     });
 
+    // Real receivers acknowledge the local receipt before the source asks for read-back.
+    await engine.acknowledge('local-receipt-7', { storage: 'content-addressed' });
+
     assert.deepEqual(
       readSovereignPeerReplica(engine, { waveId: sourceRecord.waveId, checksum: sourceRecord.checksum }, { remotePeerId: 'origin-peer' }),
       { waveId: sourceRecord.waveId, checksum: sourceRecord.checksum, record: sourceRecord }
