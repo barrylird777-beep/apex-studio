@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { ApexRingWAL } from "./apex-ring-wal.mjs";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
 import { createHash } from "node:crypto";
 
@@ -28,7 +29,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS}={}){this.root=path.resolve(root);this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.cas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -70,8 +71,44 @@ export class ApexPureStore {
     heartbeat.unref?.();
     try{
       if(!await markerExists()){
-        // WAL replay is intentionally disabled: canonical persistence is CAS/sovereign storage.
-        await this.atomic(this.migrationFile,{version:2,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:false,walReplay:"disabled-by-canon"});
+        let legacyExists=false;
+        try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
+        if(legacyExists){
+          const pendingState=new Map(),pendingJobs=new Map();
+          const flushMigrationBatch=async()=>{
+            const writes=[];
+            for(const [key,value] of pendingState){
+              if(value===null||value.deleted)writes.push(()=>this.cas.deleteRef("state",this.refKey(value.collection,value.id)));
+              else writes.push(()=>this.cas.writeRef("state",this.refKey(value.collection,value.id),{collection:value.collection,id:value.id,record:clone(value.record)}));
+            }
+            for(const [id,job] of pendingJobs)writes.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
+            await runBatched(writes,16,write=>write());
+            pendingState.clear();pendingJobs.clear();
+          };
+          await this.wal.replay({retainRing:false,onRecord:async r=>{
+            const p=r.payload||{};
+            if(r.type==="state.put"){
+              const collection=String(p.collection),id=String(p.id);
+              pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});
+            }else if(r.type==="state.delete"){
+              const collection=String(p.collection),id=String(p.id);
+              pendingState.set(this.key(collection,id),{collection,id,deleted:true});
+            }else if(r.type==="job.enqueue"){
+              pendingJobs.set(String(p.id),clone(p.job));
+            }else if(r.type==="job.transition"){
+              const id=String(p.id);
+              let job=pendingJobs.get(id);
+              if(!pendingJobs.has(id)){
+                const current=await this.cas.readRef("jobs",this.refKey("job",id));
+                job=current?.value?.job?clone(current.value.job):undefined;
+              }
+              if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
+            }
+            if(pendingState.size+pendingJobs.size>=256)await flushMigrationBatch();
+          }});
+          await flushMigrationBatch();
+        }
+        await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
       }
       this.ready=true;
       // Do not scan the entire durable store during process startup. Reads and queue operations
