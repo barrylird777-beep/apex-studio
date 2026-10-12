@@ -70,5 +70,15 @@ test("remote CAS paginates namespace references without local filesystem locks",
 });
 
 test("remote CAS refuses missing credentials rather than falling back to disk", () => {
-  assert.throws(() => new RemoteContentAddressedStore({ endpoint: "https://storage.example.test", bucket: "b" }), /requires APEX_OBJECT_STORAGE/);
+  const keys = ["APEX_OBJECT_STORAGE_ENDPOINT", "APEX_OBJECT_STORAGE_BUCKET", "APEX_OBJECT_STORAGE_REGION", "APEX_OBJECT_STORAGE_ACCESS_KEY_ID", "APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY"];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  for (const key of keys) delete process.env[key];
+  try {
+    assert.throws(() => new RemoteContentAddressedStore({ endpoint: "https://storage.example.test", bucket: "b" }), /requires APEX_OBJECT_STORAGE/);
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
 });
