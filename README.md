@@ -90,7 +90,7 @@ The three systems are exactly:
 - Garden of Apex: knowledge, research, and creative ecosystem.
 - KORNKNOB: AI/model/media/computational capability.
 
-TeeVee production is PostgreSQL-backed and uses the durable worker system for queued execution, leases, fencing, retries, recovery, deduplication, and horizontal worker scaling.
+TeeVee production is being migrated to the sovereign Pure-WAL storage and durable-worker path. The current release must pass the Pure-WAL queue, lease, fencing, retry, recovery, and deduplication tests before it is considered production-ready. PostgreSQL-era migration and import utilities are legacy-only; they are not the target runtime architecture.
 
 ### Application ownership
 
