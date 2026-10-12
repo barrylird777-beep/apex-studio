@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { access, mkdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { assembleVideo, probeVideo, checkSpec } from "./assemble.mjs";
-import { validateHookPlan } from "./hook.mjs";
+import { validateHookPlan, LABELS, MOTIONS } from "./hook.mjs";
 import { runRenderQC } from "../core/validation/render-qc.mjs";
 import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
 
@@ -78,6 +78,8 @@ export async function produceKernelVisionEpisode(input={},options={}){
     const narration=safeText(source.narration,2000);
     const labels=Array.isArray(source.labels)?source.labels.slice(0,8):[];
     const sources=Array.isArray(source.sources)?source.sources.map(x=>safeText(x,500)).filter(Boolean).slice(0,20):[];
+    if(!MOTIONS.includes(motion))throw new TypeError("Shot "+(i+1)+" has an unsupported motion preset");
+    if(!labels.length||!labels.every(label=>LABELS.includes(label)))throw new TypeError("Shot "+(i+1)+" labels must be a non-empty allowed subset");
     if(!visual||!narration||!sources.length)throw new TypeError("Shot "+(i+1)+" requires visual, narration, and source references");
     shots.push({
       id:safeId(source.id||"shot-"+(i+1),"shot id"),
@@ -102,7 +104,7 @@ export async function produceKernelVisionEpisode(input={},options={}){
   const totalDuration=shots.reduce((sum,shot)=>sum+shot.durationSec,0);
   const createdAt=new Date().toISOString();
   const mediaProvenance={
-    shots:shots.map(shot=>({shotId:shot.id,...shot.provenance})),
+    shots:shots.map(shot=>({shotId:shot.id,durationSec:shot.durationSec,visual:shot.visual,labels:shot.labels,sourceRefs:shot.sources,...shot.provenance})),
     narration:narrationProvenance,
     music:musicProvenance
   };
@@ -118,7 +120,9 @@ export async function produceKernelVisionEpisode(input={},options={}){
       id,projectId,episodeId,title,contentDomain,passage,
       status:qcPassed?"ready":"qc-failed",
       releaseEligible:qcPassed&&Object.values(mediaProvenance).flatMap(v=>Array.isArray(v)?v:[v]).filter(Boolean).every(publishable),
-      output:{path:path.relative(root,outPath),url:"/files/"+path.relative(root,outPath).split(path.sep).map(encodeURIComponent).join("/"),subtitlePath:path.relative(root,renderResult.srtPath||srtPath),bytes:outputStat.size,sha256:await sha256File(outPath),format:"mp4",...probe},
+      publicationState:"not-published",
+      downloadPath:"/api/episodes/"+encodeURIComponent(episodeId)+"/"+encodeURIComponent(id)+"/download",
+      output:{path:path.relative(root,outPath),subtitlePath:path.relative(root,renderResult.srtPath||srtPath),bytes:outputStat.size,sha256:await sha256File(outPath),format:"mp4",...probe},
       subtitles:{path:path.relative(root,renderResult.srtPath||srtPath),sha256:await sha256File(renderResult.srtPath||srtPath)},
       openingHook:{valid:hook.ok,durationSec:hook.totalSec,shotCount:10},
       mediaProvenance,
