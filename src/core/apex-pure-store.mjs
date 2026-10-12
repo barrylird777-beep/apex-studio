@@ -31,7 +31,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL()}={}){this.root=path.resolve(root);this.wal=wal;this.remoteMode=String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.localCas=new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=this.remoteMode?new RemoteContentAddressedStore():this.localCas;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=new ApexRingWAL(),cas=null,localCas=null}={}){this.root=path.resolve(root);this.wal=wal;this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
