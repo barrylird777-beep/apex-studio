@@ -18,6 +18,18 @@ button,a{font:inherit}button{border:1px solid var(--line);background:#ffffff0b;c
 input,textarea,select{width:100%;border-radius:13px;border:1px solid var(--line);background:#0005;color:var(--text);padding:10px 12px;margin:7px 0 9px}input,select{min-height:46px}textarea{min-height:110px;resize:vertical;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
 .notice{padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#ffffff05;color:var(--muted);line-height:1.45}
 @media(max-width:520px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.hero h1{font-size:30px}.actions{grid-template-columns:1fr}.apps{grid-template-columns:1fr 1fr}}
+
+:root{color-scheme:dark;--apex-ink:#f2f6ff;--apex-muted:#aab7cb;--apex-line:#29374b;--apex-blue:#8abaff}
+body{background:radial-gradient(ellipse at 14% 0%,rgba(32,68,120,.34),transparent 42%),radial-gradient(ellipse at 95% 18%,rgba(78,48,126,.24),transparent 36%),#080b12;color:var(--apex-ink)}
+main{max-width:1180px;padding:30px 18px 46px}
+h1{font-size:clamp(32px,5vw,52px);line-height:1.08;letter-spacing:-.035em}
+.card,.panel{background:linear-gradient(145deg,rgba(19,28,44,.96),rgba(10,15,25,.97));border-color:var(--apex-line);box-shadow:0 18px 46px rgba(0,0,0,.2)}
+input,textarea,select,button{border-radius:11px}
+button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4;transition:filter .15s ease,transform .15s ease}
+button:hover{filter:brightness(1.12);transform:translateY(-1px)}
+input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--apex-blue);outline-offset:2px}
+a{color:var(--apex-blue)}
+@media(max-width:600px){main{padding:22px 13px 36px}}
 </style></head>
 <body>
 <header><div class="brand">APEX / PHONE</div><div id="topStatus" class="status">CHECKING</div></header>
