@@ -197,56 +197,57 @@ export class ApexPureStore {
     });
     return this;
   }
-  async ensureRemoteQueueIndex(){
+  async ensureRemoteQueueIndex({force=false}={}){
     if(!this.remoteMode)return {ready:true,indexed:0};
-    if(this.remoteQueueIndexReady)return {ready:true,indexed:0};
-    if(this.remoteQueueIndexPromise)return this.remoteQueueIndexPromise;
+    if(this.remoteQueueIndexReady&&!force)return {ready:true,indexed:0};
+    if(this.remoteQueueIndexPromise&&!force)return this.remoteQueueIndexPromise;
     this.remoteQueueIndexPromise=(async()=>{
-      const markerKey="job-index-v1";
-      if(await this.cas.readRef("system",markerKey)){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
-      const result=await this.withRemoteLock("job-index-migration-lock",async()=>{
-        if(await this.cas.readRef("system",markerKey)){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
+      const markerKey="job-index-v2";
+      const initialMarker=await this.cas.readRef("system",markerKey);
+      if(initialMarker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
+      const result=await this.withRemoteLock("job-index-v2-migration-lock",async()=>{
+        const marker=await this.cas.readRef("system",markerKey);
+        if(marker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
         let indexed=0;
-        await this.withRemoteLock("queue-mutations",async()=>{
-          const refs=await this.cas.listRefs("jobs");
-          for(let offset=0;offset<refs.length;offset+=32){
-            const batch=refs.slice(offset,offset+32);
-            const counts=await Promise.all(batch.map(async ref=>{
-              const job=ref.value?.job;
-              if(!job||job.id==null)return 0;
-              const key=this.refKey("job",job.id);
-              const current=await this.cas.readRef("queue",key);
-              if(job.status==="queued"){
-                const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
-                if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
-                const running=await this.cas.readRef("running",key);
-                if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-                return 1;
-              }
-              if(job.status==="running"){
-                const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
-                const running=await this.cas.readRef("running",key);
-                if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
-                if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
-                return 1;
-              }
-              if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+        const refs=await this.cas.listRefs("jobs");
+        for(let offset=0;offset<refs.length;offset+=32){
+          const batch=refs.slice(offset,offset+32);
+          const counts=await Promise.all(batch.map(async ref=>{
+            const job=ref.value?.job;
+            if(!job||job.id==null)return 0;
+            const key=this.refKey("job",job.id);
+            const current=await this.cas.readRef("queue",key);
+            if(job.status==="queued"){
+              const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+              if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
               const running=await this.cas.readRef("running",key);
               if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-              return 0;
-            }));
-            indexed+=counts.reduce((sum,count)=>sum+count,0);
-          }
-          await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-queue-index",indexed,createdAt:new Date().toISOString()},{expectedHash:null});
-        });
+              return 1;
+            }
+            if(job.status==="running"){
+              const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+              const running=await this.cas.readRef("running",key);
+              if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+              if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+              return 1;
+            }
+            if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+            const running=await this.cas.readRef("running",key);
+            if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
+            return 0;
+          }));
+          indexed+=counts.reduce((sum,count)=>sum+count,0);
+        }
+        await this.cas.writeRef("system",markerKey,{version:2,storage:"remote-queue-index",indexed,createdAt:new Date().toISOString()},{expectedHash:marker?.hash??null});
         this.remoteQueueIndexReady=true;
-        return {ready:true,indexed};
+        return {ready:true,indexed,version:2};
       });
       this.remoteQueueIndexReady=true;
       return result;
     })();
     try{return await this.remoteQueueIndexPromise;}
     catch(error){this.remoteQueueIndexPromise=null;throw error;}
+    finally{this.remoteQueueIndexPromise=null;}
   }
   async loadStateReferences(){
     this.state.clear();
