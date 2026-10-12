@@ -59,17 +59,52 @@ struct ApexSovereignControlClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(token, forHTTPHeaderField: "x-apex-shortcut-token")
+        request.timeoutInterval = 20
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw ApexSovereignControlError.invalidResponse }
-        guard (200...299).contains(http.statusCode) else {
-            if http.statusCode == 401 { throw ApexSovereignControlError.unauthorized }
-            throw ApexSovereignControlError.server(http.statusCode)
+
+        // Wait briefly for iOS to acquire a route, then retry transient failures.
+        // Reusing the exact request preserves the dispatch wave ID on a retry.
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 45
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+
+        var lastTransientError: Error?
+        for attempt in 0..<3 {
+            if Task.isCancelled { throw CancellationError() }
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw ApexSovereignControlError.invalidResponse
+                }
+                if (200...299).contains(http.statusCode) { return data }
+                if http.statusCode == 401 { throw ApexSovereignControlError.unauthorized }
+                guard [408, 425, 429, 500, 502, 503, 504].contains(http.statusCode) else {
+                    throw ApexSovereignControlError.server(http.statusCode)
+                }
+                lastTransientError = ApexSovereignControlError.server(http.statusCode)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as ApexSovereignControlError {
+                switch error {
+                case .server(let code) where [408, 425, 429, 500, 502, 503, 504].contains(code):
+                    lastTransientError = error
+                default:
+                    throw error
+                }
+            } catch {
+                lastTransientError = error
+            }
+            if attempt < 2 {
+                try await Task.sleep(for: .seconds(attempt == 0 ? 1 : 2))
+            }
         }
-        return data
+        throw lastTransientError ?? ApexSovereignControlError.invalidResponse
     }
 }
 
