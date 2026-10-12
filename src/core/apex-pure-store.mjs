@@ -35,8 +35,7 @@ export class ApexPureStore {
   }
   async refresh(){
     await this.init();
-    this.state.clear();this.jobsState.clear();
-    await this.wal.replay({onRecord:r=>this.apply(r)});
+    await this.wal.refresh({onRecord:r=>this.apply(r)});
     return this;
   }
   key(c,id){return String(c)+"::"+String(id);}
@@ -87,7 +86,7 @@ export class ApexPureStore {
   async list(collection){await this.refresh();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
-    await this.init();
+    await this.refresh();
     const target=await this.checkedFile(collection,id);
     const r=await this.wal.append("state.delete",{collection:String(collection),id:String(id)});
     this.apply(r);
