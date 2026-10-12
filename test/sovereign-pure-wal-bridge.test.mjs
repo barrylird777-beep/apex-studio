@@ -50,3 +50,24 @@ test('sovereign bridge persists a wave to Pure-WAL without a database client', a
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('bridge preserves a pending mesh record instead of faking peer acknowledgement', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-peer-required-'));
+  const previousPeer=process.env.APEX_SOVEREIGN_PEER_ID;
+  const previousRequire=process.env.APEX_REQUIRE_PEER_ACK;
+  process.env.APEX_SOVEREIGN_PEER_ID='test-peer';
+  delete process.env.APEX_REQUIRE_PEER_ACK;
+  try {
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const engine=new SovereignMeshEngine(path.join(dir,'mesh'));
+    await store.init();await engine.ready();
+    const bridge=createSovereignDurableBridge({engine,store,workerId:'peer-required-test'});
+    await assert.rejects(bridge.dispatch({waveId:'peer-pending-wave',action:'test',payload:{}}),/peer acknowledgement is required/);
+    assert.equal(engine.get('peer-pending-wave').status,'DISPATCHED');
+    assert.equal(store.jobs().length,1);
+  } finally {
+    if(previousPeer===undefined)delete process.env.APEX_SOVEREIGN_PEER_ID;else process.env.APEX_SOVEREIGN_PEER_ID=previousPeer;
+    if(previousRequire===undefined)delete process.env.APEX_REQUIRE_PEER_ACK;else process.env.APEX_REQUIRE_PEER_ACK=previousRequire;
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});
