@@ -54,6 +54,10 @@ test('phone-triggered sovereign dispatch is fail-closed until peer identity is c
     process.env.APEX_SOVEREIGN_PEER_ID='test-peer';
     const accepted=await fabric.dispatch({appId:'kernelodies',waveId:'phone-wave-1',action:'phone.test',data:{origin:'iphone'}});
     assert.equal(accepted.accepted,true);
+    assert.equal(accepted.durable,true);
+    assert.equal(accepted.queued,true);
+    assert.equal(accepted.peerPending,true);
+    assert.equal(typeof accepted.jobId,'string');
     assert.equal(accepted.appId,'kernelodies');
     assert.equal(accepted.waveId,'phone-wave-1');
     assert.match(accepted.checksum,/^[a-f0-9]{64}$/);
