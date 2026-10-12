@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import ApexNetworkFabric
 
 @main
 struct ApexMobileApp: App {
@@ -9,6 +10,8 @@ struct ApexMobileApp: App {
 }
 
 struct ApexRootView: View {
+    @State private var networkMonitor = ApexNetworkMonitor()
+    @State private var networkStatus = "Network: checking…"
     @State private var prompt = ""
     @State private var output = ""
     @State private var busy = false
@@ -31,6 +34,11 @@ struct ApexRootView: View {
                 Text("On-device inference • Metal when supported • offline-capable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Text(networkStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button {
                     modelImportPresented = true
@@ -124,7 +132,18 @@ struct ApexRootView: View {
             }
             .padding()
             .navigationTitle("Apex")
-            .onAppear { refreshInventory() }
+            .onAppear {
+                networkMonitor.start()
+                refreshInventory()
+            }
+            .task {
+                while !Task.isCancelled {
+                    let snapshot = networkMonitor.snapshot()
+                    let interface = snapshot.interface ?? "unknown interface"
+                    networkStatus = "Network: \\(snapshot.status) • \\(interface) • expensive: \\(snapshot.isExpensive ? "yes" : "no") • constrained: \\(snapshot.isConstrained ? "yes" : "no")"
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
             .fileImporter(
                 isPresented: $modelImportPresented,
                 allowedContentTypes: [ggufType],

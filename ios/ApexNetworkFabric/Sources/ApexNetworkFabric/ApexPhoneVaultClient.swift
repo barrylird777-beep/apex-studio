@@ -24,10 +24,7 @@ public struct ApexPhoneVaultClient: Sendable {
             throw ApexControlError.invalidURL
         }
         components.path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/api/phone/storage"
-        components.queryItems = [
-            URLQueryItem(name: "limit", value: String(limit)),
-            ...(cursor.map { [URLQueryItem(name: "cursor", value: $0)] } ?? [])
-        ]
+        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))] + (cursor.map { [URLQueryItem(name: "cursor", value: $0)] } ?? [])
         guard let url = components.url else { throw ApexControlError.invalidURL }
         return try await request(url: url, method: "GET")
     }

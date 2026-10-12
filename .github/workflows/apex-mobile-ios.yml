@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "ios/ApexMobile/**"
+      - "ios/ApexNetworkFabric/**"
       - ".github/workflows/apex-mobile-ios.yml"
   push:
     branches:
