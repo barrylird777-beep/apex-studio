@@ -13,6 +13,9 @@ export class RemoteCasObjectBackend {
     if (this.required && (!remoteRequested || !completeCredentials)) {
       throw new Error("Remote-only CAS is required but APEX_CAS_REMOTE_ENABLED or object-storage credentials are missing");
     }
+    if (this.required && text(env.APEX_CAS_REMOTE_MIGRATION_VERIFIED).toLowerCase() !== "true") {
+      throw new Error("Remote-only CAS migration is not verified; refusing startup to prevent orphaning existing data");
+    }
     this.enabled = remoteRequested && completeCredentials;
     this.prefix = text(env.APEX_CAS_OBJECT_PREFIX) || "apex-cas/objects/sha256";
     if (!this.enabled) return;
