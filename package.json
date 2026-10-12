@@ -40,8 +40,9 @@
     "sovereign:peer": "node src/network/sovereign-peer.mjs",
     "sovereign:edge": "node src/network/apex-edge-node.mjs",
     "workers:pure-wal": "node src/workers/apex-2000-worker-pure-wal-daemon.mjs",
-    "check:canonical": "node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs test/sovereign-app-fabric.test.mjs",
-    "smoke:canonical": "node scripts/smoke-production.mjs"
+    "check:canonical": "node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs test/sovereign-app-fabric.test.mjs test/episode-pipeline.test.mjs",
+    "smoke:canonical": "node scripts/smoke-production.mjs",
+    "smoke:kernelvision-episode": "node scripts/smoke-kernelvision-episode.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
