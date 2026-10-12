@@ -3,7 +3,8 @@
   if (!root) return;
   root.innerHTML = `
     <h2>Persistent Library</h2>
-    <p>Audio is saved to Apex server storage. Access is protected by your Apex control token; it is held in this page's memory only.</p>
+    <p>Audio is saved to existing Apex server storage. Access is protected by your Apex control token; it is held in this page's memory only.</p>
+    <p>Imported audio is preserved byte-for-byte; this library does not retune or certify 432 Hz. Jesus Freaks productions must satisfy the 432 Hz canon before release.</p>
     <label>Control token <input id="kl-token" type="password" autocomplete="off" placeholder="APEX_SHORTCUT_TOKEN"></label>
     <label>Track title <input id="kl-title" maxlength="200" placeholder="Track title"></label>
     <label>Artist <input id="kl-artist" maxlength="200" placeholder="Artist"></label>
@@ -62,11 +63,16 @@
     const file = $("kl-file").files?.[0];
     if (!file) return status("Choose an audio file first.");
     if (file.size > 50 * 1024 * 1024) return status("File exceeds the 50 MB limit.");
+    const extension = file.name.split(".").pop().toLowerCase();
+    const byExtension = { mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", flac: "audio/flac", webm: "audio/webm" };
+    const allowedTypes = new Set(Object.values(byExtension));
+    const mimeType = allowedTypes.has((file.type || "").toLowerCase()) ? file.type.toLowerCase() : byExtension[extension];
+    if (!mimeType) return status("Unsupported audio type. Choose MP3, M4A, AAC, WAV, OGG, FLAC, or WebM.");
     try {
       status("Saving track metadata…");
-      const created = await api("/api/kernelodies/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: $("kl-title").value || file.name.replace(/\.[^.]+$/, ""), artist: $("kl-artist").value, album: $("kl-album").value }) });
+      const created = await api("/api/kernelodies/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: $("kl-title").value || file.name.replace(/\\.[^.]+$/, ""), artist: $("kl-artist").value, album: $("kl-album").value }) });
       status("Uploading audio to persistent storage…");
-      await api("/api/kernelodies/library/" + created.track.id + "/audio", { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      await api("/api/kernelodies/library/" + created.track.id + "/audio", { method: "PUT", headers: { "Content-Type": mimeType }, body: file });
       $("kl-file").value = ""; await refresh();
     } catch (error) { status(error.message); }
   };
