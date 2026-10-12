@@ -74,11 +74,39 @@ export class ApexPureStore {
         let legacyExists=false;
         try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
         if(legacyExists){
-          await this.wal.replay({onRecord:r=>this.apply(r),retainRing:false});
-          const migrationWrites=[];
-          for(const [k,v] of this.state){const split=k.indexOf("::");const collection=k.slice(0,split);const id=k.slice(split+2);migrationWrites.push(()=>this.cas.writeRef("state",this.refKey(collection,id),{collection,id,record:clone(v)}));}
-          for(const [id,job] of this.jobsState)migrationWrites.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
-          await runBatched(migrationWrites,16,write=>write());
+          const pendingState=new Map(),pendingJobs=new Map();
+          const flushMigrationBatch=async()=>{
+            const writes=[];
+            for(const [key,value] of pendingState){
+              if(value===null||value.deleted)writes.push(()=>this.cas.deleteRef("state",this.refKey(value.collection,value.id)));
+              else writes.push(()=>this.cas.writeRef("state",this.refKey(value.collection,value.id),{collection:value.collection,id:value.id,record:clone(value.record)}));
+            }
+            for(const [id,job] of pendingJobs)writes.push(()=>this.cas.writeRef("jobs",this.refKey("job",id),{id,job:clone(job)}));
+            await runBatched(writes,16,write=>write());
+            pendingState.clear();pendingJobs.clear();
+          };
+          await this.wal.replay({retainRing:false,onRecord:async r=>{
+            const p=r.payload||{};
+            if(r.type==="state.put"){
+              const collection=String(p.collection),id=String(p.id);
+              pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});
+            }else if(r.type==="state.delete"){
+              const collection=String(p.collection),id=String(p.id);
+              pendingState.set(this.key(collection,id),{collection,id,deleted:true});
+            }else if(r.type==="job.enqueue"){
+              pendingJobs.set(String(p.id),clone(p.job));
+            }else if(r.type==="job.transition"){
+              const id=String(p.id);
+              let job=pendingJobs.get(id);
+              if(!pendingJobs.has(id)){
+                const current=await this.cas.readRef("jobs",this.refKey("job",id));
+                job=current?.value?.job?clone(current.value.job):undefined;
+              }
+              if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
+            }
+            if(pendingState.size+pendingJobs.size>=256)await flushMigrationBatch();
+          }});
+          await flushMigrationBatch();
         }
         await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
       }
