@@ -202,10 +202,10 @@ export class ApexPureStore {
     if(this.remoteQueueIndexReady&&!force)return {ready:true,indexed:0};
     if(this.remoteQueueIndexPromise&&!force)return this.remoteQueueIndexPromise;
     this.remoteQueueIndexPromise=(async()=>{
-      const markerKey="job-index-v2";
+      const markerKey="job-index-v3";
       const initialMarker=await this.cas.readRef("system",markerKey);
       if(initialMarker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
-      const result=await this.withRemoteLock("job-index-v2-migration-lock",async()=>{
+      const result=await this.withRemoteLock("job-index-v3-migration-lock",async()=>{
         const marker=await this.cas.readRef("system",markerKey);
         if(marker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
         let indexed=0;
@@ -216,6 +216,10 @@ export class ApexPureStore {
             const job=ref.value?.job;
             if(!job||job.id==null)return 0;
             const key=this.refKey("job",job.id);
+            if(job.dedupeKey!=null&&String(job.dedupeKey)){
+              const dedupeKey=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
+              await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||"")});
+            }
             const current=await this.cas.readRef("queue",key);
             if(job.status==="queued"){
               const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
@@ -266,6 +270,10 @@ export class ApexPureStore {
     const key=this.refKey("job",job.id);
     await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
     if(this.remoteMode){
+      if(job.dedupeKey!=null&&String(job.dedupeKey)){
+        const dedupeKey=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
+        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||"")});
+      }
       const current=await this.cas.readRef("queue",key);
       const running=await this.cas.readRef("running",key);
       if(job.status==="queued"){
@@ -392,14 +400,15 @@ export class ApexPureStore {
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
+    if(this.remoteMode&&dedupeKey)await this.ensureRemoteQueueIndex();
     const run=()=>this.withMutationLock(async()=>{
       if(dedupeKey){
         const statuses=type==="sovereign.app.dispatch"?["queued","running","completed","dead"]:["queued","running"];
         let existing;
-        if(this.remoteMode&&type!=="sovereign.app.dispatch"){
-          const [queued,running]=await Promise.all([this.cas.listRefs("queue"),this.cas.listRefs("running")]);
-          const candidate=[...queued,...running].find(ref=>ref.value?.dedupeKey===String(dedupeKey));
-          if(candidate){
+        if(this.remoteMode){
+          const dedupeKeyHash=createHash("sha256").update(String(dedupeKey)).digest("hex");
+          const candidate=await this.cas.readRef("dedupe",dedupeKeyHash);
+          if(candidate&&candidate.value?.dedupeKey===String(dedupeKey)){
             const ref=await this.cas.readRef("jobs",this.refKey("job",candidate.value.id));
             const job=ref?.value?.job;
             if(job&&statuses.includes(job.status))existing=job;
