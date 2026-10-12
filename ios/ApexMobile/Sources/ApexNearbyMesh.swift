@@ -84,11 +84,48 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         stateLock.lock()
         let peer = peerIndex[displayName]
         stateLock.unlock()
-        guard let peer else {
-            setStatus("Peer is no longer discoverable; refresh nearby discovery.")
+        guard let peer, let key = keySnapshot() else {
+            setStatus("Peer is no longer discoverable, or pairing is not started.")
             return
         }
-        browser?.invitePeer(peer, to: session, withContext: Data("apex-fabric-v1".utf8), timeout: 20)
+        let timestamp = String(Int(Date().timeIntervalSince1970))
+        let nonce = UUID().uuidString
+        let signed = Data("invite|1|\\(timestamp)|\\(nonce)|\\(peer.displayName)".utf8)
+        let signature = HMAC<SHA256>.authenticationCode(for: signed, using: key)
+        let context: [String: String] = [
+            "version": "1",
+            "timestamp": timestamp,
+            "nonce": nonce,
+            "target": peer.displayName,
+            "signature": Data(signature).base64EncodedString()
+        ]
+        guard let encoded = try? JSONSerialization.data(withJSONObject: context, options: [.sortedKeys]) else {
+            setStatus("Could not create authenticated peer invitation.")
+            return
+        }
+        browser?.invitePeer(peer, to: session, withContext: encoded, timeout: 20)
+    }
+
+    private func validateInvitation(_ context: Data?) -> Bool {
+        guard let key = keySnapshot(),
+              let context,
+              let object = try? JSONSerialization.jsonObject(with: context) as? [String: String],
+              object["version"] == "1",
+              object["target"] == localPeer.displayName,
+              let timestampText = object["timestamp"],
+              let timestamp = TimeInterval(timestampText),
+              abs(Date().timeIntervalSince1970 - timestamp) <= 300,
+              let nonce = object["nonce"], UUID(uuidString: nonce) != nil,
+              let signatureText = object["signature"],
+              let signature = Data(base64Encoded: signatureText) else { return false }
+        let signed = Data("invite|1|\\(timestampText)|\\(nonce)|\\(localPeer.displayName)".utf8)
+        guard HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: signed, using: key) else { return false }
+        stateLock.lock()
+        seenNonces = seenNonces.filter { Date().timeIntervalSince1970 - $0.value <= 300 }
+        let replay = seenNonces[nonce] != nil
+        if !replay { seenNonces[nonce] = timestamp }
+        stateLock.unlock()
+        return !replay
     }
 
     public func send(_ message: String) throws {
@@ -171,7 +208,7 @@ extension ApexNearbyMesh: MCNearbyServiceAdvertiserDelegate {
     }
 
     public func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        invitationHandler(keySnapshot() != nil && context == Data("apex-fabric-v1".utf8), session)
+        invitationHandler(validateInvitation(context), session)
     }
 }
 
