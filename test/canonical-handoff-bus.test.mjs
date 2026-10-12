@@ -7,12 +7,12 @@ test("canonical handoff bus accepts declared cross-app routes across the full si
   clearCanonicalHandoffs();
   const event = publishCanonicalHandoff({
     from: "planet-apex",
-    to: "xshield",
+    to: "ko-blocks",
     payload: { worldId: "world-1", regionCount: 2 }
   });
   assert.equal(event.contractVersion, "apex-canonical-handoff.v1");
   assert.equal(event.durable, false);
-  assert.equal(listCanonicalHandoffs({ appId: "xshield", limit: 1 })[0].id, event.id);
+  assert.equal(listCanonicalHandoffs({ appId: "ko-blocks", limit: 1 })[0].id, event.id);
   const crossMesh = publishCanonicalHandoff({
     from: "planet-apex",
     to: "kash-korner",
@@ -21,7 +21,7 @@ test("canonical handoff bus accepts declared cross-app routes across the full si
   assert.equal(crossMesh.to, "kash-korner");
   assert.throws(() => publishCanonicalHandoff({
     from: "unknown-app",
-    to: "xshield",
+    to: "ko-blocks",
     payload: {}
   }), /Unknown Apex app/);
 });
@@ -30,7 +30,7 @@ test("canonical handoff bus bounds payloads and reports its legacy in-memory dur
   clearCanonicalHandoffs();
   assert.throws(() => publishCanonicalHandoff({
     from: "kernelodies",
-    to: "xshield",
+    to: "ko-blocks",
     payload: { blob: "x".repeat(300000) }
   }), /size limit/);
   assert.equal(canonicalHandoffStatus().durable, false);
