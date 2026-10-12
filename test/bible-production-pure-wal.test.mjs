@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
+import vm from "node:vm";
 import crypto from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -88,4 +89,16 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
     for(const [key,value] of Object.entries(oldEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}
     await rm(root,{recursive:true,force:true});
   }
+});
+
+
+test("KernelVision production pages contain syntactically valid inline JavaScript",async()=>{
+  for(const filename of ["public/index.html","public/production.html","public/rapid-video.html"]){
+    const html=await readFile(new URL("../"+filename,import.meta.url),"utf8");
+    const scripts=[...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(match=>match[1]).filter(script=>script.trim());
+    assert.ok(scripts.length>0,filename+" should contain its expected application script");
+    scripts.forEach((script,index)=>new vm.Script(script,{filename:filename+"#script-"+index}));
+  }
+  const production=await readFile(new URL("../public/production.html",import.meta.url),"utf8");
+  assert.doesNotMatch(production,/onclick="fill(?:Scene|Call)\\(/,"production list cards must not interpolate JSON into inline handlers");
 });
