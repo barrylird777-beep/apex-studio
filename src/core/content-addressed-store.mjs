@@ -180,19 +180,25 @@ export class ContentAddressedStore {
     let names;
     try { names = await (await import("node:fs/promises")).readdir(dir); }
     catch (error) { if (error.code === "ENOENT") return []; throw error; }
+    const candidates = names.filter(name => name.endsWith(".json"));
     const out = [];
-    for (const name of names) {
-      if (!name.endsWith(".json")) continue;
-      const key = name.slice(0, -5);
-      try {
-        const manifest = JSON.parse(await readFile(path.join(dir, name), "utf8"));
-        if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
-          throw new Error("Invalid content-addressed manifest");
+    // Bound concurrent file opens while avoiding one fsync/read round trip per
+    // manifest in series. This matters during first boot after WAL migration.
+    const batchSize = 32;
+    for (let offset = 0; offset < candidates.length; offset += batchSize) {
+      const batch = await Promise.all(candidates.slice(offset, offset + batchSize).map(async name => {
+        try {
+          const manifest = JSON.parse(await readFile(path.join(dir, name), "utf8"));
+          if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
+            throw new Error("Invalid content-addressed manifest");
+          }
+          return { ...manifest, value: await this.getObject(manifest.hash) };
+        } catch (error) {
+          if (error.code === "ENOENT") return null;
+          throw error;
         }
-        out.push({ ...manifest, value: await this.getObject(manifest.hash) });
-      } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-      }
+      }));
+      out.push(...batch.filter(Boolean));
     }
     return out;
   }

@@ -4,6 +4,8 @@ import { mkdtemp, rm, readFile, readdir, mkdir, writeFile, utimes } from "node:f
 import os from "node:os";
 import path from "node:path";
 import { ContentAddressedStore } from "../src/core/content-addressed-store.mjs";
+import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
+import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
 
 test("content-addressed objects verify hashes and round-trip", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-"));
@@ -57,5 +59,23 @@ test("content-addressed manifests recover an abandoned stale lock", async () => 
     await store.writeRef("app", "record-1", { recovered: true });
     assert.deepEqual((await store.readRef("app", "record-1")).value, { recovered: true });
     assert.equal(await readFile(lock, "utf8").then(() => true, error => error.code === "ENOENT"), true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("record writes avoid a full store refresh on every opportunity insert", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-write-fast-"));
+  try {
+    const store = new ApexPureStore({
+      root,
+      wal: new ApexRingWAL({ file: path.join(root, "wal", "legacy.jsonl") })
+    });
+    await store.init();
+    let refreshCalls = 0;
+    const refresh = store.refresh.bind(store);
+    store.refresh = async () => { refreshCalls += 1; return refresh(); };
+    await store.put("kash-korner", "opportunity-1", { value: 1 });
+    assert.equal(refreshCalls, 0);
+    const saved = await store.cas.readRef("state", store.refKey("kash-korner", "opportunity-1"));
+    assert.equal(saved.value.record.value, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
