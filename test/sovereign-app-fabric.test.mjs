@@ -30,9 +30,13 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
       assert.equal(saved.durable,true);
       assert.equal(saved.storageAuthority,'local-filesystem');
       assert.equal(saved.cloudStorageReady,false);
+      assert.equal(saved.storageAuthority,'local-filesystem');
+      assert.equal(saved.cloudStorageReady,false);
       assert.equal(saved.record.appId,app.id);
       const read=await fabric.get(app.id,'smoke-record');
       assert.equal(read.record.proof,'durable');
+      assert.equal(read.storageAuthority,'local-filesystem');
+      assert.equal(read.cloudStorageReady,false);
       assert.equal(read.storageAuthority,'local-filesystem');
       assert.equal(read.cloudStorageReady,false);
       assert.equal((await fabric.list(app.id)).length,1);
