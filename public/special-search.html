@@ -93,6 +93,8 @@ async function runSearch(page = 1) {
   state.query = query;
   state.page = page;
   state.loading = true;
+  state.results = [];
+  state.providers = [];
   $("submit").disabled = true;
   $("status").textContent = "Searching public and scholarly sources…";
   $("results").replaceChildren();
