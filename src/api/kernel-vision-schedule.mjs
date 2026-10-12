@@ -150,33 +150,35 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function updateProject(id, input = {}) {
-    const current = await getProject(id);
-    if (!current) return null;
-    const title = text(input.title);
-    if (!title) throw fail("Project title is required");
-    await putRecord(projectKey(id), {
-      ...current, title, description: text(input.description) || null,
-      primaryScripture: text(input.primaryScripture) || null,
-      status: PROJECT_STATUSES.has(input.status) ? input.status : current.status,
-      visualDna: input.visualDna && typeof input.visualDna === "object" && !Array.isArray(input.visualDna) ? clone(input.visualDna) : current.visualDna,
-      updatedAt: new Date().toISOString()
+    return withLock(async () => {
+      const current = await getProject(id);
+      if (!current) return null;
+      const title = text(input.title);
+      if (!title) throw fail("Project title is required");
+      await putRecord(projectKey(id), {
+        ...current, title, description: text(input.description) || null,
+        primaryScripture: text(input.primaryScripture) || null,
+        status: PROJECT_STATUSES.has(input.status) ? input.status : current.status,
+        visualDna: input.visualDna && typeof input.visualDna === "object" && !Array.isArray(input.visualDna) ? clone(input.visualDna) : current.visualDna,
+        updatedAt: new Date().toISOString()
+      });
+      return getProjectOverview(id);
     });
-    return getProjectOverview(id);
   }
 
   async function deleteProject(id) {
-    const project = await getProject(id);
-    if (!project) return false;
-    const scenes = await listRecords("schedule-scene");
-    const days = await listRecords("schedule-day");
-    await withLock(async () => {
+    return withLock(async () => {
+      const project = await getProject(id);
+      if (!project) return false;
+      const scenes = await listRecords("schedule-scene");
+      const days = await listRecords("schedule-day");
       for (const scene of scenes.filter(row => Number(row.projectId) === Number(id))) await removeRecord(sceneKey(scene.sceneId));
       for (const day of days.filter(row => Number(row.projectId) === Number(id))) await removeRecord(dayKey(day.shootDayId));
       const assignments = await getRecord(assignmentKey(id));
       if (assignments) await removeRecord(assignmentKey(id));
       await removeRecord(projectKey(id));
+      return true;
     });
-    return true;
   }
 
   async function createScene(input = {}) {
@@ -204,27 +206,29 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function updateScene(id, input = {}) {
-    const current = await getScene(id);
-    if (!current) return null;
-    const projectId = input.projectId == null ? current.projectId : Number(input.projectId);
-    if (!await getProject(projectId)) throw fail("Project not found", 404);
-    const scriptureRef = text(input.scriptureRef ?? input.verses ?? current.scriptureRef);
-    if (!scriptureRef) throw fail("scriptureRef is required");
-    const record = {
-      ...current, projectId,
-      sceneNumber: input.sceneNumber == null ? current.sceneNumber : number(input.sceneNumber),
-      title: input.title == null ? current.title : (text(input.title) || null),
-      scriptureRef,
-      location: input.location == null ? current.location : (text(input.location) || null),
-      charactersPresent: Array.isArray(input.charactersPresent) ? input.charactersPresent.map(Number).filter(Number.isInteger) : current.charactersPresent,
-      actionSummary: input.actionSummary == null ? current.actionSummary : (text(input.actionSummary) || null),
-      emotionalBeat: input.emotionalBeat == null ? current.emotionalBeat : (typeof input.emotionalBeat === "string" ? input.emotionalBeat : JSON.stringify(input.emotionalBeat)),
-      productionNotes: input.productionNotes == null ? current.productionNotes : (text(input.productionNotes) || null),
-      estimatedPages: input.estimatedPages == null ? current.estimatedPages : Number(input.estimatedPages),
-      dayOrNight: input.dayOrNight == null ? current.dayOrNight : (text(input.dayOrNight) || null)
-    };
-    await putRecord(sceneKey(id), record);
-    return sceneView(record);
+    return withLock(async () => {
+      const current = await getScene(id);
+      if (!current) return null;
+      const projectId = input.projectId == null ? current.projectId : Number(input.projectId);
+      if (!await getProject(projectId)) throw fail("Project not found", 404);
+      const scriptureRef = text(input.scriptureRef ?? input.verses ?? current.scriptureRef);
+      if (!scriptureRef) throw fail("scriptureRef is required");
+      const record = {
+        ...current, projectId,
+        sceneNumber: input.sceneNumber == null ? current.sceneNumber : number(input.sceneNumber),
+        title: input.title == null ? current.title : (text(input.title) || null),
+        scriptureRef,
+        location: input.location == null ? current.location : (text(input.location) || null),
+        charactersPresent: Array.isArray(input.charactersPresent) ? input.charactersPresent.map(Number).filter(Number.isInteger) : current.charactersPresent,
+        actionSummary: input.actionSummary == null ? current.actionSummary : (text(input.actionSummary) || null),
+        emotionalBeat: input.emotionalBeat == null ? current.emotionalBeat : (typeof input.emotionalBeat === "string" ? input.emotionalBeat : JSON.stringify(input.emotionalBeat)),
+        productionNotes: input.productionNotes == null ? current.productionNotes : (text(input.productionNotes) || null),
+        estimatedPages: input.estimatedPages == null ? current.estimatedPages : Number(input.estimatedPages),
+        dayOrNight: input.dayOrNight == null ? current.dayOrNight : (text(input.dayOrNight) || null)
+      };
+      await putRecord(sceneKey(id), record);
+      return sceneView(record);
+    });
   }
 
   async function deleteScene(id) {
