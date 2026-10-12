@@ -46,7 +46,7 @@ test("paid checkout and fulfillment remain durable without PostgreSQL and dedupe
 test("legacy Stripe events without a matching checkout record require reconciliation, not auto-fulfillment",async()=>{
   const root=await mkdtemp(path.join(tmpdir(),"rapid-legacy-reconcile-"));
   try{
-    const store=new ApexPureStore({root});
+    const store=new ApexPureStore({root,wal:new ApexRingWAL({file:path.join(root,"wal","ring.wal.jsonl")})});
     const fabric=createSovereignAppFabric({store});
     let runs=0;
     const queue=createRapidVideoPureWalQueue({store,fabric,storageDir:root,runOrder:async()=>{runs++;return {url:"/files/should-not-exist.mp4"};}});
@@ -61,7 +61,7 @@ test("legacy Stripe events without a matching checkout record require reconcilia
 test("rapid worker lease recovery cannot reclaim a sovereign-runtime job",async()=>{
   const root=await mkdtemp(path.join(tmpdir(),"rapid-role-fence-"));
   try{
-    const store=new ApexPureStore({root});
+    const store=new ApexPureStore({root,wal:new ApexRingWAL({file:path.join(root,"wal","ring.wal.jsonl")})});
     await store.init();
     const job=await store.enqueue({id:"runtime-job-1",type:"sovereign.app.dispatch",payload:{waveId:"wave-1",appId:"kernel-vision",_apex_worker:{role:"sovereign-runtime"}},maxAttempts:3});
     const claimed=(await store.claim({workerId:"runtime-test",limit:1,leaseMs:1000,role:"sovereign-runtime"}))[0];
