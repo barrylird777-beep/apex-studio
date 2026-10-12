@@ -120,7 +120,32 @@
     } else {
       const note = document.createElement("span");
       note.textContent = "Metadata saved; audio not attached.";
-      card.append(note);
+      const attach = document.createElement("button");
+      attach.textContent = "Attach / retry audio";
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "audio/*";
+      input.hidden = true;
+      attach.onclick = () => input.click();
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        if (file.size > MAX_AUDIO_BYTES) return status("File exceeds the 50 MB limit.");
+        const mimeType = resolveMime(file);
+        if (!mimeType) return status("Unsupported audio type. Choose MP3, M4A, AAC, WAV, OGG, FLAC, or WebM.");
+        try {
+          status("Checking available shared storage…");
+          await api("/api/kernelodies/library/capacity?bytes=" + encodeURIComponent(file.size));
+          status("Attaching audio to the saved track…");
+          await api("/api/kernelodies/library/" + track.id + "/audio", {
+            method: "PUT",
+            headers: { "Content-Type": mimeType },
+            body: file
+          });
+          await refresh();
+        } catch (error) { status(error.message); }
+      };
+      card.append(note, attach, input);
     }
     return card;
   }
