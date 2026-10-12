@@ -173,7 +173,7 @@ if (!workerOnly) {
   process.title = "apex-autonomous-worker";
   if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires durable worker storage");
 
-  const remoteWorkerApiUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\\/+$/, "");
+  const remoteWorkerApiUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\/+$/, "");
   const remoteWorkerToken = String(process.env.APEX_WORKER_TOKEN || "");
   const remoteWorkerId = String(process.env.APEX_WORKER_ID || process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "apex-worker").slice(0, 255);
   if (remoteWorkerApiUrl && !remoteWorkerToken) throw new Error("APEX_WORKER_API_URL requires APEX_WORKER_TOKEN");
