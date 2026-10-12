@@ -54,7 +54,7 @@ test("content-addressed manifests recover an abandoned stale lock", async () => 
     await mkdir(dir, { recursive: true });
     const lock = path.join(dir, "record-1.json.lock");
     await writeFile(lock, JSON.stringify({ pid: 99999999, createdAt: 1, token: "abandoned" }));
-    const stale = new Date(Date.now() - 180000);
+    const stale = new Date(Date.now() - 60000);
     await utimes(lock, stale, stale);
     await store.writeRef("app", "record-1", { recovered: true });
     assert.deepEqual((await store.readRef("app", "record-1")).value, { recovered: true });
