@@ -71,9 +71,9 @@ export async function enqueueWorkerTask({
   return { durable:true, id:String(result.id), duplicate:Boolean(result.duplicate), status:result.status || "queued", storage:"local-pure-wal" };
 }
 
-export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null) {
+export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null, workerId = ownerId()) {
   if (!durableWorkerEnabled()) return [];
-  const claimed = await apexPureStore.claim({workerId:ownerId(),limit,leaseMs,role});
+  const claimed = await apexPureStore.claim({workerId:String(workerId||ownerId()),limit,leaseMs,role});
   return claimed.map(unwrap);
 }
 
