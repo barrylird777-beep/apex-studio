@@ -68,7 +68,7 @@ export class ApexPureStore {
           const reaper=lockFile+".reaper";
           let reapHandle;
           try{reapHandle=await open(reaper,"wx",0o600);}
-          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}throw e;}
+          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}if(e.code==="ENOSPC"){await sleep(250);let stillStale=false;try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}catch(checkError){if(checkError.code==="ENOENT")continue;throw checkError;}if(stillStale){const quarantine=lockFile+".stale."+randomUUID();try{await rename(lockFile,quarantine);await unlink(quarantine).catch(unlinkError=>{if(unlinkError.code!=="ENOENT")throw unlinkError;});}catch(renameError){if(renameError.code!=="ENOENT"&&renameError.code!=="EEXIST")throw renameError;}}continue;}throw e;}
           try{
             await sleep(250);
             let stillStale=false;
@@ -224,7 +224,7 @@ export class ApexPureStore {
           const reaper=lockFile+".reaper";
           let reapHandle;
           try{reapHandle=await open(reaper,"wx",0o600);}
-          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}throw e;}
+          catch(e){if(e.code==="EEXIST"){await sleep(25);continue;}if(e.code==="ENOSPC"){await sleep(250);let stillStale=false;try{stillStale=Date.now()-(await stat(lockFile)).mtimeMs>120000;}catch(checkError){if(checkError.code==="ENOENT")continue;throw checkError;}if(stillStale){const quarantine=lockFile+".stale."+randomUUID();try{await rename(lockFile,quarantine);await unlink(quarantine).catch(unlinkError=>{if(unlinkError.code!=="ENOENT")throw unlinkError;});}catch(renameError){if(renameError.code!=="ENOENT"&&renameError.code!=="EEXIST")throw renameError;}}continue;}throw e;}
           try{
             await sleep(250);
             let stillStale=false;
