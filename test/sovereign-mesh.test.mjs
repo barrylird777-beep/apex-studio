@@ -131,7 +131,7 @@ test('legacy mesh migration replays multiple newline-delimited records without l
   };
   second.checksum = sovereignRecordChecksum(second);
   try {
-    await fs.writeFile(path.join(dir, 'apex-ring-wal.ndjson'), JSON.stringify(first) + '\\n' + JSON.stringify(second) + '\\n', { mode: 0o600 });
+    await fs.writeFile(path.join(dir, 'apex-ring-wal.ndjson'), JSON.stringify(first) + '\n' + JSON.stringify(second) + '\n', { mode: 0o600 });
     const engine = new SovereignMeshEngine(dir);
     await engine.ready();
     assert.equal(engine.size, 2);
