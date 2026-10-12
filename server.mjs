@@ -461,9 +461,9 @@ app.get('/api/apex/readiness', async (_req, res) => {
       canonicalAppCount: canonical.length,
       canonicalApps: canonical,
       supportingSurfaces: [
-        { id: 'apex-studio', name: 'Apex Studio', state: 'supporting-system' },
-        { id: 'garden-of-apex', name: 'Garden of Apex', state: 'supporting-system' },
-        { id: 'kornknob', name: 'KORNKNOB', state: 'supporting-system' }
+        { id: 'garden-of-apex', name: 'GardenOfApex', state: 'embedded-universe', parent: 'PlanetApeX' },
+        { id: 'apex-studio', name: 'Apex Studio', state: 'historical-alias', canonicalApp: 'KernelVision' },
+        { id: 'korn-knob', name: 'KORNKNOB', state: 'historical-alias', canonicalApp: 'Kernelodies' }
       ],
       commercial: { state: 'payment-ready-not-live', stripeActivation: 'deferred until business-side readiness' },
       checkedAt: new Date().toISOString()
