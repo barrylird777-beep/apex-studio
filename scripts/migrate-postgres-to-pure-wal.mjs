@@ -94,7 +94,7 @@ async function main() {
     migrationLockPath = resolve(root, ".legacy-pg-migration.lock");
     try {
       migrationLockHandle = await fs.open(migrationLockPath, "wx", 0o600);
-      await migrationLockHandle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }) + "\\n", "utf8");
+      await migrationLockHandle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }) + "\n", "utf8");
       await migrationLockHandle.sync();
     } catch (error) {
       if (error.code === "EEXIST") throw new Error("Another PostgreSQL-to-Pure-WAL migration holds the lock; refusing concurrent execution.");
@@ -242,7 +242,7 @@ async function main() {
     client?.release();
     await pool.end();
     if (migrationLockHandle) await migrationLockHandle.close().catch(() => {});
-    if (migrationLockPath) {
+    if (migrationLockHandle && migrationLockPath) {
       const fs = await import("node:fs/promises");
       await fs.unlink(migrationLockPath).catch(error => { if (error.code !== "ENOENT") throw error; });
     }
