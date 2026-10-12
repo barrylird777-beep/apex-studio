@@ -14,6 +14,7 @@ const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/pro
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));
 const peerAddress = process.env.APEX_SOVEREIGN_PEER_ADDRESS || '';
+const smokeTestWaveId = String(process.env.APEX_PEER_SMOKE_TEST_WAVE_ID || '').trim();
 
 const engine = new SovereignMeshEngine(storageDir);
 let peerNode;
@@ -69,6 +70,8 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
     });
   }
 
+  console.log('[SOVEREIGN PEER RECEIPT]', JSON.stringify({ waveId: receiptId, checksum: envelope.checksum, durable: true, duplicate: Boolean(existing) }));
+
   const localWaveId = 'peer-' + createHash('sha256').update(remotePeerId + ':' + receiptId).digest('hex');
   await engine.dispatchAutonomousPayload({
     waveId: localWaveId,
@@ -106,6 +109,21 @@ async function main() {
     peerAddress,
     sendPeer: sendToPeer
   });
+
+  if (smokeTestWaveId) {
+    const existingSmokeRecord = engine.get(smokeTestWaveId);
+    if (!existingSmokeRecord) {
+      const smokeRecord = await engine.dispatchAutonomousPayload({
+        waveId: smokeTestWaveId,
+        peerId: peerNode.peerId.toString(),
+        action: 'apex.production.mesh-smoke-test',
+        payload: { marker: 'APEX_ANCHOR_PRODUCTION_SMOKE_TEST', source: 'apex-studio', createdAt: new Date().toISOString() }
+      });
+      console.log('[SOVEREIGN SMOKE TEST] queued', JSON.stringify({ waveId: smokeRecord.waveId, checksum: smokeRecord.checksum }));
+    } else {
+      console.log('[SOVEREIGN SMOKE TEST] already present', JSON.stringify({ waveId: smokeTestWaveId, status: existingSmokeRecord.status }));
+    }
+  }
 
   await runCycle(bridge);
   console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
@@ -163,6 +181,7 @@ async function reconcile(activeBridge) {
   console.log('[SOVEREIGN RECONCILE]', JSON.stringify({
     scanned: result.scanned,
     persisted: result.persisted,
+    acknowledged: result.acknowledged,
     failed: result.failed
   }));
   for (const error of result.errors || []) console.error('[SOVEREIGN RECONCILE ERROR]', JSON.stringify(error));
