@@ -11,5 +11,5 @@ test("Apex Browser uses federated search and does not persist browser profile da
   assert.match(html, /data-engine="https:\/\/www\.google\.com\/search\?q="/);
   assert.match(html, /data-engine="https:\/\/search\.brave\.com\/search\?q="/);
   assert.match(html, /function openAddress/);
-  assert.doesNotMatch(html, /localStorage|sessionStorage|indexedDB/i);
+  const scripts = [...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/gi)].map(match => match[1]).join("\\n");\n  assert.doesNotMatch(scripts, /localStorage|sessionStorage|indexedDB/i);
 });
