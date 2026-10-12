@@ -239,7 +239,8 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
   });
 
   // libp2p v3 passes a handler context object, not positional stream/connection arguments.
-  node.handle(PROTOCOL, async ({ stream, connection }) => {
+  // libp2p v3 passes the stream and connection as separate arguments.
+  node.handle(PROTOCOL, async (stream, connection) => {
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       if (!isAllowedPeer(remotePeerId)) {
@@ -250,6 +251,14 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
       const accepted = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
       await sendSovereignEnvelope(stream, { accepted: Boolean(accepted), peerId: node.peerId.toString() });
     } catch (error) {
+      console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+        hasSend: typeof stream?.send === 'function',
+        hasEvents: typeof stream?.addEventListener === 'function',
+        hasIterator: typeof stream?.[Symbol.asyncIterator] === 'function',
+        hasSource: typeof stream?.source === 'object',
+        remotePeerId: connection?.remotePeer?.toString?.() || ''
+      }));
       await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
     }
   });
