@@ -15,6 +15,7 @@ import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
+import { apexPureStore } from './src/core/apex-pure-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -204,6 +205,107 @@ app.get('/api/internal/worker/health', requireWorkerAuth, async (_req, res) => {
 app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
   try {
     return res.json({ success: true, stats: await queueStats() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+const TEEVEE_STORE_COLLECTIONS = new Set(['teevee_episodes', 'teevee_episode_assets', 'asset_provenance', 'teevee_catalog']);
+const TEEVEE_STAGES = new Set(['story','script','storyboard','voice','audio','visual-development','animation','edit','qc','master','inspection','catalog','schedule']);
+
+function validTeeVeeStoreCollection(value) {
+  return TEEVEE_STORE_COLLECTIONS.has(String(value || ''));
+}
+
+app.post('/api/internal/store/get', requireWorkerAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const id = String(req.body?.id || '');
+    if (!validTeeVeeStoreCollection(collection) || !id || id.length > 128) return res.status(400).json({ success: false, error: 'Invalid store collection or record id' });
+    return res.json({ success: true, record: await apexPureStore.get(collection, id) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/store/list', requireWorkerAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    if (!validTeeVeeStoreCollection(collection)) return res.status(400).json({ success: false, error: 'Invalid store collection' });
+    return res.json({ success: true, records: await apexPureStore.list(collection) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/store/query', requireWorkerAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const filters = req.body?.filters && typeof req.body.filters === 'object' && !Array.isArray(req.body.filters) ? req.body.filters : {};
+    const allowedFilterFields = new Set(['id','episodeId','episode_id','episodeCode','episode_code','assetType','asset_type','state','status']);
+    const entries = Object.entries(filters).slice(0, 5);
+    if (!validTeeVeeStoreCollection(collection) || entries.some(([key, value]) => !allowedFilterFields.has(key) || !['string','number','boolean'].includes(typeof value))) {
+      return res.status(400).json({ success: false, error: 'Invalid store query' });
+    }
+    const sortField = String(req.body?.sortField || '');
+    const allowedSortFields = new Set(['id','version','createdAt','updatedAt','episodeCode','episode_code']);
+    if (sortField && !allowedSortFields.has(sortField)) return res.status(400).json({ success: false, error: 'Invalid sort field' });
+    const descending = req.body?.descending === true;
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(req.body?.limit) || 100)));
+    const records = await apexPureStore.query(collection,
+      record => entries.every(([key, value]) => record?.[key] === value),
+      {
+        limit,
+        ...(sortField ? { sort: (a, b) => {
+          const left = a?.[sortField], right = b?.[sortField];
+          const order = typeof left === 'number' && typeof right === 'number'
+            ? left - right
+            : String(left ?? '').localeCompare(String(right ?? ''));
+          return descending ? -order : order;
+        } } : {})
+      }
+    );
+    return res.json({ success: true, records });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/store/put', requireWorkerAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const id = String(req.body?.id || '');
+    const record = req.body?.record;
+    if (!validTeeVeeStoreCollection(collection) || !id || id.length > 128 || !record || typeof record !== 'object' || Array.isArray(record)) {
+      return res.status(400).json({ success: false, error: 'Invalid store write' });
+    }
+    return res.json({ success: true, record: await apexPureStore.put(collection, id, record) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/teevee/enqueue', requireWorkerAuth, async (req, res) => {
+  try {
+    const item = req.body || {};
+    const task = String(item.task || '');
+    const stage = task.startsWith('teevee.episode.') ? task.slice('teevee.episode.'.length) : '';
+    const payload = item.payload && typeof item.payload === 'object' && !Array.isArray(item.payload) ? item.payload : null;
+    if (!TEEVEE_STAGES.has(stage) || !payload || !String(payload.episodeId || '').trim() || !String(payload.episodeCode || '').trim() || String(payload.stage || stage) !== stage) {
+      return res.status(400).json({ success: false, error: 'Invalid TeeVee stage task' });
+    }
+    const result = await enqueueWorkerTask({
+      id: String(item.id || crypto.randomUUID()),
+      workerId: 'teevee-production-worker',
+      role: 'teevee',
+      task,
+      payload: { episodeId: String(payload.episodeId).slice(0, 128), episodeCode: String(payload.episodeCode).slice(0, 32), stage },
+      maxAttempts: Math.max(1, Math.min(8, Number(item.maxAttempts) || 8)),
+      dedupeKey: String(item.dedupeKey || '').slice(0, 512) || null,
+      priority: Math.max(-100, Math.min(100, Number(item.priority) || 0)),
+      traceId: String(payload.episodeId).slice(0, 128)
+    });
+    return res.status(result.duplicate ? 200 : 202).json({ success: true, task: result });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
   }
