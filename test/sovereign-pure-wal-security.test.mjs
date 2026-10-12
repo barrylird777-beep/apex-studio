@@ -132,3 +132,29 @@ test('WAL fails closed and preserves an incomplete crash-tail record', async () 
     assert.match(await fs.readFile(file,'utf8'),/\{"seq":2,"payload":$/);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
+
+
+test('ring WAL capacity guard rejects growth without truncating or deleting existing records', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-wal-capacity-'));
+  const file = path.join(dir, 'ring.wal.jsonl');
+  try {
+    const wal = new ApexRingWAL({ file, maxBytes: 1024 });
+    await wal.append('seed', { text: 'x'.repeat(128) });
+    const before = await fs.readFile(file, 'utf8');
+    await assert.rejects(
+      wal.append('too-large', { text: 'x'.repeat(2048) }),
+      error => error.code === 'WAL_CAPACITY_EXCEEDED'
+    );
+    assert.equal(await fs.readFile(file, 'utf8'), before, 'a rejected append must not alter existing WAL bytes');
+
+    const smallerCap = new ApexRingWAL({ file, maxBytes: 1 });
+    await smallerCap.init();
+    await assert.rejects(
+      smallerCap.append('over-capacity', { ok: true }),
+      error => error.code === 'WAL_CAPACITY_EXCEEDED'
+    );
+    assert.equal(await fs.readFile(file, 'utf8'), before, 'opening an oversized WAL must not truncate existing data');
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
