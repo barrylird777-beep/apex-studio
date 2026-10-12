@@ -143,7 +143,7 @@ export class ContentAddressedStore {
         hash: object.hash,
         updatedAt: new Date().toISOString()
       };
-      await this.atomicWrite(file, canonical(manifest) + "\\n");
+      await this.atomicWrite(file, canonical(manifest) + "\n");
       return { ...manifest, uri: object.uri, bytes: object.bytes };
     });
   }
