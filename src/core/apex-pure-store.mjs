@@ -5,6 +5,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
 import { RemoteContentAddressedStore } from "./remote-content-addressed-store.mjs";
+import { RemoteApexRingWAL } from "./remote-apex-ring-wal.mjs";
 import { createHash } from "node:crypto";
 
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
@@ -31,7 +32,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=new ApexRingWAL(),cas=null,localCas=null}={}){this.root=path.resolve(root);this.wal=wal;this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.remoteMode?new RemoteApexRingWAL({cas:this.cas}):this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -75,7 +76,7 @@ export class ApexPureStore {
     try{
       if(!await markerExists()){
         let legacyExists=false;
-        try{await stat(this.wal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
+        try{await stat(this.legacyWal.file);legacyExists=true;}catch(e){if(e.code!=="ENOENT")throw e;}
         if(legacyExists){
           const pendingState=new Map(),pendingJobs=new Map();
           const flushMigrationBatch=async()=>{
@@ -88,7 +89,7 @@ export class ApexPureStore {
             await runBatched(writes,16,write=>write());
             pendingState.clear();pendingJobs.clear();
           };
-          await this.wal.replay({retainRing:false,onRecord:async r=>{
+          await this.legacyWal.replay({retainRing:false,onRecord:async r=>{
             const p=r.payload||{};
             if(r.type==="state.put"){
               const collection=String(p.collection),id=String(p.id);
@@ -162,7 +163,7 @@ export class ApexPureStore {
         }
       }
       let legacyExists=false;
-      try{await stat(this.wal.file);legacyExists=true;}catch(error){if(error.code!=="ENOENT")throw error;}
+      try{await stat(this.legacyWal.file);legacyExists=true;}catch(error){if(error.code!=="ENOENT")throw error;}
       if(legacyExists){
         const pendingState=new Map(),pendingJobs=new Map();
         const flush=async()=>{
@@ -178,7 +179,7 @@ export class ApexPureStore {
           });
           await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
         };
-        await this.wal.replayReadOnly({retainRing:false,onRecord:async record=>{
+        await this.legacyWal.replayReadOnly({retainRing:false,onRecord:async record=>{
           const p=record.payload||{};
           if(record.type==="state.put"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});}
           else if(record.type==="state.delete"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,deleted:true});}
