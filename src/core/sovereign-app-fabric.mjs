@@ -1,6 +1,7 @@
 import { APEX_APPS } from "../apps/apex-six-apps.mjs";
 import { apexPureStore } from "./apex-pure-store.mjs";
 import SovereignMeshEngine from "./sovereign-mesh-engine.mjs";
+import { createSovereignDurableBridge } from "./sovereign-durable-bridge.mjs";
 
 const APP_LIST=Object.values(APEX_APPS).map(({id,name,role,entry})=>({id,name,role,entry}));
 const APP_IDS=new Set(APP_LIST.map(app=>app.id));
@@ -25,6 +26,7 @@ function assertId(value){
  */
 export function createSovereignAppFabric({store=apexPureStore,engineFactory=()=>new SovereignMeshEngine()}={}){
   let engine=null;
+  let bridge=null;
   let readyPromise=null;
   async function init(){
     if(!readyPromise){
@@ -32,6 +34,7 @@ export function createSovereignAppFabric({store=apexPureStore,engineFactory=()=>
         await store.init();
         engine=engine||engineFactory();
         await engine.ready();
+        bridge=createSovereignDurableBridge({engine,store,workerId:process.env.APEX_SOVEREIGN_WORKER_ID||`app-fabric-${process.pid}`});
         return true;
       })().catch(error=>{readyPromise=null;throw error;});
     }
@@ -47,7 +50,7 @@ export function createSovereignAppFabric({store=apexPureStore,engineFactory=()=>
       durableStoreReady:true,
       canonicalAppCount:APP_LIST.length,
       apps:APP_LIST.map(app=>({...app,storageNamespace:`app-${app.id}`})),
-      mesh:{ready:true,peerIdentityConfigured:Boolean(process.env.APEX_SOVEREIGN_PEER_ID),recordCount:snapshot.length},
+      mesh:{ready:true,peerIdentityConfigured:Boolean(process.env.APEX_SOVEREIGN_PEER_ID),dispatchRequiresPeerIdentity:true,transportOwner:"sovereign-runtime-daemon",recordCount:snapshot.length},
       checkedAt:new Date().toISOString()
     };
   }
@@ -79,7 +82,10 @@ export function createSovereignAppFabric({store=apexPureStore,engineFactory=()=>
       action:payload.action||"app.publish",
       payload:{appId:app,data:clone(payload.data??{})}
     });
-    return {accepted:true,appId:app,waveId:record.waveId,seq:record.seq,checksum:record.checksum,status:record.status};
+    // Persist the event as a durable job but leave it DISPATCHED until the
+    // sovereign runtime daemon confirms peer transport. Do not fake an ACK.
+    const job=await bridge.persist(record);
+    return {accepted:true,durable:true,queued:true,peerPending:true,appId:app,waveId:record.waveId,seq:record.seq,checksum:record.checksum,jobId:job.id,status:record.status};
   }
   return {init,status,put,get,list,dispatch,apps:()=>APP_LIST.map(clone)};
 }
