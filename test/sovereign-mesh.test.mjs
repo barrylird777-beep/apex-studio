@@ -15,7 +15,7 @@ test('sovereign content-addressed state persists without a WAL, deduplicates, an
   process.env.APEX_SOVEREIGN_PEER_ID = 'test-peer';
 
   try {
-    const engine = new SovereignMeshEngine(dir);
+    const engine = new SovereignMeshEngine(dir, { remoteMode: false });
     await engine.ready();
 
     const first = await engine.dispatchAutonomousPayload({
@@ -33,7 +33,7 @@ test('sovereign content-addressed state persists without a WAL, deduplicates, an
     assert.equal(engine.size, 1);
     await assert.rejects(fs.access(path.join(dir, 'apex-ring-wal.ndjson')), { code: 'ENOENT' });
 
-    const recovered = new SovereignMeshEngine(dir);
+    const recovered = new SovereignMeshEngine(dir, { remoteMode: false });
     await recovered.ready();
 
     assert.equal(recovered.size, 1);
@@ -58,7 +58,7 @@ test('sovereign content-addressed objects reject tampering during recovery', asy
   process.env.APEX_SOVEREIGN_PEER_ID = 'test-peer';
 
   try {
-    const engine = new SovereignMeshEngine(dir);
+    const engine = new SovereignMeshEngine(dir, { remoteMode: false });
     await engine.ready();
     await engine.dispatchAutonomousPayload({
       waveId: 'wave-tamper',
@@ -70,7 +70,7 @@ test('sovereign content-addressed objects reject tampering during recovery', asy
     const raw = await fs.readFile(objectFile, "utf8");
     await fs.writeFile(objectFile, raw.replace("wave-tamper", "wave-tampered"), "utf8");
 
-    const recovered = new SovereignMeshEngine(dir);
+    const recovered = new SovereignMeshEngine(dir, { remoteMode: false });
     await assert.rejects(recovered.ready(), /integrity verification failed/);
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
@@ -96,7 +96,7 @@ test('replicated peer events retain the verified source record across restart', 
   sourceRecord.checksum = sovereignRecordChecksum(sourceRecord);
 
   try {
-    const first = new SovereignMeshEngine(dir);
+    const first = new SovereignMeshEngine(dir, { remoteMode: false });
     await first.ready();
     await first.dispatchAutonomousPayload({
       waveId: 'peer-origin-wave-41',
@@ -109,7 +109,7 @@ test('replicated peer events retain the verified source record across restart', 
       }
     });
 
-    const recovered = new SovereignMeshEngine(dir);
+    const recovered = new SovereignMeshEngine(dir, { remoteMode: false });
     await recovered.ready();
     assert.deepEqual(recovered.get('peer-origin-wave-41').payload.payload.sourceRecord, sourceRecord);
   } finally {
@@ -136,12 +136,12 @@ test('legacy mesh migration replays multiple newline-delimited records without l
   second.checksum = sovereignRecordChecksum(second);
   try {
     await fs.writeFile(path.join(dir, 'apex-ring-wal.ndjson'), JSON.stringify(first) + '\n' + JSON.stringify(second) + '\n', { mode: 0o600 });
-    const engine = new SovereignMeshEngine(dir);
+    const engine = new SovereignMeshEngine(dir, { remoteMode: false });
     await engine.ready();
     assert.equal(engine.size, 2);
     assert.deepEqual(engine.get('legacy-wave-1'), first);
     assert.deepEqual(engine.get('legacy-wave-2'), second);
-    const recovered = new SovereignMeshEngine(dir);
+    const recovered = new SovereignMeshEngine(dir, { remoteMode: false });
     await recovered.ready();
     assert.equal(recovered.size, 2);
   } finally {
