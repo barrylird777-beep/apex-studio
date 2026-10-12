@@ -1,13 +1,59 @@
 import fs from "node:fs/promises";
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import path from "node:path";
 import ffmpeg from "fluent-ffmpeg";
 import { randomUUID, createHash } from "node:crypto";
 import { buildEpisodeProductionJobs } from "../core/teevee-production.mjs";
 import { apexPureStore } from "../core/apex-pure-store.mjs";
+import { createRemotePureStore } from "../core/remote-pure-store.mjs";
 
 
 const ROOT = process.env.TEEVEE_OUTPUT_DIR || path.join(process.env.STORAGE_DIR || "/srv/apex/se-x", "teevee");
+const teeveeStore = process.env.APEX_WORKER_API_URL && process.env.APEX_WORKER_TOKEN ? createRemotePureStore() : apexPureStore;
+
+function teeveeObjectStore() {
+  const endpoint = String(process.env.APEX_OBJECT_STORAGE_ENDPOINT || "").trim();
+  const bucket = String(process.env.APEX_OBJECT_STORAGE_BUCKET || "").trim();
+  const accessKeyId = String(process.env.APEX_OBJECT_STORAGE_ACCESS_KEY_ID || "").trim();
+  const secretAccessKey = String(process.env.APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY || "").trim();
+  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) throw new Error("TeeVee object storage is not configured");
+  return { bucket, client: new S3Client({ endpoint, region: String(process.env.APEX_OBJECT_STORAGE_REGION || "auto"), forcePathStyle: false, credentials: { accessKeyId, secretAccessKey } }) };
+}
+
+function artifactKey(code, stage, file) {
+  return `teevee/${safe(code)}/${safe(stage)}/${safe(path.basename(file))}`;
+}
+
+async function uploadArtifact(code, stage, file) {
+  const { bucket, client } = teeveeObjectStore();
+  const key = artifactKey(code, stage, file);
+  const stat = await fs.stat(file);
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: `mobile/apex-business/${key}`, Body: createReadStream(file), ContentLength: stat.size, ContentType: path.extname(file).toLowerCase() === ".mp4" ? "video/mp4" : path.extname(file).toLowerCase() === ".wav" ? "audio/wav" : "application/octet-stream" }));
+  return key;
+}
+
+async function restoreEpisodeArtifacts(episode) {
+  const assets = typeof teeveeStore.queryFiltered === "function"
+    ? await teeveeStore.queryFiltered("teevee_episode_assets", { episodeId: episode.id }, { limit: 500 })
+    : (await teeveeStore.list("teevee_episode_assets")).filter(asset => String(asset.episodeId || asset.episode_id || "") === episode.id);
+  if (!assets.length) return;
+  const { bucket, client } = teeveeObjectStore();
+  for (const asset of assets) {
+    const key = String(asset.assetUri || asset.asset_uri || "");
+    const assetType = String(asset.assetType || asset.asset_type || "");
+    if (!key.startsWith("teevee/") || !assetType.startsWith("episode.")) continue;
+    const stage = assetType.slice("episode.".length);
+    const filename = path.basename(key);
+    const localPath = path.join(stagePath(episode.episode_code, stage), filename);
+    const present = await fs.stat(localPath).then(info => info.isFile() && info.size > 0).catch(() => false);
+    if (present) continue;
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: `mobile/apex-business/${key}` }));
+    await pipeline(result.Body, createWriteStream(localPath, { mode: 0o600 }));
+  }
+}
 const STAGES = ["story","script","storyboard","voice","audio","visual-development","animation","edit","qc","master","inspection","catalog","schedule"];
 const NEXT_STATE = {
   story:"STORY", script:"SCRIPT", storyboard:"STORYBOARD", voice:"VOICE", audio:"AUDIO",
@@ -51,16 +97,22 @@ function normalizeEpisode(row = {}) {
 }
 
 async function getEpisode(id) {
-  let row = await apexPureStore.get("teevee_episodes", String(id));
+  let row = await teeveeStore.get("teevee_episodes", String(id));
   if (!row) {
-    const all = await apexPureStore.list("teevee_episodes");
-    row = all.find(item => String(item.id) === String(id) || item.episodeCode === String(id) || item.episode_code === String(id));
+    if (typeof teeveeStore.queryFiltered === "function") {
+      row = (await teeveeStore.queryFiltered("teevee_episodes", { episodeCode: String(id) }, { limit: 1 }))[0]
+        || (await teeveeStore.queryFiltered("teevee_episodes", { episode_code: String(id) }, { limit: 1 }))[0]
+        || null;
+    } else {
+      const all = await teeveeStore.list("teevee_episodes");
+      row = all.find(item => String(item.id) === String(id) || item.episodeCode === String(id) || item.episode_code === String(id));
+    }
   }
   if (!row) throw new Error("TeeVee episode not found in Pure-WAL storage: " + id);
   return normalizeEpisode(row);
 }
 
-async function recordAsset(episode, stage, file, metadata = {}) {
+async function recordAsset(episode, stage, fileUri, metadata = {}) {
   const assetType = `episode.${stage}`;
   const id = createHash("sha256").update(`${episode.id}|${assetType}|1`).digest("hex");
   const record = {
@@ -69,25 +121,25 @@ async function recordAsset(episode, stage, file, metadata = {}) {
     episode_id: episode.id,
     assetType,
     asset_type: assetType,
-    assetUri: file,
-    asset_uri: file,
+    assetUri: fileUri,
+    asset_uri: fileUri,
     version: 1,
     status: "approved",
     provenance: { stage, generatedBy: "teevee-worker", ...metadata },
     createdAt: new Date().toISOString()
   };
-  await apexPureStore.put("teevee_episode_assets", id, record);
+  await teeveeStore.put("teevee_episode_assets", id, record);
   return id;
 }
 
 async function updateEpisode(id, updater) {
-  return apexPureStore.withMutationLock(async () => {
-    const row = await apexPureStore.get("teevee_episodes", String(id));
+  return teeveeStore.withMutationLock(async () => {
+    const row = await teeveeStore.get("teevee_episodes", String(id));
     if (!row) throw new Error("TeeVee episode not found in Pure-WAL storage: " + id);
     const current = normalizeEpisode(row);
     const next = normalizeEpisode(await updater(current));
     next.updatedAt = new Date().toISOString();
-    await apexPureStore.put("teevee_episodes", next.id, next);
+    await teeveeStore.put("teevee_episodes", next.id, next);
     return next;
   });
 }
@@ -100,10 +152,11 @@ async function advance(episode, stage, file, metadata = {}) {
     animation: "animation_status", edit: "edit_status", qc: "qc_status",
     master: "master_status", catalog: "programming_status"
   }[stage];
+  const storedArtifact = await uploadArtifact(episode.episode_code, stage, file);
 
   await updateEpisode(episode.id, current => {
-    const next = { ...current, state, metadata: { ...current.metadata, [stage + "Artifact"]: file } };
-    if (stage === "story") next.creative_brief = { ...current.creative_brief, storyArtifact: file };
+    const next = { ...current, state, metadata: { ...current.metadata, [stage + "Artifact"]: storedArtifact } };
+    if (stage === "story") next.creative_brief = { ...current.creative_brief, storyArtifact: storedArtifact };
     if (statusColumn) next[statusColumn] = stage === "qc" ? "passed" : stage === "master" ? "approved" : "approved";
     if (stage === "inspection") {
       next.metadata = { ...next.metadata, inspectionApproved: true, inspectionAuthority: "king_cob" };
@@ -113,12 +166,12 @@ async function advance(episode, stage, file, metadata = {}) {
     return next;
   });
 
-  const assetId = await recordAsset(episode, stage, file, metadata);
+  const assetId = await recordAsset(episode, stage, storedArtifact, metadata);
   const digest = createHash("sha256");
   for await (const chunk of createReadStream(file)) digest.update(chunk);
   const sha256 = digest.digest("hex");
   const provenanceId = createHash("sha256").update(`${episode.id}|${stage}|provenance`).digest("hex");
-  await apexPureStore.put("asset_provenance", provenanceId, {
+  await teeveeStore.put("asset_provenance", provenanceId, {
     id: provenanceId,
     runId: episode.id,
     run_id: episode.id,
@@ -126,7 +179,7 @@ async function advance(episode, stage, file, metadata = {}) {
     status: "approved",
     artifactId: String(assetId),
     artifact_id: String(assetId),
-    path: file,
+    path: storedArtifact,
     sha256,
     labels: ["TeeVee", stage],
     sources: [episode.episode_code],
@@ -135,14 +188,12 @@ async function advance(episode, stage, file, metadata = {}) {
   });
 
   if (stage === "catalog") {
-    const masters = await apexPureStore.query(
-      "teevee_episode_assets",
-      asset => asset.episodeId === episode.id && asset.assetType === "episode.master",
-      { sort: (a, b) => Number(b.version || 0) - Number(a.version || 0), limit: 1 }
-    );
+    const masters = typeof teeveeStore.queryFiltered === "function"
+      ? await teeveeStore.queryFiltered("teevee_episode_assets", { episodeId: episode.id, assetType: "episode.master" }, { sortField: "version", descending: true, limit: 1 })
+      : await teeveeStore.query("teevee_episode_assets", asset => asset.episodeId === episode.id && asset.assetType === "episode.master", { sort: (a, b) => Number(b.version || 0) - Number(a.version || 0), limit: 1 });
     if (!masters.length) throw new Error("Catalog cannot register without a master asset");
     const catalogId = createHash("sha256").update(`teevee-catalog|${episode.id}`).digest("hex");
-    await apexPureStore.put("teevee_catalog", catalogId, {
+    await teeveeStore.put("teevee_catalog", catalogId, {
       id: catalogId,
       episodeId: episode.id,
       episode_id: episode.id,
@@ -162,7 +213,7 @@ async function enqueueNext(episode, stage) {
   const jobs = buildEpisodeProductionJobs(episode);
   const template = jobs.find(job => job.type === `teevee.episode.${next}`);
   if (!template) return null;
-  const result = await apexPureStore.enqueue({
+  const result = await teeveeStore.enqueue({
     id: randomUUID(),
     type: template.type,
     payload: template.payload,
@@ -252,7 +303,9 @@ async function concatAnimation(sceneFiles, output, runtimeSeconds){
   const dir=path.dirname(output);
   await fs.mkdir(dir,{recursive:true});
   const list=path.join(dir,"concat.txt");
-  await fs.writeFile(list,sceneFiles.map(concatQuote).join("\n")+"\n");
+  await fs.writeFile(list,sceneFiles.map(concatQuote).join("
+")+"
+");
   try{
     await new Promise((resolve,reject)=>ffmpeg()
       .input(list)
@@ -279,16 +332,21 @@ async function media(kind,prompt,output){
 }
 
 async function handle(stage, job){
-  const p=job.payload||job; const episode=await getEpisode(p.episodeId); const code=episode.episode_code;
+  const p=job.payload||job; const episode=await getEpisode(p.episodeId); await restoreEpisodeArtifacts(episode); const code=episode.episode_code;
   const base=`TeeVee original animated entertainment network. Episode ${code}. Title: ${episode.title}. Lane: ${episode.audience_lane}. Runtime target: ${episode.runtime_target_seconds}s. Visual DNA: dark fantasy anime, sharp cel shading, high-contrast cinematic lighting, highly detailed. Make it original, entertaining, memorable, and suitable for its stated maturity lane.`;
   let file, metadata={provider:"deterministic"};
   if(stage==="story"){
-    const generated=await generateText(`${base}\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
+    const generated=await generateText(`${base}
+Create the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
     metadata.provider=generated.provider;
     file=await writeText(code,stage,"story.md",generated.text);
   }else if(stage==="script"){
     const story=await fs.readFile(path.join(stagePath(code,"story"),"story.md"),"utf8");
-    const generated=await generateText(`${base}\nHere is the story development for ${code}:\n${story.slice(0,24000)}\n\nTurn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
+    const generated=await generateText(`${base}
+Here is the story development for ${code}:
+${story.slice(0,24000)}
+
+Turn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
   }else if(stage==="storyboard"){
     const plan=buildAnimationPlan(episode.runtime_target_seconds);
