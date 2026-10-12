@@ -86,8 +86,20 @@ async function main() {
   const summary = { tables: 0, rowsRead: 0, planned: 0, identical: 0, conflicts: 0, written: 0, skipped: 0 };
   const tablePlans = [];
   let client;
+  let migrationLockHandle;
+  let migrationLockPath;
   try {
     await store.init();
+    const fs = await import("node:fs/promises");
+    migrationLockPath = resolve(root, ".legacy-pg-migration.lock");
+    try {
+      migrationLockHandle = await fs.open(migrationLockPath, "wx", 0o600);
+      await migrationLockHandle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }) + "\\n", "utf8");
+      await migrationLockHandle.sync();
+    } catch (error) {
+      if (error.code === "EEXIST") throw new Error("Another PostgreSQL-to-Pure-WAL migration holds the lock; refusing concurrent execution.");
+      throw error;
+    }
     client = await pool.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const tableResult = await client.query(`
@@ -229,6 +241,11 @@ async function main() {
   } finally {
     client?.release();
     await pool.end();
+    if (migrationLockHandle) await migrationLockHandle.close().catch(() => {});
+    if (migrationLockPath) {
+      const fs = await import("node:fs/promises");
+      await fs.unlink(migrationLockPath).catch(error => { if (error.code !== "ENOENT") throw error; });
+    }
   }
 }
 
