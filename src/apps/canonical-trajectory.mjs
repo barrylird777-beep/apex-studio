@@ -4,6 +4,8 @@ const HANDOFFS = Object.freeze([
   Object.freeze({ from:"planet-apex", to:"xshield", purpose:"apply network protection to the shared Apex environment" }),
   Object.freeze({ from:"xshield", to:"kernel-vision", purpose:"provide protected network access for production and finished-work delivery" }),
   Object.freeze({ from:"kernelodies", to:"kernel-vision", purpose:"attach music and audio identity to finished work" }),
+  Object.freeze({ from:"kernel-vision", to:"kash-korner", purpose:"hand off customer orders and production fulfillment for payment and ledger tracking" }),
+  Object.freeze({ from:"kash-korner", to:"kernel-vision", purpose:"return verified payment state and fulfillment authorization to production" }),
   Object.freeze({ from:"koin-kob", to:"kash-korner", purpose:"translate worker-market value into ledger entries" }),
   Object.freeze({ from:"kash-korner", to:"koin-kob", purpose:"provide validated financial state for economic simulations" }),
   Object.freeze({ from:"kernel-vision", to:"planet-apex", purpose:"feed finished-work context back into the world model" })
