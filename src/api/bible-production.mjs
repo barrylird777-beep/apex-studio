@@ -452,6 +452,7 @@ async function makeCallSheet(body={}, forcedId=null) {
   const linked=[];
   for(const id of sceneIds){const scene=await getType('scene',id);if(scene)linked.push(sceneOut(scene));}
   const projectId=await resolveProjectId(body.projectId || linked[0]?.projectId);
+  if(linked.some(scene=>String(scene.projectId)!==String(projectId)))throw Object.assign(new Error('Call sheet scenes must belong to the selected project'),{status:400});
   const characters=arr(body.characters).map(value=>clean(value,180)).filter(Boolean);
   const locations=arr(body.locations).map(value=>clean(value,500)).filter(Boolean);
   const uniqueLocations=[...new Set([...locations,...linked.map(scene=>scene.location).filter(Boolean)])];
