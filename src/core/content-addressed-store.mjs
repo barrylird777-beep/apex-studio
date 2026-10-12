@@ -24,6 +24,7 @@ export class ContentAddressedStore {
     this.refs = path.join(this.root, "refs");
     this.lockTimeoutMs = 180000;
     this.remoteObjects = new RemoteCasObjectBackend();
+    this.remoteRefsEnabled = this.remoteObjects.enabled;
   }
 
   async init() {
@@ -103,11 +104,18 @@ export class ContentAddressedStore {
 
   async readRef(namespace, key) {
     await this.init();
-    try {
-      const manifest = JSON.parse(await readFile(this.refPath(namespace, key), "utf8"));
-      if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
-        throw new Error("Invalid content-addressed manifest");
+    const file = this.refPath(namespace, key);
+    if (this.remoteRefsEnabled) {
+      const remote = await this.remoteObjects.getRef(namespace, key);
+      if (remote !== null) {
+        const manifest = JSON.parse(remote);
+        if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid remote content-addressed manifest");
+        return { ...manifest, value: await this.getObject(manifest.hash) };
       }
+    }
+    try {
+      const manifest = JSON.parse(await readFile(file, "utf8"));
+      if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid content-addressed manifest");
       return { ...manifest, value: await this.getObject(manifest.hash) };
     } catch (error) {
       if (error.code === "ENOENT") return null;
@@ -130,6 +138,7 @@ export class ContentAddressedStore {
         await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now(), token }), "utf8");
         await handle.sync();
       } catch (error) {
+        if (error.code === "ENOSPC" && handle) { await handle.sync().catch(() => {}); break; }
         if (handle) {
           // Failed metadata writes (notably ENOSPC) must not strand a lock file.
           try {
@@ -192,7 +201,7 @@ export class ContentAddressedStore {
       let ownsPath = false;
       try {
         const [opened, current, contents] = await Promise.all([handle.stat(), stat(lock), readFile(lock, "utf8")]);
-        ownsPath = opened.dev === current.dev && opened.ino === current.ino && JSON.parse(contents).token === token;
+        if (opened.dev === current.dev && opened.ino === current.ino) { try { ownsPath = JSON.parse(contents).token === token; } catch { ownsPath = true; } }
       } catch (error) {
         if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
       }
@@ -222,35 +231,26 @@ export class ContentAddressedStore {
         hash: object.hash,
         updatedAt: new Date().toISOString()
       };
-      await this.atomicWrite(file, canonical(manifest) + "\n");
-      return { ...manifest, uri: object.uri, bytes: object.bytes };
+      if (this.remoteRefsEnabled) await this.remoteObjects.putRef(namespace, key, canonical(manifest) + "\n");
+      else await this.atomicWrite(file, canonical(manifest) + "\n");
+      return { ...manifest, uri: object.uri, bytes: object.bytes, backend: this.remoteRefsEnabled ? "object-storage" : "local" };
     });
   }
 
   async listRefs(namespace) {
     await this.init();
+    const keys = new Set();
+    if (this.remoteRefsEnabled) for (const key of await this.remoteObjects.listRefs(namespace)) keys.add(key);
     const dir = path.join(this.refs, String(namespace));
-    let names;
-    try { names = await (await import("node:fs/promises")).readdir(dir); }
-    catch (error) { if (error.code === "ENOENT") return []; throw error; }
-    const candidates = names.filter(name => name.endsWith(".json"));
+    try {
+      const names = await (await import("node:fs/promises")).readdir(dir);
+      for (const name of names) if (name.endsWith(".json")) keys.add(name.slice(0, -5));
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
+    const candidates = [...keys];
     const out = [];
-    // Bound concurrent file opens while avoiding one fsync/read round trip per
-    // manifest in series. This matters during first boot after WAL migration.
     const batchSize = 32;
     for (let offset = 0; offset < candidates.length; offset += batchSize) {
-      const batch = await Promise.all(candidates.slice(offset, offset + batchSize).map(async name => {
-        try {
-          const manifest = JSON.parse(await readFile(path.join(dir, name), "utf8"));
-          if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
-            throw new Error("Invalid content-addressed manifest");
-          }
-          return { ...manifest, value: await this.getObject(manifest.hash) };
-        } catch (error) {
-          if (error.code === "ENOENT") return null;
-          throw error;
-        }
-      }));
+      const batch = await Promise.all(candidates.slice(offset, offset + batchSize).map(async key => this.readRef(namespace, key)));
       out.push(...batch.filter(Boolean));
     }
     return out;
@@ -267,8 +267,9 @@ export class ContentAddressedStore {
         error.code = "CAS_CONFLICT";
         throw error;
       }
-      await unlink(file);
-      await syncDir(path.dirname(file));
+      if (this.remoteRefsEnabled) await this.remoteObjects.deleteRef(namespace, key);
+      try { await unlink(file); await syncDir(path.dirname(file)); }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
       return true;
     });
   }
