@@ -170,9 +170,7 @@ async function executePermanentHealthTask(payload = {}) {
 const workerOnly = String(process.env.APEX_WORKER_ONLY || "").toLowerCase() === "true";
 
 if (!workerOnly) {
-  const { startProductionDaemon } = await import("./src/workers/av1-production-daemon.mjs");
-  process.title = "apex-av1-production";
-  await startProductionDaemon();
+  throw new Error("The legacy SQLite AV1 daemon is retired. Start the sovereign API with npm run start:sovereign-stack, or run the Pure-WAL worker with APEX_WORKER_ONLY=true and authenticated APEX_WORKER_API_URL/APEX_WORKER_TOKEN.");
 } else {
   process.title = "apex-autonomous-worker";
   if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires durable worker storage");
