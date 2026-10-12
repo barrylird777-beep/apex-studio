@@ -1,9 +1,22 @@
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { rm } from 'node:fs/promises';
 
 const port = 18080;
+const smokeRoot = path.join(tmpdir(), `apex-smoke-${process.pid}`);
 const child = spawn(process.execPath, ['server.mjs'], {
-  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'test' },
+  env: {
+    ...process.env,
+    PORT: String(port),
+    HOST: '127.0.0.1',
+    NODE_ENV: 'test',
+    APEX_SE_X_ROOT: smokeRoot,
+    APEX_PROJECTS_DIR: path.join(smokeRoot, 'projects'),
+    APEX_WAL_DIR: path.join(smokeRoot, 'wal'),
+    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl')
+  },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 
@@ -71,4 +84,5 @@ try {
     sleep(3000)
   ]);
   if (child.exitCode === null) child.kill('SIGKILL');
+  await rm(smokeRoot, { recursive: true, force: true });
 }
