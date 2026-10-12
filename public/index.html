@@ -304,7 +304,10 @@ class SceneController {
       if (!response.ok || !data.success) throw new Error(data.error || 'Movie export failed');
       const output = $('master-export');
       output.style.display = 'block';
-      output.innerHTML = `Finished movie ready: <a href="${esc(data.url)}" target="_blank" rel="noopener">Open /files export</a> · ${data.sceneCount} scenes · ${Number(data.bytes || 0).toLocaleString()} bytes`;
+      const scoreNote = data.mastering?.backgroundMusicSource === 'generated-432hz-reference-drone'
+        ? ' · 432 Hz reference drone used (replace with a composed score before release)'
+        : '';
+      output.innerHTML = `Finished movie ready: <a href="${esc(data.url)}" target="_blank" rel="noopener">Open /files export</a> · ${data.sceneCount} scenes · ${Number(data.bytes || 0).toLocaleString()} bytes${scoreNote}`;
       this.masterUrl = data.url;
     } catch (error) {
       msg.textContent = error.message || 'Movie export failed';
