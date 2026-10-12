@@ -28,9 +28,9 @@
       "goal": "knowledge, Scripture, research and creative world"
     },
     {
-      "id": "xshield",
-      "name": "XShield",
-      "goal": "ad blocking, tracker blocking and network filtering"
+      "id": "ko-blocks",
+      "name": "KoBlocks",
+      "goal": "reusable execution blocks, graph validation, ad/tracker blocking and network protection"
     }
   ]
 }
