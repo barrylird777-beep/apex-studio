@@ -339,7 +339,8 @@ public struct ApexControlClient: Sendable {
     }
 
     private func decode<T: Decodable>(path: String, method: String, as type: T.Type) async throws -> T {
-        try JSONDecoder().decode(T.self, from: request(path: path, method: method))
+        let data = try await request(path: path, method: method)
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     private func postJSON(path: String, body: [String: Any]) async throws -> Data {
