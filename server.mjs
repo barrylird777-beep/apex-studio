@@ -1198,8 +1198,31 @@ app.post('/api/network/rogue-ap/observations', (req, res) => {
   }
 });
 
-app.post('/api/episodes/produce', (_req, res) => {
-  return res.status(503).json({ success: false, error: 'Episode pipeline is unavailable in this deployment' });
+app.post('/api/episodes/produce', requireControlPlaneAuth, async (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ success: false, error: 'Episode request must be a JSON object' });
+    }
+    const { produceKernelVisionEpisode } = await import('./src/video/episode-pipeline.mjs');
+    const result = await produceKernelVisionEpisode(req.body, {
+      mediaRoot: process.env.APEX_KERNELVISION_MEDIA_ROOT || STORAGE_DIR,
+      ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+      ffprobePath: process.env.FFPROBE_PATH || 'ffprobe'
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    const code = String(error?.code || '');
+    const status = code === 'HOOK_VALIDATION_FAILED' ? 422
+      : code === 'RENDER_QC_FAILED' ? 422
+      : error instanceof TypeError ? 400
+      : 500;
+    console.error('[kernelvision-episode] production failed:', code || 'UNCLASSIFIED', error?.message || error);
+    return res.status(status).json({
+      success: false,
+      code: code || 'KERNELVISION_PRODUCTION_FAILED',
+      error: status < 500 ? String(error?.message || 'Episode request failed') : 'Episode production failed; inspect server logs using the request timestamp.'
+    });
+  }
 });
 
 // Titan-protected mutation surfaces are mounted explicitly at the route boundary.
