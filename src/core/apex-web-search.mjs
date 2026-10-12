@@ -112,7 +112,8 @@ function parseDuckDuckGo(html, limit) {
     const title = cleanText(match[2]);
     if (!url || !title || seen.has(url)) continue;
     seen.add(url);
-    const region = html.slice(Math.max(0, match.index - 350), Math.min(html.length, anchor.lastIndex + 1400));
+    const nextAnchor = html.indexOf('class="result__a"', anchor.lastIndex);
+    const region = html.slice(match.index, nextAnchor >= 0 ? nextAnchor : Math.min(html.length, anchor.lastIndex + 1400));
     const snippetMatch = region.match(/class=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|a)>/i);
     results.push({ title, url, snippet: cleanText(snippetMatch?.[1] || ""), source: "DuckDuckGo", category: "web" });
   }
