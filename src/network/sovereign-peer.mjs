@@ -81,7 +81,7 @@ function readerFor(stream) {
     const onMessage = event => {
       const chunk = event?.data;
       const waiter = waiters.shift();
-      if (waiter) waiter({ done: false, value: chunk });
+      if (waiter) waiter.resolve({ done: false, value: chunk });
       else queue.push(chunk);
     };
     const onClose = event => {
@@ -89,8 +89,8 @@ function readerFor(stream) {
       closeError = event?.error || null;
       while (waiters.length) {
         const waiter = waiters.shift();
-        if (closeError) waiter(Promise.reject(closeError));
-        else waiter({ done: true });
+        if (closeError) waiter.reject(closeError);
+        else waiter.resolve({ done: true });
       }
     };
     stream.addEventListener('message', onMessage);
@@ -100,7 +100,7 @@ function readerFor(stream) {
         next: () => {
           if (queue.length) return Promise.resolve({ done: false, value: queue.shift() });
           if (ended) return closeError ? Promise.reject(closeError) : Promise.resolve({ done: true });
-          return new Promise(resolve => waiters.push(resolve));
+          return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
         }
       },
       decoder: new TextDecoder(),
