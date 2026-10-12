@@ -187,7 +187,10 @@ function openLegacySqlite(sqlite3, filename) {
   });
 }
 function readLegacyTable(db, table) {
-  return new Promise(resolve => db.all('SELECT * FROM ' + table, (error, rows) => resolve(error ? [] : (rows || []))));
+  return new Promise((resolve, reject) => db.all('SELECT * FROM ' + table, (error, rows) => error ? reject(error) : resolve(rows || [])));
+}
+function readLegacyTableNames(db) {
+  return new Promise((resolve, reject) => db.all("SELECT name FROM sqlite_master WHERE type='table'", (error, rows) => error ? reject(error) : resolve(new Set((rows || []).map(row => String(row.name)))));
 }
 function closeLegacySqlite(db) {
   return new Promise(resolve => db.close(() => resolve()));
@@ -214,8 +217,9 @@ async function migrateLegacySqliteIfPresent() {
     const sqlite3 = sqliteModule.default || sqliteModule;
     db = await openLegacySqlite(sqlite3, legacyDbFile);
     const tables = {};
+    const availableTables = await readLegacyTableNames(db);
     for (const name of ['projects','characters','scenes','shoot_days','scene_shoot_days','call_sheets','budget_items','script_notes']) {
-      tables[name] = await readLegacyTable(db, name);
+      tables[name] = availableTables.has(name) ? await readLegacyTable(db, name) : [];
     }
     await closeLegacySqlite(db); db = null;
     const characterNames = new Map(tables.characters.map(row => [String(row.id), String(row.canonical_name || '')]));
@@ -392,7 +396,7 @@ router.put('/scenes/:id', async (req, res) => {
     if (!current) return res.status(404).json({ error: 'Scene not found' });
     const body = req.body || {}, scriptureReference = clean(body.scriptureReference ?? body.scriptureRef ?? current.scriptureReference,120);
     if (!validRef(scriptureReference)) return res.status(400).json({ error: 'Valid scriptureReference is required' });
-    const row = await saveType('scene', current.id, { ...current, sceneNumber: Number(body.sceneNumber ?? current.sceneNumber)||1, title: clean(body.title ?? current.title,240), scriptureReference, location: clean(body.location ?? current.location,500), characters: arr(body.characters ?? current.characters).map(x=>clean(x,180)).filter(Boolean), charactersPresent: arr(body.charactersPresent ?? body.characters ?? current.charactersPresent).map(x=>clean(x,180)).filter(Boolean), actionSummary: clean(body.actionSummary ?? current.actionSummary,4000), emotionalBeat: clean(body.emotionalBeat ?? current.emotionalBeat,2000), productionNotes: clean(body.productionNotes ?? current.productionNotes,4000), estimatedPages: Number.isFinite(Number(body.estimatedPages ?? current.estimatedPages)) ? Number(body.estimatedPages ?? current.estimatedPages) : null, dayOrNight: clean(body.dayOrNight ?? current.dayOrNight,80) });
+    const row = await saveType('scene', current.id, { ...current, sceneNumber: Number(body.sceneNumber ?? current.sceneNumber)||1, title: clean(body.title ?? current.title,240), scriptureReference, location: clean(body.location ?? current.location,500), characters: arr(body.characters ?? current.characters).map(x=>clean(x,180)).filter(Boolean), charactersPresent: arr(body.charactersPresent ?? body.characters ?? current.charactersPresent).map(x=>clean(x,180)).filter(Boolean), actionSummary: clean(body.actionSummary ?? current.actionSummary,4000), emotionalBeat: clean(body.emotionalBeat ?? current.emotionalBeat,2000), productionNotes: clean(body.productionNotes ?? current.productionNotes,4000), estimatedPages: (body.estimatedPages ?? current.estimatedPages) == null || (body.estimatedPages ?? current.estimatedPages) === '' ? null : (Number.isFinite(Number(body.estimatedPages ?? current.estimatedPages)) ? Number(body.estimatedPages ?? current.estimatedPages) : null), dayOrNight: clean(body.dayOrNight ?? current.dayOrNight,80) });
     res.json(sceneOut(row));
   } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
 });
