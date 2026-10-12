@@ -152,7 +152,7 @@ export async function readSovereignEnvelope(stream) {
   const deadline = Date.now() + timeoutMs;
 
   while (true) {
-    const newline = reader.text.indexOf('\\n');
+    const newline = reader.text.indexOf('\n');
     if (newline >= 0) {
       const line = reader.text.slice(0, newline);
       reader.text = reader.text.slice(newline + 1);
@@ -178,7 +178,7 @@ export async function readSovereignEnvelope(stream) {
     if (result) reader.pending = null;
     if (!result || result.done) {
       reader.text += reader.decoder.decode();
-      const finalNewline = reader.text.indexOf('\\n');
+      const finalNewline = reader.text.indexOf('\n');
       if (finalNewline >= 0) {
         const line = reader.text.slice(0, finalNewline);
         reader.text = reader.text.slice(finalNewline + 1);
@@ -197,7 +197,7 @@ export async function readSovereignEnvelope(stream) {
       streamId: reader.id,
       bytes: Number(bytes?.byteLength ?? bytes?.length ?? 0),
       bufferedCharacters: reader.text.length,
-      newlineIndex: reader.text.indexOf('\\n')
+      newlineIndex: reader.text.indexOf('\n')
     }));
   }
 }
