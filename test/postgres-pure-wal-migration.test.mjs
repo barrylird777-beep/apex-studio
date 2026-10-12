@@ -53,3 +53,43 @@ test("migration requires explicit --apply and rejects unknown options", () => {
   assert.throws(() => parseMigrationArgs(["--truncate"]), /Unknown or incomplete option/);
   assert.throws(() => parseMigrationArgs(["--schema="]), /Unknown or incomplete option/);
 });
+
+import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+test("migration dry-run reads CI PostgreSQL without writing target records", { skip: !process.env.DATABASE_URL }, async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "apex-pure-wal-migration-"));
+  try {
+    const script = fileURLToPath(new URL("../scripts/migrate-postgres-to-pure-wal.mjs", import.meta.url));
+    const child = spawn(process.execPath, [script, "--schema=public"], {
+      env: {
+        ...process.env,
+        DATABASE_URL: process.env.DATABASE_URL,
+        APEX_SE_X_ROOT: tempRoot,
+        APEX_PROJECTS_DIR: join(tempRoot, "projects"),
+        APEX_WAL_FILE: join(tempRoot, "wal", "ring.wal.jsonl")
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", chunk => { stdout += chunk; });
+    child.stderr.on("data", chunk => { stderr += chunk; });
+    const result = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code, signal) => resolve({ code, signal }));
+    });
+    assert.equal(result.code, 0, stderr);
+    const report = JSON.parse(stdout);
+    assert.equal(report.mode, "dry-run");
+    assert.equal(report.safety.sourceModified, false);
+    assert.equal(report.safety.targetOverwriteAllowed, false);
+    assert.equal(report.summary.written, 0);
+    assert.ok(report.summary.tables >= 0);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
