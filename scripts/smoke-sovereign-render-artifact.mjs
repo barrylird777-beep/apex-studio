@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
@@ -29,7 +29,7 @@ try {
   const output = path.join(renderDir, "sovereign-render-smoke.mp4");
   const projects = path.join(root, "projects");
   const walFile = path.join(root, "wal", "ring.wal.jsonl");
-  await import("node:fs/promises").then(fs => fs.mkdir(renderDir, { recursive: true }));
+  await mkdir(renderDir, { recursive: true });
 
   await run(process.env.FFMPEG_PATH || "ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
