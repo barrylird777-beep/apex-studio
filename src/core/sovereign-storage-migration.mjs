@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 
-async function copyMissing(source, destination, copied) {
+async function copyMissing(source, destination, copied, destinationRoot) {
   const sourceInfo = await fs.lstat(source);
   if (sourceInfo.isSymbolicLink()) throw new Error(`Refusing symlink in sovereign storage migration: ${source}`);
 
@@ -18,7 +18,7 @@ async function copyMissing(source, destination, copied) {
     }
     if (!destinationInfo) await fs.mkdir(destination, { recursive: false, mode: sourceInfo.mode & 0o700 || 0o700 });
     for (const entry of await fs.readdir(source)) {
-      await copyMissing(path.join(source, entry), path.join(destination, entry), copied);
+      await copyMissing(path.join(source, entry), path.join(destination, entry), copied, destinationRoot);
     }
     return;
   }
@@ -41,14 +41,12 @@ async function copyMissing(source, destination, copied) {
   copied.push(path.relative(destinationRoot, destination));
 }
 
-let destinationRoot = "";
-
 export async function migrateSovereignStorage({
   sourceRoot = "/srv/apex/se-x",
   destination = process.env.APEX_SE_X_ROOT || "/srv/apex/se-x"
 } = {}) {
   const source = path.resolve(sourceRoot);
-  destinationRoot = path.resolve(destination);
+  const destinationRoot = path.resolve(destination);
   if (source === destinationRoot) return { migrated: false, copied: [] };
   if (destinationRoot.startsWith(source + path.sep)) {
     throw new Error("Sovereign persistent root must not be nested inside the legacy source root.");
@@ -68,7 +66,7 @@ export async function migrateSovereignStorage({
   await fs.mkdir(destinationRoot, { recursive: true, mode: 0o700 });
   const copied = [];
   for (const entry of await fs.readdir(source)) {
-    await copyMissing(path.join(source, entry), path.join(destinationRoot, entry), copied);
+    await copyMissing(path.join(source, entry), path.join(destinationRoot, entry), copied, destinationRoot);
   }
   return { migrated: copied.length > 0, copied };
 }
