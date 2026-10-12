@@ -2220,11 +2220,17 @@ app.post('/api/render/export', async (req, res) => {
       return res.status(409).json({ success: false, error: 'Every exported scene must have a persistent audio asset' });
     }
 
-    const bgmPath = path.join(STORAGE_DIR, 'bgm.wav');
+    const candidateBgmPath = path.join(STORAGE_DIR, 'bgm.wav');
+    let bgmPath = candidateBgmPath;
+    let backgroundMusicSource = 'provided-bgm.wav';
     try {
-      await access(bgmPath);
+      await access(candidateBgmPath);
     } catch {
-      return res.status(409).json({ success: false, error: 'Missing bgm.wav in storage directory for mastering' });
+      // Free, local-only fallback: the mastering module synthesizes a quiet 432 Hz
+      // reference drone for the episode duration. This is not represented as a
+      // composed score; a licensed/generated soundtrack can replace it later.
+      bgmPath = null;
+      backgroundMusicSource = 'generated-432hz-reference-drone';
     }
 
     const stamp = Date.now();
@@ -2263,9 +2269,10 @@ app.post('/api/render/export', async (req, res) => {
     const timelineAudioItems = selected.map((scene) => {
       const item = {
         filePath: storagePathFromFileUrl(scene.audio),
-        startTimeMs: currentDelayMs
+        startTimeMs: currentDelayMs,
+        durationMs: Math.max(1, Number(scene.durationMs) || 4000)
       };
-      currentDelayMs += Math.max(1, Number(scene.durationMs) || 4000);
+      currentDelayMs += item.durationMs;
       return item;
     });
 
@@ -2284,7 +2291,8 @@ app.post('/api/render/export', async (req, res) => {
       generatedAt: saved.updatedAt,
       mastering: {
         audio: '320k AAC / 48kHz / stereo / loudnorm',
-        video: 'H.264 CRF 17 / veryslow / 24fps / cinematic grade'
+        video: 'H.264 CRF 17 / veryslow / 24fps / cinematic grade',
+        backgroundMusicSource
       }
     });
   } catch (error) {
