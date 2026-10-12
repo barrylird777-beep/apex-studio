@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["apex-anchor/xshield-six-app-network"]
+    branches: ["apex-anchor/restore-koblocks-canon-and-purewal"]
   workflow_dispatch:
 
 permissions:
@@ -34,6 +34,7 @@ jobs:
           node --check src/apps/apex-six-apps.mjs
           node --check src/apps/canonical-six.mjs
           node --check src/apps/canonical-trajectory.mjs
+          node --check src/apps/ko-blocks.mjs
           node --check src/apps/xshield.mjs
           node --check src/core/apex-pure-store.mjs
           node --check src/core/mesh/durable-worker-store.mjs
