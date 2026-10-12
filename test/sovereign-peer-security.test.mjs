@@ -25,6 +25,15 @@ test("sovereign envelope reader preserves a second envelope from the same stream
   assert.deepEqual(await readSovereignEnvelope(stream), { accepted: true });
 });
 
+test("sovereign envelope reader supports the libp2p v3 async-iterator stream", async () => {
+  const stream = {
+    async *[Symbol.asyncIterator]() {
+      yield new TextEncoder().encode('{"accepted":true}\\n');
+    }
+  };
+  assert.deepEqual(await readSovereignEnvelope(stream), { accepted: true });
+});
+
 test("outgoing sovereign transport refuses a peer outside the allowlist", async () => {
   const previous = process.env.APEX_ALLOWED_PEER_IDS;
   delete process.env.APEX_ALLOWED_PEER_IDS;
