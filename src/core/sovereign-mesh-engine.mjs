@@ -77,6 +77,20 @@ export class SovereignMeshEngine {
     }
   }
 
+  async reserveSequence() {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const current = await this.cas.readRef("meta", "sequence");
+      const next = Number(current?.value?.next || 1);
+      try {
+        await this.cas.writeRef("meta", "sequence", { next: next + 1 }, { expectedHash: current?.hash ?? null });
+        return next;
+      } catch (error) {
+        if (error.code !== "CAS_CONFLICT") throw error;
+      }
+    }
+    throw new Error("Could not reserve sovereign sequence after CAS retries");
+  }
+
   async dispatchAutonomousPayload(payload) {
     await this.ready();
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TypeError("Invalid payload object provided.");
@@ -85,7 +99,8 @@ export class SovereignMeshEngine {
     if (existing) return { ...existing };
     const peerId = payload.peerId || process.env.APEX_SOVEREIGN_PEER_ID;
     if (!peerId) throw new Error("No sovereign peer identity configured.");
-    const record = { seq: 1, waveId, peerId, action: payload.action || "SovereignPublish", timestamp: new Date().toISOString(), status: "DISPATCHED", payload };
+    const seq = await this.reserveSequence();
+    const record = { seq, waveId, peerId, action: payload.action || "SovereignPublish", timestamp: new Date().toISOString(), status: "DISPATCHED", payload };
     record.checksum = sovereignRecordChecksum(record);
     const write = this._writeTail.catch(() => {}).then(async () => {
       const refKey = this.key(waveId);
@@ -110,7 +125,8 @@ export class SovereignMeshEngine {
     const current = this.state.get(String(waveId));
     if (!current) throw new Error("Unknown sovereign wave: " + waveId);
     if (current.status === "ACKNOWLEDGED") return { ...current };
-    const record = { seq: Number(current.seq || 0) + 1, waveId: current.waveId, peerId: current.peerId, action: current.action,
+    const seq = await this.reserveSequence();
+    const record = { seq, waveId: current.waveId, peerId: current.peerId, action: current.action,
       timestamp: new Date().toISOString(), status: "ACKNOWLEDGED", payload: { ...current.payload, acceptance } };
     record.checksum = sovereignRecordChecksum(record);
     const write = this._writeTail.catch(() => {}).then(async () => {
