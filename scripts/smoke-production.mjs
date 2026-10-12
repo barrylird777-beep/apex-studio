@@ -52,7 +52,7 @@ try {
   }
 
   const readiness = await getJson('/api/apex/readiness');
-  const expectedApps = ['PlanetApeX', 'KoBlocks', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies'];
+  const expectedApps = ['PlanetApeX', 'KernelVision', 'Kernelodies', 'KashKorner', 'KashKobs', 'XShield'];
   const actualApps = readiness.json?.canonicalApps?.map(app => app.name);
   if (
     readiness.status !== 200 ||
