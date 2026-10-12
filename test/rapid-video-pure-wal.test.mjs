@@ -22,7 +22,7 @@ test("paid checkout and fulfillment remain durable without PostgreSQL and dedupe
     });
     await queue.createCheckoutRecord({orderId:"paid-order-1",name:"Test buyer",email:"buyer@example.com",type:"Short-form",brief:"A dramatic original story",platform:"YouTube Shorts"});
     await queue.updateCheckoutRecord("paid-order-1",{status:"payment_required",stripeSessionId:"cs_test_1",checkoutUrl:"https://checkout.example/cs_test_1"});
-    const payment={orderId:"paid-order-1",stripeSessionId:"cs_test_1",stripeEventId:"evt_test_1",paid:true,paidAt:"2026-10-11T00:00:00.000Z"};
+    const payment={orderId:"paid-order-1",stripeSessionId:"cs_test_1",stripeEventId:"evt_test_1",paid:true,amount:2500,currency:"USD",paidAt:"2026-10-11T00:00:00.000Z"};
     const queued=await queue.enqueuePaidOrder(payment);
     assert.equal(queued.queued,true);
     assert.equal((await queue.getOrder("paid-order-1")).status,"queued");
@@ -48,7 +48,7 @@ test("legacy Stripe events without a matching checkout record require reconcilia
     const fabric=createSovereignAppFabric({store});
     let runs=0;
     const queue=createRapidVideoPureWalQueue({store,fabric,storageDir:root,runOrder:async()=>{runs++;return {url:"/files/should-not-exist.mp4"};}});
-    const result=await queue.enqueuePaidOrder({orderId:"legacy-paid-1",stripeSessionId:"cs_legacy",stripeEventId:"evt_legacy",name:"Legacy buyer",paid:true});
+    const result=await queue.enqueuePaidOrder({orderId:"legacy-paid-1",stripeSessionId:"cs_legacy",stripeEventId:"evt_legacy",name:"Legacy buyer",paid:true,amount:2500,currency:"USD"});
     assert.equal(result.needsReconciliation,true);
     assert.equal(runs,0);
     assert.equal((await queue.getOrder("legacy-paid-1")).status,"manual-reconciliation-required");
