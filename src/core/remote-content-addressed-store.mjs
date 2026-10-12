@@ -121,12 +121,18 @@ export class RemoteContentAddressedStore {
     let continuationToken, out = [];
     do {
       const page = await this.client.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: continuationToken }));
-      for (const item of page.Contents || []) {
-        if (!item.Key?.endsWith(".json")) continue;
-        const key = item.Key.slice(prefix.length, -5);
-        if (!key || key.includes("/")) continue;
-        const ref = await this.readRef(namespace, key);
-        if (ref) out.push(ref);
+      // Read manifests in bounded parallel batches. A serial GET per reference
+      // made queue refreshes hold the distributed mutation lease for minutes as
+      // the namespace grew, blocking every worker behind the same lock.
+      const keys = (page.Contents || [])
+        .map(item => item.Key)
+        .filter(key => typeof key === "string" && key.endsWith(".json"))
+        .map(key => key.slice(prefix.length, -5))
+        .filter(key => key && !key.includes("/"));
+      const batchSize = 16;
+      for (let index = 0; index < keys.length; index += batchSize) {
+        const refs = await Promise.all(keys.slice(index, index + batchSize).map(key => this.readRef(namespace, key)));
+        for (const ref of refs) if (ref) out.push(ref);
       }
       continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
     } while (continuationToken);
