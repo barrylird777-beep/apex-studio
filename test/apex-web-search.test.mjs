@@ -55,6 +55,7 @@ test("federated search returns web, encyclopedia, and scholarly results with pro
   assert.equal(result.providers.length, 5);
   assert.equal(calls.length, 5);
   assert.ok(result.results.some(item => item.source === "DuckDuckGo" && item.category === "web"));
+  assert.equal(result.results.find(item => item.source === "DuckDuckGo")?.snippet, "Public web snippet");
   assert.ok(result.results.some(item => item.source === "Wikipedia" && item.category === "encyclopedia"));
   assert.ok(result.results.some(item => item.source === "OpenAlex" && item.category === "research"));
   assert.ok(result.results.some(item => item.source === "Crossref"));
