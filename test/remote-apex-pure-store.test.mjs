@@ -68,3 +68,17 @@ test("remote migration imports local CAS records without deleting the source", a
     assert.ok(sourceRef.hash);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("remote migration replays a full local WAL without acquiring a local lock", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-readonly-"));
+  try {
+    const wal = new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") });
+    await wal.append("state.put", { collection: "legacy", id: "wal-record", record: { id: "wal-record", fromWal: true } });
+    wal._acquireLock = async () => { throw new Error("read-only migration must not acquire a local lock"); };
+    const remote = new MemoryCAS();
+    const store = new ApexPureStore({ root, wal, cas: remote });
+    await store.init();
+    const imported = await remote.readRef("state", store.refKey("legacy", "wal-record"));
+    assert.deepEqual(imported.value.record, { id: "wal-record", fromWal: true });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
