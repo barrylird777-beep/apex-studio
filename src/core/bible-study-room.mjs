@@ -1,8 +1,8 @@
 export const BIBLE_STUDY_ROOM = Object.freeze({
   id: "bible-study-room",
   name: "Bible Study Room",
-  system: "garden-of-apex",
-  purpose: "dedicated Scripture study and Bible research room",
+  system: "planet-apex",
+  purpose: "Scripture study and Bible research capability within PlanetApeX",
   capabilities: Object.freeze([
     "scripture-study",
     "cross-reference",
@@ -15,7 +15,7 @@ export const BIBLE_STUDY_ROOM = Object.freeze({
     "discoveries",
     "production-candidates",
     "evaluation",
-    "apexstudio-production-handoff"
+    "kernelvision-production-handoff"
   ])
 });
 
@@ -79,7 +79,7 @@ export function createBibleStudyRoom({ store = new Map() } = {}) {
     return [...notes.keys()].sort().map(getNote);
   }
 
-  function createProductionHandoff(noteId, { title, format = "show", destination = "ApexStudio" } = {}) {
+  function createProductionHandoff(noteId, { title, format = "show", destination = "KernelVision" } = {}) {
     const note = getNote(noteId);
     if (!note) throw new Error("Bible Study Room note not found");
     note.productionHandoff = {
@@ -112,7 +112,7 @@ export function bibleStudyRoomStatus() {
     purpose: BIBLE_STUDY_ROOM.purpose,
     capabilities: [...BIBLE_STUDY_ROOM.capabilities],
     evidenceStates: [...EVIDENCE_STATES],
-    productionOwner: "ApexStudio",
+    productionOwner: "KernelVision",
     active: true,
     checkedAt: new Date().toISOString()
   };
