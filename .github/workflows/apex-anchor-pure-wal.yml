@@ -1,0 +1,70 @@
+name: APEX ANCHOR Pure-WAL Integration
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["apex-anchor/xshield-six-app-network"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-and-pure-wal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      APEX_SE_X_ROOT: ${{ runner.temp }}/apex-anchor-se-x
+      APEX_PROJECTS_DIR: ${{ runner.temp }}/apex-anchor-se-x/projects
+      APEX_WAL_DIR: ${{ runner.temp }}/apex-anchor-se-x/wal
+      APEX_WAL_FILE: ${{ runner.temp }}/apex-anchor-se-x/wal/ring.wal.jsonl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax-check changed runtime modules
+        run: |
+          node --check index.mjs
+          node --check server.mjs
+          node --check src/apps/apex-six-apps.mjs
+          node --check src/apps/canonical-six.mjs
+          node --check src/apps/canonical-trajectory.mjs
+          node --check src/apps/xshield.mjs
+          node --check src/core/apex-pure-store.mjs
+          node --check src/core/mesh/durable-worker-store.mjs
+          node --check src/core/sovereign-app-fabric.mjs
+          node --check src/core/sovereign-mesh-engine.mjs
+          node --check src/core/sovereign-durable-bridge.mjs
+          node --check src/core/sovereign-runtime-daemon.mjs
+          node --check src/network/sovereign-peer.mjs
+          node --check src/core/autonomy/locked-continuous-loop.mjs
+          node --check scripts/run-tests-with-diagnostics.mjs
+          node --check scripts/smoke-kernelvision-episode.mjs
+          node --check src/api/bible-production.mjs
+          node --check src/core/storage.mjs
+          node --check src/core/mastering.mjs
+          node --check src/video/assemble.mjs
+          node --check src/video/episode-pipeline.mjs
+      - name: Verify six-app identity and handoff contract
+        run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs
+      - name: Verify isolated Pure-WAL app namespaces and dispatch queue
+        run: node --test test/sovereign-app-fabric.test.mjs
+      - name: Verify Pure-WAL security and peer acknowledgements
+        run: node --test test/sovereign-pure-wal-security.test.mjs test/sovereign-pure-wal-bridge.test.mjs
+      - name: Verify Pure-WAL worker leases, retries and idempotency
+        run: node --test test/durable-worker-race.test.mjs
+      - name: Verify remote autonomous AI queue injection
+        run: node --test test/locked-continuous-loop.test.mjs
+      - name: Verify persistent peer identity
+        run: node --test test/sovereign-peer-identity.test.mjs
+      - name: Verify encrypted peer transport and allowlisting
+        run: node --test test/sovereign-peer-security.test.mjs
+      - name: Verify honest network-path policy
+        run: node --test test/network-status.test.mjs test/network-throughput.test.mjs
+      - name: Verify KernelVision Pure-WAL production and 24 fps export
+        run: node --test test/bible-production-pure-wal.test.mjs test/episode-pipeline.test.mjs test/storage-scenes.test.mjs test/mastering-fallback.test.mjs

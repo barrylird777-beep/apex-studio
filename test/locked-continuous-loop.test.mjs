@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   zeroCostAiProvider,
   buildAutonomousAiTask,
-  continuousAiStatus
+  continuousAiStatus,
+  seedAutonomousAiWork
 } from "../src/core/autonomy/locked-continuous-loop.mjs";
 
 test("zero-cost AI is fail-closed by default", () => {
@@ -88,4 +89,42 @@ test("autonomous AI task carries explicit provider and durable dedupe key", () =
   assert.equal(task.payload.model, "openrouter/free");
   assert.match(task.dedupeKey, /^locked-ai:qa-review:/);
   assert.equal(task.payload.role, "qa-review");
+});
+
+test("autonomous AI can enqueue through an injected authoritative queue", async () => {
+  const previous = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const queued = [];
+  try {
+    const result = await seedAutonomousAiWork({
+      maxTasks: 1,
+      getQueueStats: async () => ({ queued: 0 }),
+      enqueueTask: async item => { queued.push(item); return { id: item.id, durable: true }; }
+    });
+    assert.equal(result.queued, 1);
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].task, "ai-inference");
+    assert.equal(queued[0].role, "scripture-research");
+  } finally {
+    if (previous == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previous;
+  }
+});
+
+test("autonomous AI stops seeding when the authoritative queue is full", async () => {
+  const previous = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  let attempts = 0;
+  try {
+    const result = await seedAutonomousAiWork({
+      maxTasks: 2,
+      getQueueStats: async () => ({ queued: 4 }),
+      enqueueTask: async () => { attempts++; return { id: "unexpected" }; }
+    });
+    assert.equal(result.queued, 0);
+    assert.equal(attempts, 0);
+  } finally {
+    if (previous == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previous;
+  }
 });

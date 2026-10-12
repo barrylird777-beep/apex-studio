@@ -120,7 +120,7 @@ export class ApexPureStore {
     try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
     return true;
   }
-  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null}={}){
+  async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
     const run=()=>this.withMutationLock(async()=>{
       await this.refresh();
@@ -129,7 +129,7 @@ export class ApexPureStore {
         const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&statuses.includes(j.status));
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
-      const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
+      const job={id:String(id),type:String(type),payload:clone(payload),priority:Number(priority)||0,status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
       const r=await this.wal.append("job.enqueue",{id:job.id,job});
       for(const external of r.externalRecords||[])this.apply(external);
       this.apply(r);
@@ -138,11 +138,11 @@ export class ApexPureStore {
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
   jobs(){return [...this.jobsState.values()].map(clone);}
-  async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
+  async claim({workerId="local",limit=1,leaseMs=45000,role=null,onlyId=null}={}){
     const run=()=>this.withMutationLock(async()=>{
       await this.refresh();
       const now=Date.now(),out=[];
-      const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(role?j.payload?._apex_worker?.role===role:j.payload?._apex_worker?.role!=="sovereign-runtime")).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
+      const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(onlyId==null||String(j.id)===String(onlyId))&&(role?j.payload?._apex_worker?.role===role:j.payload?._apex_worker?.role!=="sovereign-runtime")).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
       for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){
         const current=this.jobsState.get(String(j.id));if(!current||current.status!=="queued")continue;
         const token=randomUUID(),fence=Number(current.leaseFence||0)+1;
@@ -157,7 +157,7 @@ export class ApexPureStore {
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
     return this.withMutationLock(async()=>{
-      await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
+      await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
       let patch={updatedAt:new Date().toISOString()};
       if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};

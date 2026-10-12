@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { tmpdir } from "node:os";
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const testCommand = packageJson.scripts?.["test:files"];
@@ -14,7 +16,15 @@ const failures = [];
 async function runFile(file) {
   const started = Date.now();
   console.log(`\n[TEST-FILE START] ${file}`);
-  const child = spawn(process.execPath, ["--test", file], { stdio: "inherit", env: process.env });
+  const testRoot = path.join(tmpdir(), `apex-test-${process.pid}-${file.replace(/[^A-Za-z0-9]+/g, "-")}`);
+  const childEnv = {
+    ...process.env,
+    APEX_SE_X_ROOT: testRoot,
+    APEX_PROJECTS_DIR: path.join(testRoot, "projects"),
+    APEX_WAL_DIR: path.join(testRoot, "wal"),
+    APEX_WAL_FILE: path.join(testRoot, "wal", "ring.wal.jsonl")
+  };
+  const child = spawn(process.execPath, ["--test", file], { stdio: "inherit", env: childEnv });
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;

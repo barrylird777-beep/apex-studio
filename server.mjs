@@ -5,16 +5,16 @@ import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
 import crypto from 'node:crypto';
 
-import { access, readFile, unlink } from 'node:fs/promises';
+import { access, readFile, unlink, realpath, stat } from 'node:fs/promises';
 import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveSceneAsset } from './src/services/projectManager.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
-import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask } from './src/core/mesh/durable-worker-store.mjs';
+import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -73,7 +73,7 @@ app.use(cors({
     return callback(new Error('CORS origin not allowed'));
   },
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id', 'X-Apex-Worker-Token'],
   maxAge: 600
 }));
 
@@ -111,6 +111,14 @@ function requireControlPlaneAuth(req, res, next) {
   return next();
 }
 
+function requireWorkerAuth(req, res, next) {
+  const expected = process.env.APEX_WORKER_TOKEN;
+  if (!expected) return res.status(503).json({ success: false, error: 'Remote worker authorization is not configured' });
+  if (!timingSafeSecret(expected, req.get('x-apex-worker-token'))) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  return next();
+}
 
 const relayDestination = process.env.APEX_RELAY_DEST_ENDPOINT || 'rtmp://127.0.0.1:1935/live/apex-studio';
 const relayFallbackFile = process.env.APEX_RELAY_FALLBACK_FILE || path.join(STORAGE_DIR, 'broadcast', 'standby.flv');
@@ -186,6 +194,106 @@ app.get('/api/shield-apex/status', (_req, res) => {
     role: 'network_security',
     ...shieldApex.status()
   });
+});
+
+app.get('/api/internal/worker/health', requireWorkerAuth, async (_req, res) => {
+  const health = await durableWorkerHealth();
+  return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'local-pure-wal', health });
+});
+
+app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
+  try {
+    return res.json({ success: true, stats: await queueStats() });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => {
+  try {
+    const item = req.body || {};
+    const allowedRoles = new Set(['scripture-research', 'story-architecture', 'visual-direction', 'audio-direction', 'production-engineering', 'network-engineering', 'qa-review', 'architecture-review']);
+    const payload = item.payload && typeof item.payload === 'object' && !Array.isArray(item.payload) ? item.payload : null;
+    if (item.task !== 'ai-inference' || !allowedRoles.has(String(item.role || '')) || !payload || !String(payload.prompt || '').trim()) {
+      return res.status(400).json({ success: false, error: 'Only validated autonomous AI inference tasks may be enqueued by remote workers' });
+    }
+    if (!['openrouter', 'google'].includes(String(payload.provider || ''))) {
+      return res.status(400).json({ success: false, error: 'AI provider is not allowlisted for autonomous work' });
+    }
+    payload.prompt = String(payload.prompt).slice(0, 12000);
+    payload.system = String(payload.system || 'Apex Studio autonomous worker.').slice(0, 3000);
+    const result = await enqueueWorkerTask({
+      id: item.id,
+      workerId: String(item.workerId || 'ai-autonomous').slice(0, 255),
+      role: String(item.role),
+      task: 'ai-inference',
+      payload,
+      maxAttempts: Math.max(1, Math.min(10, Number(item.maxAttempts) || 5)),
+      dedupeKey: String(item.dedupeKey || '').slice(0, 512) || null,
+      traceId: item.traceId
+    });
+    return res.status(202).json({ success: true, task: result });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/claim', requireWorkerAuth, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20, Math.floor(Number(req.body?.limit) || 1)));
+    const leaseMs = Math.max(15000, Math.min(120000, Math.floor(Number(req.body?.leaseMs) || 45000)));
+    const workerId = String(req.body?.workerId || 'remote-worker').slice(0, 255);
+    const tasks = await claimNextWorkerTasks(limit, leaseMs, null, workerId);
+    return res.json({ success: true, tasks, claimed: tasks.length, storage: 'local-pure-wal' });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/recover', requireWorkerAuth, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(5000, Math.floor(Number(req.body?.limit) || 500)));
+    return res.json({ success: true, recovered: await requeueExpiredWorkerTasks(limit) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/:jobId/heartbeat', requireWorkerAuth, async (req, res) => {
+  try {
+    const ok = await heartbeatWorkerTask(String(req.params.jobId), Number(req.body?.leaseMs) || 45000, req.body?.leaseToken, req.body?.leaseFence);
+    return res.status(ok ? 200 : 409).json({ success: ok, renewed: ok });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/:jobId/complete', requireWorkerAuth, async (req, res) => {
+  try {
+    const ok = await completeWorkerTask(String(req.params.jobId), req.body?.result ?? null, req.body?.leaseToken, req.body?.leaseFence);
+    return res.status(ok ? 200 : 409).json({ success: ok, completed: ok });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/:jobId/fail', requireWorkerAuth, async (req, res) => {
+  try {
+    const ok = await failWorkerTask(String(req.params.jobId), String(req.body?.error || 'Worker task failed').slice(0, 4000), req.body?.leaseToken, req.body?.leaseFence);
+    return res.status(ok ? 200 : 409).json({ success: ok, transitioned: ok });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/release', requireWorkerAuth, async (req, res) => {
+  try {
+    const taskIds = Array.isArray(req.body?.taskIds) ? req.body.taskIds.map(String).slice(0, 20) : [];
+    const leaseTokens = Array.isArray(req.body?.leaseTokens) ? req.body.leaseTokens.map(String).slice(0, 20) : [];
+    return res.json({ success: true, released: await releaseWorkerTasks(taskIds, leaseTokens) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
 });
 
 app.get('/api/apex/readiness', async (_req, res) => {
@@ -397,97 +505,213 @@ app.get('/api/canon/trajectory', async (_req, res) => {
   }
 });
 
-app.post('/api/canon/handoff', async (req, res) => {
+app.post('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
   try {
-    const { publishCanonicalHandoff } = await import('./src/apps/canonical-handoff-bus.mjs');
-    const event = publishCanonicalHandoff({
-      from: req.body?.from,
-      to: req.body?.to,
-      payload: req.body?.payload,
-      correlationId: req.body?.correlationId
+    const source = String(req.body?.from || '').trim();
+    const target = String(req.body?.to || '').trim();
+    const payload = req.body?.payload == null ? {} : req.body.payload;
+    const correlationId = req.body?.correlationId == null ? null : String(req.body.correlationId).slice(0, 256);
+    if (!source || !target) return res.status(400).json({ success: false, error: 'Handoff source and target are required' });
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return res.status(400).json({ success: false, error: 'Handoff payload must be an object' });
+    if (Buffer.byteLength(JSON.stringify(payload), 'utf8') > 262144) return res.status(413).json({ success: false, error: 'Handoff payload exceeds configured size limit' });
+    const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
+    if (!canonicalNeighbors(source).some(edge => edge.from === source && edge.to === target)) {
+      return res.status(400).json({ success: false, error: 'Invalid canonical handoff: ' + source + ' -> ' + target });
+    }
+    const waveId = correlationId
+      ? 'canonical-' + crypto.createHash('sha256').update(JSON.stringify({ source, target, correlationId, payload })).digest('hex')
+      : crypto.randomUUID();
+    const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
+    const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
+    const queued = await sovereignAppFabric.dispatch(source, {
+      action: 'canonical.handoff',
+      data: { to: target, payload, correlationId },
+      waveId,
+      source: 'api.canon.handoff'
     });
+    const event = {
+      id: waveId,
+      contractVersion: 'apex-canonical-handoff.v1',
+      from: source,
+      to: target,
+      correlationId,
+      payload,
+      durable: true,
+      peerPending: Boolean(queued.peerPending),
+      peerAcknowledged: Boolean(queued.peerAcknowledged),
+      jobId: queued.jobId,
+      status: queued.status,
+      createdAt: new Date().toISOString()
+    };
+    await apexPureStore.put('apex_canonical_handoffs', waveId, event);
     return res.status(202).json({ success: true, event });
   } catch (error) {
     const message = String(error?.message || error);
-    const status = /Invalid canonical handoff|Unknown Apex app/.test(message) ? 400 : 422;
-    return res.status(status).json({ success: false, error: message });
+    const status = /Invalid canonical handoff|Unknown Apex app|Handoff payload/.test(message) ? 400 : 503;
+    return res.status(status).json({ success: false, error: message.slice(0, 500) });
   }
 });
 
-app.get('/api/canon/handoff', async (req, res) => {
+app.get('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
   try {
-    const { listCanonicalHandoffs } = await import('./src/apps/canonical-handoff-bus.mjs');
-    return res.json({ success: true, events: listCanonicalHandoffs({
-      appId: req.query?.appId || null,
-      limit: req.query?.limit
-    }) });
+    const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
+    const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
+    const appId = req.query?.appId ? String(req.query.appId) : null;
+    if (appId) canonicalNeighbors(appId);
+    await apexPureStore.refresh();
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(req.query?.limit) || 50)));
+    const records = (await apexPureStore.list('apex_canonical_handoffs'))
+      .map(row => row?.record || row)
+      .filter(event => !appId || event.from === appId || event.to === appId)
+      .slice(-limit);
+    return res.json({ success: true, events: records, durable: true });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.get('/api/canon/handoff/status', requireControlPlaneAuth, async (_req, res) => {
+  try {
+    const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
+    const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
+    await apexPureStore.refresh();
+    const fabric = await sovereignAppFabric.status();
+    const records = await apexPureStore.list('apex_canonical_handoffs');
+    return res.json({
+      success: true,
+      contractVersion: 'apex-canonical-handoff.v1',
+      durable: true,
+      queued: records.length,
+      maxEvents: 1000,
+      maxPayloadBytes: 262144,
+      pendingDispatches: fabric.pendingDispatches,
+      pendingPeerAcks: fabric.mesh.pendingPeerAcks,
+      externalPeerConnectivityReady: fabric.mesh.externalPeerConnectivityReady,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: 'Canonical durable handoff status unavailable' });
+  }
+});
+
+// Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
+app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) => {
+  try {
+    const { listKashKornerRecords, cashFlowSummary } = await import('./src/apps/kash-korner.mjs');
+    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
+    const currencies = [...new Set(entries.map(entry => String(entry.currency || 'USD').toUpperCase()))];
+    const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
+    return res.json({ success: true, entries, summaries });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { recordCashEntry, saveKashKornerRecord, listKashKornerRecords } = await import('./src/apps/kash-korner.mjs');
+    const entry = recordCashEntry(req.body || {});
+    await saveKashKornerRecord(entry.id, entry);
+    const entries = (await listKashKornerRecords()).map(row => row?.record || row);
+    return res.status(201).json({ success: true, entry, entries });
   } catch (error) {
     return res.status(400).json({ success: false, error: String(error?.message || error) });
   }
 });
 
-app.get('/api/canon/handoff/status', async (_req, res) => {
+app.get('/api/kernel-vision/items', requireControlPlaneAuth, async (_req, res) => {
   try {
-    const { canonicalHandoffStatus } = await import('./src/apps/canonical-handoff-bus.mjs');
-    return res.json({ success: true, ...canonicalHandoffStatus() });
+    const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
+    const records = (await listKernelVisionRecords()).map(row => row?.record || row);
+    return res.json({ success: true, items: records.filter(record => record.recordType === 'theatre-item') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: 'Canonical handoff status unavailable' });
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
   }
 });
 
-app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
+app.post('/api/kernel-vision/sessions', requireControlPlaneAuth, async (req, res) => {
   try {
-    const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
-    return res.json({ success: true, appId: req.params.appId, neighbors: canonicalNeighbors(req.params.appId) });
+    const { createViewingSession, saveKernelVisionRecord } = await import('./src/apps/kernel-vision.mjs');
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const mediaUrl = String(body.mediaUrl || '').trim();
+    if (mediaUrl) {
+      const url = new URL(mediaUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Media URL must use HTTP or HTTPS');
+    }
+    const session = createViewingSession({ ...body, item: { ...body, mediaUrl } });
+    await saveKernelVisionRecord(session.item.id, { ...session.item, recordType: 'theatre-item' });
+    await saveKernelVisionRecord(session.sessionId, { ...session, recordType: 'viewing-session' });
+    return res.status(201).json({ success: true, session });
   } catch (error) {
-    const message = String(error?.message || error);
-    if (message.startsWith('Unknown Apex app:')) return res.status(404).json({ success: false, error: message });
-    console.error('[canonical-neighbors]', error);
-    return res.status(503).json({ success: false, error: 'Canonical app neighbors unavailable' });
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
   }
 });
 
-app.get('/api/canon/apps', async (_req, res) => {
+app.get('/api/kernel-vision/sessions', requireControlPlaneAuth, async (_req, res) => {
   try {
-    const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
-    return res.json({ success: true, apps: await canonicalAppsStatus(), checkedAt: new Date().toISOString() });
+    const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
+    const records = (await listKernelVisionRecords()).map(row => row?.record || row);
+    return res.json({ success: true, sessions: records.filter(record => record.recordType === 'viewing-session') });
   } catch (error) {
-    console.error('[canonical-apps]', error);
-    return res.status(503).json({ success: false, error: 'Canonical app registry unavailable' });
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
   }
 });
 
-app.get('/api/canon/apps/:appId/status', async (req, res) => {
+app.get('/api/kernelodies/tracks', requireControlPlaneAuth, async (_req, res) => {
   try {
-    const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
-    return res.json(await canonicalAppStatus(req.params.appId));
+    const { listKernelodiesRecords } = await import('./src/apps/kernelodies.mjs');
+    const records = (await listKernelodiesRecords()).map(row => row?.record || row);
+    return res.json({ success: true, tracks: records.filter(record => record.kind === 'music-track') });
   } catch (error) {
-    const message=String(error?.message||error);
-    if(message.startsWith('Unknown Apex app:')) return res.status(404).json({success:false,error:message});
-    console.error('[canonical-app-status]',error);
-    return res.status(503).json({success:false,error:'Canonical app status unavailable'});
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
   }
 });
 
-app.get('/api/planet-apex/status', async (_req, res) => {
-  try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({success:true,...planetApexStatus()}); }
-  catch { return res.status(503).json({success:false,error:'PlanetApeX status unavailable'}); }
-});
-app.get('/api/ko-blocks/status', async (_req, res) => {
-  try { const { koBlocksStatus } = await import('./src/apps/ko-blocks.mjs'); return res.json({success:true,...koBlocksStatus()}); }
-  catch { return res.status(503).json({success:false,error:'KoBlocks status unavailable'}); }
-});
-app.get('/api/kernel-vision/status', async (_req, res) => {
-  try { const { kernelVisionStatus } = await import('./src/apps/kernel-vision.mjs'); return res.json({success:true,...kernelVisionStatus()}); }
-  catch { return res.status(503).json({success:false,error:'KernelVision status unavailable'}); }
-});
-app.get('/api/kash-korner/status', async (_req, res) => {
-  try { const { kashKornerStatus } = await import('./src/apps/kash-korner.mjs'); return res.json({success:true,...kashKornerStatus()}); }
-  catch { return res.status(503).json({success:false,error:'KashKorner status unavailable'}); }
-});
-app.get('/api/kernelodies/status', async (_req, res) => {
-  try { const { kernelodiesStatus } = await import('./src/apps/kernelodies.mjs'); return res.json({success:true,...await kernelodiesStatus()}); }
-  catch { return res.status(503).json({success:false,error:'Kernelodies status unavailable'}); }
+app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { createMusicTrack, buildMusicPrompt, saveKernelodiesRecord } = await import('./src/apps/kernelodies.mjs');
+    const { normalizeContentDomain } = await import('./src/core/content/content-domains.mjs');
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const contentDomain = normalizeContentDomain(body.contentDomain || 'bible');
+    const creativeBrief = String(body.prompt || '').trim().slice(0, 2000);
+    if (contentDomain === 'korn' && /\b440\s*hz\b/i.test(creativeBrief)) throw new Error('Jesus Freaks music must use 432 Hz only; remove the 440 Hz instruction');
+    let gardenPackage;
+    if (contentDomain === 'korn') {
+      const { gardenSnapshot, verifiedGardenIds } = await import('./src/garden/lore-graph.mjs');
+      const { validateScriptGardenReferences } = await import('./src/core/validation/production-contracts.mjs');
+      const { graph } = await gardenSnapshot();
+      const packageHash = crypto.createHash('sha256').update(JSON.stringify(graph)).digest('hex');
+      const references = [
+        { id: 'garden:Apex', type: 'garden:Universe', graphVersion: 'garden-lore-v1' },
+        { id: 'garden:JesusFreaks', type: 'garden:Collective', graphVersion: 'garden-lore-v1' }
+      ];
+      validateScriptGardenReferences(references, await verifiedGardenIds());
+      gardenPackage = { system: 'garden-of-apex', graphVersion: 'garden-lore-v1', packageHash, references };
+    }
+    const track = createMusicTrack({
+      trackId: String(body.trackId || crypto.randomUUID()),
+      projectId: String(body.projectId || crypto.randomUUID()),
+      title: String(body.title || 'Untitled').slice(0, 200),
+      role: 'music',
+      contentDomain,
+      tuningHz: contentDomain === 'korn' ? 432 : body.tuningHz,
+      genre: Array.isArray(body.genre) ? body.genre : [String(body.genre || 'cinematic')],
+      mood: Array.isArray(body.mood) ? body.mood : [String(body.mood || 'cinematic')],
+      gardenPackage,
+      provenance: { source: 'Kernelodies Track Forge' }
+    });
+    const prompt = buildMusicPrompt({
+      title: track.title, genre: track.genre, mood: track.mood,
+      fusion: Array.isArray(body.fusion) ? body.fusion : [],
+      purpose: String(body.purpose || 'film-score'), contentDomain,
+      tuningHz: track.tuningHz, gardenPackage
+    }) + (creativeBrief ? ' Creative brief: ' + creativeBrief : '');
+    const record = { ...track, prompt, kind: 'music-track', status: 'concept', createdAt: new Date().toISOString() };
+    await saveKernelodiesRecord(track.trackId, record);
+    return res.status(201).json({ success: true, track: record, nextStep: 'Production plan saved; audio rendering is a separate step.' });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
 });
 
 const server = app.listen(PORT, HOST, () => {
@@ -814,6 +1038,7 @@ app.get('/local-ai', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'local-ai.html'));
 });
 
+app.get(['/ko-blocks', '/ko-blocks.html'], (_req, res) => res.redirect(301, '/xshield.html'));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
@@ -1201,12 +1426,68 @@ app.post('/api/network/rogue-ap/observations', (req, res) => {
   }
 });
 
-app.post('/api/episodes/produce', (_req, res) => {
-  return res.status(503).json({ success: false, error: 'Episode pipeline is unavailable in this deployment' });
+app.post('/api/episodes/produce', requireControlPlaneAuth, async (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ success: false, error: 'Episode request must be a JSON object' });
+    }
+    const { produceKernelVisionEpisode } = await import('./src/video/episode-pipeline.mjs');
+    const result = await produceKernelVisionEpisode(req.body, {
+      mediaRoot: process.env.APEX_KERNELVISION_MEDIA_ROOT || STORAGE_DIR,
+      ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+      ffprobePath: process.env.FFPROBE_PATH || 'ffprobe'
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    const code = String(error?.code || '');
+    const status = code === 'HOOK_VALIDATION_FAILED' ? 422
+      : code === 'RENDER_QC_FAILED' ? 422
+      : error instanceof TypeError ? 400
+      : 500;
+    console.error('[kernelvision-episode] production failed:', code || 'UNCLASSIFIED', error?.message || error);
+    return res.status(status).json({
+      success: false,
+      code: code || 'KERNELVISION_PRODUCTION_FAILED',
+      error: status < 500 ? String(error?.message || 'Episode request failed') : 'Episode production failed; inspect server logs using the request timestamp.'
+    });
+  }
+});
+
+app.get('/api/episodes/:episodeId/:artifactId/download', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const episodeId = String(req.params.episodeId || '');
+    const artifactId = String(req.params.artifactId || '');
+    const safeId = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,100}$/;
+    if (!safeId.test(episodeId) || episodeId.includes('..') || !safeId.test(artifactId) || artifactId.includes('..')) {
+      return res.status(400).json({ success: false, error: 'Invalid episode artifact reference' });
+    }
+    const stored = await sovereignAppFabric.get('kernel-vision', 'episode-' + episodeId + '-' + artifactId);
+    const artifact = stored?.record;
+    if (!artifact || artifact.status !== 'ready' || !artifact.output?.path) {
+      return res.status(404).json({ success: false, error: 'Verified episode export not found' });
+    }
+    const mediaRoot = await realpath(path.resolve(process.env.APEX_KERNELVISION_MEDIA_ROOT || STORAGE_DIR));
+    const target = path.resolve(mediaRoot, artifact.output.path);
+    const relative = path.relative(mediaRoot, target);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+      return res.status(400).json({ success: false, error: 'Episode artifact path is outside managed storage' });
+    }
+    const actual = await realpath(target);
+    const actualRelative = path.relative(mediaRoot, actual);
+    if (!actualRelative || actualRelative === '..' || actualRelative.startsWith('..' + path.sep) || path.isAbsolute(actualRelative)) {
+      return res.status(400).json({ success: false, error: 'Episode artifact path is outside managed storage' });
+    }
+    const info = await stat(actual);
+    if (!info.isFile()) return res.status(404).json({ success: false, error: 'Episode export file not found' });
+    return res.download(actual, episodeId + '.mp4');
+  } catch (error) {
+    console.error('[kernelvision-episode-download] failed:', error?.message || error);
+    return res.status(500).json({ success: false, error: 'Unable to retrieve the episode export' });
+  }
 });
 
 // Titan-protected mutation surfaces are mounted explicitly at the route boundary.
-app.use('/api/bible-production', async (req, res, next) => {
+app.use('/api/bible-production', requireControlPlaneAuth, async (req, res, next) => {
   try {
     const { default: router } = await import('./src/api/bible-production.mjs');
     return router(req, res, next);
@@ -1952,7 +2233,8 @@ app.post('/api/audio', async (req, res) => {
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!buffer.length) throw new Error('TTS provider returned an empty audio file');
     if (sceneId) {
-      const savedScene = await saveSceneAsset(sceneId, 'audio', buffer, 'wav');
+      const estimatedDurationMs = Math.min(600000, Math.max(1000, Math.ceil(text.split(/\s+/).filter(Boolean).length / 2.5 * 1000)));
+      const savedScene = await saveSceneAsset(sceneId, 'audio', buffer, 'wav', { durationMs: estimatedDurationMs });
       return res.json({
         success: true,
         sceneId,
@@ -2512,7 +2794,7 @@ if (String(process.env.APEX_BROADCAST_AUTOSTART || 'false').toLowerCase() === 't
 async function runInlineRapidTask(task) {
   const leaseMs = Math.max(15000, Number(process.env.APEX_RAPID_INLINE_LEASE_MS || 45000));
   const heartbeat = setInterval(() => {
-    void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
+    void heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence).catch(error => {
       console.error('[rapid-inline-worker] heartbeat failed:', error?.message || error);
     });
   }, Math.max(5000, Math.floor(leaseMs / 3)));
@@ -2521,10 +2803,10 @@ async function runInlineRapidTask(task) {
     const result = task.task === 'rapid-video-preview'
       ? await executeRapidVideoPreview(task.payload || {})
       : await executeRapidVideoOrder(task.payload || {});
-    const completed = await completeWorkerTask(task.id, result, task.lease_token);
+    const completed = await completeWorkerTask(task.id, result, task.lease_token, task.lease_fence);
     if (!completed) console.warn('[rapid-inline-worker] completion fenced out', task.id);
   } catch (error) {
-    await failWorkerTask(task.id, error, task.lease_token).catch(failure => {
+    await failWorkerTask(task.id, error, task.lease_token, task.lease_fence).catch(failure => {
       console.error('[rapid-inline-worker] failure update failed:', failure?.message || failure);
     });
     console.error('[rapid-inline-worker] task failed:', task.id, error?.message || error);

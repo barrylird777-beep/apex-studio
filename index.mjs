@@ -3,6 +3,7 @@ import { capacitySnapshot } from "./src/core/capacity.mjs";
 import { getProjectState } from "./src/services/projectManager.mjs";
 import {
   durableWorkerEnabled,
+  ensureWorkerTaskSchema,
   claimNextWorkerTasks,
   heartbeatWorkerTask,
   completeWorkerTask,
@@ -170,23 +171,62 @@ if (!workerOnly) {
   await startProductionDaemon();
 } else {
   process.title = "apex-autonomous-worker";
-  if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires DATABASE_URL");
+  if (!durableWorkerEnabled()) throw new Error("APEX_WORKER_ONLY requires durable worker storage");
+
+  const remoteWorkerApiUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\/+$/, "");
+  const remoteWorkerToken = String(process.env.APEX_WORKER_TOKEN || "");
+  const remoteWorkerId = String(process.env.APEX_WORKER_ID || process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "apex-worker").slice(0, 255);
+  if (remoteWorkerApiUrl && !remoteWorkerToken) throw new Error("APEX_WORKER_API_URL requires APEX_WORKER_TOKEN");
+
+  async function remoteWorkerRequest(route, body) {
+    const response = await fetch(new URL(route, remoteWorkerApiUrl), {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "x-apex-worker-token": remoteWorkerToken, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(15000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 409) throw new Error("Remote worker API " + response.status + ": " + String(result.error || response.statusText).slice(0, 300));
+    return result;
+  }
+
+  const queueHealth = async () => remoteWorkerApiUrl
+    ? remoteWorkerRequest("/api/internal/worker/health")
+    : ensureWorkerTaskSchema();
+  const queueClaim = async (limit, leaseMs) => remoteWorkerApiUrl
+    ? (await remoteWorkerRequest("/api/internal/worker/claim", { limit, leaseMs, workerId: remoteWorkerId })).tasks || []
+    : claimNextWorkerTasks(limit, leaseMs);
+  const queueRecover = async () => remoteWorkerApiUrl
+    ? (await remoteWorkerRequest("/api/internal/worker/recover", { limit: 500 })).recovered || 0
+    : requeueExpiredWorkerTasks();
+  const queueHeartbeat = async (task, leaseMs) => remoteWorkerApiUrl
+    ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/heartbeat", { leaseMs, leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
+    : heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence);
+  const queueComplete = async (task, result) => remoteWorkerApiUrl
+    ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/complete", { result, leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
+    : completeWorkerTask(task.id, result, task.lease_token, task.lease_fence);
+  const queueFail = async (task, error) => remoteWorkerApiUrl
+    ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/fail", { error: String(error?.message || error), leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
+    : failWorkerTask(task.id, error, task.lease_token, task.lease_fence);
+  const queueRelease = async tasks => remoteWorkerApiUrl
+    ? (await remoteWorkerRequest("/api/internal/worker/release", { taskIds: tasks.map(task => task.id), leaseTokens: tasks.map(task => task.lease_token) })).released || 0
+    : releaseWorkerTasks(tasks.map(task => task.id), tasks.map(task => task.lease_token));
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  const dbRetryMaxMs = Math.max(5000, Number(process.env.APEX_WORKER_DB_RETRY_MAX_MS || 30000));
-  let dbFailures = 0;
-  const waitForDatabase = async () => {
+  const storageRetryMaxMs = Math.max(5000, Number(process.env.APEX_WORKER_STORAGE_RETRY_MAX_MS || 30000));
+  let storageFailures = 0;
+  const waitForStorage = async () => {
     while (!stopping) {
       try {
-        await import("./src/core/mesh/durable-worker-store.mjs").then(({ getPool }) => getPool().query("SELECT 1"));
-        if (dbFailures) console.log("[apex-worker] PostgreSQL recovered");
-        dbFailures = 0;
+        await queueHealth();
+        if (storageFailures) console.log("[apex-worker] Pure-WAL storage recovered");
+        storageFailures = 0;
         return true;
       } catch (error) {
-        dbFailures = Math.min(dbFailures + 1, 8);
-        const base = Math.min(dbRetryMaxMs, 1000 * 2 ** (dbFailures - 1));
+        storageFailures = Math.min(storageFailures + 1, 8);
+        const base = Math.min(storageRetryMaxMs, 1000 * 2 ** (storageFailures - 1));
         const jitter = Math.floor(Math.random() * Math.max(100, base * 0.25));
-        console.error("[apex-worker] PostgreSQL unavailable; durable work is paused:", error?.message || error);
+        console.error("[apex-worker] Pure-WAL storage unavailable; durable work is paused:", error?.message || error);
         await sleep(base + jitter);
       }
     }
@@ -204,13 +244,16 @@ if (!workerOnly) {
 
   // Locked continuous path: seed only zero-cost AI work. If no provider is
   // provably zero-cost, the feeder stays idle rather than risking a charge.
-  const autonomousAiLoop = await startLockedContinuousAiLoop();
+  const autonomousAiLoop = await startLockedContinuousAiLoop({
+    enqueueTask: remoteWorkerApiUrl ? async item => (await remoteWorkerRequest("/api/internal/worker/enqueue", item)).task : undefined,
+    getQueueStats: remoteWorkerApiUrl ? async () => (await remoteWorkerRequest("/api/internal/worker/stats")).stats : undefined
+  });
   const inFlight = new Map();
   const claimed = new Map();
 
   const executeTask = async (task) => {
     const heartbeat = setInterval(() => {
-      void heartbeatWorkerTask(task.id, leaseMs, task.lease_token).catch(error => {
+      void queueHeartbeat(task, leaseMs).catch(error => {
         console.error("[apex-worker] heartbeat failed:", error?.message || error);
       });
     }, Math.max(5000, Math.floor(leaseMs / 3)));
@@ -228,14 +271,14 @@ if (!workerOnly) {
           : taskType === "ai-inference"
           ? await executeAiInferenceTask(task.payload || {})
           : await executePermanentHealthTask(task.payload || {});
-      const completed = await completeWorkerTask(task.id, result, task.lease_token);
+      const completed = await queueComplete(task, result);
       if (!completed) {
         console.warn("[apex-worker] completion fenced out", task.id, task.role);
         return;
       }
       console.log("[apex-worker] completed", task.id, task.role);
     } catch (error) {
-      await failWorkerTask(task.id, error, task.lease_token).then(ok => {
+      await queueFail(task, error).then(ok => {
         if (!ok) console.warn("[apex-worker] failure update fenced out", task.id);
       }).catch(failure => {
         console.error("[apex-worker] durable failure update failed:", failure?.message || failure);
@@ -265,10 +308,7 @@ if (!workerOnly) {
 
     const unstartedTasks = [...claimed.values()].filter(task => !inFlight.has(task.id));
     if (unstartedTasks.length) {
-      await releaseWorkerTasks(
-        unstartedTasks.map(task => task.id),
-        unstartedTasks.map(task => task.lease_token)
-      ).catch(error => {
+      await queueRelease(unstartedTasks).catch(error => {
         console.error("[apex-worker] release failed:", error?.message || error);
       });
     }
@@ -280,18 +320,18 @@ if (!workerOnly) {
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
   while (!stopping) {
-    const ready = await waitForDatabase();
+    const ready = await waitForStorage();
     if (!ready) break;
 
     try {
-      await requeueExpiredWorkerTasks();
+      await queueRecover();
       const available = Math.max(0, concurrency - inFlight.size);
       if (!available) {
         await sleep(100);
         continue;
       }
 
-      const tasks = await claimNextWorkerTasks(Math.min(batchSize, available), leaseMs);
+      const tasks = await queueClaim(Math.min(batchSize, available), leaseMs);
       if (!tasks.length) {
         emptyPolls = Math.min(emptyPolls + 1, 6);
         const base = Math.min(5000, pollMs * 2 ** emptyPolls);

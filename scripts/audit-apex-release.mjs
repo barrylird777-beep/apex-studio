@@ -8,9 +8,8 @@ const REQUIRED = Object.freeze([
   ["TeeVee legacy production surface","public/teevee.html"],
   ["TeeVee buyer","public/teevee-buyer.html"],
   ["PayPex legacy intelligence surface","public/paypex.html"],
-  ["XShield legacy network surface","public/xshield.html"],
   ["PlanetApeX","public/planet-apex.html"],
-  ["KoBlocks","public/ko-blocks.html"],
+  ["XShield","public/xshield.html"],
   ["KernelVision","public/kernel-vision.html"],
   ["KoinKob","public/koin-kob.html"],
   ["KashKorner","public/kash-korner.html"],
@@ -24,7 +23,7 @@ const REQUIRED = Object.freeze([
 
 const CANONICAL_APP_MODULES = Object.freeze([
   ["PlanetApeX","src/apps/planet-apex.mjs"],
-  ["KoBlocks","src/apps/ko-blocks.mjs"],
+  ["XShield","src/apps/xshield.mjs"],
   ["KernelVision","src/apps/kernel-vision.mjs"],
   ["KoinKob","src/apps/koin-kob.mjs"],
   ["KashKorner","src/apps/kash-korner.mjs"],

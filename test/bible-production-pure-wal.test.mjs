@@ -1,17 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
+import vm from "node:vm";
 import crypto from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
-import sqlite3Module from "sqlite3";
+import { DatabaseSync } from "node:sqlite";
 
-const sqlite3=sqlite3Module.default||sqlite3Module;
-const run=(db,sql,params=[])=>new Promise((resolve,reject)=>db.run(sql,params,function(error){error?reject(error):resolve({id:this.lastID,changes:this.changes});}));
-const exec=(db,sql)=>new Promise((resolve,reject)=>db.exec(sql,error=>error?reject(error):resolve()));
-const close=db=>new Promise(resolve=>db.close(()=>resolve()));
+const run=(db,sql,params=[])=>db.prepare(sql).run(...params);
+const exec=(db,sql)=>db.exec(sql);
+const close=db=>db.close();
 const digest=buffer=>crypto.createHash("sha256").update(buffer).digest("hex");
 
 test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from Pure-WAL",async()=>{
@@ -19,10 +19,10 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
   const legacyDb=path.join(root,"legacy.sqlite");
   const projectsDir=path.join(root,"projects");
   const walDir=path.join(root,"wal");
-  const oldEnv={APEX_PROJECTS_DIR:process.env.APEX_PROJECTS_DIR,APEX_SOVEREIGN_STORAGE_DIR:process.env.APEX_SOVEREIGN_STORAGE_DIR,APEX_BIBLE_DB:process.env.APEX_BIBLE_DB,APEX_BIBLE_DB_DIR:process.env.APEX_BIBLE_DB_DIR};
+  const oldEnv={APEX_SE_X_ROOT:process.env.APEX_SE_X_ROOT,APEX_PROJECTS_DIR:process.env.APEX_PROJECTS_DIR,APEX_WAL_DIR:process.env.APEX_WAL_DIR,APEX_WAL_FILE:process.env.APEX_WAL_FILE,APEX_SOVEREIGN_STORAGE_DIR:process.env.APEX_SOVEREIGN_STORAGE_DIR,APEX_BIBLE_DB:process.env.APEX_BIBLE_DB,APEX_BIBLE_DB_DIR:process.env.APEX_BIBLE_DB_DIR};
   let server;
   try{
-    const db=new sqlite3.Database(legacyDb);
+    const db=new DatabaseSync(legacyDb);
     await exec(db,`
       CREATE TABLE projects(id INTEGER PRIMARY KEY,title TEXT,description TEXT,primary_scripture TEXT,status TEXT,created_at TEXT,updated_at TEXT);
       CREATE TABLE characters(id INTEGER PRIMARY KEY,canonical_name TEXT,aliases TEXT,primary_stories TEXT,relationships TEXT,key_traits TEXT,notes TEXT,scripture_references TEXT);
@@ -30,11 +30,14 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
     `);
     await run(db,"INSERT INTO projects VALUES(7,?,?,?,?,?,?)",["Legacy Exodus Project","Preserved test project","Exodus 14:21-31","development","2026-10-01T00:00:00.000Z","2026-10-02T00:00:00.000Z"]);
     await run(db,"INSERT INTO characters VALUES(12,?,?,?,?,?,?,?)",["Moses",'["Moshe"]','["Exodus"]','[]','["Leader"]',"Legacy notes",'["Exodus 14:21-31"]']);
-    await run(db,"INSERT INTO scenes VALUES(31,7,1,?,?,?,?,?,?,?,?,?)",["The Sea Opens","Red Sea","[12]","The waters part.","Awe and fear.","Keep the geography consistent.",2,"Night"]);
+    await run(db,"INSERT INTO scenes VALUES(31,7,1,?,?,?,?,?,?,?,?,?)",["The Sea Opens","Exodus 14:21-31","Red Sea","[12]","The waters part.","Awe and fear.","Keep the geography consistent.",2,"Night"]);
     await close(db);
     const originalHash=digest(await readFile(legacyDb));
 
+    process.env.APEX_SE_X_ROOT=root;
     process.env.APEX_PROJECTS_DIR=projectsDir;
+    process.env.APEX_WAL_DIR=walDir;
+    process.env.APEX_WAL_FILE=path.join(walDir,"ring.wal.jsonl");
     process.env.APEX_SOVEREIGN_STORAGE_DIR=walDir;
     process.env.APEX_BIBLE_DB=legacyDb;
     delete process.env.APEX_BIBLE_DB_DIR;
@@ -88,4 +91,16 @@ test("Bible Production Desk imports legacy SQLite read-only and serves CRUD from
     for(const [key,value] of Object.entries(oldEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}
     await rm(root,{recursive:true,force:true});
   }
+});
+
+
+test("KernelVision production pages contain syntactically valid inline JavaScript",async()=>{
+  for(const filename of ["public/index.html","public/production.html","public/rapid-video.html"]){
+    const html=await readFile(new URL("../"+filename,import.meta.url),"utf8");
+    const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(match=>match[1]).filter(script=>script.trim());
+    assert.ok(scripts.length>0,filename+" should contain its expected application script");
+    scripts.forEach((script,index)=>new vm.Script(script,{filename:filename+"#script-"+index}));
+  }
+  const production=await readFile(new URL("../public/production.html",import.meta.url),"utf8");
+  assert.doesNotMatch(production,/onclick="fill(?:Scene|Call)\(/,"production list cards must not interpolate JSON into inline handlers");
 });

@@ -12,6 +12,7 @@ function serializePayload(record) {
     action: record.action,
     timestamp: record.timestamp,
     payload: record.payload,
+    status: record.status,
     checksum: record.checksum
   };
 }
@@ -52,6 +53,7 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
         waveId: record.waveId,
         jobId: job.id,
         checksum: record.checksum,
+        record,
         fence: Number(job.leaseFence ?? job.lease_fence ?? 0)
       });
     }
@@ -61,6 +63,14 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
       status: job.status,
       peer: peerAcceptance
     });
+    if (peerAcceptance) {
+      await store.put('sovereign_peer_acks', record.waveId, {
+        waveId: record.waveId,
+        peerId: String(peerAcceptance.peerId || peerAddress || ''),
+        checksum: record.checksum,
+        acknowledgedAt: new Date().toISOString()
+      });
+    }
     return { record, job, acknowledged };
   }
 

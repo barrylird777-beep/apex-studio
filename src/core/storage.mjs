@@ -10,7 +10,7 @@ import { buildAdaptiveTransferController } from "../network/throughput-profile.m
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
   isCI
-    ? path.join(os.tmpdir(), "apex-test-storage")
+    ? (process.env.APEX_TEST_STORAGE_DIR || path.join(os.tmpdir(), "apex-test-storage"))
     : (process.env.STORAGE_DIR || "/srv/apex/se-x/projects")
 );
 const PROJECT_FILE = path.join(STORAGE_DIR, "manifest.json");
@@ -82,6 +82,64 @@ export async function saveProjectAsset(type, buffer, extension) {
     });
     await fs.rename(temp, PROJECT_FILE);
     return record;
+  });
+}
+
+export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata = {}) {
+  await initStorage();
+  const sceneKey = safePart(sceneId, "sceneId");
+  const assetKind = safePart(kind, "asset kind");
+  if (!["image", "video", "audio"].includes(assetKind)) throw new TypeError("Unsupported scene asset kind");
+  const ext = safePart(String(extension ?? "").replace(/^\./, ""), "extension").toLowerCase();
+  if (!["png", "jpg", "jpeg", "webp", "mp4", "wav", "mp3", "m4a", "aac"].includes(ext)) {
+    throw new TypeError("Unsupported scene asset extension");
+  }
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
+  const digest = crypto.createHash("sha256").update(bytes).digest("hex");
+  const filename = `scene_${sceneKey}_${assetKind}_${crypto.randomUUID()}.${ext}`;
+  const filepath = path.join(STORAGE_DIR, filename);
+  const temp = filepath + ".part-" + process.pid;
+  await fs.writeFile(temp, bytes, { flag: "wx", mode: 0o600 });
+  try {
+    await fs.rename(temp, filepath);
+  } catch (error) {
+    await fs.rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+  const url = "/files/" + encodeURIComponent(filename);
+  const updatedAt = Date.now();
+  return queueManifestWrite(async () => {
+    const manifest = await readManifest();
+    if (!Array.isArray(manifest.assets)) manifest.assets = [];
+    if (!Array.isArray(manifest.exports)) manifest.exports = [];
+    if (!Array.isArray(manifest.scenes)) manifest.scenes = [];
+    let scene = manifest.scenes.find(item => String(item?.id) === sceneKey);
+    if (!scene) {
+      scene = { id: sceneKey, durationMs: 4000, createdAt: updatedAt };
+      manifest.scenes.push(scene);
+    }
+    const durationMs = Number(metadata?.durationMs);
+    if (Number.isFinite(durationMs) && durationMs >= 1000 && durationMs <= 600000) {
+      scene.durationMs = Math.max(Number(scene.durationMs) || 4000, Math.round(durationMs));
+    }
+    scene[assetKind] = url;
+    scene[assetKind + "Asset"] = {
+      url, bytes: bytes.length, sha256: digest, extension: ext, provenance: "unverified-imported-provider-output"
+    };
+    scene.updatedAt = updatedAt;
+    manifest.assets.push({
+      type: assetKind, sceneId: sceneKey, url, bytes: bytes.length, sha256: digest, updatedAt
+    });
+    const tempManifest = `${PROJECT_FILE}.tmp-${process.pid}-${crypto.randomUUID()}`;
+    await fs.writeFile(tempManifest, JSON.stringify(manifest, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
+    try {
+      await fs.rename(tempManifest, PROJECT_FILE);
+    } catch (error) {
+      await fs.rm(tempManifest, { force: true }).catch(() => {});
+      throw error;
+    }
+    return { sceneId: sceneKey, [assetKind]: url, url, bytes: bytes.length, sha256: digest, updatedAt };
   });
 }
 

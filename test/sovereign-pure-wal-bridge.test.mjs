@@ -71,3 +71,52 @@ test('bridge preserves a pending mesh record instead of faking peer acknowledgem
     await fs.rm(dir,{recursive:true,force:true});
   }
 });
+
+test('peer acknowledgement carries the checksummed payload and is persisted', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-peer-payload-'));
+  const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
+  const previousRequirePeer = process.env.APEX_REQUIRE_PEER_ACK;
+  process.env.APEX_SOVEREIGN_PEER_ID = 'origin-peer';
+  delete process.env.APEX_REQUIRE_PEER_ACK;
+  try {
+    const store = new ApexPureStore({
+      root: path.join(dir, 'projects'),
+      wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
+    });
+    const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+    await store.init();
+    await engine.ready();
+    let sent;
+    const bridge = createSovereignDurableBridge({
+      engine,
+      store,
+      workerId: 'payload-test',
+      peerNode: {},
+      peerAddress: '/ip4/127.0.0.1/tcp/9000/p2p/remote-peer',
+      sendPeer: async (_node, address, envelope) => {
+        sent = { address, envelope };
+        return { accepted: true, peerId: 'remote-peer' };
+      }
+    });
+    const result = await bridge.dispatch({
+      waveId: 'payload-wave-1',
+      action: 'app.publish',
+      payload: { appId: 'kernelodies', data: { trackId: 'track-1' } }
+    });
+    assert.equal(sent.envelope.type, 'durable.accept');
+    assert.equal(sent.envelope.record.waveId, 'payload-wave-1');
+    assert.equal(sent.envelope.record.status, 'DISPATCHED');
+    assert.equal(sent.envelope.record.checksum, sent.envelope.checksum);
+    assert.equal(result.acknowledged.status, 'ACKNOWLEDGED');
+    const ack = await store.get('sovereign_peer_acks', 'payload-wave-1');
+    assert.equal(ack.peerId, 'remote-peer');
+    assert.equal(ack.checksum, sent.envelope.checksum);
+  } finally {
+    if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
+    else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
+    if (previousRequirePeer === undefined) delete process.env.APEX_REQUIRE_PEER_ACK;
+    else process.env.APEX_REQUIRE_PEER_ACK = previousRequirePeer;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+

@@ -73,13 +73,13 @@ export function buildAutonomousAiTask({ role, task, provider, model, cycle = Dat
   };
 }
 
-export async function seedAutonomousAiWork({ maxTasks = ROLES.length, dispatch } = {}) {
+export async function seedAutonomousAiWork({ maxTasks = ROLES.length, dispatch, enqueueTask = enqueueWorkerTask, getQueueStats = queueStats } = {}) {
   const provider = zeroCostAiProvider();
   if (!provider) return { enabled: false, reason: "no confirmed zero-cost AI provider configured", queued: 0 };
 
   let queued = 0;
   try {
-    const stats = await queueStats();
+    const stats = await getQueueStats();
     queued = Number(stats?.queued || 0);
   } catch {
     // The durable queue is an enhancement, not permission to stop autonomous work.
@@ -100,7 +100,7 @@ export async function seedAutonomousAiWork({ maxTasks = ROLES.length, dispatch }
       model: provider.model
     });
     try {
-      const result = await enqueueWorkerTask(item);
+      const result = await enqueueTask(item);
       created.push({ id: result.id, role, provider: provider.provider, model: provider.model, mode: "durable" });
     } catch (error) {
       if (typeof dispatch !== "function") throw error;
@@ -127,14 +127,14 @@ export function continuousAiStatus() {
   };
 }
 
-export async function startLockedContinuousAiLoop({ dispatch } = {}) {
+export async function startLockedContinuousAiLoop({ dispatch, enqueueTask = enqueueWorkerTask, getQueueStats = queueStats } = {}) {
   const intervalMs = Math.max(15000, Number(process.env.APEX_AUTONOMOUS_AI_PULSE_MS || 60000));
   let stopping = false;
 
   const pulse = async () => {
     if (stopping) return;
     try {
-      const result = await seedAutonomousAiWork({ dispatch });
+      const result = await seedAutonomousAiWork({ dispatch, enqueueTask, getQueueStats });
       if (result.queued) console.log("[apex-autonomy] seeded", result.queued, "AI jobs via", result.provider.provider);
     } catch (error) {
       console.error("[apex-autonomy] seed failed:", error?.message || error);

@@ -20,7 +20,7 @@ function stableJson(value) {
   return JSON.stringify(normalize(value));
 }
 
-function checksum(record) {
+export function sovereignRecordChecksum(record) {
   const body = stableJson({
     seq: record.seq,
     waveId: record.waveId,
@@ -31,6 +31,10 @@ function checksum(record) {
     payload: record.payload
   });
   return createHash('sha256').update(body).digest('hex');
+}
+
+export function verifySovereignRecord(record) {
+  return Boolean(record && typeof record === 'object' && typeof record.checksum === 'string' && sovereignRecordChecksum(record) === record.checksum);
 }
 
 export class SovereignMeshEngine {
@@ -83,7 +87,7 @@ export class SovereignMeshEngine {
         throw new Error(`WAL recovery failed at line ${index + 1}: incomplete record`);
       }
 
-      if (checksum(entry) !== entry.checksum) {
+      if (sovereignRecordChecksum(entry) !== entry.checksum) {
         throw new Error(`WAL recovery failed at line ${index + 1}: checksum mismatch`);
       }
 
@@ -121,7 +125,7 @@ export class SovereignMeshEngine {
       payload
     };
 
-    record.checksum = checksum(record);
+    record.checksum = sovereignRecordChecksum(record);
 
     // Serialize writers in-process and recover the chain after a failed write.
     const write = this._writeTail.catch(() => {}).then(() => this._appendDurably(record));
@@ -154,7 +158,7 @@ export class SovereignMeshEngine {
         acceptance
       }
     };
-    record.checksum = checksum(record);
+    record.checksum = sovereignRecordChecksum(record);
 
     const write = this._writeTail.catch(() => {}).then(() => this._appendDurably(record));
     this._writeTail = write.catch((error) => {
