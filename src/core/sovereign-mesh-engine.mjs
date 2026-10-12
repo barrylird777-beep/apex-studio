@@ -30,11 +30,11 @@ export function verifySovereignRecord(record) {
  * The former NDJSON log is read once for migration only; this engine never appends to it.
  */
 export class SovereignMeshEngine {
-  constructor(storageDir = DEFAULT_STORAGE_DIR, { cas = null } = {}) {
+  constructor(storageDir = DEFAULT_STORAGE_DIR, { cas = null, remoteMode = undefined } = {}) {
     this.storageDir = path.resolve(storageDir);
     this.legacyLogPath = path.join(this.storageDir, "apex-ring-wal.ndjson");
     this.migrationFile = path.join(this.storageDir, ".sovereign-cas-migrated-v1.json");
-    this.remoteMode = Boolean(cas) || String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true";
+    this.remoteMode = remoteMode === undefined ? (Boolean(cas) || String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true") : Boolean(remoteMode);
     this.cas = cas || (this.remoteMode ? new RemoteContentAddressedStore() : new ContentAddressedStore({ root: path.join(this.storageDir, ".sovereign-cas") }));
     this.state = new Map();
     this._writeTail = Promise.resolve();
