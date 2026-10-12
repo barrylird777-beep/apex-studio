@@ -75,7 +75,7 @@ export function validateManifest(config) {
     throw new Error('[VALIDATION_ERROR] maxBatchSize cannot exceed concurrency.');
   }
 
-  if (!/^\\d+x\\d+$/.test(apexStudio.renderPreset.resolution)) {
+  if (!/^\d+x\d+$/.test(apexStudio.renderPreset.resolution)) {
     throw new Error('[VALIDATION_ERROR] Invalid render resolution.');
   }
 
@@ -107,7 +107,7 @@ export function deployValidatedManifest(
     `.sovereign_manifest.${crypto.randomBytes(8).toString('hex')}.tmp`
   );
 
-  const payload = `${JSON.stringify(SOVEREIGN_CONFIG_SCHEMA, null, 2)}\\n`;
+  const payload = `${JSON.stringify(SOVEREIGN_CONFIG_SCHEMA, null, 2)}\n`;
 
   try {
     fs.writeFileSync(tempPath, payload, {encoding: 'utf8', mode: 0o600, flag: 'wx'});
