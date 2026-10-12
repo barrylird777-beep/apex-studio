@@ -35,7 +35,9 @@ async function uploadArtifact(code, stage, file) {
 }
 
 async function restoreEpisodeArtifacts(episode) {
-  const assets = (await teeveeStore.list("teevee_episode_assets")).filter(asset => String(asset.episodeId || asset.episode_id || "") === episode.id);
+  const assets = typeof teeveeStore.queryFiltered === "function"
+    ? await teeveeStore.queryFiltered("teevee_episode_assets", { episodeId: episode.id }, { limit: 500 })
+    : (await teeveeStore.list("teevee_episode_assets")).filter(asset => String(asset.episodeId || asset.episode_id || "") === episode.id);
   if (!assets.length) return;
   const { bucket, client } = teeveeObjectStore();
   for (const asset of assets) {
@@ -97,8 +99,14 @@ function normalizeEpisode(row = {}) {
 async function getEpisode(id) {
   let row = await teeveeStore.get("teevee_episodes", String(id));
   if (!row) {
-    const all = await teeveeStore.list("teevee_episodes");
-    row = all.find(item => String(item.id) === String(id) || item.episodeCode === String(id) || item.episode_code === String(id));
+    if (typeof teeveeStore.queryFiltered === "function") {
+      row = (await teeveeStore.queryFiltered("teevee_episodes", { episodeCode: String(id) }, { limit: 1 }))[0]
+        || (await teeveeStore.queryFiltered("teevee_episodes", { episode_code: String(id) }, { limit: 1 }))[0]
+        || null;
+    } else {
+      const all = await teeveeStore.list("teevee_episodes");
+      row = all.find(item => String(item.id) === String(id) || item.episodeCode === String(id) || item.episode_code === String(id));
+    }
   }
   if (!row) throw new Error("TeeVee episode not found in Pure-WAL storage: " + id);
   return normalizeEpisode(row);
