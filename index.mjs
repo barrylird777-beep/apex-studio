@@ -21,6 +21,7 @@ import { buildMusicProductionPlan, verifyMusicGardenPackage } from "./src/core/m
 import { normalizeContentDomain } from "./src/core/content/content-domains.mjs";
 import { executeRapidVideoOrder, executeRapidVideoPreview } from "./src/workers/rapid-video-worker.mjs";
 import { executeVoiceoverTask } from "./src/workers/voiceover-worker.mjs";
+import { handlers as teeveeHandlers } from "./src/jobs/teevee-handlers.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
   const contentDomain = normalizeContentDomain(payload?.contentDomain || "bible");
@@ -275,6 +276,8 @@ if (!workerOnly) {
           ? await executeAiInferenceTask(task.payload || {})
           : taskType === "voiceover-synthesize"
           ? await executeVoiceoverTask(task.payload || {}, task.id)
+          : taskType.startsWith("teevee.episode.") && typeof teeveeHandlers[taskType] === "function"
+          ? await teeveeHandlers[taskType]({ ...task, payload: task.payload || {} })
           : await executePermanentHealthTask(task.payload || {});
       const completed = await queueComplete(task, result);
       if (!completed) {
