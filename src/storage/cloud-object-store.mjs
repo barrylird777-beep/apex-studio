@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand, HeadObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, HeadObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 function storageConfig(prefix = 'apex-business') {
@@ -130,6 +130,31 @@ export async function createUploadUrl({ filename, contentType = 'application/oct
     ContentType: String(contentType || 'application/octet-stream').slice(0, 200)
   }), { expiresIn });
   return { ...cloudStorageStatus(prefix), key, url, expiresIn, maxBytes };
+}
+
+export async function putCloudObject({ key, body, contentType = 'application/octet-stream', prefix = 'apex-business', metadata = {} } = {}) {
+  const s3 = client(prefix);
+  const logicalKey = normalizeKey(key);
+  const scoped = scopedKey(logicalKey, prefix);
+  const payload = Buffer.isBuffer(body) ? body : Buffer.from(body ?? '');
+  const maxBytes = FREE_MODE ? FREE_MAX_OBJECT_BYTES : MAX_OBJECT_BYTES;
+  if (payload.byteLength > maxBytes) {
+    const error = new Error(`Object exceeds the ${maxBytes} byte storage limit`);
+    error.status = 413;
+    throw error;
+  }
+  const safeMetadata = Object.fromEntries(Object.entries(metadata || {}).slice(0, 20).map(([name, value]) => [
+    safeSegment(name, 'metadata').toLowerCase(),
+    String(value ?? '').slice(0, 512)
+  ]));
+  const result = await s3.send(new PutObjectCommand({
+    Bucket: storageConfig(prefix).bucket,
+    Key: scoped,
+    Body: payload,
+    ContentType: String(contentType || 'application/octet-stream').slice(0, 200),
+    Metadata: safeMetadata
+  }));
+  return { key: logicalKey, storageKey: scoped, prefix, bytes: payload.byteLength, etag: result.ETag || null };
 }
 
 export async function createDownloadUrl({ key, prefix = 'iphone' } = {}) {
