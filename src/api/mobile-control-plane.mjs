@@ -27,7 +27,7 @@ function requireShortcutAuth(req, res, next) {
   if (!expected) {
     return res.status(503).json({ success: false, error: 'Apex Shortcut control plane is not configured' });
   }
-  const supplied = req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\\s+/i, '');
+  const supplied = req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!tokenMatches(expected, supplied)) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
