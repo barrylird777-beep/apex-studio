@@ -7,7 +7,6 @@ import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
-import { retryWalStartup } from './wal-startup-retry.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 
@@ -85,8 +84,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
 }
 
 async function main() {
-  const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
-  if (!storageReady) return;
+  await apexPureStore.init();
   await engine.ready();
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
