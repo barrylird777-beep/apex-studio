@@ -99,7 +99,9 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style></head>
-<body>
+<body><script>
+(()=>{const nativeFetch=window.fetch.bind(window);window.fetch=(input,init={})=>{const rawUrl=typeof input==="string"?input:input&&input.url;let url;try{url=new URL(rawUrl,window.location.href)}catch{return nativeFetch(input,init)}if(url.origin!==window.location.origin||!url.pathname.startsWith("/api/"))return nativeFetch(input,init);const path=url.pathname;if(path.startsWith("/api/internal/")||path==="/api/rapid/stripe/webhook"||path==="/api/kash-korner/opportunities"||path==="/api/kernelodies/library"||path.startsWith("/api/kernelodies/library/"))return nativeFetch(input,init);const headers=new Headers(input instanceof Request?input.headers:undefined);new Headers(init.headers||{}).forEach((value,key)=>headers.set(key,value));const hasOtherAuth=headers.has("authorization")||headers.has("x-apex-opportunity-token")||headers.has("x-apex-worker-token")||headers.has("x-kernelodies-token");const token=sessionStorage.getItem("apex.phone.sessionToken")||"";if(token&&!hasOtherAuth&&!headers.has("x-apex-shortcut-token"))headers.set("x-apex-shortcut-token",token);return nativeFetch(input,{...init,headers})}})();
+</script>
 <header><div class="brand">PlanetApeX <span>/ APEX UNIVERSE</span></div><div id="connection" class="online">● LOCAL</div></header>
 <div class="apex-surfaces" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(5,7,11,.86);position:sticky;top:64px;z-index:14">
 <a href="/" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">PlanetApeX</a>
@@ -114,6 +116,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <a href="/garden-of-apex.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">GardenOfApex — inside PlanetApeX</a>
 <a href="/bible-study-room.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">Bible Study Room</a>
 <a href="/local-ai" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">Local AI</a>
+<a href="/phone.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">Phone Control</a>
 <a href="/production.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">Production Desk</a>
 <a href="/teevee.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">TeeVee</a>
 <a href="/paypex.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">PayPex</a>
