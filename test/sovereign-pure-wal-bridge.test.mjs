@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import SovereignMeshEngine from '../src/core/sovereign-mesh-engine.mjs';
+import SovereignMeshEngine, { sovereignRecordChecksum } from '../src/core/sovereign-mesh-engine.mjs';
 import { ApexRingWAL } from '../src/core/apex-ring-wal.mjs';
 import { ApexPureStore } from '../src/core/apex-pure-store.mjs';
 import { createSovereignDurableBridge } from '../src/core/sovereign-durable-bridge.mjs';
@@ -170,6 +170,40 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
     assert.equal(result.failed, 0);
     assert.deepEqual(store.jobs(), []);
     assert.equal(await acknowledgePendingLocalPeerReceives(engine), 0);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+test('legacy mesh migration preserves the sequence counter without continuing WAL writes', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-mesh-sequence-migration-'));
+  try {
+    const storageDir = path.join(dir, 'sovereign');
+    await fs.mkdir(storageDir, { recursive: true });
+    const legacy = {
+      seq: 7,
+      waveId: 'legacy-wave-7',
+      peerId: 'legacy-peer',
+      action: 'LegacyReceipt',
+      timestamp: new Date().toISOString(),
+      status: 'ACKNOWLEDGED',
+      payload: { legacy: true }
+    };
+    legacy.checksum = sovereignRecordChecksum(legacy);
+    await fs.writeFile(path.join(storageDir, 'apex-ring-wal.ndjson'), JSON.stringify(legacy) + '\\n', { mode: 0o600 });
+
+    const engine = new SovereignMeshEngine(storageDir);
+    await engine.ready();
+    assert.equal(engine.get('legacy-wave-7').seq, 7);
+    const next = await engine.dispatchAutonomousPayload({
+      waveId: 'new-wave-after-migration',
+      peerId: 'new-peer',
+      action: 'MigrationSequenceCheck',
+      payload: { migrated: true }
+    });
+    assert.equal(next.seq, 8);
+    assert.equal(await fs.readFile(path.join(storageDir, 'apex-ring-wal.ndjson'), 'utf8'), JSON.stringify(legacy) + '\\n');
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
