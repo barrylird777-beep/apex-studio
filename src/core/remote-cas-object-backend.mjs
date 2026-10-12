@@ -7,9 +7,9 @@ export class RemoteCasObjectBackend {
     const accessKeyId = text(env.APEX_OBJECT_STORAGE_ACCESS_KEY_ID);
     const secretAccessKey = text(env.APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY);
     this.enabled = text(env.APEX_CAS_REMOTE_ENABLED).toLowerCase() === "true" && Boolean(endpoint && bucket && accessKeyId && secretAccessKey);
+    this.prefix = text(env.APEX_CAS_OBJECT_PREFIX) || "apex-cas/objects/sha256";
     if (!this.enabled) return;
     this.bucket = bucket;
-    this.prefix = text(env.APEX_CAS_OBJECT_PREFIX) || "apex-cas/objects/sha256";
     this.client = new S3Client({ endpoint, region: text(env.APEX_OBJECT_STORAGE_REGION) || "auto", forcePathStyle: text(env.APEX_OBJECT_STORAGE_URL_STYLE) === "path", credentials: { accessKeyId, secretAccessKey } });
   }
   key(digest) {
