@@ -38,6 +38,7 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
   async function status(){
     await init();
     const [runtime]=await Promise.all([store.get("sovereign_runtime","identity")]);
+    if(typeof store.refreshJobs==="function")await store.refreshJobs();
     const jobs=store.jobs();
     const pendingDispatches=jobs.filter(job=>job.type==="sovereign.app.dispatch"&&["queued","running"].includes(job.status)).length;
     const online=liveRuntime(runtime);
