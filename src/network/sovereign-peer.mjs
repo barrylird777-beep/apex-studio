@@ -1,4 +1,7 @@
 import { createLibp2p } from 'libp2p';
+import { generateKeyPair, privateKeyFromProtobuf, privateKeyToProtobuf } from '@libp2p/crypto/keys';
+import { mkdir, open, readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
 import { tcp } from '@libp2p/tcp';
 import { noise } from '@libp2p/noise';
 import { ping } from '@libp2p/ping';
@@ -9,6 +12,40 @@ import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
+const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
+
+export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
+  const target = path.resolve(file);
+  await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+  try {
+    const bytes = await readFile(target);
+    if (!bytes.length) throw new Error('sovereign peer identity key is empty');
+    return privateKeyFromProtobuf(bytes);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+
+  const key = await generateKeyPair('Ed25519');
+  const bytes = Buffer.from(privateKeyToProtobuf(key));
+  let handle;
+  try {
+    handle = await open(target, 'wx', 0o600);
+    await handle.writeFile(bytes);
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    const dir = await open(path.dirname(target), 'r');
+    try { await dir.sync(); } finally { await dir.close(); }
+    return key;
+  } catch (error) {
+    await handle?.close().catch(() => {});
+    if (error.code !== 'EEXIST') throw error;
+    const existing = await readFile(target);
+    if (!existing.length) throw new Error('sovereign peer identity key was created empty');
+    return privateKeyFromProtobuf(existing);
+  }
+}
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const MAX_ENVELOPE_BYTES = Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVELOPE_BYTES || 65536));
