@@ -65,7 +65,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
         ? store.jobs().find(job => job.dedupeKey === dedupeKey && ["queued", "running"].includes(job.status))
         : null;
       if (existing) {
-        return res.status(200).json({ success: true, episodeCode: code, status: "already-queued", jobId: existing.id, storage: "Pure-WAL/Ring-WAL" });
+        return res.status(200).json({ success: true, episodeCode: code, status: "already-queued", jobId: existing.id, storage: "content-addressed" });
       }
       const job = await enqueue({
         id: randomUUID(),
@@ -77,7 +77,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
         dedupeKey,
         traceId: episode.id
       });
-      return res.status(202).json({ success: true, episodeCode: code, status: "queued", jobId: job.id, storage: "Pure-WAL/Ring-WAL" });
+      return res.status(202).json({ success: true, episodeCode: code, status: "queued", jobId: job.id, storage: "content-addressed" });
     } catch (error) {
       const message = String(error?.message || error);
       const status = error instanceof RangeError ? 400 : 503;
