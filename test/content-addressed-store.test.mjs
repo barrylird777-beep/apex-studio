@@ -177,3 +177,17 @@ test("remote-only CAS configuration fails closed when production credentials are
   assert.throws(() => new RemoteCasObjectBackend({ NODE_ENV: "production" }), /remote-only CAS is required/i);
   assert.throws(() => new RemoteCasObjectBackend({ APEX_CAS_REMOTE_ENABLED: "true", APEX_OBJECT_STORAGE_BUCKET: "bucket" }), /remote-only CAS is required/i);
 });
+
+test("remote-only CAS refuses production startup until preservation migration is verified", () => {
+  const env = {
+    NODE_ENV: "production",
+    APEX_CAS_REMOTE_ENABLED: "true",
+    APEX_OBJECT_STORAGE_ENDPOINT: "https://objects.example.invalid",
+    APEX_OBJECT_STORAGE_BUCKET: "apex-test",
+    APEX_OBJECT_STORAGE_REGION: "auto",
+    APEX_OBJECT_STORAGE_ACCESS_KEY_ID: "test-access-key",
+    APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY: "test-secret-key"
+  };
+  assert.throws(() => new RemoteCasObjectBackend(env), /migration is not verified/i);
+  assert.equal(new RemoteCasObjectBackend({ ...env, APEX_CAS_REMOTE_MIGRATION_VERIFIED: "true" }).enabled, true);
+});
