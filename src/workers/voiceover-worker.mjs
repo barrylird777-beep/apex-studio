@@ -50,7 +50,13 @@ async function synth(job) {
   for (const provider of order) {
     try {
       if (provider === "local") {
-        const result = await synthesizeSpeech({ text: job.text, voice: job.voice || "", speed: job.speed,
+        let voice = String(job.voice || process.env.APEX_VOICEOVER_DEFAULT_VOICE || "");
+        if (!voice) {
+          const voices = await listVoiceOptions();
+          voice = voices.find(item => item.engine === "espeak-ng" || item.engine === "espeak")?.id || "";
+        }
+        if (!voice) throw new Error("No installed local TTS engine found; configure Piper/eSpeak-ng or select a configured cloud provider");
+        const result = await synthesizeSpeech({ text: job.text, voice, speed: job.speed,
           pitch: job.pitch, format: job.format, outputDir: OUT_DIR });
         return { provider, path: result.path, format: job.format };
       }
