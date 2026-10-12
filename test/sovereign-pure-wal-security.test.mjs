@@ -115,6 +115,7 @@ test('independent store instances cannot claim the same durable job twice', asyn
     const claimed=[...left,...right][0];
     assert.equal(claimed.id,'claim-once');
     assert.ok(claimed.leaseToken);
-    assert.equal((await a.get('unused','none')),null);
+    await a.refresh();
+    assert.equal(a.jobs().filter(job=>job.id==='claim-once'&&job.status==='running').length,1);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
