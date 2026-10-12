@@ -204,6 +204,7 @@ async function advance(episode, stage, file, metadata = {}) {
       qcPassedAt: new Date().toISOString()
     });
   }
+  return storedArtifact;
 }
 
 async function enqueueNext(episode, stage) {
@@ -374,7 +375,6 @@ Turn it into a filmable script with scene headings, action, dialogue, sound cues
     )));
     file=await concatAnimation(sceneFiles,path.join(stagePath(code,stage),"full-episode.mp4"),episode.runtime_target_seconds);
     metadata.sceneCount=sceneFiles.length;
-    metadata.sceneFiles=sceneFiles;
   }else if(stage==="edit"){
     const video=path.join(stagePath(code,"animation"),"full-episode.mp4");
     const audio=path.join(stagePath(code,"audio"),"episode-audio.m4a");
@@ -409,8 +409,8 @@ Turn it into a filmable script with scene headings, action, dialogue, sound cues
     const stat=await fs.stat(master).catch(()=>null);
     if(!stat || stat.size<=0) throw new Error("King Cob inspection requires a non-empty master artifact");
     const evidence=[
-      {type:"asset",artifact:master},
-      {type:"review",artifact:path.join(stagePath(code,"qc"),"qc.json")},
+      {type:"asset",artifact:artifactKey(code,"master",master)},
+      {type:"review",artifact:artifactKey(code,"qc",path.join(stagePath(code,"qc"),"qc.json"))},
       {type:"inspection",authority:"king_cob"}
     ];
     file=await writeJson(code,stage,"inspection.json",{episode:code,authority:"king_cob",result:"approved",evidence,inspectedAt:new Date().toISOString()});
@@ -421,9 +421,9 @@ Turn it into a filmable script with scene headings, action, dialogue, sound cues
   }else if(stage==="schedule"){
     file=await writeJson(code,stage,"schedule.json",{episode:code,block:"TeeVee Toonhouse",status:"scheduled"});
   }
-  await advance(episode,stage,file,metadata);
+  const artifact = await advance(episode,stage,file,metadata);
   await enqueueNext(episode,stage);
-  return {status:"ok",episodeCode:code,stage,artifact:file};
+  return {status:"ok",episodeCode:code,stage,artifact};
 }
 
 export const handlers=Object.fromEntries(STAGES.map(stage=>[`teevee.episode.${stage}`,job=>handle(stage,job)]));
