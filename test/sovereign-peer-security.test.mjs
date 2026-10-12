@@ -226,7 +226,7 @@ test("outgoing sovereign envelopes wait for accepted bytes to drain before repor
     resume() {},
     send() {
       listeners.get("message")?.({
-        data: new TextEncoder().encode(JSON.stringify({ accepted: true, peerId: "allowed-peer" }) + "\\n")
+        data: new TextEncoder().encode(JSON.stringify({ accepted: true, peerId: "allowed-peer" }) + "\n")
       });
       return true;
     },
