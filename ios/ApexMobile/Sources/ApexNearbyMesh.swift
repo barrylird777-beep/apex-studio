@@ -99,7 +99,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
         let timestamp = String(Int(Date().timeIntervalSince1970))
         let nonce = UUID().uuidString
         let payload = body.base64EncodedString()
-        let signedBytes = Data("1\\n\\(timestamp)\\n\\(nonce)\\n\\(payload)".utf8)
+        let signedBytes = Data("1\n\(timestamp)\n\(nonce)\n\(payload)".utf8)
         let signature = HMAC<SHA256>.authenticationCode(for: signedBytes, using: key)
         let packet: [String: String] = [
             "version": "1",
@@ -141,7 +141,7 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
               let signatureText = object["signature"],
               let payload = Data(base64Encoded: payloadText),
               let signature = Data(base64Encoded: signatureText) else { return nil }
-        let signedBytes = Data("1\\n\\(timestampText)\\n\\(nonce)\\n\\(payloadText)".utf8)
+        let signedBytes = Data("1\n\(timestampText)\n\(nonce)\n\(payloadText)".utf8)
         guard HMAC<SHA256>.isValidAuthenticationCode(signature, authenticating: signedBytes, using: key) else { return nil }
         stateLock.lock()
         seenNonces = seenNonces.filter { Date().timeIntervalSince1970 - $0.value <= 300 }
