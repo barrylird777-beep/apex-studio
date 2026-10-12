@@ -93,7 +93,7 @@ export class RemoteApexRingWAL {
   async append(type, payload = {}, meta = {}) {
     await this.cas.init();
     return this._lock(async () => {
-      await this._records({ retainRing: true });
+      await this._records({ retainRing: true, allowHeadLag: true, repairHead: true });
       const record = { version: 1, id: randomUUID(), seq: this.seq + 1, ts: new Date().toISOString(), type: String(type), payload, meta, prevHash: this.lastHash };
       record.hash = sha(record);
       const incoming = Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
