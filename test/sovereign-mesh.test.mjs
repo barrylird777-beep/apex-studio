@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import SovereignMeshEngine from '../src/core/sovereign-mesh-engine.mjs';
 
-test('sovereign WAL persists, deduplicates, and recovers', async () => {
+test('sovereign content-addressed state persists without a WAL, deduplicates, and recovers', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-sovereign-'));
   const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
   process.env.APEX_SOVEREIGN_PEER_ID = 'test-peer';
@@ -27,6 +27,7 @@ test('sovereign WAL persists, deduplicates, and recovers', async () => {
 
     assert.equal(duplicate.seq, first.seq);
     assert.equal(engine.size, 1);
+    await assert.rejects(fs.access(path.join(dir, 'apex-ring-wal.ndjson')), { code: 'ENOENT' });
 
     const recovered = new SovereignMeshEngine(dir);
     await recovered.ready();
@@ -47,7 +48,7 @@ test('sovereign WAL persists, deduplicates, and recovers', async () => {
   }
 });
 
-test('sovereign WAL rejects tampering during recovery', async () => {
+test('sovereign content-addressed objects reject tampering during recovery', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-sovereign-tamper-'));
   const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
   process.env.APEX_SOVEREIGN_PEER_ID = 'test-peer';
@@ -60,13 +61,13 @@ test('sovereign WAL rejects tampering during recovery', async () => {
       action: 'test'
     });
 
-    const wal = path.join(dir, 'apex-ring-wal.ndjson');
-    const raw = await fs.readFile(wal, 'utf8');
-    const tampered = raw.replace('wave-tamper', 'wave-tampered');
-    await fs.writeFile(wal, tampered, 'utf8');
+    const manifest = await engine.cas.readRef("waves", engine.key("wave-tamper"));
+    const objectFile = engine.cas.objectPath(manifest.hash);
+    const raw = await fs.readFile(objectFile, "utf8");
+    await fs.writeFile(objectFile, raw.replace("wave-tamper", "wave-tampered"), "utf8");
 
     const recovered = new SovereignMeshEngine(dir);
-    await assert.rejects(recovered.ready(), /checksum mismatch/);
+    await assert.rejects(recovered.ready(), /integrity verification failed/);
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
     else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
