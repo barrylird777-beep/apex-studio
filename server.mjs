@@ -263,7 +263,7 @@ app.get('/api/shield-apex/status', (_req, res) => {
 
 app.get('/api/internal/worker/health', requireWorkerAuth, async (_req, res) => {
   const health = await durableWorkerHealth();
-  return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'local-pure-wal', health });
+  return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'content-addressed', health });
 });
 
 app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
@@ -400,7 +400,7 @@ app.post('/api/internal/worker/claim', requireWorkerAuth, async (req, res) => {
     const leaseMs = Math.max(15000, Math.min(120000, Math.floor(Number(req.body?.leaseMs) || 45000)));
     const workerId = String(req.body?.workerId || 'remote-worker').slice(0, 255);
     const tasks = await claimNextWorkerTasks(limit, leaseMs, null, workerId);
-    return res.json({ success: true, tasks, claimed: tasks.length, storage: 'local-pure-wal' });
+    return res.json({ success: true, tasks, claimed: tasks.length, storage: 'content-addressed' });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
   }
@@ -640,13 +640,13 @@ app.get('/api/koin-kob/simulations', requireControlPlaneAuth, async (req, res) =
       .map(entry => ({
         id: entry.id,
         record: entry.record || entry,
-        storage: entry.storage || 'local-pure-wal',
+        storage: entry.storage || 'content-addressed',
         durable: entry.durable !== false
       }))
       .filter(entry => entry.record?.recordType === 'simulation')
       .sort((a, b) => String(b.record.createdAt || '').localeCompare(String(a.record.createdAt || '')))
       .slice(0, limit);
-    return res.json({ success: true, storage: 'local-pure-wal', items });
+    return res.json({ success: true, storage: 'content-addressed', items });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error) });
   }
@@ -680,7 +680,7 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
       simulationId,
       createdAt,
       durable: saved?.durable ?? true,
-      storage: saved?.storage || 'local-pure-wal',
+      storage: saved?.storage || 'content-addressed',
       simulation: result
     });
   } catch (error) {
@@ -869,7 +869,7 @@ app.get('/api/koin-kob/status', async (_req, res) => {
 app.get('/api/kash-korner/opportunities', async (req, res) => {
   try {
     const items = await listKashKornerOpportunities(sovereignAppFabric, req.query.limit);
-    return res.json({ success: true, storage: 'local-pure-wal', items });
+    return res.json({ success: true, storage: 'content-addressed', items });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error) });
   }
