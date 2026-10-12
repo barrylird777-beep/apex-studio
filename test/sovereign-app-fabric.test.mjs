@@ -56,6 +56,7 @@ test('phone dispatch is durably queued and the runtime daemon alone writes the m
     assert.equal(queued.peerPending,true);
     assert.equal(queued.status,'queued');
     assert.equal(store.jobs().some(job=>job.id===queued.jobId&&job.type==='sovereign.app.dispatch'),true);
+    assert.equal((await store.claim({workerId:'generic-worker',limit:8})).length,0,'generic workers must not steal sovereign dispatches');
 
     const engine=new SovereignMeshEngine(path.join(dir,'mesh'));
     await engine.ready();
