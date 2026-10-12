@@ -718,11 +718,11 @@ app.post('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
       : crypto.randomUUID();
     const { sovereignAppFabric } = await import('./src/core/sovereign-app-fabric.mjs');
     const { apexPureStore } = await import('./src/core/apex-pure-store.mjs');
-    const queued = await sovereignAppFabric.dispatch(source, {
+    const queued = await sovereignAppFabric.dispatch({
+      appId: source,
       action: 'canonical.handoff',
       data: { to: target, payload, correlationId },
-      waveId,
-      source: 'api.canon.handoff'
+      waveId
     });
     const event = {
       id: waveId,
