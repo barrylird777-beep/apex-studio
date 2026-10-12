@@ -1,3 +1,4 @@
+import "./apex-web-search.test.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseProsody } from "../src/core/prosody.mjs";
