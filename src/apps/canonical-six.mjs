@@ -1,4 +1,4 @@
-import { assertApexApp, listApexApps } from "./apex-six-apps.mjs";
+import { assertCanonicalApexApp, listApexApps } from "./apex-six-apps.mjs";
 import { planetApexStatus } from "./planet-apex.mjs";
 import { kernelVisionStatus } from "./kernel-vision.mjs";
 import { kernelodiesStatus } from "./kernelodies.mjs";
@@ -16,7 +16,7 @@ const statusFns=Object.freeze({
 });
 
 export async function canonicalAppStatus(id){
-  const app=assertApexApp(id);
+  const app=assertCanonicalApexApp(id);
   const result=await statusFns[app.id]();
   return {success:true,...result};
 }
