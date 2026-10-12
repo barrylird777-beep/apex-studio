@@ -8,13 +8,14 @@ const REQUIRED = Object.freeze([
   ["TeeVee legacy production surface","public/teevee.html"],
   ["TeeVee buyer","public/teevee-buyer.html"],
   ["PayPex legacy intelligence surface","public/paypex.html"],
-  ["XShield legacy network surface","public/xshield.html"],
+  ["XShield","public/xshield.html"],
   ["PlanetApeX","public/planet-apex.html"],
-  ["KoBlocks","public/ko-blocks.html"],
+  ["KoBlocks legacy capability surface","public/ko-blocks.html"],
   ["KernelVision","public/kernel-vision.html"],
-  ["KoinKob","public/koin-kob.html"],
+  ["KoinKob legacy capability surface","public/koin-kob.html"],
   ["KashKorner","public/kash-korner.html"],
   ["Kernelodies","public/kernelodies.html"],
+  ["KashKobs","public/kash-kobs.html"],
   ["Apex Overseer","public/overseer.html"],
   ["Engine Apex","public/engine-apex.html"],
   ["ShieldApex","public/shield-apex.html"],
@@ -24,11 +25,11 @@ const REQUIRED = Object.freeze([
 
 const CANONICAL_APP_MODULES = Object.freeze([
   ["PlanetApeX","src/apps/planet-apex.mjs"],
-  ["KoBlocks","src/apps/ko-blocks.mjs"],
   ["KernelVision","src/apps/kernel-vision.mjs"],
-  ["KoinKob","src/apps/koin-kob.mjs"],
-  ["KashKorner","src/apps/kash-korner.mjs"],
   ["Kernelodies","src/apps/kernelodies.mjs"],
+  ["KashKorner","src/apps/kash-korner.mjs"],
+  ["KashKobs","src/apps/kash-kobs.mjs"],
+  ["XShield","src/apps/xshield.mjs"],
   ["canonical six-app registry","src/apps/apex-six-apps.mjs"],
   ["canonical six-app runtime","src/apps/canonical-six.mjs"]
 ]);
