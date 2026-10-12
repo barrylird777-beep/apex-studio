@@ -46,3 +46,16 @@ test("cloud record store fails closed when cloud credentials are missing", () =>
     for (const [key, value] of Object.entries(saved)) if (value !== undefined) process.env[key] = value;
   }
 });
+
+
+test("Cloud-required core mode fails closed instead of falling back to local files", async () => {
+  const { ApexPureStore } = await import("../src/core/apex-pure-store.mjs");
+  const previous = process.env.APEX_STORAGE_MODE;
+  process.env.APEX_STORAGE_MODE = "cloud";
+  try {
+    await assert.rejects(() => new ApexPureStore().init(), /refusing local filesystem fallback/);
+  } finally {
+    if (previous === undefined) delete process.env.APEX_STORAGE_MODE;
+    else process.env.APEX_STORAGE_MODE = previous;
+  }
+});
