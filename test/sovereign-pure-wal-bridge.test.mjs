@@ -158,7 +158,7 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
     assert.equal(await acknowledgePendingLocalPeerReceives(engine), 1);
     assert.equal(engine.get('local-peer-receive-wave').status, 'ACKNOWLEDGED');
 
-    const entries = (await fs.readFile(engine.walFilePath, 'utf8')).trim().split('\\n').map(line => JSON.parse(line));
+    const entries = (await fs.readFile(engine.walFilePath, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
     assert.equal(entries.at(-1).waveId, 'local-peer-receive-wave');
     assert.equal(entries.at(-1).status, 'ACKNOWLEDGED');
 
