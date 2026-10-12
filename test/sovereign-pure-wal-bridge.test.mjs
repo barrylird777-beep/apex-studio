@@ -87,7 +87,8 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
     const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
     await store.init();
     await engine.ready();
-    let sent;
+    const sent = [];
+    let sourceRecord;
     const bridge = createSovereignDurableBridge({
       engine,
       store,
@@ -95,8 +96,17 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
       peerNode: {},
       peerAddress: '/ip4/127.0.0.1/tcp/9000/p2p/remote-peer',
       sendPeer: async (_node, address, envelope) => {
-        sent = { address, envelope };
-        return { accepted: true, peerId: 'remote-peer' };
+        sent.push({ address, envelope });
+        if (envelope.type === 'durable.accept') {
+          sourceRecord = envelope.record;
+          return { accepted: true, peerId: 'remote-peer' };
+        }
+        if (envelope.type === 'durable.read') {
+          return { accepted: true, peerId: 'remote-peer', replica: {
+            waveId: envelope.waveId, checksum: envelope.checksum, record: sourceRecord
+          } };
+        }
+        throw new Error('unexpected peer envelope type');
       }
     });
     const result = await bridge.dispatch({
@@ -104,10 +114,13 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
       action: 'app.publish',
       payload: { appId: 'kernelodies', data: { trackId: 'track-1' } }
     });
-    assert.equal(sent.envelope.type, 'durable.accept');
-    assert.equal(sent.envelope.record.waveId, 'payload-wave-1');
-    assert.equal(sent.envelope.record.status, 'DISPATCHED');
-    assert.equal(sent.envelope.record.checksum, sent.envelope.checksum);
+    assert.equal(sent[0].envelope.type, 'durable.accept');
+    assert.equal(sent[0].envelope.record.waveId, 'payload-wave-1');
+    assert.equal(sent[0].envelope.record.status, 'DISPATCHED');
+    assert.equal(sent[0].envelope.record.checksum, sent[0].envelope.checksum);
+    assert.equal(sent[1].envelope.type, 'durable.read');
+    assert.equal(sent[1].envelope.waveId, 'payload-wave-1');
+    assert.equal(result.acknowledged.payload.acceptance.peer.replicaVerified, true);
     assert.equal(result.acknowledged.status, 'ACKNOWLEDGED');
     const ack = await store.get('sovereign_peer_acks', 'payload-wave-1');
     assert.equal(ack.peerId, 'remote-peer');
