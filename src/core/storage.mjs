@@ -85,7 +85,7 @@ export async function saveProjectAsset(type, buffer, extension) {
   });
 }
 
-export async function saveSceneAsset(sceneId, kind, buffer, extension) {
+export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata = {}) {
   await initStorage();
   const sceneKey = safePart(sceneId, "sceneId");
   const assetKind = safePart(kind, "asset kind");
@@ -118,6 +118,10 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension) {
     if (!scene) {
       scene = { id: sceneKey, durationMs: 4000, createdAt: updatedAt };
       manifest.scenes.push(scene);
+    }
+    const durationMs = Number(metadata?.durationMs);
+    if (Number.isFinite(durationMs) && durationMs >= 1000 && durationMs <= 600000) {
+      scene.durationMs = Math.max(Number(scene.durationMs) || 4000, Math.round(durationMs));
     }
     scene[assetKind] = url;
     scene[assetKind + "Asset"] = {
