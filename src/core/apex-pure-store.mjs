@@ -166,11 +166,11 @@ export class ApexPureStore {
           for(const item of pendingState.values())writes.push(async()=>{
             const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
             if(item.deleted){if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});}
-            else await this.cas.writeRef("state",key,{collection:item.collection,id:item.id,record:clone(item.record)},{expectedHash:current?.hash??null});
+            else if(!current)await this.cas.writeRef("state",key,{collection:item.collection,id:item.id,record:clone(item.record)},{expectedHash:null});
           });
           for(const [id,job] of pendingJobs)writes.push(async()=>{
             const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
-            await this.cas.writeRef("jobs",key,{id,job:clone(job)},{expectedHash:current?.hash??null});
+            if(!current)await this.cas.writeRef("jobs",key,{id,job:clone(job)},{expectedHash:null});
           });
           await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
         };
