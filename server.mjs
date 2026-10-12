@@ -113,8 +113,8 @@ function requireOpportunityEngineAuth(req, res, next) {
   ].filter(Boolean);
   if (!expected.length) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
   const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''))?.[1] || '';
-  const supplied = req.get('x-apex-opportunity-token') || bearer;
-  if (!expected.some(token => opportunityEngineTokenMatches(token, supplied))) {
+  const supplied = [req.get('x-apex-opportunity-token'), bearer].filter(Boolean);
+  if (!expected.some(token => supplied.some(candidate => opportunityEngineTokenMatches(token, candidate)))) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
   return next();
