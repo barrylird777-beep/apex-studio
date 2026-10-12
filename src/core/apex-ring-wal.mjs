@@ -17,7 +17,7 @@ function expectedHash(record){const {hash,...body}=record;return sha(body);}
 export class ApexRingWAL {
   constructor({file=FILE,ringSize=RING_SIZE,lockTimeoutMs=65000,staleLockMs=60000}={}){
     this.file=path.resolve(file);this.lockFile=this.file+".lock";this.ringSize=ringSize;this.lockTimeoutMs=lockTimeoutMs;this.staleLockMs=staleLockMs;
-    this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.offset=0;this.ready=false;
+    this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(ringSize);this.head=0;this.count=0;this.offset=0;this.lastExternalRecords=[];this.ready=false;
   }
   _reset(){this.seq=0;this.lastHash="0".repeat(64);this.ring=new Array(this.ringSize);this.head=0;this.count=0;this.offset=0;}
   _load(record){this.seq=Number(record.seq);this.lastHash=String(record.hash);this.ring[this.head]=record;this.head=(this.head+1)%this.ringSize;this.count=Math.min(this.count+1,this.ringSize);}
@@ -62,6 +62,7 @@ export class ApexRingWAL {
     }
   }
   async _refreshLocked(onRecord=()=>{}){
+    this.lastExternalRecords=[];
     await this._assertWalIsRegular();
     let size=0;
     try{size=(await stat(this.file)).size;}catch(e){if(e.code==="ENOENT"&&this.offset===0)return 0;throw e;}
@@ -83,7 +84,7 @@ export class ApexRingWAL {
       if(!record||!Number.isSafeInteger(record.seq)||record.seq!==seq+1||record.prevHash!==prev||record.hash!==expectedHash(record)){
         throw new Error("[WAL_INTEGRITY] Appended hash chain or sequence failure at record "+(seq+1)+".");
       }
-      this._load(record);prev=record.hash;seq=record.seq;count++;await onRecord(record);
+      this._load(record);prev=record.hash;seq=record.seq;count++;this.lastExternalRecords.push(record);await onRecord(record);
     }
     this.offset=size;
     return count;
