@@ -139,7 +139,7 @@ export class ApexPureStore {
     catch(e){throw e;}
   }
   async put(collection,id,record){
-    await this.refresh();
+    await this.init();
     const target=await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     await this.persistState(collection,id,value);
@@ -152,7 +152,7 @@ export class ApexPureStore {
   async list(collection){await this.refresh();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
-    await this.refresh();
+    await this.init();
     const target=await this.checkedFile(collection,id);
     await this.cas.deleteRef("state",this.refKey(collection,id));
     this.state.delete(this.key(collection,id));
