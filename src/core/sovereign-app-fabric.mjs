@@ -75,17 +75,14 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
     const app=assertApp(payload.appId);
     const waveId=assertId(payload.waveId||randomUUID());
     const dedupeKey=`sovereign-app-dispatch:${waveId}`;
-    const existing=store.jobs().find(job=>job.dedupeKey===dedupeKey);
-    if(existing){
-      return {accepted:true,durable:true,queued:["queued","running"].includes(existing.status),duplicate:true,peerPending:existing.status!=="completed",appId:app,waveId,jobId:String(existing.id),status:existing.status};
-    }
     const result=await store.enqueue({
       id:randomUUID(),
       type:"sovereign.app.dispatch",
       payload:{appId:app,waveId,action:String(payload.action||"app.publish").slice(0,160),data:clone(payload.data??{}),requestedAt:new Date().toISOString(),_apex_worker:{role:"sovereign-runtime"}},
       dedupeKey
     });
-    return {accepted:true,durable:true,queued:true,duplicate:Boolean(result.duplicate),peerPending:true,appId:app,waveId,jobId:String(result.id),status:"queued"};
+    const status=result.status||"queued";
+    return {accepted:true,durable:true,queued:["queued","running"].includes(status),duplicate:Boolean(result.duplicate),peerPending:status!=="completed",appId:app,waveId,jobId:String(result.id),status};
   }
   return {init,status,put,get,list,dispatch,apps:()=>APP_LIST.map(clone)};
 }
