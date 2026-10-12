@@ -113,8 +113,8 @@ async function recordAsset(episode, stage, fileUri, metadata = {}) {
     episode_id: episode.id,
     assetType,
     asset_type: assetType,
-    assetUri: file,
-    asset_uri: file,
+    assetUri: fileUri,
+    asset_uri: fileUri,
     version: 1,
     status: "approved",
     provenance: { stage, generatedBy: "teevee-worker", ...metadata },
@@ -144,10 +144,11 @@ async function advance(episode, stage, file, metadata = {}) {
     animation: "animation_status", edit: "edit_status", qc: "qc_status",
     master: "master_status", catalog: "programming_status"
   }[stage];
+  const storedArtifact = await uploadArtifact(episode.episode_code, stage, file);
 
   await updateEpisode(episode.id, current => {
-    const next = { ...current, state, metadata: { ...current.metadata, [stage + "Artifact"]: file } };
-    if (stage === "story") next.creative_brief = { ...current.creative_brief, storyArtifact: file };
+    const next = { ...current, state, metadata: { ...current.metadata, [stage + "Artifact"]: storedArtifact } };
+    if (stage === "story") next.creative_brief = { ...current.creative_brief, storyArtifact: storedArtifact };
     if (statusColumn) next[statusColumn] = stage === "qc" ? "passed" : stage === "master" ? "approved" : "approved";
     if (stage === "inspection") {
       next.metadata = { ...next.metadata, inspectionApproved: true, inspectionAuthority: "king_cob" };
@@ -157,7 +158,7 @@ async function advance(episode, stage, file, metadata = {}) {
     return next;
   });
 
-  const storedArtifact = await uploadArtifact(episode.episode_code, stage, file);\n  const assetId = await recordAsset(episode, stage, storedArtifact, metadata);
+  const assetId = await recordAsset(episode, stage, storedArtifact, metadata);
   const digest = createHash("sha256");
   for await (const chunk of createReadStream(file)) digest.update(chunk);
   const sha256 = digest.digest("hex");
@@ -170,7 +171,7 @@ async function advance(episode, stage, file, metadata = {}) {
     status: "approved",
     artifactId: String(assetId),
     artifact_id: String(assetId),
-    path: file,
+    path: storedArtifact,
     sha256,
     labels: ["TeeVee", stage],
     sources: [episode.episode_code],
@@ -179,11 +180,9 @@ async function advance(episode, stage, file, metadata = {}) {
   });
 
   if (stage === "catalog") {
-    const masters = await apexPureStore.query(
-      "teevee_episode_assets",
-      asset => asset.episodeId === episode.id && asset.assetType === "episode.master",
-      { sort: (a, b) => Number(b.version || 0) - Number(a.version || 0), limit: 1 }
-    );
+    const masters = typeof teeveeStore.queryFiltered === "function"
+      ? await teeveeStore.queryFiltered("teevee_episode_assets", { episodeId: episode.id, assetType: "episode.master" }, { sortField: "version", descending: true, limit: 1 })
+      : await teeveeStore.query("teevee_episode_assets", asset => asset.episodeId === episode.id && asset.assetType === "episode.master", { sort: (a, b) => Number(b.version || 0) - Number(a.version || 0), limit: 1 });
     if (!masters.length) throw new Error("Catalog cannot register without a master asset");
     const catalogId = createHash("sha256").update(`teevee-catalog|${episode.id}`).digest("hex");
     await teeveeStore.put("teevee_catalog", catalogId, {
@@ -296,7 +295,9 @@ async function concatAnimation(sceneFiles, output, runtimeSeconds){
   const dir=path.dirname(output);
   await fs.mkdir(dir,{recursive:true});
   const list=path.join(dir,"concat.txt");
-  await fs.writeFile(list,sceneFiles.map(concatQuote).join("\n")+"\n");
+  await fs.writeFile(list,sceneFiles.map(concatQuote).join("
+")+"
+");
   try{
     await new Promise((resolve,reject)=>ffmpeg()
       .input(list)
@@ -327,12 +328,17 @@ async function handle(stage, job){
   const base=`TeeVee original animated entertainment network. Episode ${code}. Title: ${episode.title}. Lane: ${episode.audience_lane}. Runtime target: ${episode.runtime_target_seconds}s. Visual DNA: dark fantasy anime, sharp cel shading, high-contrast cinematic lighting, highly detailed. Make it original, entertaining, memorable, and suitable for its stated maturity lane.`;
   let file, metadata={provider:"deterministic"};
   if(stage==="story"){
-    const generated=await generateText(`${base}\nCreate the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
+    const generated=await generateText(`${base}
+Create the story bible for this episode: premise, protagonist, supporting cast, world rules, conflict, escalation, reversal, climax, emotional payoff, and a 30-second opening hook. Avoid existing franchises.`);
     metadata.provider=generated.provider;
     file=await writeText(code,stage,"story.md",generated.text);
   }else if(stage==="script"){
     const story=await fs.readFile(path.join(stagePath(code,"story"),"story.md"),"utf8");
-    const generated=await generateText(`${base}\nHere is the story development for ${code}:\n${story.slice(0,24000)}\n\nTurn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
+    const generated=await generateText(`${base}
+Here is the story development for ${code}:
+${story.slice(0,24000)}
+
+Turn it into a filmable script with scene headings, action, dialogue, sound cues, and a compelling first 30 seconds. Target the episode runtime and keep it original.`);
     metadata.provider=generated.provider; file=await writeText(code,stage,"script.md",generated.text);
   }else if(stage==="storyboard"){
     const plan=buildAnimationPlan(episode.runtime_target_seconds);
