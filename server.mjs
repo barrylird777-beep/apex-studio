@@ -43,6 +43,7 @@ import { createInfiniteBroadcast } from './src/core/infinite-broadcast.mjs';
 import { createRealZeroStopProxy, RtmpSessionMultiplexer } from './src/core/real-zero-stop-proxy.mjs';
 import { createRelayRouter } from './src/api/relay-routes.mjs';
 import { createResearchRouter } from './src/api/research-routes.mjs';
+import { searchAnything } from './src/core/apex-web-search.mjs';
 import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
@@ -149,6 +150,46 @@ app.use('/api/relay', createRelayRouter(streamRelay));
 
 const researchEngine = new FrictionlessResearchEngine();
 app.use('/api/research', createResearchRouter(researchEngine));
+
+const publicSearchBuckets = new Map();
+function takePublicSearchSlot(req) {
+  const forwarded = String(req.get('x-forwarded-for') || '').split(',').map(value => value.trim()).filter(Boolean);
+  const key = (forwarded.at(-1) || req.socket?.remoteAddress || 'unknown').slice(0, 160);
+  const now = Date.now();
+  let bucket = publicSearchBuckets.get(key);
+  if (!bucket || now - bucket.startedAt >= 60_000) bucket = { startedAt: now, count: 0 };
+  if (bucket.count >= 30) return false;
+  bucket.count += 1;
+  publicSearchBuckets.set(key, bucket);
+  if (publicSearchBuckets.size > 2000) {
+    for (const [address, item] of publicSearchBuckets) {
+      if (now - item.startedAt >= 60_000) publicSearchBuckets.delete(address);
+    }
+  }
+  return true;
+}
+
+app.get('/api/search', async (req, res) => {
+  if (!takePublicSearchSlot(req)) {
+    return res.status(429).set('Retry-After', '60').json({
+      success: false,
+      error: 'Search rate limit reached. Please wait a minute and try again.'
+    });
+  }
+  try {
+    const result = await searchAnything(req.query.q, {
+      limit: req.query.limit,
+      page: req.query.page
+    });
+    return res.status(result.providers.some(provider => provider.ok) ? 200 : 502).json(result);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: String(error?.message || error).slice(0, 240)
+    });
+  }
+});
+
 
 app.get('/api/workforce/status', (_req, res) => {
   res.status(200).json({
