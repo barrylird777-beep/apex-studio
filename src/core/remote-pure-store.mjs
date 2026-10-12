@@ -36,16 +36,9 @@ export function createRemotePureStore() {
       return (await request("/api/internal/store/put", { collection, id, record: { ...record, id } })).record;
     },
     async queryFiltered(collection, filters = {}, { sortField = "", descending = false, limit = 10000 } = {}) {
-      const records = await this.list(collection);
-      let result = records.filter(record => Object.entries(filters).every(([key, value]) => record?.[key] === value));
-      if (sortField) result.sort((a, b) => {
-        const left = a?.[sortField], right = b?.[sortField];
-        const order = typeof left === "number" && typeof right === "number"
-          ? left - right
-          : String(left ?? "").localeCompare(String(right ?? ""));
-        return descending ? -order : order;
-      });
-      return result.slice(0, Math.max(1, Math.min(10000, Number(limit) || 10000)));
+      return (await request("/api/internal/store/query", {
+        collection, filters, sortField, descending, limit
+      })).records || [];
     },
     async enqueue({ id = randomUUID(), type, payload = {}, maxAttempts = 8, dedupeKey = null, priority = 0 } = {}) {
       return (await request("/api/internal/teevee/enqueue", {
