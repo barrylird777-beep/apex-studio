@@ -96,6 +96,10 @@ test("two sovereign peers exchange an envelope only when both identities are all
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-peer-roundtrip-"));
   const priorIds = process.env.APEX_ALLOWED_PEER_IDS;
   const priorPort = process.env.APEX_P2P_PORT;
+  const priorPrivateKey = process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  // Production deployments inject one stable peer identity. The round-trip test
+  // must generate two distinct temporary identities instead of reusing that key.
+  delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
   process.env.APEX_P2P_PORT = "0";
   let a, b;
   const received = [];
@@ -130,6 +134,8 @@ test("two sovereign peers exchange an envelope only when both identities are all
     else process.env.APEX_ALLOWED_PEER_IDS = priorIds;
     if (priorPort === undefined) delete process.env.APEX_P2P_PORT;
     else process.env.APEX_P2P_PORT = priorPort;
+    if (priorPrivateKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = priorPrivateKey;
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
