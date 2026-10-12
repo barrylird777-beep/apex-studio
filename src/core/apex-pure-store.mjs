@@ -156,11 +156,13 @@ export function createPureStore({ root = PROJECTS } = {}) {
     const file=path.resolve(base,String(name));
     if(file===base||!inside(base,file))throw new Error("[SECURITY_VIOLATION] Legacy store path escapes the configured root.");
     const parent=path.dirname(file);
-    await mkdir(parent,{recursive:true,mode:0o700});
-    let cursor=parent;
-    while(cursor!==base&&inside(base,cursor)){
-      const info=await lstat(cursor);if(info.isSymbolicLink()||!info.isDirectory())throw new Error("[SECURITY_VIOLATION] Symlink or non-directory in legacy store path.");
-      cursor=path.dirname(cursor);
+    const relativeParent=path.relative(base,parent);
+    let cursor=base;
+    for(const segment of relativeParent.split(path.sep).filter(Boolean)){
+      cursor=path.join(cursor,segment);
+      await mkdir(cursor,{recursive:false,mode:0o700}).catch(error=>{if(error.code!=="EEXIST")throw error;});
+      const info=await lstat(cursor);
+      if(info.isSymbolicLink()||!info.isDirectory())throw new Error("[SECURITY_VIOLATION] Symlink or non-directory in legacy store path.");
     }
     try{const info=await lstat(file);if(info.isSymbolicLink()||!info.isFile())throw new Error("[SECURITY_VIOLATION] Legacy store target must be a regular file.");}
     catch(e){if(e.code!=="ENOENT")throw e;}
