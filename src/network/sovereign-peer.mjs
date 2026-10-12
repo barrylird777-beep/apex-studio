@@ -72,8 +72,8 @@ export async function readSovereignEnvelope(stream) {
   return JSON.parse(line);
 }
 
-export async function createSovereignPeer({ onEnvelope } = {}) {
-  const privateKey = await loadOrCreatePeerPrivateKey();
+export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE } = {}) {
+  const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const node = await createLibp2p({
     privateKey,
     addresses: { listen: [`/ip4/0.0.0.0/tcp/${Number(process.env.APEX_P2P_PORT || 0)}`] },
@@ -108,7 +108,7 @@ export async function createSovereignPeer({ onEnvelope } = {}) {
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
-      const accepted = onEnvelope ? await onEnvelope(envelope) : false;
+      const accepted = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
       await stream.sink([encoder.encode(JSON.stringify({ accepted: Boolean(accepted), peerId: node.peerId.toString() }) + '\n')]);
     } catch (error) {
       await stream.sink([encoder.encode(JSON.stringify({ accepted: false, error: error instanceof Error ? error.message : String(error) }) + '\n')]);
