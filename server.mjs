@@ -694,6 +694,21 @@ app.get('/api/koin-kob/status', async (_req, res) => {
   }
 });
 
+
+app.get('/api/koin-kob/opportunities', async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(50, Math.floor(Number(req.query?.limit) || 10)));
+    const items = await apexPureStore.query('koin_kob_opportunities', () => true, {
+      limit,
+      sort: (a, b) => Number(b?.estimated_net_profit_usd || 0) - Number(a?.estimated_net_profit_usd || 0)
+    });
+    res.set('cache-control', 'no-store');
+    return res.json({ success: true, storage: 'pure-wal', items });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
 app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) => {
   try {
     const { runWorkerEconomySimulation, createSystemicEvent } = await import('./src/apps/koin-kob.mjs');
