@@ -58,6 +58,7 @@ const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').s
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 const streamReaders = new WeakMap();
+const pausedStreams = new WeakSet();
 
 function readerFor(stream) {
   let reader = streamReaders.get(stream);
@@ -123,9 +124,9 @@ function readerFor(stream) {
   }
 
   streamReaders.set(stream, reader);
-  // Outbound libp2p streams are already flowing. Resume only a stream we
-  // explicitly paused in the inbound handler; resuming a closing stream throws.
-  if (stream.status === 'paused') stream.resume?.();
+  // Outbound streams are already flowing. Resume only inbound streams we
+  // explicitly paused, and never resume a stream already closing or closed.
+  if (pausedStreams.delete(stream) && stream.status !== 'closing' && stream.status !== 'closed') stream.resume?.();
   return reader;
 }
 
@@ -245,6 +246,7 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     // Pause immediately so an early peer message cannot arrive before the
     // envelope reader attaches its message listener.
     stream.pause?.();
+    pausedStreams.add(stream);
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       if (!isAllowedPeer(remotePeerId)) {
