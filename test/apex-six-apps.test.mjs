@@ -4,7 +4,7 @@ import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
-import { defineKoBlock, composeKoBlocks, validateKoBlockGraph, koBlocksStatus } from "../src/apps/ko-blocks.mjs";
+import { xshieldStatus, classifyXShieldRequest } from "../src/apps/xshield.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
@@ -12,7 +12,7 @@ import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from ".
 
 test("Apex exposes the six locked canonical apps",()=>{
   assert.equal(assertSixAppInvariant(),true);
-  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
   assert.equal(Object.keys(APEX_APPS).length,6);
 });
 test("all canonical registry entries point to real surfaces and modules",async()=>{
@@ -108,7 +108,7 @@ test("Kernelodies uses the existing music provenance contract",async()=>{
   assert.equal(plan.contractVersion,"apex-music-production.v1"); assert.equal((await kernelodiesStatus()).app.name,"Kernelodies");
 });
 test("canonical app identities are internally consistent",async()=>{
-  for(const [id,fn] of [["planet-apex",planetApexStatus],["ko-blocks",koBlocksStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
+  for(const [id,fn] of [["planet-apex",planetApexStatus],["xshield",xshieldStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
   assert.equal((await kernelodiesStatus()).app.id,"kernelodies");
   for(const app of Object.values(APEX_APPS))assert.equal(getApexApp(app.id).name,app.name);
 });
