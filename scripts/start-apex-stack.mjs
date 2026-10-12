@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { migrateSovereignStorage } from "../src/core/sovereign-storage-migration.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const apiScript = path.join(root, "server.mjs");
@@ -78,5 +79,13 @@ function finishIfStopped() {
 
 process.once("SIGTERM", () => stopAll(0, "SIGTERM"));
 process.once("SIGINT", () => stopAll(0, "SIGINT"));
+try {
+  const migration = await migrateSovereignStorage();
+  console.log("[APEX STACK] persistent sovereign storage ready", JSON.stringify({ migrated: migration.migrated, copiedFiles: migration.copied.length }));
+} catch (error) {
+  console.error("[APEX STACK] persistent sovereign storage migration failed closed", error);
+  process.exitCode = 1;
+  throw error;
+}
 startApi();
 startRuntime();

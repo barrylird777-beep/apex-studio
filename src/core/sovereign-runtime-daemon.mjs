@@ -10,8 +10,11 @@ import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
 import { retryWalStartup } from './wal-startup-retry.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
+import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
+const storageMigration = await migrateSovereignStorage();
+console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));
 const peerAddress = process.env.APEX_SOVEREIGN_PEER_ADDRESS || '';
