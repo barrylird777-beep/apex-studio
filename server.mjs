@@ -264,20 +264,16 @@ async function buildHealthSnapshot() {
   };
 }
 
-app.get('/health', async (_req, res) => {
-  try {
-    res.status(200).json(await buildHealthSnapshot());
-  } catch (error) {
-    res.status(200).json({
-      ok: true,
-      status: 'degraded',
-      uptime: process.uptime(),
-      pid: process.pid,
-      error: 'health probe degraded',
-      runtimeFault,
-      durable: { configured: durableWorkerEnabled(), available: false, status: 'unavailable' }
-    });
-  }
+// Railway liveness must not wait on PostgreSQL or a worker health query.
+app.get('/health', (_req, res) => {
+  const memory = process.memoryUsage();
+  return res.status(200).json({
+    ok: true,
+    status: 'alive',
+    uptime: process.uptime(),
+    pid: process.pid,
+    memory: { rss: memory.rss, heapUsed: memory.heapUsed }
+  });
 });
 
 app.get('/api/health', async (_req, res) => {
