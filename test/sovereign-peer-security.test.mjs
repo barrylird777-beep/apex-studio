@@ -212,3 +212,40 @@ test("ACK timeout during a backpressured write is handled and closes the peer st
     else process.env.APEX_PEER_DIAL_TIMEOUT_MS = priorTimeout;
   }
 });
+
+
+test("outgoing sovereign envelopes wait for accepted bytes to drain before reporting ACK", async () => {
+  const previous = process.env.APEX_ALLOWED_PEER_IDS;
+  process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
+  let drained = false;
+  const listeners = new Map();
+  const fakeStream = {
+    status: "open",
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    removeEventListener(type) { listeners.delete(type); },
+    resume() {},
+    send() {
+      listeners.get("message")?.({
+        data: new TextEncoder().encode(JSON.stringify({ accepted: true, peerId: "allowed-peer" }) + "\\n")
+      });
+      return true;
+    },
+    async onDrain() {
+      await new Promise(resolve => setTimeout(resolve, 15));
+      drained = true;
+    },
+    async close() {}
+  };
+  try {
+    const response = await sendToPeer(
+      { async dialProtocol() { return fakeStream; } },
+      "/ip4/127.0.0.1/tcp/1234/p2p/allowed-peer",
+      { type: "test.flush" }
+    );
+    assert.equal(response.accepted, true);
+    assert.equal(drained, true, "ACK must not be reported until the outbound buffer drains");
+  } finally {
+    if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = previous;
+  }
+});
