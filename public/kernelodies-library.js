@@ -12,7 +12,7 @@
       </select>
     </label>
     <p id="kl-mode-note">Audio and metadata stay in this browser. This is not shared storage.</p>
-    <label id="kl-token-label" hidden>Control token <input id="kl-token" type="password" autocomplete="off" placeholder="KERNELODIES_LIBRARY_TOKEN"></label>
+    <label id="kl-token-label" hidden>Kernelodies token <input id="kl-token" type="password" autocomplete="off" placeholder="KERNELODIES_LIBRARY_TOKEN"></label>
     <label>Track title <input id="kl-title" maxlength="200" placeholder="Track title (optional)"></label>
     <label>Artist <input id="kl-artist" maxlength="200" placeholder="Artist (optional)"></label>
     <label>Album <input id="kl-album" maxlength="200" placeholder="Album (optional)"></label>
@@ -109,7 +109,7 @@
       play.textContent = "Load / Play";
       play.onclick = async () => {
         try {
-          const response = await fetch(track.audioUrl, { headers: { "X-Apex-Control-Token": token() } });
+          const response = await fetch(track.audioUrl, { headers: { "X-Kernelodies-Token": token() } });
           if (!response.ok) throw new Error("Audio request failed (HTTP " + response.status + ")");
           const blob = await response.blob();
           const audio = addPlayer(card, blob);
@@ -218,7 +218,7 @@
     const server = serverMode();
     $("kl-token-label").hidden = !server;
     $("kl-mode-note").textContent = server
-      ? "Shared server storage requires the configured Apex control token. Access is protected; the token stays in page memory."
+      ? "Shared storage requires the dedicated Kernelodies library token. Access is protected; the token stays in page memory."
       : "Audio and metadata stay in this browser on this device. This mode needs no account or server token.";
     $("kl-upload").textContent = server ? "Save to Apex storage" : "Save to browser library";
     refresh();
