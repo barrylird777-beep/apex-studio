@@ -1,4 +1,4 @@
-import { mkdir, rename, writeFile, readFile, realpath, lstat, open } from "node:fs/promises";
+import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
@@ -6,6 +6,7 @@ import { ApexRingWAL } from "./apex-ring-wal.mjs";
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const PROJECTS=process.env.APEX_PROJECTS_DIR||path.join(ROOT,"projects");
 const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const SEGMENT=/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 
 function safeSegment(value,label){
@@ -37,6 +38,29 @@ export class ApexPureStore {
     await this.init();
     await this.wal.refresh({onRecord:r=>this.apply(r)});
     return this;
+  }
+  async withMutationLock(operation){
+    await mkdir(this.root,{recursive:true,mode:0o700});
+    const lockFile=path.join(this.root,".apex-queue-mutations.lock");
+    const started=Date.now();
+    while(true){
+      try{
+        const handle=await open(lockFile,"wx",0o600);
+        try{await handle.writeFile(JSON.stringify({pid:process.pid,createdAt:Date.now()})+"\\n","utf8");await handle.sync();}
+        catch(error){await handle.close().catch(()=>{});await unlink(lockFile).catch(()=>{});throw error;}
+        await handle.close();
+        break;
+      }catch(error){
+        if(error.code!=="EEXIST")throw error;
+        let stale=false;
+        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>60000;}catch(e){if(e.code==="ENOENT")continue;throw e;}
+        if(stale){await unlink(lockFile).catch(e=>{if(e.code!=="ENOENT")throw e;});continue;}
+        if(Date.now()-started>65000)throw new Error("[STORE_LOCK] Timed out waiting for the shared queue mutation lock.");
+        await sleep(20+Math.floor(Math.random()*31));
+      }
+    }
+    try{return await operation();}
+    finally{await unlink(lockFile).catch(error=>{if(error.code!=="ENOENT")throw error;});}
   }
   key(c,id){return String(c)+"::"+String(id);}
   apply(r){
@@ -98,7 +122,7 @@ export class ApexPureStore {
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null}={}){
     if(!type)throw new Error("job type required");
-    const run=async()=>{
+    const run=()=>this.withMutationLock(async()=>{
       await this.refresh();
       if(dedupeKey){
         const statuses=type==="sovereign.app.dispatch"?["queued","running","completed","dead"]:["queued","running"];
@@ -110,37 +134,52 @@ export class ApexPureStore {
       for(const external of this.wal.lastExternalRecords||[])this.apply(external);
       this.apply(r);
       return {durable:true,id:job.id};
-    };
+    });
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
-    await this.refresh();
-    const run=async()=>{
+    const run=()=>this.withMutationLock(async()=>{
+      await this.refresh();
       const now=Date.now(),out=[];
       const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(role?j.payload?._apex_worker?.role===role:j.payload?._apex_worker?.role!=="sovereign-runtime")).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
       for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){
-        // Re-check immediately before writing the claim. This serializes claims
-        // made through one store instance; cross-process locking remains separate.
         const current=this.jobsState.get(String(j.id));if(!current||current.status!=="queued")continue;
         const token=randomUUID(),fence=Number(current.leaseFence||0)+1;
         const patch={status:"running",attempts:Number(current.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+Math.max(1000,Number(leaseMs)||45000),updatedAt:new Date().toISOString()};
-        const r=await this.wal.append("job.transition",{id:current.id,patch});for(const external of this.wal.lastExternalRecords||[])this.apply(external);this.apply(r);out.push({...current,...patch});
+        const r=await this.wal.append("job.transition",{id:current.id,patch});
+        for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+        this.apply(r);out.push({...current,...patch});
       }
       return out;
-    };
+    });
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
-    await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
-    let patch={updatedAt:new Date().toISOString()};
-    if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
-    if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
-    if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
-    if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
-    const r=await this.wal.append("job.transition",{id:j.id,patch});for(const external of this.wal.lastExternalRecords||[])this.apply(external);this.apply(r);return true;
+    return this.withMutationLock(async()=>{
+      await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
+      let patch={updatedAt:new Date().toISOString()};
+      if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
+      if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
+      if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
+      if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
+      const r=await this.wal.append("job.transition",{id:j.id,patch});
+      for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+      this.apply(r);return true;
+    });
   }
-  async recoverExpired(limit=500){await this.refresh();let n=0;const now=Date.now();for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){const r=await this.wal.append("job.transition",{id:j.id,patch:{status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()}});for(const external of this.wal.lastExternalRecords||[])this.apply(external);this.apply(r);n++;}return n;}
+  async recoverExpired(limit=500){
+    return this.withMutationLock(async()=>{
+      await this.refresh();let n=0;const now=Date.now();
+      for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){
+        const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
+        const r=await this.wal.append("job.transition",{id:j.id,patch});
+        for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+        this.apply(r);n++;
+      }
+      return n;
+    });
+  }
   async snapshot(){await this.refresh();return {root:this.root,jobs:this.jobs(),state:[...this.state.values()].map(clone),wal:await this.wal.snapshot()};}
 }
 export const apexPureStore=new ApexPureStore();
