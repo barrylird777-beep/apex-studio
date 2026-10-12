@@ -62,6 +62,19 @@ test("remote manifests round-trip and enforce compare-and-swap", async () => {
   assert.equal(await store.readRef("state", "record-1"), null);
 });
 
+test("remote CAS retries concurrent unconditional manifest writes", async () => {
+  const store = makeStore(new FakeS3());
+  await store.writeRef("state", "shared-runtime-identity", { revision: 0 });
+  const results = await Promise.all([
+    store.writeRef("state", "shared-runtime-identity", { writer: "studio", revision: 1 }),
+    store.writeRef("state", "shared-runtime-identity", { writer: "peer2", revision: 1 })
+  ]);
+  assert.equal(results.length, 2);
+  const final = await store.readRef("state", "shared-runtime-identity");
+  assert.ok(["studio", "peer2"].includes(final.value.writer));
+  assert.equal(final.value.revision, 1);
+});
+
 test("remote CAS paginates namespace references without local filesystem locks", async () => {
   const store = makeStore(new FakeS3());
   await Promise.all(["one", "two", "three"].map(key => store.writeRef("jobs", key, { id: key })));
