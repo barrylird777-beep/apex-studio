@@ -71,8 +71,8 @@ async function evaluateKornKnobIdea(job) {
   const idea = createKornKnobIdea(payload);
   return {
     ...idea,
-    ownerApp: "KornKnob",
-    productionOwner: "ApexStudio",
+    ownerApp: "Kernelodies",
+    productionOwner: "KernelVision",
     durableEvaluation: true
   };
 }
