@@ -98,26 +98,32 @@ export function createKernelodiesLibraryRouter({
     if (!Array.isArray(value.tracks)) throw new Error("Kernelodies library manifest is invalid");
     return value;
   }
+  async function writeManifestLocked(manifest) {
+    let temp;
+    try {
+      temp = manifestPath + ".tmp-" + crypto.randomUUID();
+      const handle = await fs.open(temp, "wx", 0o600);
+      try {
+        await handle.writeFile(JSON.stringify(manifest, null, 2) + "\n", "utf8");
+        await handle.sync();
+      } finally { await handle.close(); }
+      await fs.rename(temp, manifestPath);
+      temp = null;
+      await syncDirectory(root);
+    } finally {
+      if (temp) await fs.unlink(temp).catch(() => {});
+    }
+  }
   function updateManifest(fn) {
     const run = writes.then(async () => {
       await init();
       const release = await acquireManifestLock();
-      let temp;
       try {
         const manifest = await readManifest();
         const result = await fn(manifest);
-        temp = manifestPath + ".tmp-" + crypto.randomUUID();
-        const handle = await fs.open(temp, "wx", 0o600);
-        try {
-          await handle.writeFile(JSON.stringify(manifest, null, 2) + "\n", "utf8");
-          await handle.sync();
-        } finally { await handle.close(); }
-        await fs.rename(temp, manifestPath);
-        temp = null;
-        await syncDirectory(root);
+        await writeManifestLocked(manifest);
         return result;
       } finally {
-        if (temp) await fs.unlink(temp).catch(() => {});
         await release();
       }
     });
@@ -188,43 +194,68 @@ export function createKernelodiesLibraryRouter({
     if (bytes.length > MAX_AUDIO_BYTES) return res.status(413).json({ ok: false, error: "Audio file exceeds 50 MB" });
     try {
       await init();
-      const record = (await readManifest()).tracks.find(track => track.id === id);
-      if (!record) return res.status(404).json({ ok: false, error: "Track record not found" });
       const filename = id + "." + extension;
       const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
       const finalPath = path.join(root, filename);
       const tempPath = path.join(root, "." + filename + ".tmp-" + crypto.randomUUID());
-      // Serialize every capacity check + audio write across app processes. A
-      // check without this lock races when two uploads compete for the same disk.
+      // Keep the media write and catalog commit under one cross-process lock.
+      // If a process stops between them, an identical retry can adopt the
+      // already-written file instead of losing access to the track.
       const release = await acquireManifestLock();
       try {
+        const manifest = await readManifest();
+        const record = manifest.tracks.find(track => track.id === id);
+        if (!record) return res.status(404).json({ ok: false, error: "Track record not found" });
+        if (record.audioUrl) {
+          if (record.mimeType === mimeType && record.bytes === bytes.length && record.checksum === checksum) {
+            return res.json({ ok: true, track: record });
+          }
+          return res.status(409).json({ ok: false, error: "Audio is already attached to this track; it was not overwritten" });
+        }
+        for (const existingExtension of new Set(Object.values(AUDIO_TYPES))) {
+          if (existingExtension === extension) continue;
+          try {
+            await fs.access(path.join(root, id + "." + existingExtension));
+            return res.status(409).json({ ok: false, error: "An unattached audio file already exists in another format; it was preserved for inspection" });
+          } catch (error) { if (error?.code !== "ENOENT") throw error; }
+        }
         let availableBytes;
         try { availableBytes = Number(await getAvailableBytes(root)); }
         catch (_error) { return res.status(503).json({ ok: false, error: "Unable to verify available storage space" }); }
-        if (!Number.isFinite(availableBytes) || availableBytes < bytes.length + MIN_FREE_BYTES) {
+        let fileExists = false;
+        try { await fs.access(finalPath); fileExists = true; }
+        catch (error) { if (error?.code !== "ENOENT") throw error; }
+        if (!fileExists && (!Number.isFinite(availableBytes) || availableBytes < bytes.length + MIN_FREE_BYTES)) {
           return res.status(507).json({ ok: false, error: "Not enough free space; existing shared storage is protected." });
         }
-        try {
-          const handle = await fs.open(tempPath, "wx", 0o600);
+        if (fileExists) {
+          const existing = await fs.readFile(finalPath);
+          const existingChecksum = crypto.createHash("sha256").update(existing).digest("hex");
+          if (existing.length !== bytes.length || existingChecksum !== checksum) {
+            return res.status(409).json({ ok: false, error: "A different audio file already exists for this track; it was not overwritten" });
+          }
+        } else {
           try {
-            await handle.writeFile(bytes);
-            await handle.sync();
-          } finally { await handle.close(); }
-          await fs.link(tempPath, finalPath);
-          await syncDirectory(root);
-        } finally {
-          await fs.unlink(tempPath).catch(() => {});
+            const handle = await fs.open(tempPath, "wx", 0o600);
+            try {
+              await handle.writeFile(bytes);
+              await handle.sync();
+            } finally { await handle.close(); }
+            await fs.link(tempPath, finalPath);
+            await syncDirectory(root);
+          } finally {
+            await fs.unlink(tempPath).catch(() => {});
+          }
         }
+        record.mimeType = mimeType;
+        record.bytes = bytes.length;
+        record.checksum = checksum;
+        record.audioUrl = "/api/kernelodies/library/" + id + "/audio";
+        await writeManifestLocked(manifest);
+        return res.json({ ok: true, track: record });
       } finally {
         await release();
       }
-      await updateManifest(manifest => {
-        const track = manifest.tracks.find(item => item.id === id);
-        if (!track) throw new Error("Track record disappeared");
-        track.mimeType = mimeType; track.bytes = bytes.length; track.checksum = checksum; track.audioUrl = "/api/kernelodies/library/" + id + "/audio";
-        return track;
-      });
-      res.json({ ok: true, track: { ...record, mimeType, bytes: bytes.length, checksum, audioUrl: "/api/kernelodies/library/" + id + "/audio" } });
     } catch (error) {
       if (error?.code === "EEXIST") return res.status(409).json({ ok: false, error: "Audio already exists for this track; it was not overwritten" });
       if (error?.code === "ENOSPC") return res.status(507).json({ ok: false, error: "Storage filled before the audio could be saved; no existing file was overwritten" });

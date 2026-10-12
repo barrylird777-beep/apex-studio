@@ -223,3 +223,46 @@ test("Kernelodies browser UI script parses and defaults to local-first mode", ()
   assert.match(source, /Apex shared storage/);
   assert.match(source, /await audio\.play\(\)/);
 });
+
+
+test("Kernelodies recovers an interrupted media/catalog commit without overwriting audio", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-recovery-test-"));
+  let runtime;
+  try {
+    runtime = await startApp(storageDir);
+    const headers = { "x-test-token": "test-secret" };
+    const createdResponse = await fetch(runtime.base + "/api/kernelodies/library", {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ title: "Recovery Track", artist: "Test Artist" })
+    });
+    assert.equal(createdResponse.status, 201);
+    const { track } = await createdResponse.json();
+    const audioBytes = Buffer.from("audio-left-on-disk-before-catalog-commit");
+    const libraryDir = path.join(storageDir, "kernelodies-library");
+    await fs.mkdir(libraryDir, { recursive: true });
+    await fs.writeFile(path.join(libraryDir, track.id + ".wav"), audioBytes, { flag: "wx", mode: 0o600 });
+
+    const retry = await fetch(runtime.base + "/api/kernelodies/library/" + track.id + "/audio", {
+      method: "PUT",
+      headers: { ...headers, "content-type": "audio/wav" },
+      body: audioBytes
+    });
+    assert.equal(retry.status, 200);
+    const saved = await retry.json();
+    assert.equal(saved.track.bytes, audioBytes.length);
+    assert.equal(saved.track.checksum.length, 64);
+
+    const conflicting = await fetch(runtime.base + "/api/kernelodies/library/" + track.id + "/audio", {
+      method: "PUT",
+      headers: { ...headers, "content-type": "audio/wav" },
+      body: Buffer.from("different audio must never overwrite")
+    });
+    assert.equal(conflicting.status, 409);
+    const playback = await fetch(runtime.base + saved.track.audioUrl, { headers });
+    assert.deepEqual(Buffer.from(await playback.arrayBuffer()), audioBytes);
+  } finally {
+    if (runtime) await runtime.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
+  }
+});
