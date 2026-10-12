@@ -125,7 +125,7 @@ export class ApexPureStore {
     const run=()=>this.withMutationLock(async()=>{
       await this.refresh();
       if(dedupeKey){
-        const statuses=type==="sovereign.app.dispatch"?["queued","running","completed","dead"]:["queued","running"];
+        const statuses=["sovereign.app.dispatch","kernelvision.rapid.order"].includes(type)?["queued","running","completed","dead"]:["queued","running"];
         const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&statuses.includes(j.status));
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
