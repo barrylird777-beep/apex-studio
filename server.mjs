@@ -2016,7 +2016,7 @@ app.post('/api/audio', async (req, res) => {
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!buffer.length) throw new Error('TTS provider returned an empty audio file');
     if (sceneId) {
-      const estimatedDurationMs = Math.min(600000, Math.max(1000, Math.ceil(text.split(/\\s+/).filter(Boolean).length / 2.5 * 1000)));
+      const estimatedDurationMs = Math.min(600000, Math.max(1000, Math.ceil(text.split(/\s+/).filter(Boolean).length / 2.5 * 1000)));
       const savedScene = await saveSceneAsset(sceneId, 'audio', buffer, 'wav', { durationMs: estimatedDurationMs });
       return res.json({
         success: true,
