@@ -73,7 +73,7 @@ app.use(cors({
     return callback(new Error('CORS origin not allowed'));
   },
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id', 'X-Apex-Worker-Token'],
   maxAge: 600
 }));
 
@@ -111,6 +111,14 @@ function requireControlPlaneAuth(req, res, next) {
   return next();
 }
 
+function requireWorkerAuth(req, res, next) {
+  const expected = process.env.APEX_WORKER_TOKEN;
+  if (!expected) return res.status(503).json({ success: false, error: 'Remote worker authorization is not configured' });
+  if (!timingSafeSecret(expected, req.get('x-apex-worker-token'))) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  return next();
+}
 
 const relayDestination = process.env.APEX_RELAY_DEST_ENDPOINT || 'rtmp://127.0.0.1:1935/live/apex-studio';
 const relayFallbackFile = process.env.APEX_RELAY_FALLBACK_FILE || path.join(STORAGE_DIR, 'broadcast', 'standby.flv');
@@ -186,6 +194,69 @@ app.get('/api/shield-apex/status', (_req, res) => {
     role: 'network_security',
     ...shieldApex.status()
   });
+});
+
+app.get('/api/internal/worker/health', requireWorkerAuth, async (_req, res) => {
+  const health = await durableWorkerHealth();
+  return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'local-pure-wal', health });
+});
+
+app.post('/api/internal/worker/claim', requireWorkerAuth, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20, Math.floor(Number(req.body?.limit) || 1)));
+    const leaseMs = Math.max(15000, Math.min(120000, Math.floor(Number(req.body?.leaseMs) || 45000)));
+    const workerId = String(req.body?.workerId || 'remote-worker').slice(0, 255);
+    const tasks = await claimNextWorkerTasks(limit, leaseMs, null, workerId);
+    return res.json({ success: true, tasks, claimed: tasks.length, storage: 'local-pure-wal' });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/recover', requireWorkerAuth, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(5000, Math.floor(Number(req.body?.limit) || 500)));
+    return res.json({ success: true, recovered: await requeueExpiredWorkerTasks(limit) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/:jobId/heartbeat', requireWorkerAuth, async (req, res) => {
+  try {
+    const ok = await heartbeatWorkerTask(String(req.params.jobId), Number(req.body?.leaseMs) || 45000, req.body?.leaseToken, req.body?.leaseFence);
+    return res.status(ok ? 200 : 409).json({ success: ok, renewed: ok });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/:jobId/complete', requireWorkerAuth, async (req, res) => {
+  try {
+    const ok = await completeWorkerTask(String(req.params.jobId), req.body?.result ?? null, req.body?.leaseToken, req.body?.leaseFence);
+    return res.status(ok ? 200 : 409).json({ success: ok, completed: ok });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/:jobId/fail', requireWorkerAuth, async (req, res) => {
+  try {
+    const ok = await failWorkerTask(String(req.params.jobId), String(req.body?.error || 'Worker task failed').slice(0, 4000), req.body?.leaseToken, req.body?.leaseFence);
+    return res.status(ok ? 200 : 409).json({ success: ok, transitioned: ok });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/worker/release', requireWorkerAuth, async (req, res) => {
+  try {
+    const taskIds = Array.isArray(req.body?.taskIds) ? req.body.taskIds.map(String).slice(0, 20) : [];
+    const leaseTokens = Array.isArray(req.body?.leaseTokens) ? req.body.leaseTokens.map(String).slice(0, 20) : [];
+    return res.json({ success: true, released: await releaseWorkerTasks(taskIds, leaseTokens) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
 });
 
 app.get('/api/apex/readiness', async (_req, res) => {
