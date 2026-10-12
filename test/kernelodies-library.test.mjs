@@ -6,11 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import { createKernelodiesLibraryRouter } from "../src/api/kernelodies-library.mjs";
 
-async function startApp(storageDir) {
+async function startApp(storageDir, options = {}) {
   const app = express();
   app.use(express.json());
   app.use("/api/kernelodies/library", createKernelodiesLibraryRouter({
     storageDir,
+    getAvailableBytes: options.getAvailableBytes,
     authorize(req, res, next) {
       if (req.get("x-test-token") !== "test-secret") {
         return res.status(401).json({ ok: false, error: "Unauthorized" });
@@ -122,5 +123,42 @@ test("Kernelodies library refuses a symlinked storage root", async () => {
     if (runtime) await runtime.close().catch(() => {});
     await fs.rm(storageDir, { recursive: true, force: true });
     await fs.rm(outsideDir, { recursive: true, force: true });
+  }
+});
+
+
+test("Kernelodies protects shared-storage headroom before audio writes", async () => {
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "kernelodies-capacity-test-"));
+  let runtime;
+  try {
+    runtime = await startApp(storageDir, { getAvailableBytes: async () => 1024 });
+    const headers = { "x-test-token": "test-secret" };
+    const preflight = await fetch(runtime.base + "/api/kernelodies/library/capacity?bytes=24", { headers });
+    assert.equal(preflight.status, 507);
+    const preflightBody = await preflight.json();
+    assert.match(preflightBody.error, /shared storage is protected/i);
+
+    const createdResponse = await fetch(runtime.base + "/api/kernelodies/library", {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ title: "Capacity Test", artist: "Test Artist" })
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = await createdResponse.json();
+
+    const upload = await fetch(runtime.base + "/api/kernelodies/library/" + created.track.id + "/audio", {
+      method: "PUT",
+      headers: { ...headers, "content-type": "audio/wav" },
+      body: Buffer.from("audio")
+    });
+    assert.equal(upload.status, 507);
+    const library = await (await fetch(runtime.base + "/api/kernelodies/library", { headers })).json();
+    assert.equal(library.tracks[0].audioUrl, null);
+    const files = await fs.readdir(path.join(storageDir, "kernelodies-library"));
+    assert.equal(files.some(name => name.endsWith(".wav")), false);
+    assert.equal(files.some(name => name.includes(".tmp-")), false);
+  } finally {
+    if (runtime) await runtime.close().catch(() => {});
+    await fs.rm(storageDir, { recursive: true, force: true });
   }
 });

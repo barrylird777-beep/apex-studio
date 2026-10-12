@@ -17,8 +17,16 @@ const AUDIO_TYPES = Object.freeze({
   "audio/webm": "webm"
 });
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
+const MIN_FREE_BYTES = 32 * 1024 * 1024;
 
-export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, _res, next) => next() } = {}) {
+export function createKernelodiesLibraryRouter({
+  storageDir,
+  authorize = (_req, _res, next) => next(),
+  getAvailableBytes = async dir => {
+    const stats = await fs.statfs(dir);
+    return stats.bavail * stats.bsize;
+  }
+} = {}) {
   if (!storageDir) throw new TypeError("storageDir is required");
   const router = express.Router();
   const root = path.join(path.resolve(storageDir), "kernelodies-library");
@@ -130,6 +138,28 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
     } catch (error) { res.status(503).json({ ok: false, error: "Kernelodies library unavailable" }); }
   });
 
+  router.get("/capacity", async (req, res) => {
+    const requestedBytes = Number(req.query?.bytes ?? 0);
+    if (!Number.isSafeInteger(requestedBytes) || requestedBytes < 0 || requestedBytes > MAX_AUDIO_BYTES) {
+      return res.status(400).json({ ok: false, error: "Invalid requested audio size" });
+    }
+    try {
+      await init();
+      const availableBytes = Number(await getAvailableBytes(root));
+      if (!Number.isFinite(availableBytes) || availableBytes < 0) throw new Error("Invalid free-space reading");
+      const canUpload = availableBytes >= requestedBytes + MIN_FREE_BYTES;
+      return res.status(canUpload ? 200 : 507).json({
+        ok: canUpload,
+        availableBytes,
+        requestedBytes,
+        reserveBytes: MIN_FREE_BYTES,
+        ...(canUpload ? {} : { error: "Not enough free space; existing shared storage is protected." })
+      });
+    } catch (_error) {
+      return res.status(503).json({ ok: false, error: "Unable to verify available storage space" });
+    }
+  });
+
   router.post("/", express.json({ limit: "32kb" }), async (req, res) => {
     try {
       const title = String(req.body?.title || "").trim().slice(0, 200);
@@ -160,21 +190,27 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
       await init();
       const record = (await readManifest()).tracks.find(track => track.id === id);
       if (!record) return res.status(404).json({ ok: false, error: "Track record not found" });
+      let availableBytes;
+      try { availableBytes = Number(await getAvailableBytes(root)); }
+      catch (_error) { return res.status(503).json({ ok: false, error: "Unable to verify available storage space" }); }
+      if (!Number.isFinite(availableBytes) || availableBytes < bytes.length + MIN_FREE_BYTES) {
+        return res.status(507).json({ ok: false, error: "Not enough free space; existing shared storage is protected." });
+      }
       const filename = id + "." + extension;
       const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
       const finalPath = path.join(root, filename);
       const tempPath = path.join(root, "." + filename + ".tmp-" + crypto.randomUUID());
-      const handle = await fs.open(tempPath, "wx", 0o600);
       try {
-        await handle.writeFile(bytes);
-        await handle.sync();
-      } finally { await handle.close(); }
-      try {
+        const handle = await fs.open(tempPath, "wx", 0o600);
+        try {
+          await handle.writeFile(bytes);
+          await handle.sync();
+        } finally { await handle.close(); }
         await fs.link(tempPath, finalPath);
+        await syncDirectory(root);
       } finally {
         await fs.unlink(tempPath).catch(() => {});
       }
-      await syncDirectory(root);
       await updateManifest(manifest => {
         const track = manifest.tracks.find(item => item.id === id);
         if (!track) throw new Error("Track record disappeared");
@@ -184,6 +220,7 @@ export function createKernelodiesLibraryRouter({ storageDir, authorize = (_req, 
       res.json({ ok: true, track: { ...record, mimeType, bytes: bytes.length, checksum, audioUrl: "/api/kernelodies/library/" + id + "/audio" } });
     } catch (error) {
       if (error?.code === "EEXIST") return res.status(409).json({ ok: false, error: "Audio already exists for this track; it was not overwritten" });
+      if (error?.code === "ENOSPC") return res.status(507).json({ ok: false, error: "Storage filled before the audio could be saved; no existing file was overwritten" });
       res.status(500).json({ ok: false, error: "Could not persist audio file" });
     }
   });

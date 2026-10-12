@@ -69,6 +69,8 @@
     const mimeType = allowedTypes.has((file.type || "").toLowerCase()) ? file.type.toLowerCase() : byExtension[extension];
     if (!mimeType) return status("Unsupported audio type. Choose MP3, M4A, AAC, WAV, OGG, FLAC, or WebM.");
     try {
+      status("Checking available storage…");
+      await api("/api/kernelodies/library/capacity?bytes=" + encodeURIComponent(file.size));
       status("Saving track metadata…");
       const created = await api("/api/kernelodies/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: $("kl-title").value || file.name.replace(/\.[^.]+$/, ""), artist: $("kl-artist").value, album: $("kl-album").value }) });
       status("Uploading audio to persistent storage…");
