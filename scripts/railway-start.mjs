@@ -16,7 +16,7 @@ if (process.env.APEX_QUIESCE_LEGACY_FOUNDATION === 'true') {
   const idle = createServer((req, res) => {
     if ((req.url || '').split('?')[0] === '/health') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, mode: 'quiesced', storage: 'local-pure-wal' }));
+      res.end(JSON.stringify({ ok: true, mode: 'quiesced', storage: 'content-addressed' }));
       return;
     }
     res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
