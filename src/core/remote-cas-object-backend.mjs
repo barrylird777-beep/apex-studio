@@ -6,7 +6,14 @@ export class RemoteCasObjectBackend {
     const bucket = text(env.APEX_OBJECT_STORAGE_BUCKET);
     const accessKeyId = text(env.APEX_OBJECT_STORAGE_ACCESS_KEY_ID);
     const secretAccessKey = text(env.APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY);
-    this.enabled = text(env.APEX_CAS_REMOTE_ENABLED).toLowerCase() === "true" && Boolean(endpoint && bucket && accessKeyId && secretAccessKey);
+    const remoteRequested = text(env.APEX_CAS_REMOTE_ENABLED).toLowerCase() === "true";
+    this.required = text(env.APEX_CAS_REMOTE_REQUIRED).toLowerCase() === "true" ||
+      text(env.NODE_ENV).toLowerCase() === "production" || remoteRequested;
+    const completeCredentials = Boolean(endpoint && bucket && accessKeyId && secretAccessKey);
+    if (this.required && (!remoteRequested || !completeCredentials)) {
+      throw new Error("Remote-only CAS is required but APEX_CAS_REMOTE_ENABLED or object-storage credentials are missing");
+    }
+    this.enabled = remoteRequested && completeCredentials;
     this.prefix = text(env.APEX_CAS_OBJECT_PREFIX) || "apex-cas/objects/sha256";
     if (!this.enabled) return;
     this.bucket = bucket;
