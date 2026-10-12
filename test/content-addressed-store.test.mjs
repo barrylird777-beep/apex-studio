@@ -128,3 +128,45 @@ test("remote CAS backend stays disabled unless every storage credential is confi
   assert.equal(backend.key("a".repeat(64)), "apex-cas/objects/sha256/aa/" + "a".repeat(64) + ".json");
   assert.throws(() => backend.key("../escape"), /Invalid SHA-256 object id/);
 });
+
+test("remote-only CAS writes and reads objects and refs without local fallback", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-remote-only-"));
+  try {
+    const store = await new ContentAddressedStore({ root }).init();
+    const objects = new Map();
+    const refs = new Map();
+    store.remoteObjects = {
+      enabled: true,
+      async put(hash, bytes) { objects.set(hash, bytes); return true; },
+      async get(hash) { return objects.get(hash) ?? null; },
+      async putRef(ns, key, value) { refs.set(ns + "/" + key, value); return true; },
+      async getRef(ns, key) { return refs.get(ns + "/" + key) ?? null; },
+      async listRefs(ns) { return [...refs.keys()].filter(k => k.startsWith(ns + "/")).map(k => k.slice(ns.length + 1)); },
+      async deleteRef(ns, key) { refs.delete(ns + "/" + key); return true; }
+    };
+    store.remoteRefsEnabled = true;
+    const written = await store.writeRef("app", "preserved-record", { marker: "cloud-round-trip", revision: 1 });
+    assert.equal(written.backend, "object-storage");
+    assert.deepEqual((await store.readRef("app", "preserved-record")).value, { marker: "cloud-round-trip", revision: 1 });
+    assert.deepEqual(await store.listRefs("app").then(rows => rows.map(row => row.key)), ["preserved-record"]);
+    assert.deepEqual(await readdir(root), []);
+    assert.equal(await store.deleteRef("app", "preserved-record", { expectedHash: written.hash }), true);
+    assert.equal(await store.readRef("app", "preserved-record"), null);
+    assert.deepEqual(await readdir(root), []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("remote-only CAS fails closed when a referenced cloud object is missing", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-remote-missing-"));
+  try {
+    const store = await new ContentAddressedStore({ root }).init();
+    store.remoteObjects = {
+      enabled: true,
+      async get() { return null; },
+      async getRef() { return JSON.stringify({ version: 1, namespace: "app", key: "lost", hash: "a".repeat(64) }); }
+    };
+    store.remoteRefsEnabled = true;
+    await assert.rejects(store.readRef("app", "lost"), /Remote content-addressed object is missing/);
+    assert.deepEqual(await readdir(root), []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
