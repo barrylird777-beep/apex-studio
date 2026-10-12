@@ -21,7 +21,7 @@ export class ContentAddressedStore {
     this.root = path.resolve(root);
     this.objects = path.join(this.root, "objects", "sha256");
     this.refs = path.join(this.root, "refs");
-    this.lockTimeoutMs = 30000;
+    this.lockTimeoutMs = 180000;
   }
 
   async init() {
@@ -106,7 +106,7 @@ export class ContentAddressedStore {
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const lock = file + ".lock";
     const started = Date.now();
-    const staleAfterMs = 120000;
+    const staleAfterMs = 30000;
     let handle, token;
     while (!handle) {
       token = randomUUID();
@@ -134,8 +134,14 @@ export class ContentAddressedStore {
         await sleep(10 + Math.floor(Math.random() * 20));
       }
     }
+    const heartbeat = setInterval(() => {
+      const now = new Date();
+      handle?.utimes(now, now).catch(() => {});
+    }, 10000);
+    heartbeat.unref?.();
     try { return await operation(); }
     finally {
+      clearInterval(heartbeat);
       let ownsPath = false;
       try {
         const [opened, current, contents] = await Promise.all([handle.stat(), stat(lock), readFile(lock, "utf8")]);
