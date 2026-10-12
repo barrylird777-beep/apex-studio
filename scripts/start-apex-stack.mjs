@@ -30,7 +30,7 @@ function stopAll(code = 0, signal = "SIGTERM") {
 for (const service of services) {
   const child = spawn(process.execPath, [service.script], {
     cwd: root,
-    env: process.env,
+    env: { ...process.env, APEX_EMBED_SOVEREIGN_RUNTIME: "true" },
     stdio: "inherit"
   });
   children.push(child);
