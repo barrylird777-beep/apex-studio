@@ -27,7 +27,7 @@ export class ApexRingWAL {
     try{const info=await lstat(this.file);if(info.isSymbolicLink()||!info.isFile())throw new Error("[SECURITY_VIOLATION] WAL path must be a regular file, not a symlink.");}
     catch(e){if(e.code!=="ENOENT")throw e;}
   }
-  async _streamRecords(onRecord=async()=>{}){
+  async _streamRecords(onRecord=async()=>{}, {retainRing=true}={}){
     await this._assertWalIsRegular();
     this._reset();
     let info;
@@ -51,7 +51,8 @@ export class ApexRingWAL {
         if(!record||!Number.isSafeInteger(record.seq)||record.seq!==seq+1||record.prevHash!==prev||record.hash!==expectedHash(record)){
           throw new Error("[WAL_INTEGRITY] Hash chain or sequence failure at record "+(seq+1)+".");
         }
-        this._load(record);prev=record.hash;seq=record.seq;count++;
+        if(retainRing)this._load(record);else{this.seq=record.seq;this.lastHash=record.hash;}
+        prev=record.hash;seq=record.seq;count++;
         await onRecord(record);
       }
     }catch(error){input.destroy();throw error;}
@@ -158,10 +159,10 @@ export class ApexRingWAL {
     const release=await this._acquireLock();
     try{return await this._refreshLocked(onRecord);}finally{await release();}
   }
-  async replay({onRecord=async()=>{}}={}){
+  async replay({onRecord=async()=>{},retainRing=true}={}){
     await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
     const release=await this._acquireLock();
-    try{const count=await this._streamRecords(onRecord);this.ready=true;return count;}finally{await release();}
+    try{const count=await this._streamRecords(onRecord,{retainRing});this.ready=true;return count;}finally{await release();}
   }
   async snapshot(){await this.init();await this.refresh();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
 }
