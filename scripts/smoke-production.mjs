@@ -17,7 +17,8 @@ const child = spawn(process.execPath, ['server.mjs'], {
     APEX_WAL_DIR: path.join(smokeRoot, 'wal'),
     APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl'),
     APEX_SHORTCUT_TOKEN: 'smoke-control-token',
-    APEX_OPPORTUNITY_ENGINE_TOKEN: 'smoke-opportunity-token'
+    APEX_OPPORTUNITY_ENGINE_TOKEN: 'smoke-opportunity-token',
+    APEX_OPPORTUNITY_ENGINE_TOKEN_NEXT: 'smoke-opportunity-token-2'
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -126,9 +127,27 @@ try {
     throw new Error(`KashKorner opportunity write smoke failed: ${JSON.stringify(opportunitySaved)}`);
   }
 
+  const secondaryTokenResponse = await fetch(`http://127.0.0.1:${port}/api/kash-korner/opportunities`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-apex-opportunity-token': 'smoke-opportunity-token-2' },
+    body: JSON.stringify({
+      fingerprint: 'smoke-opportunity-fingerprint-next',
+      kind: 'smoke-opportunity-secondary-token',
+      chain_id: 1,
+      token_in: '0x0000000000000000000000000000000000000001',
+      token_out: '0x0000000000000000000000000000000000000002',
+      estimated_net_profit_usd: 1.5,
+      observed_at: new Date().toISOString()
+    })
+  });
+  const secondaryTokenSaved = await secondaryTokenResponse.json();
+  if (secondaryTokenResponse.status !== 202 || secondaryTokenSaved.success !== true) {
+    throw new Error(`KashKorner secondary-token smoke failed: ${JSON.stringify(secondaryTokenSaved)}`);
+  }
+
   const opportunityFeedResponse = await fetch(`http://127.0.0.1:${port}/api/kash-korner/opportunities?limit=5`);
   const opportunityFeed = await opportunityFeedResponse.json();
-  if (opportunityFeedResponse.status !== 200 || !opportunityFeed.items?.some(item => item.fingerprint === 'smoke-opportunity-fingerprint')) {
+  if (opportunityFeedResponse.status !== 200 || !opportunityFeed.items?.some(item => item.fingerprint === 'smoke-opportunity-fingerprint') || !opportunityFeed.items?.some(item => item.fingerprint === 'smoke-opportunity-fingerprint-next')) {
     throw new Error(`KashKorner opportunity read-back smoke failed: ${JSON.stringify(opportunityFeed)}`);
   }
 
