@@ -7,6 +7,7 @@ import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
+import { retryWalStartup } from './wal-startup-retry.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
@@ -78,7 +79,8 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
 }
 
 async function main() {
-  await apexPureStore.init();
+  const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
+  if (!storageReady) return;
   await engine.ready();
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
