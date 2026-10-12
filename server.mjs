@@ -2746,13 +2746,30 @@ app.get('/api/voiceover/status', async (_req,res) => {
     res.status(503).json({success:false,error:error.message});
   }
 });
-app.post('/api/voiceover/jobs', async (req,res) => {
+app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
   try {
     const text=String(req.body?.text||'').trim();
     if(!text) return res.status(400).json({success:false,error:'text is required'});
     const { enqueueVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
-    res.status(202).json({success:true,id,status:'queued'});
+    res.status(202).json({success:true,id,status:'queued',statusUrl:`/api/voiceover/jobs/${encodeURIComponent(id)}`});
+  } catch(error){ res.status(500).json({success:false,error:error.message}); }
+});
+
+app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
+  try {
+    const job=await getWorkerTask(String(req.params.id||''));
+    if(!job || job.task!=='voiceover.synthesize') return res.status(404).json({success:false,error:'voiceover job not found'});
+    res.status(200).json({
+      success:true,
+      id:job.id,
+      status:job.status,
+      attempts:job.attempts,
+      maxAttempts:job.max_attempts,
+      result:job.status==='completed' ? job.result : undefined,
+      error:job.status==='dead' ? job.last_error : undefined,
+      updatedAt:job.updatedAt || job.updated_at || null
+    });
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
 });
 
