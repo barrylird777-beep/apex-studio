@@ -95,6 +95,7 @@ async function publishRuntimeIdentity(status = 'online') {
     workerId,
     listenAddresses: peerNode.getMultiaddrs().map(String),
     lastSeenAt: new Date(now).toISOString(),
+    pendingPeerAcks: engine.snapshot().filter(record => record.status === 'DISPATCHED').length,
     leaseExpiresAt: status === 'online' ? now + Math.max(30000, reconcileMs * 3) : 0
   });
 }
@@ -111,6 +112,7 @@ async function runCycle(activeBridge) {
   });
   if (queued.claimed) console.log('[SOVEREIGN APP DISPATCH]', JSON.stringify(queued));
   await reconcile(activeBridge);
+  await publishRuntimeIdentity('online');
 }
 
 async function reconcile(activeBridge) {
