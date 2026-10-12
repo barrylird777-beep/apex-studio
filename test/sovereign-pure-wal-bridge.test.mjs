@@ -191,7 +191,7 @@ test('legacy mesh migration preserves the sequence counter without continuing WA
       payload: { legacy: true }
     };
     legacy.checksum = sovereignRecordChecksum(legacy);
-    await fs.writeFile(path.join(storageDir, 'apex-ring-wal.ndjson'), JSON.stringify(legacy) + '\\n', { mode: 0o600 });
+    await fs.writeFile(path.join(storageDir, 'apex-ring-wal.ndjson'), JSON.stringify(legacy) + '\n', { mode: 0o600 });
 
     const engine = new SovereignMeshEngine(storageDir);
     await engine.ready();
@@ -203,7 +203,7 @@ test('legacy mesh migration preserves the sequence counter without continuing WA
       payload: { migrated: true }
     });
     assert.equal(next.seq, 8);
-    assert.equal(await fs.readFile(path.join(storageDir, 'apex-ring-wal.ndjson'), 'utf8'), JSON.stringify(legacy) + '\\n');
+    assert.equal(await fs.readFile(path.join(storageDir, 'apex-ring-wal.ndjson'), 'utf8'), JSON.stringify(legacy) + '\n');
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
