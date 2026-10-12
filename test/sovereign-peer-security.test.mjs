@@ -14,6 +14,17 @@ test("sovereign envelope parser rejects oversized peer messages", async () => {
   await assert.rejects(readSovereignEnvelope(streamFor(oversized)), /exceeds size limit/);
 });
 
+test("sovereign envelope reader preserves a second envelope from the same stream chunk", async () => {
+  const { readSovereignEnvelope } = await import("../src/network/sovereign-peer.mjs");
+  const stream = {
+    source: (async function* () {
+      yield new TextEncoder().encode('{"type":"request"}\\n{"accepted":true}\\n');
+    })()
+  };
+  assert.deepEqual(await readSovereignEnvelope(stream), { type: "request" });
+  assert.deepEqual(await readSovereignEnvelope(stream), { accepted: true });
+});
+
 test("outgoing sovereign transport refuses a peer outside the allowlist", async () => {
   const previous = process.env.APEX_ALLOWED_PEER_IDS;
   delete process.env.APEX_ALLOWED_PEER_IDS;
