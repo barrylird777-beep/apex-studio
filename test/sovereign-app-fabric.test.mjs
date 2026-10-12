@@ -43,6 +43,9 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
     assert.equal(status.storageAuthority,'local-filesystem');
     assert.equal(status.durabilityScope,'single-instance-filesystem');
     assert.equal(status.cloudStorageReady,false);
+    assert.equal(status.storageAuthority,'local-filesystem');
+    assert.equal(status.durabilityScope,'single-instance-filesystem');
+    assert.equal(status.cloudStorageReady,false);
     assert.equal(status.canonicalAppCount,6);
     assert.equal(new Set((await fabric.list('planet-apex')).map(x=>x.id)).size,1);
     await assert.rejects(fabric.put('unknown-app','x',{value:1}),/Unknown canonical Apex app/);
