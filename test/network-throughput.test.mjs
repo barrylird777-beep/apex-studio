@@ -68,7 +68,7 @@ test('adaptive transfer controller backs off and accelerates from measurements',
 test('maximum connection policy keeps failover and adaptive controls enabled', async () => {
   const { buildConnectionPolicy } = await import('../src/network/path-selector.mjs');
   const policy = buildConnectionPolicy();
-  assert.equal(policy.mode, 'multipath');
+  assert.equal(policy.mode, 'single-path-multi-connection');
   assert.equal(policy.maxLanes, 16);
   assert.equal(policy.automaticFailover, true);
   assert.equal(policy.adaptiveSpeed, true);
