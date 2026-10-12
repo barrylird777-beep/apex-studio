@@ -28,8 +28,9 @@ public final class ApexNearbyMesh: NSObject, ObservableObject, @unchecked Sendab
     @Published public private(set) var connectedPeers: [String] = []
     @Published public private(set) var lastMessage = "No authenticated peer messages yet."
 
-    public init(displayName: String = "Apex-iPhone") {
-        let peer = MCPeerID(displayName: String(displayName.prefix(48)))
+    public init(displayName: String? = nil) {
+        let resolvedName = displayName ?? "Apex-\(UUID().uuidString.prefix(6))"
+        let peer = MCPeerID(displayName: String(resolvedName.prefix(48)))
         localPeer = peer
         session = MCSession(peer: peer, securityIdentity: nil, encryptionPreference: .required)
         super.init()
