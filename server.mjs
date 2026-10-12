@@ -630,9 +630,30 @@ app.get('/api/koin-kob/status', async (_req, res) => {
   }
 });
 
+app.get('/api/koin-kob/simulations', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { listKoinKobRecords } = await import('./src/apps/koin-kob.mjs');
+    const limit = Math.max(1, Math.min(100, Math.floor(Number(req.query.limit) || 20)));
+    const rows = await listKoinKobRecords();
+    const items = rows
+      .map(entry => ({
+        id: entry.id,
+        record: entry.record || entry,
+        storage: entry.storage || 'local-pure-wal',
+        durable: entry.durable !== false
+      }))
+      .filter(entry => entry.record?.recordType === 'simulation')
+      .sort((a, b) => String(b.record.createdAt || '').localeCompare(String(a.record.createdAt || '')))
+      .slice(0, limit);
+    return res.json({ success: true, storage: 'local-pure-wal', items });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
 app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) => {
   try {
-    const { runWorkerEconomySimulation, createSystemicEvent } = await import('./src/apps/koin-kob.mjs');
+    const { runWorkerEconomySimulation, createSystemicEvent, saveKoinKobRecord } = await import('./src/apps/koin-kob.mjs');
     const events = Array.isArray(req.body?.events)
       ? req.body.events.map(event => createSystemicEvent(event))
       : [];
@@ -642,9 +663,27 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
       governanceModels: req.body?.governanceModels,
       events
     });
-    return res.status(202).json({ success: true, simulation: result });
+    const simulationId = 'simulation-' + crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const record = {
+      recordType: 'simulation',
+      simulationId,
+      createdAt,
+      workerCount: result.workerCount,
+      events,
+      result
+    };
+    const saved = await saveKoinKobRecord(simulationId, record);
+    return res.status(202).json({
+      success: true,
+      simulationId,
+      createdAt,
+      durable: saved?.durable ?? true,
+      storage: saved?.storage || 'local-pure-wal',
+      simulation: result
+    });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
   }
 });
 
