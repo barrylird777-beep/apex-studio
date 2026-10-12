@@ -1,4 +1,6 @@
 import { mkdir, open, readFile, unlink, stat, lstat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
@@ -25,23 +27,38 @@ export class ApexRingWAL {
     try{const info=await lstat(this.file);if(info.isSymbolicLink()||!info.isFile())throw new Error("[SECURITY_VIOLATION] WAL path must be a regular file, not a symlink.");}
     catch(e){if(e.code!=="ENOENT")throw e;}
   }
-  async _readAndVerify(){
-    await this._assertWalIsRegular();this._reset();
-    let text="";
-    try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
-    if(text.length&&!text.endsWith("\n"))throw new Error("[WAL_INTEGRITY] Incomplete final WAL record; preserved for inspection.");
-    let prev="0".repeat(64),seq=0,count=0;
-    for(const line of text.split("\n").filter(Boolean)){
-      let record;
-      try{record=JSON.parse(line);}catch(e){throw new Error("[WAL_INTEGRITY] Invalid JSON at sequence "+(seq+1)+": "+e.message);}
-      if(!record||!Number.isSafeInteger(record.seq)||record.seq!==seq+1||record.prevHash!==prev||record.hash!==expectedHash(record)){
-        throw new Error("[WAL_INTEGRITY] Hash chain or sequence failure at record "+(seq+1)+".");
-      }
-      this._load(record);prev=record.hash;seq=record.seq;count++;
+  async _streamRecords(onRecord=async()=>{}){
+    await this._assertWalIsRegular();
+    this._reset();
+    let info;
+    try{info=await stat(this.file);}catch(e){if(e.code==="ENOENT"){this.offset=0;return 0;}throw e;}
+    if(info.size>0){
+      const fh=await open(this.file,"r");
+      try{
+        const last=Buffer.alloc(1);
+        const {bytesRead}=await fh.read(last,0,1,info.size-1);
+        if(bytesRead!==1||last[0]!==10)throw new Error("[WAL_INTEGRITY] Incomplete final WAL record; preserved for inspection.");
+      }finally{await fh.close();}
     }
-    this.offset=Buffer.byteLength(text,"utf8");
+    let prev="0".repeat(64),seq=0,count=0;
+    const input=createReadStream(this.file,{encoding:"utf8"});
+    const lines=createInterface({input,crlfDelay:Infinity});
+    try{
+      for await(const line of lines){
+        if(!line)continue;
+        let record;
+        try{record=JSON.parse(line);}catch(e){throw new Error("[WAL_INTEGRITY] Invalid JSON at sequence "+(seq+1)+": "+e.message);}
+        if(!record||!Number.isSafeInteger(record.seq)||record.seq!==seq+1||record.prevHash!==prev||record.hash!==expectedHash(record)){
+          throw new Error("[WAL_INTEGRITY] Hash chain or sequence failure at record "+(seq+1)+".");
+        }
+        this._load(record);prev=record.hash;seq=record.seq;count++;
+        await onRecord(record);
+      }
+    }catch(error){input.destroy();throw error;}
+    this.offset=info.size;
     return count;
   }
+  async _readAndVerify(){return this._streamRecords();}
   async _acquireLock(){
     const started=Date.now();
     let fh,token;
@@ -141,16 +158,10 @@ export class ApexRingWAL {
     const release=await this._acquireLock();
     try{return await this._refreshLocked(onRecord);}finally{await release();}
   }
-  async replay({onRecord=()=>{}}={}){
-    await this.init();
+  async replay({onRecord=async()=>{}}={}){
+    await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
     const release=await this._acquireLock();
-    try{
-      const count=await this._readAndVerify();
-      let text="";
-      try{text=await readFile(this.file,"utf8");}catch(e){if(e.code==="ENOENT")return 0;throw e;}
-      for(const line of text.split("\n").filter(Boolean))await onRecord(JSON.parse(line));
-      return count;
-    }finally{await release();}
+    try{const count=await this._streamRecords(onRecord);this.ready=true;return count;}finally{await release();}
   }
   async snapshot(){await this.init();await this.refresh();return {file:this.file,sequence:this.seq,head:this.head,count:this.count,lastHash:this.lastHash,ring:this.ring.filter(Boolean)};}
 }
