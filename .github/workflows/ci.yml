@@ -49,6 +49,11 @@ jobs:
         with:
           node-version: "22.x"
 
+      - name: Install FFmpeg and FFprobe for real render verification
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Install dependencies with registry retries
         run: npm install --no-audit --no-fund --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=30000
 
@@ -73,6 +78,8 @@ jobs:
       - run: npm run db:migrate
       - run: npm run build
       - run: npm run smoke:production
+      - run: npm run check:canonical
+      - run: npm run smoke:kernelvision-episode
       - run: npm test
       - run: npm run apex:release-audit
       - run: npm run verify:migrations
