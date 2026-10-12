@@ -120,3 +120,18 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
   }
 });
 
+
+
+test('KashKorner ledger excludes opportunity records without deleting them from the sovereign namespace', async () => {
+  const { excludeOpportunityRecords } = await import('../src/apps/kash-korner.mjs');
+  const rows = [
+    { id: 'cash-1', record: { id: 'cash-1', recordType: 'transaction', amount: 12, currency: 'USD' } },
+    { id: 'opportunity-1', record: { id: 'opportunity-1', recordType: 'opportunity', estimated_net_profit_usd: 4.2 } },
+    { id: 'cash-2', record: { id: 'cash-2', recordType: 'transaction', amount: -3, currency: 'USD' } }
+  ];
+  assert.deepEqual(excludeOpportunityRecords(rows), [
+    { id: 'cash-1', recordType: 'transaction', amount: 12, currency: 'USD' },
+    { id: 'cash-2', recordType: 'transaction', amount: -3, currency: 'USD' }
+  ]);
+  assert.equal(rows[1].record.recordType, 'opportunity', 'filtering the ledger must not delete opportunity data');
+});
