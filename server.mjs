@@ -2801,7 +2801,7 @@ app.get('/api/voiceover/status', async (_req,res) => {
     res.status(503).json({success:false,error:error.message});
   }
 });
-app.get('/api/voiceover/jobs/:id', async (req,res) => {
+app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
   try {
     const { getVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
     const job = await getVoiceoverJob(req.params.id);
@@ -2816,7 +2816,7 @@ app.get('/api/voiceover/jobs/:id', async (req,res) => {
     return res.status(503).json({success:false,error:error.message});
   }
 });
-app.post('/api/voiceover/jobs', async (req,res) => {
+app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
   try {
     const text=String(req.body?.text||'').trim();
     if(!text) return res.status(400).json({success:false,error:'text is required'});
