@@ -213,6 +213,7 @@ async function pollPaidOrder(id){
    const response=await fetch('/api/rapid/orders/'+encodeURIComponent(id),{cache:'no-store'});
    if(response.status===404){status.textContent='Payment received. Waiting for the production worker…';continue;}
    const body=await response.json();
+   if(body.status==='manual-reconciliation-required'){status.textContent='Payment was verified, but this older order needs manual reconciliation. Do not pay again. Keep order ID: '+id;return;}
    if(body.status==='completed'&&body.result?.url){status.textContent='Production complete. Open your video below.';const a=document.createElement('a');a.href=body.result.url;a.target='_blank';a.rel='noreferrer';a.textContent='WATCH / DOWNLOAD YOUR VIDEO →';a.style.display='inline-block';a.style.marginTop='8px';status.appendChild(document.createElement('br'));status.appendChild(a);return;}
    if(body.status==='failed'){status.textContent='Payment received, but production failed: '+(body.error||'worker error');return;}
    status.textContent='Payment received. Production status: '+String(body.status||'queued')+'…';
