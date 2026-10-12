@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getApexApp } from "./apex-six-apps.mjs";
 import { sovereignAppFabric } from "../core/sovereign-app-fabric.mjs";
+import { xshieldStatus } from "./xshield.mjs";
 
 const APP = getApexApp("ko-blocks");
 const clone = value => structuredClone(value);
@@ -83,7 +84,8 @@ export function koBlocksStatus() {
   return {
     app: { ...APP },
     role: APP.role,
-    capabilities: ["block registry", "composition", "graph validation", "reusable components", "acyclic execution graphs"],
+    capabilities: ["block registry", "composition", "graph validation", "reusable components", "acyclic execution graphs", "ad/tracker filtering", "DNS protection"],
+    networkProtection: xshieldStatus(),
     canonical: true,
     checkedAt: new Date().toISOString()
   };
