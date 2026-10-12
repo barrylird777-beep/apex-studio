@@ -17,6 +17,9 @@ const safeId=value=>{
 export function createMonetizationOpportunity(input={}){
   if(!input||typeof input!=="object"||Array.isArray(input)) throw new TypeError("KashKobs input must be an object");
   const evidence=input.evidence&&typeof input.evidence==="object"&&!Array.isArray(input.evidence)?structuredClone(input.evidence):{};
+  const rawAmount=input.pricing?.amount;
+  const amount=rawAmount==null?null:Number(rawAmount);
+  if(amount!==null&&(!Number.isFinite(amount)||amount<0))throw new TypeError("KashKobs price amount must be a non-negative finite number");
   const metrics=input.metrics&&typeof input.metrics==="object"&&!Array.isArray(input.metrics)?structuredClone(input.metrics):{};
   return {
     id:safeId(input.id||crypto.randomUUID()),
@@ -25,7 +28,7 @@ export function createMonetizationOpportunity(input={}){
     product:text(input.product,120)||"KernelVision",
     type:text(input.type,80)||"production-service",
     state:["idea","validated","offered","converting","paused","closed"].includes(input.state)?input.state:"idea",
-    pricing:{amount:input.pricing?.amount==null?null:Number(input.pricing.amount),currency:text(input.pricing?.currency,3).toUpperCase()||"USD"},
+    pricing:{amount,currency:text(input.pricing?.currency,3).toUpperCase()||"USD"},
     evidence:{...evidence,classification:evidence.classification||"unverified"},
     metrics,
     createdAt:input.createdAt||new Date().toISOString(),
