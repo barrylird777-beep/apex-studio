@@ -72,7 +72,7 @@ async function main() {
       JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE c.relkind IN ('r','p')
         AND n.nspname <> 'information_schema'
-        AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\'
+        AND left(n.nspname, 3) <> 'pg_'
       ORDER BY n.nspname, c.relname
     `);
     const tables = tableResult.rows.map(row => ({
@@ -115,7 +115,7 @@ async function main() {
       JOIN pg_class tbl ON tbl.oid = con.conrelid
       JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
       WHERE ns.nspname <> 'information_schema'
-        AND ns.nspname NOT LIKE 'pg\\_%' ESCAPE '\\'
+        AND left(ns.nspname, 3) <> 'pg_'
       ORDER BY ns.nspname, tbl.relname, con.conname
     `);
     for (const constraint of constraints.rows) {
