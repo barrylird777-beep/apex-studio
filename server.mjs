@@ -74,7 +74,7 @@ app.use(cors({
     return callback(new Error('CORS origin not allowed'));
   },
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id', 'X-Apex-Worker-Token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id', 'X-Apex-Worker-Token', 'X-Apex-Opportunity-Token'],
   maxAge: 600
 }));
 
@@ -118,6 +118,14 @@ function requireWorkerAuth(req, res, next) {
   if (!timingSafeSecret(expected, req.get('x-apex-worker-token'))) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
+  return next();
+}
+
+function requireOpportunityEngineAuth(req, res, next) {
+  const expected = process.env.APEX_OPPORTUNITY_ENGINE_TOKEN;
+  if (!expected) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
+  const supplied = req.get('x-apex-opportunity-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (!timingSafeSecret(expected, supplied)) return res.status(401).json({ success: false, error: 'Unauthorized' });
   return next();
 }
 
@@ -269,6 +277,91 @@ app.post('/api/internal/store/put', requireWorkerAuth, async (req, res) => {
     if (!validTeeVeeStoreCollection(collection) || !id || id.length > 128 || !record || typeof record !== 'object' || Array.isArray(record)) {
       return res.status(400).json({ success: false, error: 'Invalid store write' });
     }
+    return res.json({ success: true, record: await apexPureStore.put(collection, id, record) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+
+const OPPORTUNITY_ENGINE_COLLECTIONS = new Set([
+  'koin_kob_opportunities',
+  'koin_kob_ingestion_events',
+  'koin_kob_engine_state',
+  'koin_kob_raw_liquidity_events'
+]);
+const OPPORTUNITY_ENGINE_FILTER_FIELDS = new Set([
+  'id','fingerprint','status','source','kind','chain_id','observed_at','observedAt',
+  'createdAt','updatedAt','nextAttemptAt','leaseUntil','attempts','blockNumber',
+  'transactionHash','token0','token1','pool','fee','estimated_net_profit_usd'
+]);
+const OPPORTUNITY_ENGINE_SORT_FIELDS = new Set([
+  'id','fingerprint','createdAt','updatedAt','observed_at','observedAt',
+  'attempts','estimated_net_profit_usd','kind','status'
+]);
+function validOpportunityEngineCollection(value) {
+  return OPPORTUNITY_ENGINE_COLLECTIONS.has(String(value || ''));
+}
+
+app.post('/api/internal/opportunity-engine/store/get', requireOpportunityEngineAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const id = String(req.body?.id || '');
+    if (!validOpportunityEngineCollection(collection) || !id || id.length > 128) {
+      return res.status(400).json({ success: false, error: 'Invalid opportunity-store collection or record id' });
+    }
+    res.set('cache-control', 'no-store');
+    return res.json({ success: true, record: await apexPureStore.get(collection, id) });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/opportunity-engine/store/query', requireOpportunityEngineAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const filters = req.body?.filters && typeof req.body.filters === 'object' && !Array.isArray(req.body.filters) ? req.body.filters : {};
+    const entries = Object.entries(filters).slice(0, 8);
+    if (!validOpportunityEngineCollection(collection) || entries.some(([key, value]) =>
+      !OPPORTUNITY_ENGINE_FILTER_FIELDS.has(key) || !['string', 'number', 'boolean'].includes(typeof value))) {
+      return res.status(400).json({ success: false, error: 'Invalid opportunity-store query' });
+    }
+    const sortField = String(req.body?.sortField || '');
+    if (sortField && !OPPORTUNITY_ENGINE_SORT_FIELDS.has(sortField)) {
+      return res.status(400).json({ success: false, error: 'Invalid opportunity-store sort field' });
+    }
+    const descending = req.body?.descending === true;
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(req.body?.limit) || 100)));
+    const records = await apexPureStore.query(collection,
+      record => entries.every(([key, value]) => record?.[key] === value),
+      {
+        limit,
+        ...(sortField ? { sort: (a, b) => {
+          const left = a?.[sortField], right = b?.[sortField];
+          const order = typeof left === 'number' && typeof right === 'number'
+            ? left - right
+            : String(left ?? '').localeCompare(String(right ?? ''));
+          return descending ? -order : order;
+        } } : {})
+      }
+    );
+    res.set('cache-control', 'no-store');
+    return res.json({ success: true, records });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+  }
+});
+
+app.post('/api/internal/opportunity-engine/store/put', requireOpportunityEngineAuth, async (req, res) => {
+  try {
+    const collection = String(req.body?.collection || '');
+    const id = String(req.body?.id || '');
+    const record = req.body?.record;
+    if (!validOpportunityEngineCollection(collection) || !id || id.length > 128 ||
+        !record || typeof record !== 'object' || Array.isArray(record) || JSON.stringify(record).length > 1000000) {
+      return res.status(400).json({ success: false, error: 'Invalid opportunity-store write' });
+    }
+    res.set('cache-control', 'no-store');
     return res.json({ success: true, record: await apexPureStore.put(collection, id, record) });
   } catch (error) {
     return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
