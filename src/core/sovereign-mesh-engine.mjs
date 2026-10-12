@@ -9,7 +9,7 @@ function stableJson(value) {
   const normalize = (input) => {
     if (Array.isArray(input)) return input.map(normalize);
     if (input && typeof input === 'object') {
-      return Object.fromEntries(Object.keys(input).sort().map((key) => [key, normalize(value[key])]));
+      return Object.fromEntries(Object.keys(input).sort().map((key) => [key, normalize(input[key])]));
     }
     return input;
   };
