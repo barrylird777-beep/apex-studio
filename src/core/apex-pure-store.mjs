@@ -49,14 +49,21 @@ export class ApexPureStore {
       await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
     }
     this.ready=true;
-    await this.loadReferences();
+    // Do not scan the entire durable store during process startup. Reads and queue operations
+    // refresh only the namespace they need; first boot still has migrated records in memory.
     return this;
   }
-  async loadReferences(){
-    this.state.clear();this.jobsState.clear();
+  async loadStateReferences(){
+    this.state.clear();
     for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null)this.state.set(this.key(v.collection,v.id),clone(v.record));}
+  }
+  async loadJobReferences(){
+    this.jobsState.clear();
     for(const ref of await this.cas.listRefs("jobs")){const v=ref.value;if(v?.id!=null&&v?.job)this.jobsState.set(String(v.id),clone(v.job));}
   }
+  async loadReferences(){await Promise.all([this.loadStateReferences(),this.loadJobReferences()]);}
+  async refreshState(){await this.init();await this.loadStateReferences();return this;}
+  async refreshJobs(){await this.init();await this.loadJobReferences();return this;}
   async refresh(){await this.init();await this.loadReferences();return this;}
   refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
   async persistJob(job){await this.cas.writeRef("jobs",this.refKey("job",job.id),{id:String(job.id),job:clone(job)});}
@@ -151,8 +158,8 @@ export class ApexPureStore {
     return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
-  async get(collection,id){await this.refresh();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
-  async list(collection){await this.refresh();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
+  async get(collection,id){await this.refreshState();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
+  async list(collection){await this.refreshState();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
@@ -166,7 +173,7 @@ export class ApexPureStore {
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
     const run=()=>this.withMutationLock(async()=>{
-      await this.refresh();
+      await this.refreshJobs();
       if(dedupeKey){
         const statuses=type==="sovereign.app.dispatch"?["queued","running","completed","dead"]:["queued","running"];
         const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&statuses.includes(j.status));
@@ -198,7 +205,7 @@ export class ApexPureStore {
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
     return this.withMutationLock(async()=>{
-      await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
+      await this.refreshJobs();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
       let patch={updatedAt:new Date().toISOString()};
       if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
@@ -210,7 +217,7 @@ export class ApexPureStore {
   }
   async recoverExpired(limit=500){
     return this.withMutationLock(async()=>{
-      await this.refresh();let n=0;const now=Date.now();
+      await this.refreshJobs();let n=0;const now=Date.now();
       for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
         await this.persistJob({...j,...patch});
