@@ -1,4 +1,7 @@
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import express from "express";
 import fs from "node:fs/promises";
@@ -206,4 +209,16 @@ test("Kernelodies serializes concurrent audio capacity checks across app instanc
     if (second) await second.close().catch(() => {});
     await fs.rm(storageDir, { recursive: true, force: true });
   }
+});
+
+
+test("Kernelodies browser UI script parses and defaults to local-first mode", () => {
+  const scriptPath = fileURLToPath(new URL("../public/kernelodies-library.js", import.meta.url));
+  const syntax = spawnSync(process.execPath, ["--check", scriptPath], { encoding: "utf8" });
+  assert.equal(syntax.status, 0, syntax.stderr || "Kernelodies UI script failed syntax check");
+  const source = readFileSync(scriptPath, "utf8");
+  assert.match(source, /value="local"/);
+  assert.match(source, /music-radar-independent/);
+  assert.match(source, /metadata-only\.json/);
+  assert.match(source, /Apex shared storage/);
 });
