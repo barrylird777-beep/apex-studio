@@ -228,11 +228,23 @@ export function createKernelVisionSchedule({ fabric = sovereignAppFabric, store 
   }
 
   async function deleteScene(id) {
-    const scene = await getScene(id);
-    if (!scene) return false;
-    await unassignScene(id);
-    await removeRecord(sceneKey(id));
-    return true;
+    return withLock(async () => {
+      const scene = await getScene(id);
+      if (!scene) return false;
+      const assignments = await listAssignments(scene.projectId);
+      if (assignments.some(item => item.sceneId === scene.sceneId)) {
+        const remaining = assignments.filter(item => item.sceneId !== scene.sceneId);
+        const grouped = new Map();
+        for (const assignment of remaining) {
+          if (!grouped.has(assignment.shootDayId)) grouped.set(assignment.shootDayId, []);
+          grouped.get(assignment.shootDayId).push(assignment);
+        }
+        const normalized = [...grouped.values()].flatMap(group => group.sort((a, b) => a.position - b.position).map((item, position) => ({ ...item, position })));
+        await saveAssignments(scene.projectId, normalized);
+      }
+      await removeRecord(sceneKey(id));
+      return true;
+    });
   }
 
   async function createShootDay({ projectId, shootDate, callTime = null, notes = "" } = {}) {
