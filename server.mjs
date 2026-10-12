@@ -547,6 +547,10 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
       const { gardenStatus } = await import('./src/apps/garden-of-apex.mjs');
       return res.json({ success: true, ...gardenStatus() });
     }
+    if (id === 'ko-blocks') {
+      const { koBlocksStatus } = await import('./src/apps/ko-blocks.mjs');
+      return res.json({ success: true, ...koBlocksStatus() });
+    }
     if (id === 'xshield') {
       const { xshieldStatus } = await import('./src/apps/xshield.mjs');
       return res.json({ success: true, ...xshieldStatus() });
