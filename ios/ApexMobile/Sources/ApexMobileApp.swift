@@ -10,6 +10,7 @@ struct ApexMobileApp: App {
 }
 
 struct ApexRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var prompt = ""
     @State private var output = ""
     @State private var busy = false
@@ -49,6 +50,9 @@ struct ApexRootView: View {
                 Text("Nearby device-to-device messages can work without carrier service. This does not create general internet access.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text("Keep this screen open while finding peers. Apex will retry server requests after temporary route failures and check again when you return to the app.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 SecureField("Random shared pairing secret (32+ characters)", text: $pairingSecret)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -62,6 +66,7 @@ struct ApexRootView: View {
                         do { try nearbyMesh.start(pairingSecret: pairingSecret) }
                         catch { self.error = error.localizedDescription }
                     }
+                    .disabled(pairingSecret.utf8.count < 32)
                     .buttonStyle(.borderedProminent)
                     Button("Stop") { nearbyMesh.stop() }
                         .buttonStyle(.bordered)
@@ -329,6 +334,21 @@ struct ApexRootView: View {
             }
             .navigationTitle("Apex")
             .onAppear { refreshInventory() }
+            .onChange(of: connectivity.systemRoute) { _ in
+                guard selectedSection == "Connect",
+                      !controlURL.isEmpty,
+                      !controlToken.isEmpty,
+                      !controlBusy else { return }
+                Task { await refreshSovereignControl() }
+            }
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active,
+                      selectedSection == "Connect",
+                      !controlURL.isEmpty,
+                      !controlToken.isEmpty,
+                      !controlBusy else { return }
+                Task { await refreshSovereignControl() }
+            }
             .fileImporter(
                 isPresented: $modelImportPresented,
                 allowedContentTypes: [ggufType],
