@@ -33,6 +33,12 @@ export class ApexPureStore {
     await this.wal.replay({onRecord:r=>this.apply(r)});
     this.ready=true;return this;
   }
+  async refresh(){
+    await this.init();
+    this.state.clear();this.jobsState.clear();
+    await this.wal.replay({onRecord:r=>this.apply(r)});
+    return this;
+  }
   key(c,id){return String(c)+"::"+String(id);}
   apply(r){
     const p=r.payload||{};
@@ -70,15 +76,15 @@ export class ApexPureStore {
     catch(e){throw e;}
   }
   async put(collection,id,record){
-    await this.init();
+    await this.refresh();
     const target=await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     const r=await this.wal.append("state.put",{collection:String(collection),id:String(id),record:value});
     this.apply(r);await this.atomic(target,value);return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
-  async get(collection,id){await this.init();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
-  async list(collection){await this.init();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
+  async get(collection,id){await this.refresh();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
+  async list(collection){await this.refresh();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
@@ -92,14 +98,14 @@ export class ApexPureStore {
     return true;
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null}={}){
-    await this.init();if(!type)throw new Error("job type required");
+    await this.refresh();if(!type)throw new Error("job type required");
     if(dedupeKey){const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&["queued","running"].includes(j.status));if(existing)return {durable:true,id:existing.id,duplicate:true};}
     const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
     const r=await this.wal.append("job.enqueue",{id:job.id,job});this.apply(r);return {durable:true,id:job.id};
   }
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null}={}){
-    await this.init();
+    await this.refresh();
     const run=async()=>{
       const now=Date.now(),out=[];
       const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!role||j.payload?._apex_worker?.role===role)).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
@@ -116,7 +122,7 @@ export class ApexPureStore {
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
-    await this.init();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
+    await this.refresh();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence)))return false;
     let patch={updatedAt:new Date().toISOString()};
     if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
     if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
@@ -124,8 +130,8 @@ export class ApexPureStore {
     if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
     const r=await this.wal.append("job.transition",{id:j.id,patch});this.apply(r);return true;
   }
-  async recoverExpired(limit=500){await this.init();let n=0;const now=Date.now();for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){const r=await this.wal.append("job.transition",{id:j.id,patch:{status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()}});this.apply(r);n++;}return n;}
-  async snapshot(){await this.init();return {root:this.root,jobs:this.jobs(),state:[...this.state.values()].map(clone),wal:await this.wal.snapshot()};}
+  async recoverExpired(limit=500){await this.refresh();let n=0;const now=Date.now();for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){const r=await this.wal.append("job.transition",{id:j.id,patch:{status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()}});this.apply(r);n++;}return n;}
+  async snapshot(){await this.refresh();return {root:this.root,jobs:this.jobs(),state:[...this.state.values()].map(clone),wal:await this.wal.snapshot()};}
 }
 export const apexPureStore=new ApexPureStore();
 
