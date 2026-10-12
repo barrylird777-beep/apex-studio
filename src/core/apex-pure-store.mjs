@@ -55,7 +55,7 @@ export class ApexPureStore {
         if(handle){await handle.close().catch(()=>{});handle=undefined;}
         if(error.code!=="EEXIST")throw error;
         let stale=false;
-        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>300000;}
+        try{stale=Date.now()-(await stat(lockFile)).mtimeMs>30000;}
         catch(e){if(e.code==="ENOENT")continue;throw e;}
         if(stale){
           const quarantine=lockFile+".stale."+randomUUID();
