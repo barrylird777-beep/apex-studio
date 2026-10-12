@@ -71,6 +71,9 @@ export class ApexRingWAL {
         await fh.sync();
         break;
       }catch(e){
+        // The exclusive lock file itself is authoritative. If the volume is full after
+        // creating it, keep the open inode lock and continue without metadata bytes.
+        if(e.code==="ENOSPC"&&fh){await fh.sync().catch(()=>{});break;}
         if(fh){await fh.close().catch(()=>{});fh=undefined;}
         if(e.code!=="EEXIST")throw e;
         let stale=false;
@@ -93,7 +96,7 @@ export class ApexRingWAL {
       let ownsPath=false;
       try{
         const [opened,current,contents]=await Promise.all([owned.stat(),stat(this.lockFile),readFile(this.lockFile,"utf8")]);
-        ownsPath=opened.dev===current.dev&&opened.ino===current.ino&&JSON.parse(contents).token===token;
+        if(opened.dev===current.dev&&opened.ino===current.ino){try{ownsPath=JSON.parse(contents).token===token;}catch{ownsPath=true;}}
       }catch(err){if(err.code!=="ENOENT"&&!(err instanceof SyntaxError))throw err;}
       await owned.close().catch(()=>{});
       if(ownsPath){await unlink(this.lockFile).catch(err=>{if(err.code!=="ENOENT")throw err;});await syncDirectory(path.dirname(this.file));}
