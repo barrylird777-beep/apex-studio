@@ -57,64 +57,70 @@ const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',')
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
+const streamReaders = new WeakMap();
+
+function readerFor(stream) {
+  let reader = streamReaders.get(stream);
+  if (reader) return reader;
+  if (!stream?.source || typeof stream.source[Symbol.asyncIterator] !== 'function') {
+    throw new TypeError('unsupported sovereign peer stream read interface');
+  }
+  reader = { iterator: stream.source[Symbol.asyncIterator](), text: '', bytesRead: 0, pending: null };
+  streamReaders.set(stream, reader);
+  return reader;
+}
+
 export async function readSovereignEnvelope(stream) {
-  if (!stream || typeof stream.addEventListener !== 'function') {
-    if (stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function') {
-      let text = '';
-      let bytesRead = 0;
-      const decoder = new TextDecoder();
-      for await (const chunk of stream.source) {
-        const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
-        bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
-        if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
-        text += decoder.decode(bytes, { stream: true });
-        if (text.includes('\n')) break;
-      }
-      const line = text.split('\n')[0];
+  // libp2p streams deliver bytes through a single async-iterable source, not
+  // DOM-style "message" events. Keep one iterator and its unread buffer per
+  // stream so reading the request cannot cancel or steal the acknowledgement.
+  const reader = readerFor(stream);
+  const timeoutMs = Math.max(1, Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
+  const deadline = Date.now() + timeoutMs;
+
+  while (true) {
+    const newline = reader.text.indexOf('\\n');
+    if (newline >= 0) {
+      const line = reader.text.slice(0, newline);
+      reader.text = reader.text.slice(newline + 1);
       if (!line) throw new Error('empty sovereign peer envelope');
       return JSON.parse(line);
     }
-    throw new TypeError('unsupported sovereign peer stream interface');
-  }
 
-  return new Promise((resolve, reject) => {
-    let text = '';
-    let bytesRead = 0;
-    let settled = false;
-    const decoder = new TextDecoder();
-    const cleanup = () => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error('sovereign peer envelope timed out');
+    reader.pending ||= reader.iterator.next();
+    let timer;
+    let result;
+    try {
+      result = await Promise.race([
+        reader.pending,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('sovereign peer envelope timed out')), remaining);
+        })
+      ]);
+    } finally {
       clearTimeout(timer);
-      stream.removeEventListener?.('message', onMessage);
-      stream.removeEventListener?.('close', onClose);
-    };
-    const finish = (error, value) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      if (error) reject(error);
-      else resolve(value);
-    };
-    const onMessage = event => {
-      try {
-        const chunk = event.data;
-        const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
-        bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
-        if (bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
-        text += decoder.decode(bytes, { stream: true });
-        const newline = text.indexOf('\n');
-        if (newline < 0) return;
-        const line = text.slice(0, newline);
+    }
+    if (result) reader.pending = null;
+    if (!result || result.done) {
+      reader.text += decoder.decode();
+      const finalNewline = reader.text.indexOf('\\n');
+      if (finalNewline >= 0) {
+        const line = reader.text.slice(0, finalNewline);
+        reader.text = reader.text.slice(finalNewline + 1);
         if (!line) throw new Error('empty sovereign peer envelope');
-        finish(null, JSON.parse(line));
-      } catch (error) {
-        finish(error);
+        return JSON.parse(line);
       }
-    };
-    const onClose = event => finish(new Error(event?.error?.message || 'sovereign peer stream closed before an envelope arrived'));
-    const timer = setTimeout(() => finish(new Error('sovereign peer envelope timed out')), Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
-    stream.addEventListener('message', onMessage);
-    stream.addEventListener('close', onClose);
-  });
+      throw new Error('sovereign peer stream closed before an envelope arrived');
+    }
+
+    const chunk = result.value;
+    const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+    reader.bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
+    if (reader.bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
+    reader.text += decoder.decode(bytes, { stream: true });
+  }
 }
 
 async function sendSovereignEnvelope(stream, envelope) {
