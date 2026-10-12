@@ -36,7 +36,7 @@ export function canonicalTrajectory() {
     apps,
     handoffs: HANDOFFS.map(handoff => ({ ...handoff })),
     closedLoop: true,
-    persistence: "caller-owned; no process-local durability claim",
+    persistence: "Pure-WAL durable queue; remote delivery remains pending until an allowlisted peer acknowledges",
     checkedAt: new Date().toISOString()
   };
 }
