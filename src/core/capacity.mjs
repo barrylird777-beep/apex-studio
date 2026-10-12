@@ -8,9 +8,9 @@ export const CAPACITY=Object.freeze({
   jobConcurrency:n(process.env.APEX_JOB_CONCURRENCY,64),
   providerTimeoutMs:n(process.env.APEX_PROVIDER_TIMEOUT_MS,120000),
   renderTimeoutMs:n(process.env.APEX_RENDER_TIMEOUT_MS,86400000),
-  // Canonical persistence is local Pure-WAL/Ring-WAL; no SQL backend is selected.
-  storageBackend:"pure-wal",
-  omniBackend:"pure-wal",
+  // Canonical persistence is content-addressed; legacy WAL is read-only migration input.
+  storageBackend:"content-addressed",
+  omniBackend:"content-addressed",
   omniDatabase:null,
   objectStore:process.env.APEX_OBJECT_STORE_URL||"",
   databaseUrl:"",
