@@ -177,7 +177,7 @@ export function buildConnectionPolicy({ speed = 'maximum', multipleConnections =
   const verifiedPaths = Math.max(0, Number(clientVerifiedPaths) || 0);
   const multipathVerified = verifiedPaths > 1;
   return Object.freeze({
-    mode: multipathVerified ? 'multipath-verified' : maximum && multipleConnections ? 'multipath' : maximum ? 'single-path-maximum' : 'adaptive',
+    mode: multipathVerified ? 'multipath-verified' : maximum && multipleConnections ? 'single-path-multi-connection' : maximum ? 'single-path-maximum' : 'adaptive',
     preconnect: true,
     keepAlive: true,
     reuseConnections: true,
