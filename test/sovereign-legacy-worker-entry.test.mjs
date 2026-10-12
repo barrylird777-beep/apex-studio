@@ -30,3 +30,8 @@ test("default worker entry fails closed instead of launching the retired AV1 dae
   assert.match(source, /legacy SQLite AV1 daemon is retired/);
   assert.doesNotMatch(source, /import\(["']\.\/src\/workers\/av1-production-daemon\.mjs/);
 });
+
+test("development script starts the sovereign server instead of the legacy database API", async () => {
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(packageJson.scripts.dev, "node --watch server.mjs");
+});
