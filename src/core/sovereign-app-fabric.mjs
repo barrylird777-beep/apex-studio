@@ -48,6 +48,9 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
     return {
       ok:true,
       storage:"content-addressed",
+      storageAuthority:"local-filesystem",
+      durabilityScope:"single-instance-filesystem",
+      cloudStorageReady:false,
       durableStoreReady:true,
       canonicalAppCount:APP_LIST.length,
       apps:APP_LIST.map(app=>({...app,storageNamespace:`app-${app.id}`})),
