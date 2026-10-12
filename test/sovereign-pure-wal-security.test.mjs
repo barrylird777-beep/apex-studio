@@ -119,3 +119,16 @@ test('independent store instances cannot claim the same durable job twice', asyn
     assert.equal(a.jobs().filter(job=>job.id==='claim-once'&&job.status==='running').length,1);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
+
+test('WAL fails closed and preserves an incomplete crash-tail record', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-wal-crash-tail-'));
+  try {
+    const file=path.join(dir,'ring.wal.jsonl');
+    const wal=new ApexRingWAL({file});
+    await wal.append('durable.before-crash',{value:1});
+    await fs.appendFile(file,'{"seq":2,"payload":','utf8');
+    const reopened=new ApexRingWAL({file});
+    await assert.rejects(reopened.replay(),/WAL_INTEGRITY.*Incomplete final WAL record/);
+    assert.match(await fs.readFile(file,'utf8'),/\{"seq":2,"payload":$/);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
