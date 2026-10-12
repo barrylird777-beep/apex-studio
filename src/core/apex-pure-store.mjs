@@ -107,7 +107,7 @@ export class ApexPureStore {
     await this.refresh();
     const run=async()=>{
       const now=Date.now(),out=[];
-      const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(!role||j.payload?._apex_worker?.role===role)).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
+      const candidates=[...this.jobsState.values()].filter(j=>j.status==="queued"&&j.attempts<j.maxAttempts&&j.runAt<=now&&(role?j.payload?._apex_worker?.role===role:j.payload?._apex_worker?.role!=="sovereign-runtime")).sort((a,b)=>(b.priority||0)-(a.priority||0)||a.runAt-b.runAt);
       for(const j of candidates.slice(0,Math.max(1,Number(limit)||1))){
         // Re-check immediately before writing the claim. This serializes claims
         // made through one store instance; cross-process locking remains separate.
