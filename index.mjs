@@ -189,7 +189,7 @@ if (!workerOnly) {
       method: body === undefined ? "GET" : "POST",
       headers: { "x-apex-worker-token": remoteWorkerToken, ...(body === undefined ? {} : { "content-type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(45000)
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok && response.status !== 409) throw new Error("Remote worker API " + response.status + ": " + String(result.error || response.statusText).slice(0, 300));
