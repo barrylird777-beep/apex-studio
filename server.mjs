@@ -36,6 +36,7 @@ import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
+import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -105,17 +106,6 @@ function timingSafeSecret(expected, supplied) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function requireControlPlaneAuth(req, res, next) {
-  const expected = process.env.APEX_SHORTCUT_TOKEN || process.env.APEX_CONTROL_TOKEN;
-  if (!expected) return res.status(503).json({ success: false, error: 'Control plane authorization is not configured' });
-  const supplied = req.get('x-apex-shortcut-token') || req.get('x-apex-control-token') ||
-    req.get('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!timingSafeSecret(expected, supplied)) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
-  return next();
-}
-
 function requireOpportunityEngineAuth(req, res, next) {
   const expected = [
     process.env.APEX_OPPORTUNITY_ENGINE_TOKEN,
@@ -158,8 +148,8 @@ const researchEngine = new FrictionlessResearchEngine();
 app.use('/api/research', createResearchRouter(researchEngine));
 
 
-const publicSearchBuckets = new Map();
-function takePublicSearchSlot(req) {
+const publicRequestBuckets = new Map();
+function takePublicRequestSlot(req) {
   const forwarded = String(req.get('x-forwarded-for') || '').split(',').map(value => value.trim()).filter(Boolean);
   const key = (forwarded.at(-1) || req.socket?.remoteAddress || 'unknown').slice(0, 160);
   const now = Date.now();
@@ -179,6 +169,16 @@ function takePublicSearchSlot(req) {
     }
   }
   return true;
+}
+
+function requirePublicRequestSlot(req, res, next) {
+  if (!takePublicRequestSlot(req)) {
+    return res.status(429).set('Retry-After', '60').json({
+      success: false,
+      error: 'Request rate limit reached. Please wait a minute and try again.'
+    });
+  }
+  return next();
 }
 
 app.get('/api/search', async (req, res) => {
@@ -559,7 +559,7 @@ app.get('/api/health', async (_req, res) => {
 
 
 // Canonical six-app surface registry. These are application surfaces, not additional Apex systems.
-app.post('/api/paypex/brief', express.json({ limit: '32kb' }), async (req, res) => {
+app.post('/api/paypex/brief', requirePublicRequestSlot, express.json({ limit: '32kb' }), async (req, res) => {
   try {
     const { createPayPexBrief } = await import('./src/apps/paypex.mjs');
     const brief = createPayPexBrief(req.body || {});
@@ -1494,7 +1494,7 @@ function pruneClientNetworkTelemetry(now = Date.now()) {
   }
 }
 
-app.post('/api/network/client-telemetry', (req, res) => {
+app.post('/api/network/client-telemetry', requirePublicRequestSlot, (req, res) => {
   const clientId = normalizeClientId(req.get('x-apex-client-id'));
   if (!clientId) return res.status(400).json({ ok: false, error: 'X-Apex-Client-Id is required' });
   const body = req.body || {};
@@ -1653,7 +1653,7 @@ app.use('/api/mobile', createMobileControlPlane({
   }
 }));
 
-app.post('/api/rapid/preview', async (req, res) => {
+app.post('/api/rapid/preview', requirePublicRequestSlot, async (req, res) => {
   try {
     const name = String(req.body?.name || 'Preview visitor').trim().slice(0, 120);
     const type = String(req.body?.type || 'Creative proof').trim().slice(0, 160);
@@ -1677,7 +1677,7 @@ app.post('/api/rapid/preview', async (req, res) => {
   }
 });
 
-app.post('/api/rapid/orders', async (req, res) => {
+app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
   try {
     // Never take payment while durable fulfillment is unavailable.
     const dbHealth = await durableWorkerHealth({ force: true });
@@ -1761,7 +1761,7 @@ app.get('/api/network/rogue-ap/status', (_req, res) => {
   return res.json({ success: true, detector: rogueApDetector.status() });
 });
 
-app.post('/api/network/rogue-ap/trust', (req, res) => {
+app.post('/api/network/rogue-ap/trust', requireControlPlaneAuth, (req, res) => {
   try {
     return res.status(200).json({ success: true, ...rogueApDetector.trustBssid(req.body?.bssid) });
   } catch (error) {
@@ -1769,7 +1769,7 @@ app.post('/api/network/rogue-ap/trust', (req, res) => {
   }
 });
 
-app.post('/api/network/rogue-ap/revoke', (req, res) => {
+app.post('/api/network/rogue-ap/revoke', requireControlPlaneAuth, (req, res) => {
   try {
     return res.status(200).json({ success: true, ...rogueApDetector.revokeBssid(req.body?.bssid) });
   } catch (error) {
@@ -1777,7 +1777,7 @@ app.post('/api/network/rogue-ap/revoke', (req, res) => {
   }
 });
 
-app.post('/api/network/rogue-ap/observations', (req, res) => {
+app.post('/api/network/rogue-ap/observations', requireControlPlaneAuth, (req, res) => {
   try {
     return res.status(200).json({ success: true, observation: rogueApDetector.observe(req.body || {}) });
   } catch (error) {
@@ -2414,7 +2414,7 @@ async function executeInference(prompt, system = DEFAULT_SYSTEM) {
 // 2. ORACLE ROUTE
 // ============================================================
 
-app.post('/api/oracle', async (req, res) => {
+app.post('/api/oracle', requireControlPlaneAuth, async (req, res) => {
   const { prompt, systemPrompt } = req.body || {};
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
 
@@ -2435,7 +2435,7 @@ app.post('/api/oracle', async (req, res) => {
 // 3. HARDENED FORGE ROUTE
 // ============================================================
 
-app.post('/api/forge', async (req, res) => {
+app.post('/api/forge', requireControlPlaneAuth, async (req, res) => {
   try {
     // 1. Defend against malformed payloads/types
     const rawPrompt = String(req.body?.prompt || req.body?.text || '').trim();
@@ -2545,7 +2545,7 @@ app.post('/api/forge', async (req, res) => {
 // 4. BARD AUDIO ENGINE (SERVER-SIDE TTS)
 // ============================================================
 
-app.post('/api/audio', async (req, res) => {
+app.post('/api/audio', requireControlPlaneAuth, async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim();
     const sceneId = String(req.body?.sceneId || '').trim();
@@ -2668,7 +2668,7 @@ async function proxyPollinationsMedia(kind, prompt, params, res) {
   return Readable.fromWeb(response.body).pipe(res);
 }
 
-app.post('/api/media/image', async (req, res) => {
+app.post('/api/media/image', requireControlPlaneAuth, async (req, res) => {
   try {
     const prompt = String(req.body?.prompt || '').trim();
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
@@ -2683,7 +2683,7 @@ app.post('/api/media/image', async (req, res) => {
   }
 });
 
-app.post('/api/media/video', async (req, res) => {
+app.post('/api/media/video', requireControlPlaneAuth, async (req, res) => {
   try {
     const prompt = String(req.body?.prompt || '').trim();
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
@@ -2773,7 +2773,7 @@ app.get('/api/render/status', async (_req, res) => {
   }
 });
 
-app.post('/api/render/export', async (req, res) => {
+app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
   let stitchedVideoPath = null;
   let masteredAudioPath = null;
   let finalExportPath = null;
@@ -2879,7 +2879,7 @@ app.post('/api/render/export', async (req, res) => {
   }
 });
 
-app.post('/api/ai/generate-max', async (req, res) => {
+app.post('/api/ai/generate-max', requireControlPlaneAuth, async (req, res) => {
   try {
     const body = req.body || {};
     const result = await generateMax({
@@ -2906,7 +2906,7 @@ app.get('/api/ai/generate-max/status', (_req, res) => {
   res.json({ success: true, ...openAiMaxStatus() });
 });
 
-app.post('/api/ai/generate-grok', async (req, res) => {
+app.post('/api/ai/generate-grok', requireControlPlaneAuth, async (req, res) => {
   try {
     const body = req.body || {};
     const result = await generateGrok({
@@ -2952,7 +2952,7 @@ app.get('/api/ai/providers', (_req, res) => {
   res.json({ success: true, providers: AI_PROVIDER_CATALOG, ...unifiedAiStatus() });
 });
 
-app.post('/api/ai/generate/:provider', async (req, res) => {
+app.post('/api/ai/generate/:provider', requireControlPlaneAuth, async (req, res) => {
   try {
     const result = await generateUnifiedAi({ provider: req.params.provider, ...(req.body || {}) });
     return res.json({ success: true, ...result });
@@ -2964,7 +2964,7 @@ app.post('/api/ai/generate/:provider', async (req, res) => {
   }
 });
 
-app.post('/api/ai/generate', async (req, res) => {
+app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
   const prompt = String(req.body?.prompt || '').trim();
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
   const requested = String(req.body?.provider || '').trim();
@@ -2986,7 +2986,7 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 });
 
-app.post('/api/ai/collaborate', async (req, res) => {
+app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
   const task = String(req.body?.task || req.body?.prompt || '').trim();
   if (!task) return res.status(400).json({ success: false, error: 'task is required' });
 
@@ -3023,7 +3023,7 @@ app.get('/api/ai/status', (_req, res) => res.json({
   }
 }));
 
-app.post('/api/mesh/jobs', async (req, res) => {
+app.post('/api/mesh/jobs', requireControlPlaneAuth, async (req, res) => {
   try {
     if (!meshWorkerSupervisor.started) meshWorkerSupervisor.start();
     const result = await meshWorkerSupervisor.dispatch(req.body || {});
@@ -3041,7 +3041,7 @@ app.get('/api/crew/status', (_req, res) => {
   res.json({ success: true, crew: aiCrew.status(), fleet: fleetStatus(permanentWorkerFleet), overseer: overseerStatus(apexOverseer, permanentWorkerFleet) });
 });
 
-app.post('/api/crew/jobs', (req, res) => {
+app.post('/api/crew/jobs', requireControlPlaneAuth, (req, res) => {
   try {
     const job = aiCrew.enqueue({
       role: req.body?.role,
@@ -3054,7 +3054,7 @@ app.post('/api/crew/jobs', (req, res) => {
   }
 });
 
-app.post('/api/crew/burst', (req, res) => {
+app.post('/api/crew/burst', requireControlPlaneAuth, (req, res) => {
   try {
     const jobs = aiCrew.burst(req.body?.count ?? 32, req.body?.context ?? {});
     res.status(202).json({ success: true, queued: jobs.length, jobs });
@@ -3234,7 +3234,7 @@ app.get('/api/korn-knob/status', async (_req, res) => {
   }
 });
 
-app.post('/api/korn-knob/ideas', async (req, res) => {
+app.post('/api/korn-knob/ideas', requireControlPlaneAuth, async (req, res) => {
   try {
     const { createKornKnobIdea } = await import('./src/apps/korn-knob.mjs');
     const idea = createKornKnobIdea(req.body || {});
@@ -3244,7 +3244,7 @@ app.post('/api/korn-knob/ideas', async (req, res) => {
   }
 });
 
-app.post('/api/korn-knob/ideas/evaluate', async (req, res) => {
+app.post('/api/korn-knob/ideas/evaluate', requireControlPlaneAuth, async (req, res) => {
   try {
     const { createKornKnobIdea } = await import('./src/apps/korn-knob.mjs');
     const idea = createKornKnobIdea(req.body || {});
@@ -3262,7 +3262,7 @@ app.post('/api/korn-knob/ideas/evaluate', async (req, res) => {
   }
 });
 
-app.post('/api/korn-knob/worker-job', async (req, res) => {
+app.post('/api/korn-knob/worker-job', requireControlPlaneAuth, async (req, res) => {
   try {
     const { enqueueWorkerTask } = await import('./src/core/mesh/durable-worker-store.mjs');
     const payload = req.body || {};
@@ -3287,7 +3287,7 @@ app.get('/api/engine-apex/chat-runtime/state', async (req, res) => {
   }
 });
 
-app.patch('/api/engine-apex/chat-runtime/state', async (req, res) => {
+app.patch('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async (req, res) => {
   try {
     const { updateChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
     const result = await updateChatRuntimeState({
@@ -3317,7 +3317,7 @@ app.get('/api/engine-apex/chat-runtime/events', async (req, res) => {
   }
 });
 
-app.post('/api/engine-apex/chat-runtime/events', async (req, res) => {
+app.post('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async (req, res) => {
   try {
     const { recordChatRuntimeEvent } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.status(201).json({
@@ -3363,7 +3363,7 @@ app.get('/api/engine-apex/snapshot', async (_req, res) => {
   }
 });
 
-app.post('/api/engine-apex/brief', async (req, res) => {
+app.post('/api/engine-apex/brief', requireControlPlaneAuth, async (req, res) => {
   try {
     const { buildEngineBrief } = await import('./src/core/engine-apex.mjs');
     return res.status(201).json({ success: true, brief: buildEngineBrief(req.body || {}) });
