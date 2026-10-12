@@ -58,7 +58,6 @@ const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').s
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 const streamReaders = new WeakMap();
-let nextStreamReaderId = 1;
 
 function readerFor(stream) {
   let reader = streamReaders.get(stream);
@@ -67,20 +66,12 @@ function readerFor(stream) {
   // Prefer libp2p v3's message events and explicitly resume them. The
   // async-iterator adapter remains available for older stream implementations.
   if (stream && typeof stream.addEventListener === 'function') {
-    const id = nextStreamReaderId++;
     const queue = [];
     const waiters = [];
     let ended = false;
     let closeError = null;
     const onMessage = event => {
       const chunk = event?.data;
-      const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
-      console.info('[SOVEREIGN PEER] stream message received', JSON.stringify({
-        streamId: id,
-        protocol: stream.protocol || PROTOCOL,
-        bytes: Number(bytes?.byteLength ?? bytes?.length ?? 0),
-        waitingReaders: waiters.length
-      }));
       const waiter = waiters.shift();
       if (waiter) waiter.resolve({ done: false, value: chunk });
       else queue.push(chunk);
@@ -97,7 +88,6 @@ function readerFor(stream) {
     stream.addEventListener('message', onMessage);
     stream.addEventListener('close', onClose);
     reader = {
-      id,
       iterator: {
         next: () => {
           if (queue.length) return Promise.resolve({ done: false, value: queue.shift() });
@@ -122,20 +112,9 @@ function readerFor(stream) {
         ? stream
         : null;
     if (!iterable) {
-      const shape = {
-        type: typeof stream,
-        keys: stream && typeof stream === 'object' ? Object.keys(stream).slice(0, 20) : [],
-        send: typeof stream?.send,
-        addEventListener: typeof stream?.addEventListener,
-        asyncIterator: typeof stream?.[Symbol.asyncIterator],
-        source: typeof stream?.source,
-        nestedStream: typeof stream?.stream,
-        read: typeof stream?.read,
-        sink: typeof stream?.sink
-      };
-      throw new TypeError('unsupported sovereign peer stream read interface: ' + JSON.stringify(shape));
+      throw new TypeError('unsupported sovereign peer stream read interface');
     }
-    reader = { id: nextStreamReaderId++, iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
+    reader = { iterator: iterable[Symbol.asyncIterator](), decoder: new TextDecoder(), text: '', bytesRead: 0, pending: null };
   }
 
   streamReaders.set(stream, reader);
@@ -143,11 +122,9 @@ function readerFor(stream) {
 }
 
 export async function readSovereignEnvelope(stream) {
-  // libp2p streams deliver bytes through a single async-iterable source, not
-  // DOM-style "message" events. Keep one iterator and its unread buffer per
-  // stream so reading the request cannot cancel or steal the acknowledgement.
+  // Keep one reader and its unread buffer per stream. Prefer libp2p v3
+  // message events; the async-iterator fallback preserves older adapters.
   const reader = readerFor(stream);
-  console.info('[SOVEREIGN PEER] envelope read start', JSON.stringify({streamId:reader.id, protocol:stream?.protocol||PROTOCOL}));
   const timeoutMs = Math.max(1, Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
   const deadline = Date.now() + timeoutMs;
 
@@ -161,7 +138,7 @@ export async function readSovereignEnvelope(stream) {
     }
 
     const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error('sovereign peer envelope timed out on stream ' + reader.id);
+    if (remaining <= 0) throw new Error('sovereign peer envelope timed out');
     reader.pending ||= reader.iterator.next();
     let timer;
     let result;
@@ -193,12 +170,6 @@ export async function readSovereignEnvelope(stream) {
     reader.bytesRead += Number(bytes?.byteLength ?? bytes?.length ?? 0);
     if (reader.bytesRead > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer envelope exceeds size limit');
     reader.text += reader.decoder.decode(bytes, { stream: true });
-    console.info('[SOVEREIGN PEER] envelope chunk decoded', JSON.stringify({
-      streamId: reader.id,
-      bytes: Number(bytes?.byteLength ?? bytes?.length ?? 0),
-      bufferedCharacters: reader.text.length,
-      newlineIndex: reader.text.indexOf('\n')
-    }));
   }
 }
 
@@ -208,16 +179,7 @@ async function sendSovereignEnvelope(stream, envelope) {
     if (typeof stream?.sink === 'function') return stream.sink([bytes]);
     throw new TypeError('unsupported sovereign peer stream write interface');
   }
-  const sendResult = stream.send(bytes);
-  console.info('[SOVEREIGN PEER] envelope send', JSON.stringify({
-    type: envelope?.type || null,
-    streamId: streamReaders.get(stream)?.id ?? null,
-    bytes: bytes.byteLength,
-    result: sendResult,
-    writeBufferLength: stream.writeBufferLength ?? null,
-    writableNeedsDrain: stream.writableNeedsDrain ?? null
-  }));
-  if (sendResult !== false) return;
+  if (stream.send(bytes) !== false) return;
   if (typeof stream.onDrain === 'function') {
     await stream.onDrain({ signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000)) });
     return;
@@ -283,10 +245,6 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     } catch (error) {
       console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({
         error: error instanceof Error ? error.message : String(error),
-        hasSend: typeof stream?.send === 'function',
-        hasEvents: typeof stream?.addEventListener === 'function',
-        hasIterator: typeof stream?.[Symbol.asyncIterator] === 'function',
-        hasSource: typeof stream?.source === 'object',
         remotePeerId: connection?.remotePeer?.toString?.() || ''
       }));
       await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
