@@ -4,6 +4,7 @@ import path from "node:path";
 import ffmpeg from "fluent-ffmpeg";
 import { randomUUID, createHash } from "node:crypto";
 import { buildEpisodeProductionJobs } from "../core/teevee-production.mjs";
+import { apexPureStore } from "../core/apex-pure-store.mjs";
 
 
 const ROOT = process.env.TEEVEE_OUTPUT_DIR || path.join(process.env.STORAGE_DIR || "/srv/apex/se-x", "teevee");
