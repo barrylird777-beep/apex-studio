@@ -19,7 +19,8 @@ test("every canonical app page references only implemented API routes", async ()
   const mobileRoutes = extractRoutes(mobile);
   const failures = [];
   for (const app of Object.values(APEX_APPS)) {
-    const page = await read("../public/" + (app.entry === "/" ? "index.html" : app.entry.slice(1)));
+    const surface = app.id === "planet-apex" ? "planet-apex.html" : app.entry.slice(1);
+    const page = await read("../public/" + surface);
     for (const path of extractApiPaths(page)) {
       const found = path.startsWith("/api/mobile/")
         ? mobileRoutes.some(route => routeMatches(route, path.slice("/api/mobile".length)))
