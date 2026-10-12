@@ -20,6 +20,7 @@ import { createMusicRadarHandoff } from "./src/core/music/music-radar-contract.m
 import { buildMusicProductionPlan, verifyMusicGardenPackage } from "./src/core/music/music-studio.mjs";
 import { normalizeContentDomain } from "./src/core/content/content-domains.mjs";
 import { executeRapidVideoOrder, executeRapidVideoPreview } from "./src/workers/rapid-video-worker.mjs";
+import { executeVoiceoverTask } from "./src/workers/voiceover-worker.mjs";
 
 async function executeEpisodeProductionTask(payload = {}) {
   const contentDomain = normalizeContentDomain(payload?.contentDomain || "bible");
@@ -272,6 +273,8 @@ if (!workerOnly) {
           ? await executeMusicAudioHandoffTask(task.payload || {})
           : taskType === "ai-inference"
           ? await executeAiInferenceTask(task.payload || {})
+          : taskType === "voiceover-synthesize"
+          ? await executeVoiceoverTask(task.payload || {}, task.id)
           : await executePermanentHealthTask(task.payload || {});
       const completed = await queueComplete(task, result);
       if (!completed) {

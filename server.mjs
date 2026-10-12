@@ -2801,13 +2801,28 @@ app.get('/api/voiceover/status', async (_req,res) => {
     res.status(503).json({success:false,error:error.message});
   }
 });
-app.post('/api/voiceover/jobs', async (req,res) => {
+app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
+  try {
+    const { getVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
+    const job = await getVoiceoverJob(req.params.id);
+    if (!job) return res.status(404).json({success:false,error:'Voiceover job not found'});
+    if (job.status === 'completed' && job.result?.storageKey) {
+      const { createDownloadUrl } = await import('./src/storage/cloud-object-store.mjs');
+      const download = await createDownloadUrl({ key: job.result.storageKey, prefix: job.result.storagePrefix || 'apex-business' });
+      return res.json({success:true,...job,audioUrl:download.url});
+    }
+    return res.json({success:true,...job});
+  } catch(error) {
+    return res.status(503).json({success:false,error:error.message});
+  }
+});
+app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
   try {
     const text=String(req.body?.text||'').trim();
     if(!text) return res.status(400).json({success:false,error:'text is required'});
     const { enqueueVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
-    res.status(202).json({success:true,id,status:'queued'});
+    res.status(202).json({success:true,id,status:'queued',statusUrl:'/api/voiceover/jobs/'+encodeURIComponent(id)});
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
 });
 
