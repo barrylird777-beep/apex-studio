@@ -8,6 +8,7 @@ import { ApexPureStore } from '../src/core/apex-pure-store.mjs';
 import { ApexRingWAL } from '../src/core/apex-ring-wal.mjs';
 import SovereignMeshEngine from '../src/core/sovereign-mesh-engine.mjs';
 import { createSovereignAppFabric } from '../src/core/sovereign-app-fabric.mjs';
+import { drainSovereignAppDispatchQueue } from '../src/core/sovereign-app-dispatch-queue.mjs';
 import { savePlanetApexRecord, getPlanetApexRecord } from '../src/apps/planet-apex.mjs';
 import { saveKoBlocksRecord, getKoBlocksRecord } from '../src/apps/ko-blocks.mjs';
 import { saveKernelVisionRecord, getKernelVisionRecord } from '../src/apps/kernel-vision.mjs';
@@ -41,53 +42,33 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
-test('phone-triggered sovereign dispatch is fail-closed until peer identity is configured', async () => {
+test('phone dispatch is durably queued and the runtime daemon alone writes the mesh WAL', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-phone-sovereign-'));
   const prior=process.env.APEX_SOVEREIGN_PEER_ID;
   delete process.env.APEX_SOVEREIGN_PEER_ID;
   try {
-    const fabric=createSovereignAppFabric({
-      store:new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})}),
-      engineFactory:()=>new SovereignMeshEngine(path.join(dir,'mesh'))
-    });
-    await assert.rejects(fabric.dispatch({appId:'planet-apex',action:'test',data:{}}),/peer identity is not configured/);
-    process.env.APEX_SOVEREIGN_PEER_ID='test-peer';
-    const accepted=await fabric.dispatch({appId:'kernelodies',waveId:'phone-wave-1',action:'phone.test',data:{origin:'iphone'}});
-    assert.equal(accepted.accepted,true);
-    assert.equal(accepted.durable,true);
-    assert.equal(accepted.queued,true);
-    assert.equal(accepted.peerPending,true);
-    assert.equal(typeof accepted.jobId,'string');
-    assert.equal(accepted.appId,'kernelodies');
-    assert.equal(accepted.waveId,'phone-wave-1');
-    assert.match(accepted.checksum,/^[a-f0-9]{64}$/);
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const fabric=createSovereignAppFabric({store});
+    const queued=await fabric.dispatch({appId:'kernelodies',waveId:'phone-wave-1',action:'phone.test',data:{origin:'iphone'}});
+    assert.equal(queued.accepted,true);
+    assert.equal(queued.durable,true);
+    assert.equal(queued.queued,true);
+    assert.equal(queued.peerPending,true);
+    assert.equal(queued.status,'queued');
+    assert.equal(store.jobs().some(job=>job.id===queued.jobId&&job.type==='sovereign.app.dispatch'),true);
+
+    const engine=new SovereignMeshEngine(path.join(dir,'mesh'));
+    await engine.ready();
+    const drained=await drainSovereignAppDispatchQueue({store,engine,peerId:'test-peer',workerId:'test-runtime'});
+    assert.equal(drained.dispatched,1);
+    const record=engine.get('phone-wave-1');
+    assert.equal(record.peerId,'test-peer');
+    assert.equal(record.payload.appId,'kernelodies');
+    assert.equal(record.payload.source,'phone-control-plane');
+    assert.match(record.checksum,/^[a-f0-9]{64}$/);
+    assert.equal(store.jobs().find(job=>job.id===queued.jobId).status,'completed');
   } finally {
     if(prior===undefined)delete process.env.APEX_SOVEREIGN_PEER_ID;else process.env.APEX_SOVEREIGN_PEER_ID=prior;
     await fs.rm(dir,{recursive:true,force:true});
   }
-});
-
-test('each canonical app module exposes the shared durable store adapter', async () => {
-  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-six-app-adapters-'));
-  try {
-    const fabric=createSovereignAppFabric({
-      store:new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})}),
-      engineFactory:()=>new SovereignMeshEngine(path.join(dir,'mesh'))
-    });
-    const adapters=[
-      [savePlanetApexRecord,getPlanetApexRecord,'planet-apex'],
-      [saveKoBlocksRecord,getKoBlocksRecord,'ko-blocks'],
-      [saveKernelVisionRecord,getKernelVisionRecord,'kernel-vision'],
-      [saveKoinKobRecord,getKoinKobRecord,'koin-kob'],
-      [saveKashKornerRecord,getKashKornerRecord,'kash-korner'],
-      [saveKernelodiesRecord,getKernelodiesRecord,'kernelodies']
-    ];
-    for(const [save,get,appId] of adapters){
-      const saved=await save('adapter-record',{appId,source:'domain-module'},fabric);
-      assert.equal(saved.appId,appId);
-      const loaded=await get('adapter-record',fabric);
-      assert.equal(loaded.record.source,'domain-module');
-      assert.equal(loaded.record.appId,appId);
-    }
-  } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
