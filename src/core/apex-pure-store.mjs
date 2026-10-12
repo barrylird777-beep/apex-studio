@@ -103,7 +103,7 @@ export class ApexPureStore {
     const target=await this.checkedFile(collection,id,{createDir:true});
     const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
     const r=await this.wal.append("state.put",{collection:String(collection),id:String(id),record:value});
-    for(const external of this.wal.lastExternalRecords||[])this.apply(external);this.apply(r);await this.atomic(target,value);return clone(value);
+    for(const external of r.externalRecords||[])this.apply(external);this.apply(r);await this.atomic(target,value);return clone(value);
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
   async get(collection,id){await this.refresh();const v=this.state.get(this.key(collection,id));return clone(v)||null;}
@@ -113,7 +113,7 @@ export class ApexPureStore {
     await this.refresh();
     const target=await this.checkedFile(collection,id);
     const r=await this.wal.append("state.delete",{collection:String(collection),id:String(id)});
-    for(const external of this.wal.lastExternalRecords||[])this.apply(external);this.apply(r);
+    for(const external of r.externalRecords||[])this.apply(external);this.apply(r);
     // The WAL is authoritative. Removing a projection is best-effort only after
     // its path has passed the same containment and symlink checks.
     const { unlink }=await import("node:fs/promises");
@@ -131,7 +131,7 @@ export class ApexPureStore {
       }
       const job={id:String(id),type:String(type),payload:clone(payload),status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
       const r=await this.wal.append("job.enqueue",{id:job.id,job});
-      for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+      for(const external of r.externalRecords||[])this.apply(external);
       this.apply(r);
       return {durable:true,id:job.id};
     });
@@ -148,7 +148,7 @@ export class ApexPureStore {
         const token=randomUUID(),fence=Number(current.leaseFence||0)+1;
         const patch={status:"running",attempts:Number(current.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+Math.max(1000,Number(leaseMs)||45000),updatedAt:new Date().toISOString()};
         const r=await this.wal.append("job.transition",{id:current.id,patch});
-        for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+        for(const external of r.externalRecords||[])this.apply(external);
         this.apply(r);out.push({...current,...patch});
       }
       return out;
@@ -164,7 +164,7 @@ export class ApexPureStore {
       if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
       if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
       const r=await this.wal.append("job.transition",{id:j.id,patch});
-      for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+      for(const external of r.externalRecords||[])this.apply(external);
       this.apply(r);return true;
     });
   }
@@ -174,7 +174,7 @@ export class ApexPureStore {
       for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
         const r=await this.wal.append("job.transition",{id:j.id,patch});
-        for(const external of this.wal.lastExternalRecords||[])this.apply(external);
+        for(const external of r.externalRecords||[])this.apply(external);
         this.apply(r);n++;
       }
       return n;
