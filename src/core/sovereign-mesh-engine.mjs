@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
+import { RemoteContentAddressedStore } from "./remote-content-addressed-store.mjs";
 
 const DEFAULT_STORAGE_DIR = process.env.APEX_SOVEREIGN_STORAGE_DIR || "/srv/apex/se-x/projects";
 function stableJson(value) {
@@ -33,7 +34,8 @@ export class SovereignMeshEngine {
     this.storageDir = path.resolve(storageDir);
     this.legacyLogPath = path.join(this.storageDir, "apex-ring-wal.ndjson");
     this.migrationFile = path.join(this.storageDir, ".sovereign-cas-migrated-v1.json");
-    this.cas = new ContentAddressedStore({ root: path.join(this.storageDir, ".sovereign-cas") });
+    this.remoteMode = String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true";
+    this.cas = this.remoteMode ? new RemoteContentAddressedStore() : new ContentAddressedStore({ root: path.join(this.storageDir, ".sovereign-cas") });
     this.state = new Map();
     this._writeTail = Promise.resolve();
     this._writeError = null;
@@ -43,17 +45,21 @@ export class SovereignMeshEngine {
   async ready() { await this._initialized; return this; }
 
   async _initializeStorage() {
-    await fs.mkdir(this.storageDir, { recursive: true, mode: 0o700 });
+    if (!this.remoteMode) await fs.mkdir(this.storageDir, { recursive: true, mode: 0o700 });
     await this.cas.init();
+    const remoteMarker = { version: 1, storage: "remote-content-addressed", migratedAt: new Date().toISOString() };
     let migrated = false;
-    try { await fs.stat(this.migrationFile); migrated = true; }
-    catch (error) { if (error.code !== "ENOENT") throw error; }
+    if (this.remoteMode) migrated = Boolean(await this.cas.readRef("system", "mesh-migration-v1"));
+    else {
+      try { await fs.stat(this.migrationFile); migrated = true; }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
     if (!migrated) {
       let raw = "";
       try { raw = await fs.readFile(this.legacyLogPath, "utf8"); }
       catch (error) { if (error.code !== "ENOENT") throw error; }
       let lastSeq = 0;
-      for (const [index, lineRaw] of raw.split("\n").entries()) {
+      for (const [index, lineRaw] of raw.split("\\n").entries()) {
         const line = lineRaw.trim();
         if (!line) continue;
         let entry;
@@ -62,13 +68,20 @@ export class SovereignMeshEngine {
         if (!Number.isSafeInteger(entry.seq) || entry.seq <= lastSeq || !entry.waveId || !entry.timestamp || !verifySovereignRecord(entry)) {
           throw new Error("Legacy mesh migration integrity failure at line " + (index + 1));
         }
-        await this.cas.writeRef("waves", this.key(entry.waveId), entry);
+        const key = this.key(entry.waveId);
+        const current = this.remoteMode ? await this.cas.readRef("waves", key) : null;
+        if (!current) await this.cas.writeRef("waves", key, entry, this.remoteMode ? { expectedHash: null } : {});
         lastSeq = entry.seq;
       }
-      await this.cas.writeRef("meta", "sequence", { next: lastSeq + 1 });
-      const marker = this.migrationFile + "." + randomUUID() + ".tmp";
-      await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: new Date().toISOString() }) + "\n", { flag: "wx", mode: 0o600 });
-      await fs.rename(marker, this.migrationFile);
+      const currentSequence = await this.cas.readRef("meta", "sequence");
+      if (!currentSequence) await this.cas.writeRef("meta", "sequence", { next: lastSeq + 1 }, this.remoteMode ? { expectedHash: null } : {});
+      if (this.remoteMode) {
+        await this.cas.writeRef("system", "mesh-migration-v1", remoteMarker, { expectedHash: null });
+      } else {
+        const marker = this.migrationFile + "." + randomUUID() + ".tmp";
+        await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: remoteMarker.migratedAt }) + "\\n", { flag: "wx", mode: 0o600 });
+        await fs.rename(marker, this.migrationFile);
+      }
     }
     const refs = await this.cas.listRefs("waves");
     for (const ref of refs) {
