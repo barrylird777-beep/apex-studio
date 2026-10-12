@@ -263,7 +263,7 @@ app.get('/api/shield-apex/status', (_req, res) => {
 
 app.get('/api/internal/worker/health', requireWorkerAuth, async (_req, res) => {
   const health = await durableWorkerHealth();
-  return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'content-addressed', health });
+  return res.status(health.available ? 200 : 503).json({ success: health.available, storage: health.storage || 'local-filesystem-content-addressed-pure-wal', remoteAuthority: health.remoteAuthority === true, sovereign: health.sovereign === true, health });
 });
 
 app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
