@@ -11,7 +11,11 @@ export async function triggerOpportunityScan({
   if (!config.url || !config.token) throw new Error("Opportunity Engine scan URL and token must both be configured");
   const response = await fetchImpl(config.url, {
     method: "POST",
-    headers: { authorization: "Bearer " + config.token, accept: "application/json" },
+    headers: {
+      "x-apex-opportunity-token": config.token,
+      authorization: "Bearer " + config.token,
+      accept: "application/json"
+    },
     signal: AbortSignal.timeout(Math.max(1000, Number(timeoutMs) || 120000))
   });
   const body = await response.json().catch(() => ({}));
