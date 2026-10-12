@@ -184,5 +184,5 @@ export function createRingWal({file=FILE,maxBytes=50*1024*1024,cas,scope}={}){
   async function append(type,payload={}){const record=await wal.append(type,payload);return {...record,at:record.ts};}
   async function readAll(){const records=[];await wal.replay({onRecord:record=>{records.push({...record,at:record.ts});}});return records;}
   async function compact(){return (await readAll()).length;}
-  return {file:wal.file??file,append,readAll,compact,maxBytes};
+  return {file:remote?wal.file:file,append,readAll,compact,maxBytes};
 }
