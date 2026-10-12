@@ -202,9 +202,9 @@ export class ApexPureStore {
     if(this.remoteQueueIndexReady)return {ready:true,indexed:0};
     if(this.remoteQueueIndexPromise)return this.remoteQueueIndexPromise;
     this.remoteQueueIndexPromise=(async()=>{
-      const markerKey="queue-index-v1";
+      const markerKey="job-index-v1";
       if(await this.cas.readRef("system",markerKey)){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
-      const result=await this.withRemoteLock("queue-index-migration-lock",async()=>{
+      const result=await this.withRemoteLock("job-index-migration-lock",async()=>{
         if(await this.cas.readRef("system",markerKey)){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
         let indexed=0;
         await this.withRemoteLock("queue-mutations",async()=>{
@@ -219,9 +219,19 @@ export class ApexPureStore {
               if(!current||JSON.stringify(current.value)!==JSON.stringify(value)){
                 await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
               }
+              const running=await this.cas.readRef("running",key);
+              if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
               indexed++;
-            }else if(current){
-              await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+            }else if(job.status==="running"){
+              const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+              const running=await this.cas.readRef("running",key);
+              if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+              if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+              indexed++;
+            }else{
+              if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+              const running=await this.cas.readRef("running",key);
+              if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
             }
           }
           await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-queue-index",indexed,createdAt:new Date().toISOString()},{expectedHash:null});
@@ -253,11 +263,18 @@ export class ApexPureStore {
     await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
     if(this.remoteMode){
       const current=await this.cas.readRef("queue",key);
+      const running=await this.cas.readRef("running",key);
       if(job.status==="queued"){
         const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
         await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
-      }else if(current){
-        await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+        if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
+      }else if(job.status==="running"){
+        const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+        await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+        if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+      }else{
+        if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+        if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
       }
     }
   }
@@ -428,7 +445,15 @@ export class ApexPureStore {
   }
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
     return this.withMutationLock(async()=>{
-      await this.refreshJobs();const j=this.jobsState.get(String(id));if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
+      let j;
+      if(this.remoteMode){
+        const ref=await this.cas.readRef("jobs",this.refKey("job",id));
+        j=ref?.value?.job;
+        if(j)this.jobsState.set(String(id),clone(j));
+      }else{
+        await this.refreshJobs();j=this.jobsState.get(String(id));
+      }
+      if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
       let patch={updatedAt:new Date().toISOString()};
       if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
@@ -440,8 +465,20 @@ export class ApexPureStore {
   }
   async recoverExpired(limit=500){
     return this.withMutationLock(async()=>{
-      await this.refreshJobs();let n=0;const now=Date.now();
-      for(const j of [...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<now).slice(0,limit)){
+      let candidates;
+      if(this.remoteMode){
+        const refs=await this.cas.listRefs("running");
+        candidates=refs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,limit).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
+      }else{
+        await this.refreshJobs();
+        candidates=[...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<Date.now()).slice(0,limit).map(job=>({index:job}));
+      }
+      let n=0;const now=Date.now();
+      for(const candidate of candidates){
+        const ref=this.remoteMode?await this.cas.readRef("jobs",this.refKey("job",candidate.index.id)):null;
+        const j=this.remoteMode?ref?.value?.job:candidate.index;
+        if(!j||j.status!=="running"||Number(j.leaseExpiresAt||0)>=now)continue;
+        this.jobsState.set(String(j.id),clone(j));
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
         await this.persistJob({...j,...patch});
         this.apply({type:"job.transition",payload:{id:j.id,patch}});n++;
