@@ -48,8 +48,9 @@ export class ApexPureStore {
       }
       await this.atomic(this.migrationFile,{version:1,storage:"content-addressed",migratedAt:new Date().toISOString(),legacyImported:legacyExists});
     }
+    // Do not hydrate every manifest during startup. Read paths refresh lazily;
+    // queue mutations refresh under the shared lock before inspecting job state.
     this.ready=true;
-    await this.loadReferences();
     return this;
   }
   async loadReferences(){
