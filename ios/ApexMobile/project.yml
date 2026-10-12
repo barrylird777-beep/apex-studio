@@ -18,6 +18,7 @@ targets:
     sources:
       - path: Sources
     info:
+      path: Info.plist
       properties:
         NSLocalNetworkUsageDescription: "Apex uses your local network to connect to nearby authorized Apex devices, including when cellular service is unavailable."
         NSBonjourServices:
@@ -29,7 +30,6 @@ targets:
         embed: true
     settings:
       base:
-        GENERATE_INFOPLIST_FILE: true
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
         INFOPLIST_KEY_CFBundleDisplayName: Apex Mobile
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
