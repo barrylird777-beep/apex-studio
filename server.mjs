@@ -2121,7 +2121,7 @@ async function renderFreeMotionVideoFromStill(prompt, sceneId, duration, aspectR
   if (!imageBuffer.length || imageBuffer.length > 15 * 1024 * 1024) throw new Error('Generated still is empty or exceeds the 15 MiB safety limit');
 
   const workDir = await mkdtemp(path.join(os.tmpdir(), 'apex-kernelvision-motion-'));
-  const imagePath = path.join(workDir, 'still.img');
+  const imagePath = path.join(workDir, 'still.png');
   const outputPath = path.join(workDir, 'scene.mp4');
   const dimensions = aspectRatio === '9:16' ? [1080, 1920] : aspectRatio === '1:1' ? [1080, 1080] : [1920, 1080];
   const [width, height] = dimensions;
