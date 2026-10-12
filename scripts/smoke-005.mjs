@@ -1,4 +1,5 @@
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
+const CONTROL_TOKEN = process.env.APEX_CONTROL_TOKEN || process.env.APEX_SHORTCUT_TOKEN || 'local-dev-control-token';
 const PATHS = {
   projects: '/api/projects',
   scenes: (p) => `/api/projects/${p}/scenes`,
@@ -16,14 +17,14 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const call = async (method, path, body) => {
   const res = await fetch(BASE + path, {
     method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
+    headers: { 'x-apex-control-token': CONTROL_TOKEN, ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, data: await res.json().catch(() => ({})) };
 };
 
 // Create a project and three scenes through the real HTTP API.
-// IDs come from the server responses; nothing is assumed about SQLite row IDs.
+// IDs come from the server responses; records are persisted by the sovereign Pure-WAL store.
 async function setup() {
   let r = await call('POST', PATHS.projects, {
     title: `SPEC-005 smoke ${Date.now()}`,
