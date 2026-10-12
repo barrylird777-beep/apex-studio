@@ -147,6 +147,29 @@ export class ContentAddressedStore {
     });
   }
 
+  async listRefs(namespace) {
+    await this.init();
+    const dir = path.join(this.refs, String(namespace));
+    let names;
+    try { names = await (await import("node:fs/promises")).readdir(dir); }
+    catch (error) { if (error.code === "ENOENT") return []; throw error; }
+    const out = [];
+    for (const name of names) {
+      if (!name.endsWith(".json")) continue;
+      const key = name.slice(0, -5);
+      try {
+        const manifest = JSON.parse(await readFile(path.join(dir, name), "utf8"));
+        if (!manifest || manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.hash)) {
+          throw new Error("Invalid content-addressed manifest");
+        }
+        out.push({ ...manifest, value: await this.getObject(manifest.hash) });
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    }
+    return out;
+  }
+
   async deleteRef(namespace, key, { expectedHash = undefined } = {}) {
     await this.init();
     const file = this.refPath(namespace, key);
