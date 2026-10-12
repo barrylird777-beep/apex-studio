@@ -389,10 +389,21 @@ export class ApexPureStore {
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
     const run=()=>this.withMutationLock(async()=>{
-      await this.refreshJobs();
       if(dedupeKey){
         const statuses=type==="sovereign.app.dispatch"?["queued","running","completed","dead"]:["queued","running"];
-        const existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&statuses.includes(j.status));
+        let existing;
+        if(this.remoteMode&&type!=="sovereign.app.dispatch"){
+          const [queued,running]=await Promise.all([this.cas.listRefs("queue"),this.cas.listRefs("running")]);
+          const candidate=[...queued,...running].find(ref=>ref.value?.dedupeKey===String(dedupeKey));
+          if(candidate){
+            const ref=await this.cas.readRef("jobs",this.refKey("job",candidate.value.id));
+            const job=ref?.value?.job;
+            if(job&&statuses.includes(job.status))existing=job;
+          }
+        }else{
+          await this.refreshJobs();
+          existing=[...this.jobsState.values()].find(j=>j.dedupeKey===String(dedupeKey)&&statuses.includes(j.status));
+        }
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
       const job={id:String(id),type:String(type),payload:clone(payload),priority:Number(priority)||0,status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
