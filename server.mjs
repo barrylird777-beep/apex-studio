@@ -549,7 +549,13 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
 
 
 if (durableWorkerEnabled()) {
-  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
+  const reclaimTimer = setInterval(() => {
+    void (async () => {
+      const health = await durableWorkerHealth();
+      if (!health.available) return; // Keep SQL-backed recovery dormant while PostgreSQL is unavailable.
+      await requeueExpiredWorkerTasks();
+    })().catch(error => console.error("[worker-store] reclaim failed", error));
+  }, 15000);
   reclaimTimer.unref?.();
 }
 const geminiMeshProvider = new GeminiMeshProvider();
@@ -2593,6 +2599,13 @@ if (durableWorkerEnabled()) {
     const maxDbFailureBackoffMs = 30000;
     while (true) {
       try {
+        const health = await durableWorkerHealth();
+        if (!health.available) {
+          const jitter = Math.floor(Math.random() * Math.max(250, dbFailureBackoffMs * 0.25));
+          await new Promise(resolve => setTimeout(resolve, Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter));
+          dbFailureBackoffMs = Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs * 2);
+          continue;
+        }
         let claimedAny = false;
         for (const role of roles) {
           const tasks = await claimNextWorkerTasks(1, 45000, role);
