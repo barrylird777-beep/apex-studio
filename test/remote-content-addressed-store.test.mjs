@@ -12,15 +12,22 @@ class FakeS3 {
       const old = this.objects.get(id);
       if (IfNoneMatch === "*" && old) throw Object.assign(new Error("exists"), { name: "PreconditionFailed", $metadata: { httpStatusCode: 412 } });
       if (IfMatch && (!old || old.etag !== IfMatch.replaceAll('"', ""))) throw Object.assign(new Error("changed"), { name: "PreconditionFailed", $metadata: { httpStatusCode: 412 } });
-      const bytes = typeof Body === "string" ? Body : Buffer.from(Body).toString("utf8");
+      const bytes = Buffer.isBuffer(Body) ? Buffer.from(Body) : Buffer.from(String(Body), "utf8");
       const etag = "etag-" + (++this.sequence);
-      this.objects.set(id, { bytes, etag });
+      this.objects.set(id, { bytes, etag, contentType: command.input.ContentType });
       return { ETag: '"' + etag + '"' };
     }
     if (command.constructor.name === "GetObjectCommand") {
       const row = this.objects.get(id);
       if (!row) throw Object.assign(new Error("missing"), { name: "NoSuchKey", $metadata: { httpStatusCode: 404 } });
-      return { Body: { transformToString: async () => row.bytes }, ETag: '"' + row.etag + '"' };
+      return {
+        Body: {
+          transformToString: async () => row.bytes.toString("utf8"),
+          transformToByteArray: async () => Uint8Array.from(row.bytes)
+        },
+        ContentType: row.contentType,
+        ETag: '"' + row.etag + '"'
+      };
     }
     if (command.constructor.name === "ListObjectsV2Command") {
       const keys = [...this.objects.keys()].filter(k => k.startsWith(Bucket + "/" + Prefix)).map(k => k.slice(Bucket.length + 1)).sort();
@@ -48,6 +55,17 @@ test("remote CAS stores immutable objects and verifies SHA-256 on read", async (
   const saved = await store.putObject({ hello: "world" });
   assert.equal(saved.hash, createHash("sha256").update('{"hello":"world"}').digest("hex"));
   assert.deepEqual(await store.getObject(saved.hash), { hello: "world" });
+});
+
+test("remote CAS stores binary blobs immutably and verifies SHA-256 on read", async () => {
+  const client = new FakeS3(), store = makeStore(client);
+  const bytes = Buffer.from([0, 255, 1, 2, 13, 10, 128, 65]);
+  const saved = await store.putBlob(bytes, { contentType: "audio/wav" });
+  assert.equal(saved.hash, createHash("sha256").update(bytes).digest("hex"));
+  const loaded = await store.getBlob(saved.hash);
+  assert.deepEqual(loaded.bytes, bytes);
+  assert.equal(loaded.contentType, "audio/wav");
+  assert.equal((await store.putBlob(bytes, { contentType: "audio/wav" })).hash, saved.hash);
 });
 
 test("remote manifests round-trip and enforce compare-and-swap", async () => {
