@@ -30,6 +30,9 @@ async function uploadArtifact(code, stage, file) {
   const { bucket, client } = teeveeObjectStore();
   const key = artifactKey(code, stage, file);
   const stat = await fs.stat(file);
+  const freeMode = String(process.env.APEX_FREE_MODE ?? "true").toLowerCase() !== "false";
+  const maxBytes = freeMode ? Math.max(1, Number(process.env.APEX_FREE_MAX_OBJECT_BYTES || 25 * 1024 * 1024 * 1024)) : 5 * 1024 * 1024 * 1024 * 1024;
+  if (stat.size > maxBytes) throw new Error(`TeeVee artifact exceeds the configured object-size cap (${maxBytes} bytes)`);
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: `mobile/apex-business/${key}`, Body: createReadStream(file), ContentLength: stat.size, ContentType: path.extname(file).toLowerCase() === ".mp4" ? "video/mp4" : path.extname(file).toLowerCase() === ".wav" ? "audio/wav" : "application/octet-stream" }));
   return key;
 }
