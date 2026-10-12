@@ -79,3 +79,19 @@ test("record writes avoid a full store refresh on every opportunity insert", asy
     assert.equal(saved.value.record.value, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("store startup defers full hydration but reads existing CAS records correctly", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-cas-lazy-load-"));
+  try {
+    const wal = new ApexRingWAL({ file: path.join(root, "wal", "legacy.jsonl") });
+    const first = new ApexPureStore({ root, wal });
+    await first.init();
+    await first.put("kash-korner", "opportunity-lazy", { value: 42 });
+
+    const second = new ApexPureStore({ root, wal });
+    await second.init();
+    assert.equal(second.state.size, 0, "startup should not eagerly load every manifest");
+    const found = await second.get("kash-korner", "opportunity-lazy");
+    assert.equal(found.value, 42, "a read must hydrate the requested store state");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
