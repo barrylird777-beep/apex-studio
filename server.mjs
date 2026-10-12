@@ -112,6 +112,15 @@ function requireControlPlaneAuth(req, res, next) {
   return next();
 }
 
+function requireOpportunityEngineAuth(req, res, next) {
+  const expected = process.env.APEX_OPPORTUNITY_ENGINE_TOKEN;
+  if (!expected) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
+  if (!timingSafeSecret(expected, req.get('x-apex-opportunity-token'))) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  return next();
+}
+
 function requireWorkerAuth(req, res, next) {
   const expected = process.env.APEX_WORKER_TOKEN;
   if (!expected) return res.status(503).json({ success: false, error: 'Remote worker authorization is not configured' });
@@ -759,6 +768,28 @@ app.get('/api/xshield/status', async (_req, res) => {
 app.get('/api/koin-kob/status', async (_req, res) => {
   try { const { koinKobStatus } = await import('./src/apps/koin-kob.mjs'); return res.json({ success: true, ...koinKobStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'KoinKob status unavailable' }); }
+});
+
+// Public market data is read from KashKorner's sovereign Pure-WAL namespace.
+app.get('/api/kash-korner/opportunities', async (req, res) => {
+  try {
+    const { listKashKornerOpportunities } = await import('./src/api/kash-korner-opportunities.mjs');
+    const items = await listKashKornerOpportunities(sovereignAppFabric, req.query.limit);
+    return res.json({ success: true, storage: 'local-pure-wal', items });
+  } catch (error) {
+    return res.status(503).json({ success: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/kash-korner/opportunities', requireOpportunityEngineAuth, async (req, res) => {
+  try {
+    const { saveKashKornerOpportunity } = await import('./src/api/kash-korner-opportunities.mjs');
+    const opportunity = req.body?.opportunity ?? req.body;
+    const saved = await saveKashKornerOpportunity(sovereignAppFabric, opportunity);
+    return res.status(202).json({ success: true, ...saved });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: String(error?.message || error) });
+  }
 });
 
 // Authenticated app APIs persist user work in each app's isolated Pure-WAL namespace.
