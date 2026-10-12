@@ -56,7 +56,7 @@ test('legacy foundation quiesce mode serves health without starting PostgreSQL-b
 
   assert.ok(response, `health endpoint did not start: ${lastError}`);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { ok: true, mode: 'quiesced', storage: 'local-pure-wal' });
+  assert.deepEqual(await response.json(), { ok: true, mode: 'quiesced', storage: 'content-addressed' });
 
   const blocked = await fetch(`http://127.0.0.1:${port}/api/anything`);
   assert.equal(blocked.status, 503);
