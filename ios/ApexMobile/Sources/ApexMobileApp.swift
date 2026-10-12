@@ -163,6 +163,7 @@ struct ApexRootView: View {
 
     @MainActor
     private func refreshSovereignControl() async {
+        guard !controlBusy else { return }
         controlBusy = true
         defer { controlBusy = false }
         do {
@@ -184,6 +185,7 @@ struct ApexRootView: View {
 
     @MainActor
     private func dispatchSovereignAction() async {
+        guard !controlBusy else { return }
         controlBusy = true
         defer { controlBusy = false }
         do {
