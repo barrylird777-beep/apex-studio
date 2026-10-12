@@ -40,7 +40,7 @@ async function prepareOfflineCache(){
     return false;
   }
   try{
-    await navigator.serviceWorker.register("/local-ai-sw.js",{scope:"/"});
+    await navigator.serviceWorker.register("/local-ai-sw.js",{scope:"/local-ai"});
     await navigator.serviceWorker.ready;
     if(!navigator.serviceWorker.controller){
       await Promise.race([
