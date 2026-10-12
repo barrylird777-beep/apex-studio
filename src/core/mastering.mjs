@@ -23,15 +23,19 @@ async function ensureParent(outputPath) {
 }
 
 export async function masterSoundtrack(timelineAudioItems = [], bgmPath, outputPath) {
-  if (!bgmPath) throw new Error('Background music path is required');
   if (!outputPath) throw new Error('Master soundtrack output path is required');
 
   const items = Array.isArray(timelineAudioItems) ? timelineAudioItems.filter(item => item?.filePath) : [];
+  if (!bgmPath && !items.length) throw new Error('At least one audio item is required when no background music file is supplied');
+  const durationMs = items.reduce((max, item) => Math.max(max, Math.max(0, Number(item.startTimeMs) || 0) + Math.max(0, Number(item.durationMs) || 0)), 0);
+  const generatedBedSeconds = Math.max(1, Math.ceil(durationMs / 1000));
   await ensureParent(outputPath);
 
   return new Promise((resolve, reject) => {
-    const command = ffmpeg().input(bgmPath);
-    let filterGraph = '[0:a]volume=0.25[bgm];';
+    const command = ffmpeg();
+    if (bgmPath) command.input(bgmPath);
+    else command.input(`sine=frequency=432:sample_rate=48000:duration=${generatedBedSeconds}`).inputFormat('lavfi');
+    let filterGraph = bgmPath ? '[0:a]volume=0.25[bgm];' : '[0:a]volume=0.025[bgm];';
     const mixInputs = ['[bgm]'];
 
     items.forEach((item, index) => {
