@@ -4,6 +4,7 @@ import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
 import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
+import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
@@ -47,6 +48,7 @@ async function main() {
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   await peerNode.start();
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+  await publishRuntimeIdentity('online');
 
   edgeNode = await createApexEdgeNode({
     peerNode,
@@ -66,7 +68,7 @@ async function main() {
     sendPeer: sendToPeer
   });
 
-  await reconcile(bridge);
+  await runCycle(bridge);
   console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
     workerId,
     peerId: peerNode.peerId.toString(),
@@ -79,9 +81,36 @@ async function main() {
   }));
 
   timer = setInterval(() => {
-    if (!stopping) reconcile(bridge).catch((error) => console.error('[SOVEREIGN] reconcile failed', error));
+    if (!stopping) runCycle(bridge).catch((error) => console.error('[SOVEREIGN] cycle failed', error));
   }, reconcileMs);
   timer.unref?.();
+}
+
+async function publishRuntimeIdentity(status = 'online') {
+  if (!peerNode) return;
+  const now = Date.now();
+  await apexPureStore.put('sovereign_runtime', 'identity', {
+    status,
+    peerId: peerNode.peerId.toString(),
+    workerId,
+    listenAddresses: peerNode.getMultiaddrs().map(String),
+    lastSeenAt: new Date(now).toISOString(),
+    leaseExpiresAt: status === 'online' ? now + Math.max(30000, reconcileMs * 3) : 0
+  });
+}
+
+async function runCycle(activeBridge) {
+  await publishRuntimeIdentity('online');
+  const queued = await drainSovereignAppDispatchQueue({
+    store: apexPureStore,
+    engine,
+    peerId: peerNode.peerId.toString(),
+    workerId,
+    limit: 32,
+    leaseMs: Math.max(15000, reconcileMs * 3)
+  });
+  if (queued.claimed) console.log('[SOVEREIGN APP DISPATCH]', JSON.stringify(queued));
+  await reconcile(activeBridge);
 }
 
 async function reconcile(activeBridge) {
@@ -105,6 +134,7 @@ async function shutdown(signal) {
     console.error('[SOVEREIGN] final reconcile failed:', error);
     process.exitCode = 1;
   } finally {
+    await publishRuntimeIdentity('offline').catch(() => {});
     await edgeNode?.stop().catch(() => {});
     await peerNode?.stop().catch(() => {});
   }
