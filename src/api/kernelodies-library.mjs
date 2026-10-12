@@ -2,6 +2,7 @@ import express from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { RemoteContentAddressedStore } from "../core/remote-content-addressed-store.mjs";
 import os from "node:os";
 
 const AUDIO_TYPES = Object.freeze({
@@ -25,14 +26,18 @@ export function createKernelodiesLibraryRouter({
   getAvailableBytes = async dir => {
     const stats = await fs.statfs(dir);
     return stats.bavail * stats.bsize;
-  }
+  },
+  cas = null,
+  remoteMode = String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true"
 } = {}) {
-  if (!storageDir) throw new TypeError("storageDir is required");
+  const useRemote = Boolean(cas) || remoteMode;
+  const remoteStore = useRemote ? (cas || new RemoteContentAddressedStore()) : null;
+  if (!useRemote && !storageDir) throw new TypeError("storageDir is required when remote storage is disabled");
   const router = express.Router();
-  const root = path.join(path.resolve(storageDir), "kernelodies-library");
-  const manifestPath = path.join(root, "library.json");
+  const root = storageDir ? path.join(path.resolve(storageDir), "kernelodies-library") : null;
+  const manifestPath = root ? path.join(root, "library.json") : null;
   let writes = Promise.resolve();
-  const lockPath = manifestPath + ".lock";
+  const lockPath = manifestPath ? manifestPath + ".lock" : null;
 
   async function syncDirectory(dir) {
     const handle = await fs.open(dir, "r");
@@ -135,19 +140,38 @@ export function createKernelodiesLibraryRouter({
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new Error("Invalid track id");
     return id;
   }
+  const REMOTE_NAMESPACE = "kernelodies_tracks";
+  function publicTrack(track) {
+    const { id, title, artist, album, genre, year, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl } = track || {};
+    return { id, title, artist, album, genre, year, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl };
+  }
   router.use(authorize);
 
   router.get("/", async (_req, res) => {
     try {
+      if (useRemote) {
+        const refs = await remoteStore.listRefs(REMOTE_NAMESPACE);
+        const tracks = refs.map(ref => ref.value).filter(Boolean)
+          .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        return res.json({ ok: true, tracks: tracks.map(publicTrack) });
+      }
       const manifest = await readManifest();
-      res.json({ ok: true, tracks: manifest.tracks.map(({ id, title, artist, album, genre, year, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl }) => ({ id, title, artist, album, genre, year, durationSeconds, mimeType, bytes, checksum, createdAt, audioUrl })) });
-    } catch (error) { res.status(503).json({ ok: false, error: "Kernelodies library unavailable" }); }
+      return res.json({ ok: true, tracks: manifest.tracks.map(publicTrack) });
+    } catch (_error) { return res.status(503).json({ ok: false, error: "Kernelodies library unavailable" }); }
   });
 
   router.get("/capacity", async (req, res) => {
     const requestedBytes = Number(req.query?.bytes ?? 0);
     if (!Number.isSafeInteger(requestedBytes) || requestedBytes < 0 || requestedBytes > MAX_AUDIO_BYTES) {
       return res.status(400).json({ ok: false, error: "Invalid requested audio size" });
+    }
+    if (useRemote) {
+      try {
+        await remoteStore.init();
+        return res.status(200).json({ ok: true, storage: "remote-object-store", requestedBytes, maxAudioBytes: MAX_AUDIO_BYTES });
+      } catch (_error) {
+        return res.status(503).json({ ok: false, error: "Remote object storage is unavailable" });
+      }
     }
     try {
       await init();
@@ -180,9 +204,14 @@ export function createKernelodiesLibraryRouter({
         durationSeconds: Number.isFinite(Number(req.body?.durationSeconds)) && Number(req.body?.durationSeconds) >= 0 ? Number(req.body.durationSeconds) : null,
         mimeType: null, bytes: 0, checksum: null, audioUrl: null, createdAt: new Date().toISOString()
       };
+      if (useRemote) {
+        const remoteRecord = { ...record, audioHash: null };
+        await remoteStore.writeRef(REMOTE_NAMESPACE, id, remoteRecord, { expectedHash: null });
+        return res.status(201).json({ ok: true, track: publicTrack(remoteRecord) });
+      }
       await updateManifest(manifest => { manifest.tracks.unshift(record); return record; });
-      res.status(201).json({ ok: true, track: record });
-    } catch (_error) { res.status(400).json({ ok: false, error: "Could not create track record" }); }
+      return res.status(201).json({ ok: true, track: record });
+    } catch (_error) { return res.status(useRemote ? 503 : 400).json({ ok: false, error: "Could not create track record" }); }
   });
 
   router.put("/:id/audio", express.raw({ type: () => true, limit: MAX_AUDIO_BYTES }), async (req, res) => {
@@ -194,10 +223,37 @@ export function createKernelodiesLibraryRouter({
     const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (!bytes.length) return res.status(400).json({ ok: false, error: "Audio file is empty" });
     if (bytes.length > MAX_AUDIO_BYTES) return res.status(413).json({ ok: false, error: "Audio file exceeds 50 MB" });
+    const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
+    if (useRemote) {
+      try {
+        const current = await remoteStore.readRef(REMOTE_NAMESPACE, id);
+        if (!current) return res.status(404).json({ ok: false, error: "Track record not found" });
+        const record = current.value;
+        if (record.audioHash || record.audioUrl) {
+          if (record.audioHash === checksum && record.mimeType === mimeType && record.bytes === bytes.length && record.checksum === checksum) {
+            return res.json({ ok: true, track: publicTrack(record) });
+          }
+          return res.status(409).json({ ok: false, error: "Audio is already attached to this track; it was not overwritten" });
+        }
+        const blob = await remoteStore.putBlob(bytes, { contentType: mimeType });
+        const updated = {
+          ...record,
+          mimeType,
+          bytes: bytes.length,
+          checksum,
+          audioHash: blob.hash,
+          audioUrl: "/api/kernelodies/library/" + id + "/audio"
+        };
+        await remoteStore.writeRef(REMOTE_NAMESPACE, id, updated, { expectedHash: current.hash });
+        return res.json({ ok: true, track: publicTrack(updated) });
+      } catch (error) {
+        if (error?.code === "CAS_CONFLICT") return res.status(409).json({ ok: false, error: "Track changed during audio upload; retry safely" });
+        return res.status(503).json({ ok: false, error: "Remote audio storage is unavailable; no local file was written" });
+      }
+    }
     try {
       await init();
       const filename = id + "." + extension;
-      const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
       const finalPath = path.join(root, filename);
       const tempPath = path.join(root, "." + filename + ".tmp-" + crypto.randomUUID());
       // Keep the media write and catalog commit under one cross-process lock.
@@ -288,6 +344,24 @@ export function createKernelodiesLibraryRouter({
   router.get("/:id/audio", async (req, res) => {
     let id;
     try { id = safeId(req.params.id); } catch (error) { return res.status(400).json({ ok: false, error: "Invalid track id" }); }
+    if (useRemote) {
+      try {
+        const ref = await remoteStore.readRef(REMOTE_NAMESPACE, id);
+        const track = ref?.value;
+        if (!track?.audioHash || !track.audioUrl) return res.status(404).json({ ok: false, error: "Audio is not available for this track" });
+        const blob = await remoteStore.getBlob(track.audioHash);
+        if (blob.bytes.length !== track.bytes || blob.hash !== track.checksum || blob.contentType !== track.mimeType) {
+          return res.status(503).json({ ok: false, error: "Remote audio failed integrity checks" });
+        }
+        res.set("Content-Type", track.mimeType);
+        res.set("Content-Length", String(track.bytes));
+        res.set("Cache-Control", "private, no-store");
+        res.set("X-Content-Type-Options", "nosniff");
+        return res.send(blob.bytes);
+      } catch (_error) {
+        return res.status(503).json({ ok: false, error: "Remote audio storage is unavailable" });
+      }
+    }
     try {
       const track = (await readManifest()).tracks.find(item => item.id === id);
       if (!track?.mimeType || !track.audioUrl) return res.status(404).json({ ok: false, error: "Audio is not available for this track" });
