@@ -29,7 +29,7 @@ export async function listVoiceCatalog() {
 
 export async function voiceoverWorkerStatus() {
   const stats = await queueStats();
-  return { storage: stats.storage || "local-pure-wal", queued: stats.queued || 0,
+  return { storage: stats.storage || "content-addressed", queued: stats.queued || 0,
     running: stats.running || 0, providers: { elevenlabs: Boolean(process.env.ELEVENLABS_API_KEY),
       google: Boolean(process.env.GOOGLE_TTS_API_KEY), local: true } };
 }
