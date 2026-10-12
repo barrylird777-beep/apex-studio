@@ -698,10 +698,20 @@ app.get('/api/koin-kob/status', async (_req, res) => {
 app.get('/api/koin-kob/opportunities', async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(50, Math.floor(Number(req.query?.limit) || 10)));
-    const items = await apexPureStore.query('koin_kob_opportunities', () => true, {
+    const records = await apexPureStore.query('koin_kob_opportunities', () => true, {
       limit,
       sort: (a, b) => Number(b?.estimated_net_profit_usd || 0) - Number(a?.estimated_net_profit_usd || 0)
     });
+    const items = records.map(record => ({
+      id: String(record?.id || record?.fingerprint || ''),
+      fingerprint: String(record?.fingerprint || record?.id || ''),
+      kind: String(record?.kind || 'opportunity').slice(0, 100),
+      chain_id: Number.isFinite(Number(record?.chain_id)) ? Number(record.chain_id) : null,
+      token_in: String(record?.token_in || '').slice(0, 128),
+      token_out: String(record?.token_out || '').slice(0, 128),
+      estimated_net_profit_usd: Number.isFinite(Number(record?.estimated_net_profit_usd)) ? Number(record.estimated_net_profit_usd) : null,
+      observed_at: String(record?.observed_at || record?.observedAt || '')
+    }));
     res.set('cache-control', 'no-store');
     return res.json({ success: true, storage: 'pure-wal', items });
   } catch (error) {
