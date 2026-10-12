@@ -47,9 +47,11 @@ export class SovereignMeshEngine {
   async _initializeStorage() {
     if (!this.remoteMode) await fs.mkdir(this.storageDir, { recursive: true, mode: 0o700 });
     await this.cas.init();
-    const remoteMarker = { version: 1, storage: "remote-content-addressed", migratedAt: new Date().toISOString() };
+    const scope = String(process.env.RAILWAY_SERVICE_NAME || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
+    const remoteMarkerKey = "mesh-migration-v1-" + scope;
+    const remoteMarker = { version: 1, storage: "remote-content-addressed", service: scope, migratedAt: new Date().toISOString() };
     let migrated = false;
-    if (this.remoteMode) migrated = Boolean(await this.cas.readRef("system", "mesh-migration-v1"));
+    if (this.remoteMode) migrated = Boolean(await this.cas.readRef("system", remoteMarkerKey));
     else {
       try { await fs.stat(this.migrationFile); migrated = true; }
       catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -76,7 +78,7 @@ export class SovereignMeshEngine {
       const currentSequence = await this.cas.readRef("meta", "sequence");
       if (!currentSequence) await this.cas.writeRef("meta", "sequence", { next: lastSeq + 1 }, this.remoteMode ? { expectedHash: null } : {});
       if (this.remoteMode) {
-        await this.cas.writeRef("system", "mesh-migration-v1", remoteMarker, { expectedHash: null });
+        await this.cas.writeRef("system", remoteMarkerKey, remoteMarker, { expectedHash: null });
       } else {
         const marker = this.migrationFile + "." + randomUUID() + ".tmp";
         await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: remoteMarker.migratedAt }) + "\\n", { flag: "wx", mode: 0o600 });
