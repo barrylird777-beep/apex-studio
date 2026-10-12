@@ -63,25 +63,11 @@ function readerFor(stream) {
   let reader = streamReaders.get(stream);
   if (reader) return reader;
 
-  // Prefer the stream's own async iterator when available. Some libp2p
-  // transports emit message events for diagnostics but don't reliably feed
-  // the same chunks to that event adapter under concurrent bidirectional use.
-  const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
-    ? stream.source
-    : stream && typeof stream[Symbol.asyncIterator] === 'function'
-      ? stream
-      : null;
-
-  if (iterable) {
-    reader = {
-      iterator: iterable[Symbol.asyncIterator](),
-      decoder: new TextDecoder(),
-      text: '',
-      bytesRead: 0,
-      pending: null,
-      cleanup: () => {}
-    };
-  } else if (stream && typeof stream.addEventListener === 'function') {
+  // libp2p's stream adapter used in production delivers chunks through
+  // EventTarget "message" events. Prefer that interface when present; choosing
+  // source's async iterator first can leave the reader waiting forever even
+  // while messages are visibly arriving on the stream.
+  if (stream && typeof stream.addEventListener === 'function') {
     const queue = [];
     const waiters = [];
     let ended = false;
@@ -119,15 +105,24 @@ function readerFor(stream) {
         stream.removeEventListener?.('close', onClose);
       }
     };
-    stream.resume?.();
   } else {
-    throw new TypeError('unsupported sovereign peer stream read interface');
+    const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
+      ? stream.source
+      : stream && typeof stream[Symbol.asyncIterator] === 'function'
+        ? stream
+        : null;
+    if (!iterable) throw new TypeError('unsupported sovereign peer stream read interface');
+    reader = {
+      iterator: iterable[Symbol.asyncIterator](),
+      decoder: new TextDecoder(),
+      text: '',
+      bytesRead: 0,
+      pending: null,
+      cleanup: () => {}
+    };
   }
 
   streamReaders.set(stream, reader);
-  // The inbound handler pauses a new stream before attaching its reader.
-  // Resume only after the iterator/listeners are ready, or both sides can
-  // wait forever for a first envelope that the transport is holding back.
   stream.resume?.();
   return reader;
 }
