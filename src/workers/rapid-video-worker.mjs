@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
@@ -119,7 +119,8 @@ export async function executeRapidVideoPreview(payload = {}) {
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
   const outputDir = path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "previews");
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
-  const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
+  const suffix = cleanText(payload.attemptSuffix, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + (suffix ? "_" + suffix : "") + ".mp4";
   const output = path.join(outputDir, filename);
   const [bg, accent, warm] = paletteFor(brief + platform);
   const hook = await generateHook(brief, platform, payload.provider, payload.model);
@@ -133,6 +134,7 @@ export async function executeRapidVideoPreview(payload = {}) {
   const progress = `drawbox=x=70:y=120:w='940*t/10':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 10, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
   await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf), { maxBuffer: 1024 * 1024 * 4 });
+  const outputInfo = await stat(output);
   return {
     ok: true,
     type: "rapid-video-preview",
@@ -144,6 +146,8 @@ export async function executeRapidVideoPreview(payload = {}) {
     stage: "rendered",
     durationSeconds: 10,
     format: "mp4",
+    bytes: outputInfo.size,
+    artifactName: filename,
     url: "/files/previews/" + encodeURIComponent(filename),
     generatedAt: new Date().toISOString()
   };
@@ -160,7 +164,8 @@ export async function executeRapidVideoOrder(payload = {}) {
   const outputDir = process.env.STORAGE_DIR || "/srv/apex/se-x/projects";
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
 
-  const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
+  const suffix = cleanText(payload.attemptSuffix, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + (suffix ? "_" + suffix : "") + ".mp4";
   const output = path.join(outputDir, filename);
   const hook = await generateHook(brief, platform, payload.provider, payload.model);
   const scenes = [
@@ -175,6 +180,7 @@ export async function executeRapidVideoOrder(payload = {}) {
   const progress = `drawbox=x=70:y=120:w='940*t/30':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 30, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
   await execFileAsync("ffmpeg", commonVideoArgs(output, 30, vf), { maxBuffer: 1024 * 1024 * 4 });
+  const outputInfo = await stat(output);
 
   return {
     ok: true,
@@ -188,6 +194,8 @@ export async function executeRapidVideoOrder(payload = {}) {
     stage: "rendered",
     durationSeconds: 30,
     format: "mp4",
+    bytes: outputInfo.size,
+    artifactName: filename,
     url: "/files/" + encodeURIComponent(filename),
     generatedAt: new Date().toISOString()
   };
