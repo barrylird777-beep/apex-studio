@@ -12,9 +12,9 @@ export async function durableWorkerHealth() {
   try {
     if (!durableWorkerEnabled()) return { configured:false, available:false, status:"disabled", checkedAt:new Date().toISOString(), lastError:null };
     await apexPureStore.init();
-    return { configured:true, available:true, status:"ready", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:null };
+    return { configured:true, available:true, status:"ready", storage:"filesystem-wal+local-cas", authority:"local-filesystem", remoteConfigured:false, sovereign:false, checkedAt:new Date().toISOString(), lastError:null };
   } catch (error) {
-    return { configured:true, available:false, status:"unavailable", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:String(error?.message || error).slice(0,500) };
+    return { configured:true, available:false, status:"unavailable", storage:"filesystem-wal+local-cas", authority:"local-filesystem", remoteConfigured:false, sovereign:false, checkedAt:new Date().toISOString(), lastError:String(error?.message || error).slice(0,500) };
   }
 }
 
@@ -68,7 +68,7 @@ export async function enqueueWorkerTask({
     priority:Number(priority)||0,
     dedupeKey:dedupeKey == null ? null : String(dedupeKey)
   });
-  return { durable:true, id:String(result.id), duplicate:Boolean(result.duplicate), status:result.status || "queued", storage:"content-addressed" };
+  return { durable:true, id:String(result.id), duplicate:Boolean(result.duplicate), status:result.status || "queued", storage:"filesystem-wal+local-cas" };
 }
 
 export async function claimNextWorkerTasks(limit = 20, leaseMs = 45000, role = null, workerId = ownerId()) {
@@ -179,7 +179,7 @@ export async function queueStats() {
   if (!durableWorkerEnabled()) return {durable:false};
   await apexPureStore.refreshJobs();
   const jobs=apexPureStore.jobs();
-  return {durable:true,storage:"content-addressed",queued:jobs.filter(j=>j.status==="queued").length,running:jobs.filter(j=>j.status==="running").length,completed:jobs.filter(j=>j.status==="completed").length,dead:jobs.filter(j=>j.status==="dead").length,total:jobs.length};
+  return {durable:true,storage:"filesystem-wal+local-cas",queued:jobs.filter(j=>j.status==="queued").length,running:jobs.filter(j=>j.status==="running").length,completed:jobs.filter(j=>j.status==="completed").length,dead:jobs.filter(j=>j.status==="dead").length,total:jobs.length};
 }
 
 export async function closeWorkerStore() { await apexPureStore.init(); }
@@ -210,5 +210,5 @@ export async function heartbeatRenderNode({id,inFlight=0,state="ready"}={}) {
 export async function renderCapacitySnapshot() {
   if(!durableWorkerEnabled()) return {durable:false,nodes:[],available:0};
   const nodes=(await apexPureStore.list("render_nodes")).filter(node=>node.state==="ready").map(node=>({...node,available:Math.max(0,Number(node.maxConcurrency||1)-Number(node.inFlight||0))}));
-  return {durable:true,storage:"content-addressed",nodes,available:nodes.reduce((sum,node)=>sum+node.available,0)};
+  return {durable:true,storage:"filesystem-wal+local-cas",nodes,available:nodes.reduce((sum,node)=>sum+node.available,0)};
 }
