@@ -4,7 +4,7 @@ import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
-import { xshieldStatus, classifyXShieldRequest } from "../src/apps/xshield.mjs";
+import { koBlocksStatus, defineKoBlock, composeKoBlocks, validateKoBlockGraph } from "../src/apps/ko-blocks.mjs";
 import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../src/apps/kernel-vision.mjs";
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
@@ -12,7 +12,7 @@ import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from ".
 
 test("Apex exposes the six locked canonical apps",()=>{
   assert.equal(assertSixAppInvariant(),true);
-  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
   assert.equal(Object.keys(APEX_APPS).length,6);
 });
 test("all canonical registry entries point to real surfaces and modules",async()=>{
@@ -28,10 +28,12 @@ test("PlanetApeX builds world state",()=>{
   assert.equal(planet.regions.length,1); assert.equal(planet.entities[0].regionId,"r1");
   assert.equal(planetApexStatus().app.name,"PlanetApeX");
 });
-test("XShield is the canonical network protection app",()=>{
-  assert.equal(xshieldStatus().app.name,"XShield");
-  assert.equal(typeof xshieldStatus().dns,"object");
-  assert.equal(classifyXShieldRequest("https://example.com").action,"allow");
+test("KoBlocks is the canonical capability graph app",()=>{
+  const source=defineKoBlock({id:"source",outputs:["out"]});
+  const target=defineKoBlock({id:"target"});
+  const graph=composeKoBlocks([source,target],[{from:"source",to:"target",port:"out"}]);
+  assert.equal(validateKoBlockGraph(graph).valid,true);
+  assert.equal(koBlocksStatus().app.name,"KoBlocks");
 });
 test("KernelVision creates Theatre and Kornmax viewing sessions",()=>{
   const item=createTheatreItem({id:"film-1",title:"Finished Work"}),session=createViewingSession({item});
@@ -85,7 +87,7 @@ test("canonical status aggregator reports all six apps",async()=>{
   const { canonicalAppsStatus } = await import("../src/apps/canonical-six.mjs");
   const statuses = await canonicalAppsStatus();
   assert.equal(statuses.length,6);
-  assert.deepEqual(statuses.map(status=>status.app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+  assert.deepEqual(statuses.map(status=>status.app.name),["PlanetApeX","KoBlocks","KernelVision","KoinKob","KashKorner","Kernelodies"]);
 });
 test("KashKorner computes cash state",()=>{
   const entries=[recordCashEntry({amount:100}),recordCashEntry({amount:-25})];
@@ -99,7 +101,7 @@ test("Kernelodies uses the existing music provenance contract",async()=>{
   assert.equal(plan.contractVersion,"apex-music-production.v1"); assert.equal((await kernelodiesStatus()).app.name,"Kernelodies");
 });
 test("canonical app identities are internally consistent",async()=>{
-  for(const [id,fn] of [["planet-apex",planetApexStatus],["xshield",xshieldStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
+  for(const [id,fn] of [["planet-apex",planetApexStatus],["ko-blocks",koBlocksStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
   assert.equal((await kernelodiesStatus()).app.id,"kernelodies");
   for(const app of Object.values(APEX_APPS))assert.equal(getApexApp(app.id).name,app.name);
 });
