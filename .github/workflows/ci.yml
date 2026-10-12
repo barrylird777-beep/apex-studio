@@ -19,102 +19,33 @@ defaults:
 
 jobs:
   spec-001:
-    name: SPEC-001 verification
+    name: Sovereign Pure-WAL verification
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/apex_test
-      NPM_CONFIG_AUDIT: "false"
-      NPM_CONFIG_FUND: "false"
-      NPM_CONFIG_FETCH_RETRIES: "5"
-      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
-      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
-      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: apex_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d apex_test"
-          --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-
-      - name: Install FFmpeg and FFprobe for real render verification
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Install dependencies with registry retries
-        run: npm install --no-audit --no-fund --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=30000
-
-      - name: Verify PostgreSQL is ready
-        run: |
-          for i in {1..30}; do
-            if pg_isready -h 127.0.0.1 -p 5432 -U postgres -d apex_test >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 2
-          done
-          exit 1
-
-      - run: npm run db:generate
-      - name: Upload generated Drizzle migration
-        uses: actions/upload-artifact@v4
-        with:
-          name: spec-001-drizzle
-          path: drizzle-pg
-          if-no-files-found: error
-
-      - run: npm run db:migrate
-      - run: npm run build
-      - run: npm run smoke:production
-      - run: npm run check:canonical
-      - run: npm run smoke:kernelvision-episode
-      - run: npm test
-      - run: npm run apex:release-audit
-      - run: npm run verify:migrations
-      - run: npm run db:seed
-
-      - name: Start server for SPEC-005 HTTP smoke
-        run: |
-          set -euo pipefail
-          PORT=3001 npm run dev -- --dev > /tmp/apex-server.log 2>&1 &
-          echo $! > /tmp/apex-server.pid
-          for i in {1..45}; do
-            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3001/api/projects >/dev/null; then
-              exit 0
-            fi
-            if ! kill -0 "$(cat /tmp/apex-server.pid)" 2>/dev/null; then
-              cat /tmp/apex-server.log
-              exit 1
-            fi
-            sleep 1
-          done
-          cat /tmp/apex-server.log
-          exit 1
-
-      - name: Run SPEC-005 HTTP smoke
-        run: BASE_URL=http://127.0.0.1:3001 npm run smoke:005
-
-      - name: Stop SPEC-005 server
-        if: always()
-        run: |
-          if [[ -f /tmp/apex-server.pid ]]; then
-            kill "$(cat /tmp/apex-server.pid)" 2>/dev/null || true
-          fi
-
-      - run: npx tsx test/spec001.smoke.ts
-
+      - name: Install ffmpeg for mastering fallback
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Production smoke
+        run: npm run smoke:production
+      - name: Canonical six-app contract
+        run: npm run check:canonical
+      - name: KernelVision episode smoke
+        run: npm run smoke:kernelvision-episode
+      - name: Pure-WAL test suite
+        run: npm test
+      - name: Release audit
+        run: npm run apex:release-audit
+      - name: Network tests
+        run: npm run test:network
+      - name: SPEC-005 Pure-WAL schedule smoke
+        run: node --test test/schedule-api.smoke.mjs
   network-transfer:
     name: Network transfer verification
     runs-on: ubuntu-latest
