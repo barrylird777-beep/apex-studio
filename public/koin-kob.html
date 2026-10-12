@@ -23,7 +23,7 @@ async function opportunities(){
   $("opportunities").className="";
   $("opportunities").textContent=items.length?items.map((item,index)=>
    (index+1)+". "+(item.kind||"Opportunity")+" · "+(item.token_in||"?")+" → "+(item.token_out||"?")+" · est. net $"+Number(item.estimated_net_profit_usd||0).toFixed(2)+" · "+(item.observed_at||"")
-  ).join("\\n"):"No stored opportunities yet. The scanner feed is connected to Pure-WAL.";
+  ).join("\n"):"No stored opportunities yet. The scanner feed is connected to Pure-WAL.";
  }catch(e){
   $("opportunities").className="bad";
   $("opportunities").textContent="Opportunity feed unavailable: "+e.message;
