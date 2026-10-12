@@ -53,7 +53,7 @@ export function createSovereignDurableBridge({ engine, workerId, peerNode, peerA
         waveId: record.waveId,
         jobId: job.id,
         checksum: record.checksum,
-        record: payload,
+        record,
         fence: Number(job.leaseFence ?? job.lease_fence ?? 0)
       });
     }
