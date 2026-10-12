@@ -122,7 +122,7 @@ try {
     });
     const saved = await savedResponse.json();
     if (savedResponse.status !== 200 || saved.success !== true ||
-        saved.durable !== true || saved.storage !== 'content-addressed' || saved.storageAuthority !== 'local-filesystem' || saved.cloudStorageReady !== false || saved.storageAuthority !== 'local-filesystem' || saved.cloudStorageReady !== false ||
+        saved.durable !== true || saved.storage !== 'content-addressed' || saved.storageAuthority !== 'local-filesystem' || saved.cloudStorageReady !== false ||
         saved.record?.marker !== payload.marker) {
       throw new Error(`${expectedName} durable save smoke failed: ${JSON.stringify(saved)}`);
     }
