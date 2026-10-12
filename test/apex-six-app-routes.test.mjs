@@ -69,3 +69,16 @@ test("all six canonical phone surfaces avoid browser-local data stores and share
     assert.match(page, /sessionStorage/, app.name + " must keep browser session state temporary");
   }
 });
+
+test("local AI service worker cannot replace the phone shell worker", async () => {
+  const [phone, localAi, localAiWorker, server] = await Promise.all([
+    read("../public/phone.html"),
+    read("../public/local-ai.html"),
+    read("../public/local-ai-sw.js"),
+    read("../server.mjs")
+  ]);
+  assert.match(phone, /serviceWorker\.register\(["']\/sw\.js["']/);
+  assert.match(localAi, /serviceWorker\.register\(["']\/local-ai-sw\.js["'],\s*\{\s*scope:\s*["']\/local-ai["']\s*\}\)/);
+  assert.match(localAiWorker, /const PAGE = ["']\/local-ai["']/);
+  assert.match(server, /Service-Worker-Allowed', '\/local-ai'/);
+});
