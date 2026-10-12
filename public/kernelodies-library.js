@@ -16,6 +16,13 @@
     <label>Track title <input id="kl-title" maxlength="200" placeholder="Track title (optional)"></label>
     <label>Artist <input id="kl-artist" maxlength="200" placeholder="Artist (optional)"></label>
     <label>Album <input id="kl-album" maxlength="200" placeholder="Album (optional)"></label>
+    <label>Genre <input id="kl-genre" maxlength="100" placeholder="Ambient, gospel, orchestral…"></label>
+    <label>Release year <input id="kl-year" type="number" min="1000" max="9999" step="1" placeholder="Optional"></label>
+    <div class="kl-controls">
+      <label>Search <input id="kl-search" type="search" placeholder="Find tracks, artists, albums, genres…"></label>
+      <label>Search field <select id="kl-search-field"><option value="all">All fields</option><option value="title">Title</option><option value="artist">Artist</option><option value="album">Album</option><option value="genre">Genre</option><option value="year">Year</option></select></label>
+    </div>
+    <p id="kl-search-count" aria-live="polite">0 tracks</p>
     <label>Audio file <input id="kl-file" type="file" accept="audio/*"></label>
     <button id="kl-upload">Save to browser library</button>
     <button id="kl-refresh" type="button">Refresh library</button>
@@ -33,6 +40,19 @@
   const status = message => { $("kl-status").textContent = message; };
   const token = () => $("kl-token").value.trim();
   const serverMode = () => $("kl-mode").value === "server";
+  function applySearch() {
+    const query = $("kl-search").value.trim().toLocaleLowerCase();
+    const field = $("kl-search-field").value;
+    const cards = [...root.querySelectorAll(".track")];
+    let visible = 0;
+    for (const card of cards) {
+      const keys = field === "all" ? ["title", "artist", "album", "genre", "year"] : [field];
+      const match = !query || keys.some(key => String(card.dataset[key] || "").toLocaleLowerCase().includes(query));
+      card.hidden = !match;
+      if (match) visible++;
+    }
+    $("kl-search-count").textContent = visible + " of " + cards.length + " tracks";
+  }
 
   function openDB() {
     return new Promise((resolve, reject) => {
@@ -91,12 +111,32 @@
   function renderTrack(track, mode) {
     const card = document.createElement("div");
     card.className = "track";
+    for (const key of ["title", "artist", "album", "genre", "year"]) card.dataset[key] = String(track[key] ?? "");
     const info = document.createElement("div");
     const heading = document.createElement("strong");
     heading.textContent = track.title || "Untitled track";
     const sub = document.createElement("span");
     sub.textContent = [track.artist, track.album].filter(Boolean).join(" · ") || (mode === "local" ? "Browser-local track" : "Apex library track");
     info.append(heading, sub);
+    const facts = [track.genre, track.year].filter(value => value !== null && value !== undefined && String(value).trim()).map(String);
+    if (facts.length) {
+      const meta = document.createElement("span");
+      meta.className = "kl-track-meta";
+      meta.textContent = facts.join(" · ");
+      info.append(meta);
+    }
+    const tags = document.createElement("div");
+    tags.className = "kl-tags";
+    for (const [field, label, value] of [["artist", "Artist", track.artist], ["album", "Album", track.album], ["genre", "Genre", track.genre], ["year", "Year", track.year]]) {
+      if (value === null || value === undefined || !String(value).trim()) continue;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "kl-tag";
+      chip.textContent = label + ": " + String(value);
+      chip.onclick = () => { $("kl-search-field").value = field; $("kl-search").value = String(value); applySearch(); };
+      tags.append(chip);
+    }
+    if (tags.childElementCount) info.append(tags);
     card.append(info);
     if (mode === "local") {
       if (!addPlayer(card, track.blob)) {
@@ -160,11 +200,13 @@
       if (!serverMode()) {
         const tracks = (await localGetAll()).sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
         for (const track of tracks) list.append(renderTrack(track, "local"));
+        applySearch();
         status("Browser-local · " + tracks.length + " records. Audio stays in this browser; metadata export does not include audio.");
         return;
       }
       const data = await api("/api/kernelodies/library");
       for (const track of data.tracks) list.append(renderTrack(track, "server"));
+      applySearch();
       status("Apex shared storage · " + data.tracks.length + " records.");
     } catch (error) { status(error.message); }
   }
@@ -182,12 +224,16 @@
     const title = $("kl-title").value.trim() || file.name.replace(/\.[^.]+$/, "");
     const artist = $("kl-artist").value.trim();
     const album = $("kl-album").value.trim();
+    const genre = $("kl-genre").value.trim();
+    const yearText = $("kl-year").value.trim();
+    const year = yearText ? Number(yearText) : null;
+    if (year !== null && (!Number.isInteger(year) || year < 1000 || year > 9999)) return status("Release year must be a four-digit year.");
     try {
       if (!serverMode()) {
         status("Saving audio to this browser…");
         await localPut({
           id: "local-" + crypto.randomUUID(),
-          title, artist, album, duration: 0, blob: file, mimeType,
+          title, artist, album, genre, year, duration: 0, blob: file, mimeType,
           importedAt: new Date().toISOString(),
           storageMode: "browser-local"
         });
@@ -202,7 +248,7 @@
       const created = await api("/api/kernelodies/library", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, artist, album })
+        body: JSON.stringify({ title, artist, album, genre, year })
       });
       status("Uploading audio to persistent Apex storage…");
       await api("/api/kernelodies/library/" + created.track.id + "/audio", {
@@ -223,12 +269,14 @@
     $("kl-upload").textContent = server ? "Save to Apex storage" : "Save to browser library";
     refresh();
   };
+  $("kl-search").addEventListener("input", applySearch);
+  $("kl-search-field").addEventListener("change", applySearch);
   $("kl-refresh").onclick = refresh;
   $("kl-export").onclick = async () => {
     if (serverMode()) return status("Metadata export is currently available only in browser-local mode.");
     try {
       const tracks = await localGetAll();
-      const metadata = tracks.map(({ id, title, artist, album, duration, importedAt }) => ({ id, title, artist, album, duration, importedAt }));
+      const metadata = tracks.map(({ id, title, artist, album, genre, year, duration, importedAt }) => ({ id, title, artist, album, genre, year, duration, importedAt }));
       const url = URL.createObjectURL(new Blob([JSON.stringify(metadata, null, 2)], { type: "application/json" }));
       const link = document.createElement("a");
       link.href = url; link.download = "kernelodies-metadata-only.json"; link.click();
@@ -253,6 +301,8 @@
           title: String(item.title || "Imported track").slice(0, 200),
           artist: String(item.artist || "").slice(0, 200),
           album: String(item.album || "").slice(0, 200),
+          genre: String(item.genre || "").slice(0, 100),
+          year: Number.isInteger(Number(item.year)) && Number(item.year) >= 1000 && Number(item.year) <= 9999 ? Number(item.year) : null,
           duration: Math.max(0, Number(item.duration) || 0),
           blob: null,
           importedAt: new Date().toISOString(),
