@@ -1,0 +1,33 @@
+name: APEX ANCHOR Integration
+
+on:
+  pull_request:
+    paths:
+      - "server.mjs"
+      - "src/**"
+      - "public/**"
+      - "test/**"
+      - "package.json"
+      - ".github/workflows/apex-anchor-integration.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "server.mjs"
+      - "src/**"
+      - "public/**"
+      - "test/**"
+      - "package.json"
+      - ".github/workflows/apex-anchor-integration.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run Apex Anchor test suite
+        run: npm test
