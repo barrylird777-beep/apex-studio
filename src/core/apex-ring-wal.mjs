@@ -108,6 +108,7 @@ export class ApexRingWAL {
         try{await fh.writeFile(line,"utf8");await fh.sync();}finally{await fh.close();}
         await syncDirectory(path.dirname(this.file));
         this._load(record);this.offset+=Buffer.byteLength(line,"utf8");
+        Object.defineProperty(record,"externalRecords",{value:this.lastExternalRecords.slice(),enumerable:false});
         return record;
       }finally{await release();}
     };
