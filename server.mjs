@@ -473,10 +473,6 @@ app.get('/api/planet-apex/status', async (_req, res) => {
   try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({success:true,...planetApexStatus()}); }
   catch { return res.status(503).json({success:false,error:'PlanetApeX status unavailable'}); }
 });
-app.get('/api/ko-blocks/status', async (_req, res) => {
-  try { const { koBlocksStatus } = await import('./src/apps/ko-blocks.mjs'); return res.json({success:true,...koBlocksStatus()}); }
-  catch { return res.status(503).json({success:false,error:'KoBlocks status unavailable'}); }
-});
 app.get('/api/kernel-vision/status', async (_req, res) => {
   try { const { kernelVisionStatus } = await import('./src/apps/kernel-vision.mjs'); return res.json({success:true,...kernelVisionStatus()}); }
   catch { return res.status(503).json({success:false,error:'KernelVision status unavailable'}); }
