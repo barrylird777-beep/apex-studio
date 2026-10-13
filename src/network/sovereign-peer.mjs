@@ -564,6 +564,27 @@ export async function sendToPeerCbor(node, multiaddr, envelope) {
   }
   throw new Error('sovereign peer CBOR send failed after transport retry');
 }
+
+/**
+ * Prefer the binary CBOR peer protocol. Fall back only when negotiation says
+ * the remote peer does not implement v2; never replay a request after a timeout,
+ * rejection, or ambiguous delivery failure.
+ */
+export async function sendToPeerAuto(node, multiaddr, envelope, {
+  sendCbor = sendToPeerCbor,
+  sendLegacy = sendToPeer
+} = {}) {
+  try {
+    return await sendCbor(node, multiaddr, envelope);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const protocolUnavailable = /protocol.*(?:not supported|unsupported|not found|no handler|not registered)|no protocol handler/i.test(message);
+    if (!protocolUnavailable) throw error;
+    console.warn('[SOVEREIGN PEER] remote lacks CBOR v2; using authenticated v1 compatibility protocol');
+    return sendLegacy(node, multiaddr, envelope);
+  }
+}
+
 export { PROTOCOL, CBOR_PROTOCOL };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
