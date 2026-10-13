@@ -2,7 +2,7 @@
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 \\* Bounded safety model: the CAS append is abstracted as one atomic action.
-\\* This does not model a provider implementation or Byzantine consensus.
+\\* This model does not represent a provider implementation or Byzantine consensus.
 
 CONSTANTS Ops, Nodes, Keys, MaxSeq
 ASSUME /\ Ops # {}
