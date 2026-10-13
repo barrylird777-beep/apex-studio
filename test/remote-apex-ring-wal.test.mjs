@@ -9,7 +9,7 @@ import { createRingWal } from "../src/core/apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
-  constructor() { this.refs = new Map(); }
+  constructor() { this.refs = new Map(); this.listCalls = 0; }
   async init() { return this; }
   async readRef(ns, key) {
     const row = this.refs.get(ns + "/" + key);
@@ -23,6 +23,7 @@ class MemoryCAS {
     return { namespace: ns, key, hash };
   }
   async listRefs(ns) {
+    this.listCalls++;
     const prefix = ns + "/";
     return [...this.refs.entries()].filter(([id]) => id.startsWith(prefix)).map(([id, row]) => ({
       namespace: ns, key: id.slice(prefix.length), hash: row.hash, value: structuredClone(row.value)
@@ -102,4 +103,15 @@ test("createRingWal factory honors remote mode and never creates its requested l
     else process.env.APEX_CAS_REMOTE_ENABLED = previous;
     await rm(parent, { recursive: true, force: true });
   }
+});
+
+test("normal remote WAL appends do not rescan the entire remote WAL namespace", async () => {
+  const cas = new MemoryCAS();
+  const wal = new RemoteApexRingWAL({ cas, scope: "remote-wal-incremental", ringSize: 8 });
+  await wal.append("event.one", { value: 1 });
+  const scansAfterFirstAppend = cas.listCalls;
+  await wal.append("event.two", { value: 2 });
+  await wal.append("event.three", { value: 3 });
+  assert.equal(cas.listCalls, scansAfterFirstAppend, "appends should verify the head and adjacent refs, not list every WAL record");
+  assert.equal((await wal.snapshot()).sequence, 3);
 });
