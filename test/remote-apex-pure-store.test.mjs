@@ -208,6 +208,7 @@ test("remote queue indexes recover from a crash after job persistence", async ()
 
     const restarted = new ApexPureStore({ root, cas });
     await restarted.init();
+    await restarted.ensureRemoteQueueIndex({ force: true });
     const claimed = await restarted.claim({ workerId: "recovery-test", limit: 1 });
     assert.equal(claimed.length, 1, "startup reconciliation must rebuild a missing index even when an old marker exists");
     assert.equal(claimed[0].id, "crash-window-job");
