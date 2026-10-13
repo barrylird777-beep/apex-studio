@@ -146,9 +146,33 @@ test('peer storage health does not advertise an ephemeral backend as durable', a
 });
 
 
-test('peer storage assembly rejects self-replication as independent durability', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../src/core/peer-storage-assembly.mjs', import.meta.url), 'utf8');
-  assert.match(source, /targets\.some\(target => target\.peerId === localPeerId\)/);
-  assert.match(source, /self-replication does not provide independent durability/);
+test('peer storage assembly rejects self-replication before treating it as a remote replica', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-self-peer-'));
+  const backendPath = path.join(dir, 'backend.mjs');
+  await fs.writeFile(backendPath, `export async function createPeerStorageBackend() {
+    return {
+      durable: true, ownership: 'peer-owned', recoveryVerified: true,
+      async putBytes() {}, async getBytes() {}, async readRef() { return null; }, async writeRef() {}
+    };
+  }`);
+  try {
+    await assert.rejects(
+      createPeerStorageAssembly({
+        peerNode: { dialProtocol() {}, peerId: { toString: () => 'self-peer' } },
+        env: {
+          APEX_APP_ID: 'KernelVision',
+          APEX_PEER_STORAGE_BACKEND_MODULE: backendPath,
+          APEX_PEER_STORAGE_KEY_KERNEL_VISION: Buffer.alloc(32, 7).toString('base64'),
+          APEX_PEER_STORAGE_PEERS_KERNEL_VISION: 'self-peer@/ip4/127.0.0.1/tcp/1234/p2p/self-peer',
+          APEX_PEER_STORAGE_REPLICA_COUNT: '1'
+        }
+      }),
+      /self-replication does not provide independent durability/
+    );
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
