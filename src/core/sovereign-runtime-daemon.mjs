@@ -139,6 +139,11 @@ async function main() {
   runtimeReadiness.storageReady = true;
   await engine.ready();
   if (stopping) return;
+  const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
+  if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
+  if (stopping) return;
+
+  peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   const peerStorageEnabled = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
     String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
   if (peerStorageEnabled) {
@@ -157,11 +162,7 @@ async function main() {
   }
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
   if (stopping) return;
-  const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
-  if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
-  if (stopping) return;
 
-  peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   if (stopping) {
     await peerNode.stop().catch(() => {});
     return;
