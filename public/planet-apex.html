@@ -146,6 +146,58 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clam
  .apex-shell .row button{flex-basis:100%}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* PlanetApeX realistic world-simulator skin */
+:root{color-scheme:dark;--paper:#10171d;--paper-hi:#18232b;--ink:#e3e9e8;--muted:#9aa9ad;--line:#34434b;--forest:#7cb8b0;--forest-2:#8dc5c1;--brass:#d7bc7a;--night:#0b1116;--white:#e8efed;--red:#d18477}
+html,body,body:has(main[data-apex-app="planetapex"]){background:#10171d;color:#e3e9e8}
+a{color:#a6d5cf}a:hover{color:#f1d89a}
+.apex-app-nav{background:#0b1116!important;border-bottom:1px solid #29373f!important}
+.apex-app-brand,.apex-app-nav a:not(.apex-app-brand){color:#aab9bd!important}
+.apex-app-brand{border-color:#34434b!important}.apex-app-brand-mark{background:#213b3c!important;color:#d5ece5!important}
+.apex-app-nav a[aria-current=page]{background:#20383a!important;border-color:#426968!important;color:#d9f0e9!important}
+.apex-shell .eyebrow,.kicker{color:#d7bc7a}
+.apex-shell .lead{color:#afbec1}.apex-shell .hint,.muted{color:#9aa9ad}
+.apex-shell .card,.apex-shell .panel{background:#18232b;border-color:#34434b;border-radius:8px}
+.apex-shell button,.apex-shell input,.apex-shell select,.apex-shell textarea{background:#10191f;color:#e3e9e8;border-color:#40545d;border-radius:5px}
+.apex-shell button{background:#2b5654;border-color:#477a74;color:#f0f6f3}
+.apex-shell button:hover:not(:disabled){background:#376a66}
+.apex-shell pre{background:#0b1217;border-color:#34434b;color:#b8cfcc}
+.pa-masthead{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(18px,3vw,34px);align-items:stretch;padding:clamp(20px,3vw,34px) 0 24px;border-color:#34434b}
+.pa-masthead .edition{color:#9bd1ca;font-size:10px;letter-spacing:.17em}
+.pa-masthead .edition:before{background:#d7bc7a}
+.apex-shell h1,.apex-shell h2,.apex-shell h3{font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.045em;font-weight:650}
+.apex-shell h1{font-size:clamp(39px,5vw,64px);line-height:1.02;margin:18px 0}
+.pa-masthead h1 span{color:#9bd1ca}
+.pa-hero-actions{display:flex;flex-wrap:wrap;gap:9px;margin:24px 0}
+.pa-hero-actions a{display:inline-flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid #477a74;border-radius:5px;background:#203b3b;color:#e3f1ec;text-decoration:none;font-size:12px;font-weight:750}
+.pa-hero-actions a+a{background:transparent;border-color:#34434b;color:#c1cecf}
+.pa-system-line{display:flex;flex-wrap:wrap;align-items:center;gap:13px;padding-top:14px;border-top:1px solid #34434b;color:#819398;font-size:9px;letter-spacing:.13em}
+.pa-system-line .pa-live-dot{color:#9bd1ca}
+.pa-map-stage{min-width:0;overflow:hidden;border:1px solid #3c565b;border-radius:8px;background:#132027;box-shadow:0 20px 60px #0003}
+.pa-map-top,.pa-map-bottom{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:12px 14px;color:#a4b9b9;font-size:9px;letter-spacing:.13em}
+.pa-map-top{border-bottom:1px solid #344b50}.pa-terrain{display:block;width:100%;height:auto;max-height:365px}
+.pa-terrain text{font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.4px;fill:#d9e7dc}.pa-contours{opacity:.45}
+.pa-map-points circle{filter:drop-shadow(0 0 6px #b7e1d5)}
+.pa-map-bottom{border-top:1px solid #344b50;color:#90a8aa}.pa-map-bottom span{display:inline-flex;align-items:center;gap:6px}.pa-map-bottom i{width:6px;height:6px;border-radius:50%;background:#9bd1a7}
+.pa-section-head{margin:27px 0 13px}.pa-section-head .number{color:#d7bc7a}
+.pa-feature-grid{gap:12px}.pa-feature{border-color:#34434b;border-radius:8px;background:#18232b;overflow:hidden}
+.pa-feature-head{border-color:#34434b}.pa-feature-tag{color:#d7bc7a}
+.pa-analytics{background:#18272c}.pa-analytics .pa-feature-head{border-color:#344b50}
+.pa-metric{background:#101a20;border-top-color:#7cb8b0}.pa-metric strong{color:#9bd1ca}.pa-metric small{color:#93a6a8}
+.pa-bar{background:#2c4147}.pa-bar span{background:#7cb8b0}
+.pa-scripture{background:#eee5d2;color:#3d3427;border-color:#d6c8ac}.pa-scripture .pa-feature-head{border-color:#d6c8ac}.pa-scripture .pa-feature-tag{color:#927443}.pa-scripture .hint{color:#786b54}
+.pa-research{background:#18232b}.pa-research .pa-feature-head{border-color:#34434b}.pa-source{border-color:#34434b}.pa-source strong{color:#e1e9e5}.pa-source small{color:#9eafb0}
+.pa-garden{border-color:#3a6763;background:#101a20;color:#e3e9e8}
+.pa-garden .pa-feature-head{background:#1a3034;border-color:#355357}
+.pa-garden .pa-feature-tag{color:#d7bc7a}.pa-garden .pa-feature-head p{color:#b3c5c5}
+.pa-world-status{color:#afc4c3}.pa-korn{background:#17262c;border-color:#3b565a;border-radius:6px}.pa-korn .face{border-radius:5px;border-color:#507477;color:#d7bc7a;background:#1e373b}.pa-korn strong{font-family:ui-sans-serif,-apple-system,sans-serif;font-weight:650;color:#e6efeb}.pa-korn small{color:#a8bbbb}.pa-korn .mood{color:#9bd1ca}
+.pa-garden .hint{color:#a8bbbb}.pa-garden button{background:#2b5654;color:#f0f6f3;border-color:#477a74}.pa-garden button:hover:not(:disabled){background:#376a66}
+.pa-garden-feed li{border-color:#7cb8b0;background:#ffffff08;color:#c6d7d4}
+.pa-storage .card{background:#18232b}.pa-storage-intro{color:#a8b7ba}
+.apex-app-footer{border-color:#34434b;color:#819398}
+@media(max-width:760px){.pa-masthead{grid-template-columns:1fr}.pa-terrain{max-height:none}.pa-hero-actions a{flex:1 1 auto;justify-content:center}.pa-map-bottom{font-size:8px}.pa-masthead{padding-top:22px}}
+@media(prefers-reduced-motion:reduce){.pa-map-points circle{filter:none}}
+
 </style>
 </head>
 <body>
@@ -157,8 +209,8 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clam
 <script src="/api-auth-bridge.js"></script>
 <main class="apex-shell" data-apex-app="planetapex" id="apex-main" tabindex="-1">
 <header class="pa-masthead">
-<div class="pa-masthead-copy"><div class="edition">PlanetApeX <span style="color:#a5a89a">/</span> The living atlas</div><h1>Understand the world.<br><span>Explore what lives within it.</span></h1><p class="lead">A private observatory for scripture, historical evidence, world intelligence, and GardenApex—the evolving lives of the Korns.</p></div>
-<aside class="pa-index" aria-label="Explore PlanetApeX"><strong>Explore the atlas</strong><a href="#analytics">01 &nbsp; World intelligence</a><a href="#scripture">02 &nbsp; Bible study</a><a href="#research">03 &nbsp; Historical research</a><a href="#garden">04 &nbsp; GardenApex</a><a href="#world-tools">05 &nbsp; World records</a></aside>
+<div class="pa-masthead-copy"><div class="edition">PLANETAPEX <span style="color:#667b84">/</span> WORLD SIMULATION</div><h1>A world that<br><span>keeps living.</span></h1><p class="lead">Explore the planet. Observe independent lives, changing communities, places, and discoveries inside GardenApex.</p><div class="pa-hero-actions"><a href="#garden">Enter GardenApex <span aria-hidden="true">↗</span></a><a href="#world-tools">World controls</a></div><div class="pa-system-line"><span class="pa-live-dot">SIMULATION CONSOLE</span><span>PLANETARY SYSTEM · PRIVATE SESSION</span></div></div>
+<aside class="pa-map-stage" aria-label="GardenApex world overview"><div class="pa-map-top"><span>GARDENAPEX / REGION 01</span><span>WORLD VIEW</span></div><svg class="pa-terrain" viewBox="0 0 620 390" role="img" aria-label="Topographic view of a fictional world with river, forest, settlement, and exploration points"><defs><linearGradient id="terrainBase" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#294a45"/><stop offset=".52" stop-color="#1d3537"/><stop offset="1" stop-color="#18262f"/></linearGradient><linearGradient id="riverGlow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8dc5c1"/><stop offset="1" stop-color="#497f88"/></linearGradient></defs><rect width="620" height="390" fill="url(#terrainBase)"/><g class="pa-contours" fill="none" stroke="#9bb9a5" stroke-width="1"><path d="M-30 60C80 8 130 34 180 80S290 126 360 58 505 6 655 65"/><path d="M-30 78C80 26 130 52 180 98S290 144 360 76 505 24 655 83"/><path d="M-30 96C80 44 130 70 180 116S290 162 360 94 505 42 655 101"/><path d="M-30 114C80 62 130 88 180 134S290 180 360 112 505 60 655 119"/><path d="M-20 235C55 175 110 185 160 220S270 295 335 250 460 175 650 238"/><path d="M-20 253C55 193 110 203 160 238S270 313 335 268 460 193 650 256"/><path d="M-20 271C55 211 110 221 160 256S270 331 335 286 460 211 650 274"/><path d="M-20 289C55 229 110 239 160 274S270 349 335 304 460 229 650 292"/><path d="M80 -20C125 55 90 110 130 150S220 190 200 260 165 340 205 420"/><path d="M98 -20C143 55 108 110 148 150S238 190 218 260 183 340 223 420"/><path d="M440 -20C395 50 450 110 410 160S370 235 430 270 485 335 455 420"/><path d="M458 -20C413 50 468 110 428 160S388 235 448 270 503 335 473 420"/></g><path d="M310 -10C280 55 335 88 302 137S250 202 288 243 340 310 300 400" fill="none" stroke="#10272d" stroke-width="25" opacity=".55"/><path d="M310 -10C280 55 335 88 302 137S250 202 288 243 340 310 300 400" fill="none" stroke="url(#riverGlow)" stroke-width="10"/><path d="M310 -10C280 55 335 88 302 137S250 202 288 243 340 310 300 400" fill="none" stroke="#b5d6ce" stroke-width="1.5" opacity=".8"/><g fill="#8ea98d" opacity=".42"><path d="M25 145l24-38 26 24 16-31 31 42-15 32-42-5z"/><path d="M400 45l30-22 27 29 27-13 22 31-34 23-29-17-22 10z"/><path d="M455 294l27-35 24 17 19-25 37 31-16 33-40-7-24 19z"/><path d="M70 310l24-34 23 17 16-14 28 33-30 25-27-7z"/></g><g class="pa-map-points"><circle cx="246" cy="178" r="25" fill="#d7bc7a" opacity=".13"/><circle cx="246" cy="178" r="12" fill="#d7bc7a" opacity=".22"/><circle cx="246" cy="178" r="4.5" fill="#f1d89a"/><path d="M246 165V143H174" fill="none" stroke="#f1d89a" stroke-width="1"/><text x="168" y="138" text-anchor="end">ROOTLIGHT VILLAGE</text><circle cx="412" cy="119" r="4" fill="#9bd1ca"/><path d="M412 119l27-25h64" fill="none" stroke="#9bd1ca"/><text x="509" y="89">NORTH RIDGE</text><circle cx="145" cy="248" r="4" fill="#9bd1ca"/><path d="M145 248l-24 24H65" fill="none" stroke="#9bd1ca"/><text x="64" y="288">LOWER CREEK</text></g><g fill="#e1e8dd" font-family="Arial,sans-serif" font-size="9" letter-spacing="2"><text x="22" y="28">N</text><path d="M27 35v16m-5-5 5-11 5 11" stroke="#e1e8dd" fill="none"/><text x="22" y="366">FIELD MAP · NOT TO SCALE</text></g></svg><div class="pa-map-bottom"><span><i></i> TERRAIN SCAN READY</span><span>3 AREAS MAPPED</span><span>6 INHABITANTS</span></div></aside>
 </header>
 <section id="analytics">
 <div class="pa-section-head"><h2>World intelligence</h2><span class="number">01 / Signals</span></div>
