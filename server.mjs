@@ -1928,7 +1928,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
       success: true,
       orderId,
       status: 'payment_required',
-      price: 26.10,
+      price: 25.00,
       checkoutUrl: checkout.url,
       statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
