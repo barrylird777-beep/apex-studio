@@ -80,7 +80,12 @@ export class RemoteApexRingWAL {
     if (this.initPromise) return this.initPromise;
     this.initPromise = (async () => {
       await this.cas.init();
-      await this.replay({ retainRing: true });
+      // Serialize the initial snapshot with all appenders. Without the shared
+      // lock, another instance can advance the head after listRefs() snapshots
+      // records but before replay reads the head, falsely appearing corrupted.
+      await this._lock(async () => {
+        await this.replay({ retainRing: true });
+      });
       this.ready = true;
       return this;
     })();
