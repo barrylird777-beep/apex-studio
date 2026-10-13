@@ -37,6 +37,15 @@ function peerProjectUrl(projectId, assetId) {
   return "/api/peer-media/" + encodeURIComponent(projectId) + "/" + encodeURIComponent(assetId);
 }
 
+function mediaTypeForExtension(extension) {
+  const ext = String(extension || "").toLowerCase();
+  const types = {
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp",
+    mp4: "video/mp4", wav: "audio/wav", mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac"
+  };
+  return types[ext] || "application/octet-stream";
+}
+
 
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
@@ -126,7 +135,7 @@ export async function saveProjectAsset(type, buffer, extension) {
   if (PEER_MODE_REQUIRED) {
     const { store, app } = requirePeerMediaStore();
     const record = await store.saveAsset(app, "apex-project", assetType, bytes, {
-      contentType: "application/" + ext, metadata: { type: assetType, extension: ext }
+      contentType: mediaTypeForExtension(ext), metadata: { type: assetType, extension: ext }
     });
     return { type: assetType, url: peerProjectUrl("apex-project", assetType), bytes: bytes.length, sha256: record.sha256, updatedAt: record.updatedAt };
   }
