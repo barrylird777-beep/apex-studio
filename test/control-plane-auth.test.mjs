@@ -124,3 +124,11 @@ test("high-cost API routes require control-plane auth and public flows remain ex
   assert.match(server, /app\.post\(['"]\/api\/rapid\/orders['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/network\/client-telemetry['"],\s*requirePublicRequestSlot,/);
 });
+
+test("relay control endpoints are mounted with control-plane authorization", async () => {
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const relayRoutes = await readFile(new URL("../src/api/relay-routes.mjs", import.meta.url), "utf8");
+  assert.match(server, /createRelayRouter\(streamRelay, \{ requireAuth: requireControlPlaneAuth \}\)/);
+  assert.match(relayRoutes, /router\.post\(['"]\/start['"], requireAuth,/);
+  assert.match(relayRoutes, /router\.post\(['"]\/stop['"], requireAuth,/);
+});
