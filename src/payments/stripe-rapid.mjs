@@ -29,10 +29,10 @@ export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email
   const params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
   if(String(email||'').trim()) add('customer_email',String(email).trim());
-  // Keep cards available while offering ACH Direct Debit for substantially lower US processing fees.
-  add('payment_method_types[0]','card');
-  add('payment_method_types[1]','us_bank_account');
-  add('payment_method_options[us_bank_account][verification_method]','automatic');
+  // Let Stripe's Dashboard-managed dynamic payment methods choose eligible methods.
+  // When ACH Direct Debit is enabled for the account, Checkout can offer it alongside cards
+  // at Stripe's lower bank-debit rate; don't hard-code payment_method_types because newer
+  // Stripe API versions reject that legacy parameter.
   add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','KornKash Video');
   add('line_items[0][price_data][product_data][description]','One finished short-form video production.'); add('line_items[0][quantity]','1');
@@ -53,15 +53,7 @@ async function postCheckoutSession(secret,params){
 }
 export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const secret=requireSecret(),params=buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl});
-  let body=await postCheckoutSession(secret,params);
-  const message=String(body?.error?.message||'');
-  // Some Stripe accounts have not activated ACH yet. Preserve checkout by retrying card-only
-  // only when Stripe explicitly rejects ACH as unavailable; don't mask unrelated failures.
-  if(!body.ok && /us_bank_account/i.test(message) && /(not activated|not enabled|not available|unsupported|does not support)/i.test(message)){
-    params.delete('payment_method_types[1]');
-    params.delete('payment_method_options[us_bank_account][verification_method]');
-    body=await postCheckoutSession(secret,params);
-  }
+  const body=await postCheckoutSession(secret,params);
   if(!body.ok) throw new Error('Stripe checkout '+body.status+': '+String(body?.error?.message||'request failed'));
   if(!body?.id||!body?.url) throw new Error('Stripe returned an incomplete checkout session');
   return {id:String(body.id),url:String(body.url)};
