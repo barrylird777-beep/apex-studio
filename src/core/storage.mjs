@@ -41,6 +41,9 @@ function queueManifestWrite(task) {
 }
 
 export async function initStorage() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Local project/media storage is disabled in production; configure the remote media backend before startup");
+  }
   await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
   try {
     await fs.access(PROJECT_FILE);
