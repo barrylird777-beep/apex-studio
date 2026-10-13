@@ -90,7 +90,7 @@ async function generateHook(brief, platform, provider, model) {
   const primaryModel = model || process.env.APEX_RAPID_AI_MODEL || undefined;
   const requests = [
     { provider: primaryProvider, model: primaryModel, angle: "curiosity gap" },
-    { provider: "pollinations", model: process.env.POLLINATIONS_MODEL || "openai", angle: "bold contrast" },
+    ...(process.env.APEX_RAPID_ENABLE_POLLINATIONS === "true" ? [{ provider: "pollinations", model: process.env.POLLINATIONS_MODEL || "openai", angle: "bold contrast" }] : []),
     ...(process.env.APEX_RAPID_ENABLE_GROQ === "true" && process.env.GROQ_API_KEY
       ? [{ provider: "groq", model: process.env.GROQ_MODEL || undefined, angle: "emotional stakes" }] : [])
   ];
