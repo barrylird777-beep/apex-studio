@@ -178,12 +178,38 @@ body:has(.apex-app-nav a[aria-current="page"][href="/"]){--apex-accent:#80c6ff}
 /* Form controls used by settings, filters, sliders, and toggles. */
 .apex-shell input[type=checkbox],.apex-shell input[type=radio]{width:20px;height:20px;min-height:20px;margin:0 8px 0 0;flex:0 0 auto;accent-color:var(--apex-accent);vertical-align:middle}
 .apex-shell input[type=range]{width:100%;min-height:28px;padding:0;margin:10px 0;accent-color:var(--apex-accent);background:transparent;border:0;cursor:pointer}
-.apex-shell input[type=color]{min-height:46px;padding:5px;cursor:pointer}
-.apex-shell input[type=file]{min-height:48px;padding:8px}
-.apex-shell input:invalid,.apex-shell select:invalid,.apex-shell textarea:invalid{border-color:#b76e78}
-.apex-shell :is(input,select,textarea):disabled{opacity:.62;background:#0b1019}
-.apex-shell :is(button,[role=button]){overflow-wrap:anywhere}
-.apex-shell button[aria-pressed=true]{border-color:var(--apex-accent);background:color-mix(in srgb,var(--apex-accent) 20%,#111827)}
-.apex-shell [aria-live=polite],.apex-shell [role=status]{overflow-wrap:anywhere}
-.apex-shell .risk-modal{padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
-.apex-shell .risk-card{max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain}
+
+/* Realistic six-app visual identities: restrained materials, no theatrical glow or motion. */
+body:has(.apex-shell[data-apex-app="kernelvision"]){--apex-bg:#090a0d;--apex-line:#34343b;--apex-ink:#f1f0ed;--apex-muted:#aaa9a5;--apex-accent:#c7b8a0;background:#090a0d}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell h1{font-weight:650;letter-spacing:-.045em}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .card,body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .panel{background:#111216;border-color:#34343b;border-radius:8px;box-shadow:none}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell button{background:#d5c5ad;color:#151515;border-color:#d5c5ad;border-radius:5px}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .eyebrow{color:#c7b8a0}
+body:has(.apex-shell[data-apex-app="xshield"]){--apex-bg:#090d0e;--apex-line:#263b39;--apex-ink:#e7f1ef;--apex-muted:#98aaa7;--apex-accent:#76c8b8;background:#090d0e}
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell .card,body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell .panel{background:#0e1717;border-radius:10px;box-shadow:none}
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell button{background:#17302d;border-color:#37635c;border-radius:6px}
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell h1{font-size:clamp(32px,5vw,54px);letter-spacing:-.035em;font-weight:650}
+body:has(.apex-shell[data-apex-app="kernelodies"]){--apex-bg:#100c10;--apex-line:#3b2d37;--apex-ink:#f3edf0;--apex-muted:#b9a9b1;--apex-accent:#d9a2bc;background:#100c10}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell .card,body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell .panel{background:#1a1218;border-color:#3b2d37;border-radius:14px;box-shadow:none}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell button{background:#382331;border-color:#694158;border-radius:999px}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell h1{font-weight:680;letter-spacing:-.04em}
+body:has(.apex-shell[data-apex-app="planetapex"]){--apex-bg:#0b0d0b;--apex-line:#353b32;--apex-ink:#eeefe7;--apex-muted:#b2b6a8;--apex-accent:#b8c59a;background:#0b0d0b}
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell .card,body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell .panel{background:#121710;border-color:#353b32;border-radius:4px;box-shadow:none}
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell button{background:#283321;border-color:#566247;border-radius:5px}
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell h1{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.035em}
+body:has(.apex-shell[data-apex-app="kashkorner"]){--apex-bg:#0c0d0b;--apex-line:#3b3a2d;--apex-ink:#f0efe6;--apex-muted:#b7b4a4;--apex-accent:#c9b879;background:#0c0d0b}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell .card,body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell .panel{background:#15150f;border-color:#3b3a2d;border-radius:8px;box-shadow:none}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell button{background:#37321d;border-color:#645a30;border-radius:6px}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell h1{font-variant-numeric:tabular-nums;font-weight:650;letter-spacing:-.045em}
+body:has(.apex-shell[data-apex-app="koinkob"]){--apex-bg:#0a0d12;--apex-line:#2c3745;--apex-ink:#e9eef4;--apex-muted:#a3b0bf;--apex-accent:#8faecb;background:#0a0d12}
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell .card,body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell .panel{background:#101720;border-color:#2c3745;border-radius:3px;box-shadow:none}
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell button{background:#1a2b3a;border-color:#3b5268;border-radius:4px}
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell h1{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(27px,4.6vw,48px);letter-spacing:-.06em;font-weight:650}
+body:has(.apex-shell) .apex-shell{animation:none!important}
+body:has(.apex-shell) .apex-shell .card,body:has(.apex-shell) .apex-shell .panel{transition:none!important}
+body:has(.apex-shell) .apex-shell button{transition:none!important}
+body:has(.apex-shell) .apex-shell button:hover:not(:disabled){filter:none;transform:none}
+body:has(.apex-shell) .apex-app-nav{background:rgba(8,10,13,.97);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;border-radius:0;border-width:0 0 1px;margin-bottom:18px}
+body:has(.apex-shell) .apex-app-brand-mark{border-radius:4px}
+body:has(.apex-shell) .apex-app-nav a[aria-current="page"]{box-shadow:none}
+@media(max-width:760px){body:has(.apex-shell) .apex-app-nav{position:sticky;top:0}body:has(.apex-shell) .apex-shell .card,body:has(.apex-shell) .apex-shell .panel{border-radius:8px}}
