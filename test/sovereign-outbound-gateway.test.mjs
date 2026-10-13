@@ -26,6 +26,21 @@ test("outbound payload screening blocks common credential formats", () => {
   }
 });
 
+test("outbound payload screening catches bearer and base64-obfuscated credentials", () => {
+  const cases = [
+    "Authorization: Bearer ghp_123456789012345678901234",
+    "xai-12345678901234567890123456789012",
+    "hf_12345678901234567890123456789012",
+    Buffer.from("ghp_123456789012345678901234", "utf8").toString("base64")
+  ];
+  for (const value of cases) {
+    assert.throws(
+      () => sanitizeOutboundPayload({ prompt: value }),
+      error => error instanceof OutboundPolicyError && error.code === "SECRET_DETECTED"
+    );
+  }
+});
+
 test("outbound payload screening blocks secret-bearing object keys", () => {
   assert.throws(
     () => sanitizeOutboundPayload({ api_key: "should-not-leave-process" }),
