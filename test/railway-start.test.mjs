@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { isSovereignRuntimeReady, verifyRemoteWalProbe } from '../src/core/runtime-readiness.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -62,4 +63,32 @@ test('legacy foundation quiesce mode serves health without starting PostgreSQL-b
   assert.equal(blocked.status, 503);
   assert.match(output, /legacy foundation quiesced; no PostgreSQL runtime or migrations/);
   assert.doesNotMatch(output, /running PostgreSQL migrations/);
+});
+
+
+test('sovereign readiness requires fresh lease, peer, dispatch, and verified remote WAL', () => {
+  const identity = {
+    status: 'online',
+    leaseExpiresAt: 5000,
+    readiness: {
+      storageReady: true,
+      peerReady: true,
+      remoteWalVerified: true,
+      dispatchReady: true,
+      remoteWalHash: 'a'.repeat(64)
+    }
+  };
+  assert.equal(isSovereignRuntimeReady(identity, 4000), true);
+  assert.equal(isSovereignRuntimeReady(identity, 5000), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalVerified: false } }, 4000), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000), false);
+});
+
+test('remote WAL probe requires the exact record to appear in a verified snapshot', () => {
+  const record = { seq: 7, hash: 'b'.repeat(64) };
+  assert.equal(verifyRemoteWalProbe(record, { sequence: 7, ring: [record] }), true);
+  assert.equal(verifyRemoteWalProbe(record, { sequence: 8, ring: [{ seq: 8, hash: 'c'.repeat(64) }] }), false);
+  assert.equal(verifyRemoteWalProbe(record, { sequence: 6, ring: [record] }), false);
+  assert.equal(verifyRemoteWalProbe({ seq: 0, hash: 'b'.repeat(64) }, { sequence: 7, ring: [record] }), false);
 });
