@@ -39,17 +39,29 @@ export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
   return params;
 }
-export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
-  const secret=requireSecret(),params=buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl});
-  const body=await new Promise((resolve,reject)=>{
-    const request=https.request(STRIPE_API+'/checkout/sessions',{method:'POST',family:4,lookup:(hostname,options,callback)=>dns.lookup(hostname,{family:4,all:false},callback),headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(params.toString())},timeout:15000},response=>{
+async function postCheckoutSession(secret,params){
+  return await new Promise((resolve,reject)=>{
+    const encoded=params.toString();
+    const request=https.request(STRIPE_API+'/checkout/sessions',{method:'POST',family:4,lookup:(hostname,options,callback)=>dns.lookup(hostname,{family:4,all:false},callback),headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(encoded)},timeout:15000},response=>{
       let text=''; response.setEncoding('utf8'); response.on('data',chunk=>{text+=chunk;}); response.on('end',()=>{
         let parsed={}; try{parsed=text?JSON.parse(text):{};}catch{}
         resolve({status:response.statusCode||0,ok:(response.statusCode||0)>=200&&(response.statusCode||0)<300,...parsed});
       });
     });
-    request.on('timeout',()=>request.destroy(new Error('Stripe checkout request timed out'))); request.on('error',reject); request.end(params.toString());
+    request.on('timeout',()=>request.destroy(new Error('Stripe checkout request timed out'))); request.on('error',reject); request.end(encoded);
   });
+}
+export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
+  const secret=requireSecret(),params=buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl});
+  let body=await postCheckoutSession(secret,params);
+  const message=String(body?.error?.message||'');
+  // Some Stripe accounts have not activated ACH yet. Preserve checkout by retrying card-only
+  // only when Stripe explicitly rejects ACH as unavailable; don't mask unrelated failures.
+  if(!body.ok && /us_bank_account/i.test(message) && /(not activated|not enabled|not available|unsupported|does not support)/i.test(message)){
+    params.delete('payment_method_types[1]');
+    params.delete('payment_method_options[us_bank_account][verification_method]');
+    body=await postCheckoutSession(secret,params);
+  }
   if(!body.ok) throw new Error('Stripe checkout '+body.status+': '+String(body?.error?.message||'request failed'));
   if(!body?.id||!body?.url) throw new Error('Stripe returned an incomplete checkout session');
   return {id:String(body.id),url:String(body.url)};
