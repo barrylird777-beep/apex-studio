@@ -21,7 +21,10 @@ test("Pure-WAL worker store initializes without a database", async () => {
   assert.equal(await ensureWorkerTaskSchema(), true);
   const health=await durableWorkerHealth();
   assert.equal(health.available,true);
-  assert.equal(health.storage,"content-addressed");
+  assert.equal(health.storage,"filesystem-content-addressed");
+  assert.equal(health.status,"local-only");
+  assert.equal(health.authority,"local-filesystem");
+  assert.equal(health.remoteAuthority,false);
 });
 
 test("concurrent workers race for one task and only one claim wins", async () => {

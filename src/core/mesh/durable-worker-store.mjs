@@ -12,7 +12,7 @@ export async function durableWorkerHealth() {
   try {
     if (!durableWorkerEnabled()) return { configured:false, available:false, status:"disabled", checkedAt:new Date().toISOString(), lastError:null };
     await apexPureStore.init();
-    return { configured:true, available:true, status:"ready", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:null };
+    return { configured:true, available:true, status:"local-only", storage:"filesystem-content-addressed", authority:"local-filesystem", remoteAuthority:false, checkedAt:new Date().toISOString(), lastError:null };
   } catch (error) {
     return { configured:true, available:false, status:"unavailable", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:String(error?.message || error).slice(0,500) };
   }
