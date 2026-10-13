@@ -39,8 +39,9 @@ Claim(op, node, key) ==
 ReplaySameClaim(op, node, key) ==
   /\ online
   /\ claims[op] = node
-  /\ dedup[key] # 0
-  /\ wal[dedup[key]].op = op
+  /\ \E i \in 1..Len(wal) :
+       /\ dedup[key] = i
+       /\ wal[i].op = op
   /\ UNCHANGED vars
 
 Crash ==
@@ -71,6 +72,10 @@ NoDuplicateIdempotencyKeys ==
   \A i, j \in 1..Len(wal) :
     wal[i].key = wal[j].key => i = j
 
+NoDuplicateOpportunityClaims ==
+  \A i, j \in 1..Len(wal) :
+    wal[i].op = wal[j].op => i = j
+
 DurableClaimMatchesWAL ==
   \A op \in Ops :
     claims[op] # "NONE" =>
@@ -85,6 +90,7 @@ SequenceAndHashChain ==
 Safety ==
   /\ NoDuplicateClaims
   /\ NoDuplicateIdempotencyKeys
+  /\ NoDuplicateOpportunityClaims
   /\ DurableClaimMatchesWAL
   /\ SequenceAndHashChain
 
