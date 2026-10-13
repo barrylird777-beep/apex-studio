@@ -129,3 +129,9 @@ test("app profiles and primary workspaces match the six-app canon", async () => 
   assert.match(music, /Listen, discover, and build your music library/);
   assert.match(music, /id="kernelodies-discovery"/);
 });
+
+test("XShield status fields announce live changes accessibly", async () => {
+  const page = await readPublic("xshield.html");
+  assert.ok(page.includes('id="appState" class="metric" role="status" aria-live="polite"'));
+  assert.ok(page.includes('id="networkState" class="metric" role="status" aria-live="polite"'));
+});
