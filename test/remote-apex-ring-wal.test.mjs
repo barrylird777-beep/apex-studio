@@ -6,6 +6,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 import { createRingWal } from "../src/core/apex-ring-wal.mjs";
+import { DeterministicSimulator } from "../src/testing/deterministic-simulator.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
@@ -141,4 +142,85 @@ test("remote WAL lock waiting and record timestamps use injected deterministic c
   assert.equal(record.ts, new Date(35).toISOString());
   assert.equal(record.seq, 1);
   assert.equal(await cas.readRef("system", wal.lockKey), null, "lock is released after the append");
+});
+
+
+test("remote WAL lock contention replays under seeded virtual time without wall-clock sleeps", async () => {
+  async function scenario(seed) {
+    const sim = new DeterministicSimulator({ seed, startTime: 0 });
+    const cas = new MemoryCAS();
+    await cas.writeRef("system", "wal-lock-simulated-wal", {
+      token: "live-owner",
+      leaseUntil: 100,
+      owner: "live-owner"
+    });
+    const sleeps = [];
+    const wal = new RemoteApexRingWAL({
+      cas,
+      scope: "simulated-wal",
+      clock: () => sim.now,
+      random: () => sim.random(),
+      sleep: ms => new Promise(resolve => {
+        sleeps.push(ms);
+        sim.setTimeout(resolve, ms, "remote-wal-lock-backoff");
+      }),
+      scheduleInterval: () => () => {},
+      tokenFactory: () => "seeded-" + sim.randomInt(1, 1000000)
+    });
+    let settled = false;
+    const pendingAppend = wal.append("simulation.claim", { opportunity: "job-1" }).finally(() => { settled = true; });
+    let processed = 0;
+    for (let turn = 0; turn < 100 && !settled; turn += 1) {
+      await Promise.resolve();
+      const result = await sim.run({ maxEvents: 100 });
+      processed += result.processed;
+      await Promise.resolve();
+    }
+    assert.equal(settled, true, "simulated append should settle without wall-clock timers");
+    const record = await pendingAppend;
+    return {
+      now: sim.now,
+      processed,
+      sleeps,
+      trace: sim.trace,
+      record: { id: record.id, seq: record.seq, ts: record.ts, type: record.type },
+      lock: await cas.readRef("system", wal.lockKey)
+    };
+  }
+
+  const first = await scenario("wal-seed-2026");
+  const replay = await scenario("wal-seed-2026");
+  assert.deepEqual(replay, first, "same seed reproduces virtual timing and WAL result exactly");
+  assert.ok(first.sleeps.length > 0, "contended lock must exercise virtual sleep");
+  assert.ok(first.now > 100, "virtual clock must advance past the live lease");
+  assert.equal(first.record.seq, 1);
+  assert.equal(first.record.ts, new Date(first.now).toISOString());
+  assert.equal(first.lock, null, "lock is released after append");
+});
+
+
+test("remote WAL recovers a committed record after injected ENOSPC on head update", async () => {
+  class EnospcHeadCAS extends MemoryCAS {
+    constructor() { super(); this.failHeadKey = null; this.failed = false; }
+    async writeRef(ns, key, value, options) {
+      if (!this.failed && ns === "system" && key === this.failHeadKey && value?.seq === 1) {
+        this.failed = true;
+        throw Object.assign(new Error("simulated remote CAS disk full"), { code: "ENOSPC" });
+      }
+      return super.writeRef(ns, key, value, options);
+    }
+  }
+
+  const cas = new EnospcHeadCAS();
+  const first = new RemoteApexRingWAL({ cas, scope: "enospc-head-recovery", ringSize: 8 });
+  cas.failHeadKey = first.headKey;
+  await assert.rejects(first.append("state.put", { id: "survives-head-enospc" }), { code: "ENOSPC" });
+  assert.equal(cas.failed, true);
+  assert.ok(await cas.listRefs("wal").then(rows => rows.some(row => row.key.includes("enospc-head-recovery"))));
+
+  const recovered = new RemoteApexRingWAL({ cas, scope: "enospc-head-recovery", ringSize: 8 });
+  assert.equal(await recovered.replay(), 1, "immutable record remains recoverable after head update failure");
+  const next = await recovered.append("state.put", { id: "after-enospc" });
+  assert.equal(next.seq, 2);
+  assert.equal(next.payload.id, "after-enospc");
 });
