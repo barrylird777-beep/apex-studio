@@ -1533,7 +1533,7 @@ permanentWorkerHeartbeat.unref?.();
 
 
 // Serve the standalone public app pages before API routes.
-app.get('/api/teevee/buyer', requireControlPlaneAuth, (_req, res) => {
+app.get('/api/teevee/buyer', (_req, res) => {
   res.status(200).json({
     success: true,
     product: 'TeeVee',
