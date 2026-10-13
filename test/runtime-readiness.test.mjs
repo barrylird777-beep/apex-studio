@@ -20,7 +20,7 @@ test('sovereign readiness requires every runtime gate and a live lease', () => {
     }
   };
   assert.equal(isSovereignRuntimeReady(identity, 4000, instanceId), true);
-  assert.equal(isSovereignRuntimeReady({ ...identity, lastSeenAt: new Date(1000).toISOString() }, 20000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, leaseExpiresAt: 30000, lastSeenAt: new Date(1000).toISOString() }, 20000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, instanceId: 'old-generation' }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady(identity, 4000), false);
   assert.equal(isSovereignRuntimeReady(identity, 5000, instanceId), false);
