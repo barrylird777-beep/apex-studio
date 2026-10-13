@@ -1,7 +1,7 @@
 # Apex Ecosystem Engineering Guide
 
 ## Canonical products
-The six canonical apps are PlanetApeX, KoBlocks, KernelVision, KoinKob, KashKorner, and Kernelodies. GardenOfApex is an embedded PlanetApeX universe, not a seventh app. Preserve these names and roles.
+The six canonical apps are PlanetApeX, XShield, KernelVision, KoinKob, KashKorner, and Kernelodies. KoBlocks is a reusable workflow capability, not a canonical app. GardenOfApex is an embedded PlanetApeX universe, not a seventh app. Preserve these names and roles.
 
 ## Runtime and sovereignty
 - JavaScript ES modules on Node.js 22+; production API entrypoint is `server.mjs` via `npm run start:sovereign-stack`.
