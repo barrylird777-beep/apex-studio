@@ -298,14 +298,23 @@ export class ApexPureStore {
   async refresh(){await this.init();await this.loadReferences();return this;}
   refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
   async persistJob(job,{appendWal=true,walSeq=null}={}){
-    const key=this.refKey("job",job.id);
     let effectiveJob=clone(job),effectiveSeq=Number(walSeq)||0;
     if(this.remoteMode){
       if(appendWal){
+        const enqueueMutation=job.status==="queued"&&Number(job.attempts||0)===0&&Number(job.leaseFence||0)===0&&!job.leaseToken;
         const requestHash=createHash("sha256").update(JSON.stringify(job)).digest("hex");
-        const logged=await this.wal.append("job.put",{job:clone(job)},{idempotencyKey:"job.put:"+String(job.id)+":"+requestHash});
+        const idempotencyKey=enqueueMutation
+          ? "job.enqueue:"+String(job.id)
+          : "job.put:"+String(job.id)+":"+requestHash;
+        const idempotencyPayload=enqueueMutation?{
+          id:String(job.id),type:String(job.type),payload:job.payload,priority:Number(job.priority)||0,
+          runAt:Number(job.runAt)||0,maxAttempts:Number(job.maxAttempts)||5,dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey)
+        }:undefined;
+        const logged=await this.wal.append("job.put",{job:clone(job)},{idempotencyKey,...(idempotencyPayload?{idempotencyPayload}:{})});
         effectiveSeq=logged.seq;
+        if(logged.payload?.job)effectiveJob=clone(logged.payload.job);
       }
+      const key=this.refKey("job",effectiveJob.id);
       let persisted=false;
       for(let attempt=0;attempt<8;attempt++){
         const current=await this.cas.readRef("jobs",key);
@@ -315,7 +324,7 @@ export class ApexPureStore {
           persisted=true;break;
         }
         try{
-          await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job),walSeq:effectiveSeq},{expectedHash:current?.hash??null});
+          await this.cas.writeRef("jobs",key,{id:String(effectiveJob.id),job:clone(effectiveJob),walSeq:effectiveSeq},{expectedHash:current?.hash??null});
           persisted=true;break;
         }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
       }
@@ -340,6 +349,7 @@ export class ApexPureStore {
       }
       return clone(effectiveJob);
     }
+    const key=this.refKey("job",job.id);
     await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
     return clone(job);
   }
