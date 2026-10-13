@@ -64,3 +64,10 @@ Before adding voting, specify membership, authenticated peer identity, quorum ru
 - TLA+ invariants hold for declared bounds and assumptions.
 - Staging chaos tests recover without double claims, lost acknowledged records, or hash-chain forks.
 - No production rollout until the relevant CI gates pass.
+
+
+## Initial TLA+ model
+
+The current implementation adds a bounded TLC model in formal/SovereignWalSafety.tla with a checked configuration in formal/SovereignWalSafety.cfg. It explores record prepare/write/head-commit, crash recovery, exclusive job claims, and idempotent effects. CI downloads a pinned TLA+ tools release, verifies its published checksum, and runs TLC.
+
+Important boundary: this first model uses abstract sequence tokens in place of cryptographic hashes and a simplified claim state. It checks the stated finite model and invariants only; it does not prove the JavaScript implementation correct or establish full-system linearizability. Those require refinement mappings, broader fault states, and implementation-history checks.
