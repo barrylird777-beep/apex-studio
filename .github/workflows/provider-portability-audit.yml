@@ -27,3 +27,5 @@ jobs:
           node-version: "22.x"
       - name: Run read-only portability scan
         run: npm run audit:provider-portability
+      - name: Test remote content-addressed persistence and migration safety
+        run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-pure-store.test.mjs
