@@ -36,6 +36,7 @@ test('opt-in runtime persists only encrypted peer objects and enforces namespace
       transport: { request: async (_peerId, envelope) => runtime.handle(envelope, { remotePeerId: 'writer-peer' }) },
       peers: ['storage-peer'],
       replicaCount: 1,
+      failureDomainsByPeerId: { 'storage-peer': 'test-domain-storage-peer' },
       namespace: 'PlanetApeX',
       encryptionKey: Buffer.alloc(32, 23)
     });
