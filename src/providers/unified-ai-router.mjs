@@ -125,7 +125,7 @@ async function gemini({ model, messages, temperature, maxTokens }) {
   if (!key) throw new Error('GEMINI_API_KEY is not configured');
   const system = messages.filter(m => m.role === 'system' || m.role === 'developer').map(m => m.content).join('\n');
   const contents = messages.filter(m => m.role !== 'system' && m.role !== 'developer').map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-  const data = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {}, {
+  const data = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { "x-goog-api-key": key }, {
     ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
     contents,
     generationConfig: { ...(temperature == null ? {} : { temperature }), ...(maxTokens ? { maxOutputTokens: Number(maxTokens) } : {}) }
@@ -172,10 +172,13 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
   if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
   const normalized = messagesOf({ prompt, messages, system });
   const selectedModel = String(model || process.env[p.modelEnv] || p.defaultModel).trim();
+  const requestedMaxTokens = maxTokens ?? max_tokens;
+  const outputTokenLimit = requestedMaxTokens == null ? undefined : boundedNumber(requestedMaxTokens, 1024, 1, 8192);
+  const requestedTemperature = temperature == null ? undefined : boundedNumber(temperature, 0.7, 0, 2);
   let result;
   if (p.id === 'pollinations') result = await pollinations({ model: selectedModel, messages: normalized });
-  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
-  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
+  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
+  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'cohere') result = await cohere({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
   else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
   else if (p.id === 'openai') {
