@@ -215,7 +215,6 @@ app.get('/api/search', async (req, res) => {
 // Public status reveals only coarse health. Detailed worker/job records can contain
 // internal prompts, findings, errors, identifiers, and capacity information.
 app.get('/api/workforce/status', (_req, res) => {
-  const workforce = massiveAiWorkforce.status();
   const crew = aiCrew.status();
   const fleet = fleetStatus(permanentWorkerFleet);
   return res.status(200).json({
