@@ -9,6 +9,7 @@ const PUBLIC_BY_DESIGN = new Map([
   ["/api/health", "Public basic health signal only."],
   ["/api/apex/readiness", "Public readiness signal only; must not expose secrets."],
   ["/api/search", "Public search entry point; rate-limited in its handler."],
+  ["/api/teevee/buyer", "Public catalog metadata only; no private state or account data."],
   ["/api/rapid/stripe/webhook", "Public payment-provider callback; signature verification required before processing."]
 ]);
 
