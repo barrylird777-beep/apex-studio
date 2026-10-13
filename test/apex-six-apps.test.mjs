@@ -12,6 +12,7 @@ import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, crea
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
 import { buildPaypexBrief } from "../src/core/paypex-core.mjs";
+import { buildEngineBrief } from "../src/core/engine-apex.mjs";
 
 test("Apex exposes the six locked canonical apps",()=>{
   assert.equal(assertSixAppInvariant(),true);
@@ -297,4 +298,11 @@ test("rapid-video storefront is presented as KashKorner's public offer",async()=
   assert.match(page,/<title>KashKorner · Public Rapid Video Offer<\/title>/);
   assert.match(page,/KashKorner home/);
   assert.match(page,/KASHKORNER<\/b> · PUBLIC RAPID-VIDEO OFFER/);
+});
+
+test("EngineApex opportunity engine now hands off to KashKorner and KernelVision",()=>{
+  const brief=buildEngineBrief({topic:"Historical lineage test"});
+  assert.equal(brief.system,"kash-korner");
+  assert.equal(brief.handoff,"KernelVision");
+  assert.equal(brief.engine,"EngineApex");
 });
