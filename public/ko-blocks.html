@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080b12"><title>KoBlocks · PlanetApeX</title>
+<meta name="theme-color" content="#080b12"><title>KoBlocks · APEX capability</title>
 <style>
 :root{color-scheme:dark;--bg:#080b12;--panel:#111827;--panel2:#0c1220;--line:#28364b;--text:#f2f6ff;--muted:#a7b5ca;--blue:#8bbcff;--good:#7ce4ad;--bad:#ff9292;--gold:#f4d28b}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#18345b66,transparent 42%),radial-gradient(ellipse at 95% 20%,#45266a44,transparent 36%),var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif}
@@ -12,9 +12,9 @@ header{border-bottom:1px solid var(--line);padding:15px 18px;background:#080b12d
 </style>
 </head>
 <body><script src="/api-auth-bridge.js"></script>
-<header><div class="brand">APEX ANCHOR / CANONICAL APP</div></header>
+<header><div class="brand">APEX ANCHOR / REUSABLE CAPABILITY</div></header>
 <main>
-<section class="hero"><div><div class="small">WORKFLOW COMPOSITION</div><h1>KoBlocks</h1><p class="muted">Build reusable execution blocks, validate the graph, save it durably, then hand it to the sovereign Apex queue.</p></div><div class="pill">Pure-WAL · server validation</div></section>
+<section class="hero"><div><div class="small">WORKFLOW COMPOSITION</div><h1>KoBlocks</h1><p class="muted">KoBlocks is a reusable workflow capability—not a seventh app. Build execution blocks, validate the graph, save it in its isolated capability namespace, then hand it to the sovereign Apex queue.</p></div><div class="pill">Pure-WAL · server validation</div></section>
 <section class="grid">
 <div class="card wide"><h2>Durable workspace</h2><div class="small">Your control token is used only for authenticated requests. It is held in this browser session, never placed in a URL.</div><label for="token">APEX_SHORTCUT_TOKEN</label><input id="token" type="password" autocomplete="off" placeholder="Paste control token"><div class="row"><button id="saveToken">Use token for this session</button><button id="clearToken" class="secondary">Clear token</button></div><label for="graphId">Graph ID</label><div class="row"><input id="graphId" value="workflow-1" maxlength="128"><button id="load">Load graph</button></div><div class="row"><button id="save">Save graph</button><button id="list" class="secondary">Refresh saved graphs</button></div><label for="savedGraphs">Saved graphs</label><select id="savedGraphs"><option value="">Load saved graphs…</option></select><div id="storageStatus" class="small">Not connected to durable storage yet.</div></div>
 <div class="card"><h2>Add a block</h2><label for="blockId">Block ID</label><input id="blockId" value="transform" maxlength="128"><label for="blockName">Display name</label><input id="blockName" value="Transform"><div class="row"><div><label for="blockKind">Kind</label><select id="blockKind"><option value="component">Component</option><option value="research">Research</option><option value="production">Production</option><option value="validation">Validation</option><option value="handoff">Handoff</option></select></div><div><label for="blockOutputs">Output ports</label><input id="blockOutputs" value="out" placeholder="out, result"></div></div><button id="addBlock">Add block</button><div class="small">IDs must be unique. Output ports are comma-separated.</div></div>
