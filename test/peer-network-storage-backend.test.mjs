@@ -57,6 +57,7 @@ test('network backend forwards verified binary objects and atomic refs without l
   const backend = await createPeerStorageBackend({ peerId: 'writer-peer', peerNode: harness.peerNode, env, send: harness.send });
   assert.equal(backend.durable, true);
   assert.equal(backend.ownership, 'peer-owned');
+  assert.equal(backend.recoveryVerified, true);
   const objectBytes = encryptedEnvelope();
   const hash = sha256(objectBytes);
   assert.deepEqual(await backend.putBytes(hash, objectBytes), { hash, bytes: objectBytes.length });
@@ -96,4 +97,13 @@ test('network backend refuses wrong upstream identity and mismatched hashes', as
   });
   const bytes = encryptedEnvelope();
   await assert.rejects(backend.putBytes(sha256(bytes), bytes), /object receipt did not prove durable/);
+});
+
+
+test('network backend refuses an upstream that has not verified restart recovery', async () => {
+  const harness = upstreamHarness({ recoveryVerified: false });
+  await assert.rejects(
+    createPeerStorageBackend({ peerId: 'writer-peer', peerNode: harness.peerNode, env, send: harness.send }),
+    /did not prove durable peer-owned/
+  );
 });
