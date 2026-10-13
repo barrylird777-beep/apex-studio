@@ -232,6 +232,10 @@ export class SovereignCloudCoordinator {
     const worker = segment(workerId);
     if (resultHash != null && !/^[a-f0-9]{64}$/.test(String(resultHash))) throw new Error("Result requires a SHA-256 payload hash");
     if (resultHash != null) { const resultBytes = await this.getPayload({ app, payloadHash: String(resultHash) }); try { JSON.parse(resultBytes.toString("utf8")); } catch { throw new Error("Job result payload must be valid JSON before completion"); } }
+    const jobKey = this.key("apps", app, "jobs", id + ".json");
+    const job = await this.read(jobKey);
+    if (!job || job.value.status !== "queued") return { accepted: false, reason: "job-not-queued" };
+    if (!job.etag) return { accepted: false, reason: "job-etag-unavailable" };
     const leaseKey = this.key("apps", app, "leases", id + ".json");
     const current = await this.read(leaseKey);
     if (!current || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { accepted: false, reason: "lease-invalid" };
@@ -244,9 +248,6 @@ export class SovereignCloudCoordinator {
       if (conflict(e)) return { accepted: false, reason: "lease-race-lost" };
       throw e;
     }
-    const jobKey = this.key("apps", app, "jobs", id + ".json");
-    const job = await this.read(jobKey);
-    if (!job || job.value.status !== "queued") return { accepted: false, reason: "job-not-queued" };
     const record = { version: 1, app, jobId: id, workerId: worker, status, resultHash: resultHash == null ? null : String(resultHash), finishedAt: now() };
     const terminalJob = { ...job.value, status, resultHash: record.resultHash, finishedAt: record.finishedAt, workerId: worker };
     try {
