@@ -33,6 +33,11 @@ export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxMa
     throw new TypeError('apps must be a non-empty unique subset of canonical Apex app namespaces');
   }
   const configuredApps = Object.freeze([...apps]);
+  const assertConfiguredApp = input => {
+    const app = assertApp(input);
+    if (!configuredApps.includes(app)) throw new Error('app namespace is not configured in this peer media runtime');
+    return app;
+  };
   if (!Number.isSafeInteger(maxManifestRetries) || maxManifestRetries < 1 || maxManifestRetries > 32) {
     throw new TypeError('maxManifestRetries must be between 1 and 32');
   }
@@ -77,7 +82,7 @@ export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxMa
   return Object.freeze({
     apps: configuredApps,
     async saveAsset(appInput, projectInput, assetInput, input, { contentType = 'application/octet-stream', metadata = {} } = {}) {
-      const app = assertApp(appInput);
+      const app = assertConfiguredApp(appInput);
       const projectId = assertKey(projectInput, 'project ID');
       const assetId = assertKey(assetInput, 'asset ID');
       const bytes = Buffer.isBuffer(input) ? Buffer.from(input) : Buffer.from(input ?? []);
@@ -103,7 +108,7 @@ export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxMa
       return { ...record, refHash: updated.refHash };
     },
     async getAsset(appInput, projectInput, assetInput) {
-      const app = assertApp(appInput);
+      const app = assertConfiguredApp(appInput);
       const projectId = assertKey(projectInput, 'project ID');
       const assetId = assertKey(assetInput, 'asset ID');
       const { manifest } = await readManifest(app, projectId);
@@ -122,7 +127,7 @@ export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxMa
       return { record: clone(record), bytes };
     },
     async getProject(appInput, projectInput) {
-      const app = assertApp(appInput);
+      const app = assertConfiguredApp(appInput);
       const projectId = assertKey(projectInput, 'project ID');
       const { manifest, hash } = await readManifest(app, projectId);
       return { manifest, hash };
