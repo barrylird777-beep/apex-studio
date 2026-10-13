@@ -10,7 +10,7 @@ import { buildTimelineFfmpegPlan, OUTPUT_PRESETS } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, configurePeerMediaStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
+import { initStorage, configurePeerMediaStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset, getPeerMediaAsset } from './src/services/projectManager.mjs';
 import { createPeerStorageIpcClient } from './src/core/peer-storage-ipc.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
