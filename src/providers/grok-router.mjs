@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { createGuardedFetch } from '../security/sovereign-outbound-gateway.mjs';
 
 const DEFAULT_MODEL = process.env.GROK_MODEL || 'grok-4.7';
 const MAX_PROMPT_CHARS = Math.max(1000, Number(process.env.GROK_MAX_PROMPT_CHARS || 50000));
@@ -7,6 +8,7 @@ const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.GROK_MAX_MESSA
 function getClient() {
   if (!process.env.XAI_API_KEY) throw new Error('XAI_API_KEY is not configured');
   return new OpenAI({
+    fetch: createGuardedFetch(['api.x.ai']),
     apiKey: process.env.XAI_API_KEY,
     baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
     timeout: Math.max(5000, Number(process.env.GROK_TIMEOUT_MS || 120000)),
