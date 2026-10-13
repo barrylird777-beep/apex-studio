@@ -29,4 +29,6 @@ The backend module must return an object implementing:
 
 It must also explicitly declare `durable: true` and `ownership: 'peer-owned'`. The built-in network-only adapter stores no bytes locally and refuses to start unless its upstream returns a verified durable-capacity receipt. Object writes must verify SHA-256; reference writes must provide atomic compare-and-swap semantics; data must remain recoverable after a process restart; and app namespaces must remain isolated. A RAM map, local filesystem fallback, or third-party hosted object bucket does not meet this contract.
 
+**Scope boundary:** this integration routes project/scene assets through peer storage and blocks local `/files` reads in peer mode. It does not yet migrate every legacy render, export, or broadcast workflow; those must be ported before enabling peer mode across a production app.
+
 **Important:** the built-in adapter connects peers without local persistence, but it is not a substitute for a leaf storage peer. At least one peer must be provisioned with genuinely peer-owned durable capacity and prove restart/recovery. Until that peer exists and is verified, enabling peer mode intentionally fails closed. Do not switch production storage mode or claim migration complete before that proof.
