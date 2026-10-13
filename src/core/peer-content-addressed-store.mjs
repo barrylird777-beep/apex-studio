@@ -147,7 +147,8 @@ export function createPeerObjectStorageHandler({
   if (!store || typeof store.putObject !== 'function' || typeof store.getObject !== 'function') {
     throw new TypeError('a persistent content-addressed peer store is required');
   }
-  if (!peerId) throw new TypeError('local peerId is required');
+  if (!peerId) throw new TypeError('local peerId or peerId resolver is required');
+  const resolvePeerId = () => String(typeof peerId === 'function' ? peerId() : peerId || '');
   if (typeof authorizeNamespace !== 'function') throw new TypeError('an explicit per-app namespace authorization policy is required');
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
@@ -180,7 +181,9 @@ export function createPeerObjectStorageHandler({
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
-      return { accepted: true, peerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
+      const localPeerId = resolvePeerId();
+      if (!localPeerId) throw new Error('local peer identity is not ready');
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
     }
     if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
     const value = await store.getObject(envelope.hash);
@@ -189,6 +192,8 @@ export function createPeerObjectStorageHandler({
         value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
       throw new Error('persistent peer object failed integrity or namespace verification');
     }
-    return { accepted: true, peerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
+    const localPeerId = resolvePeerId();
+    if (!localPeerId) throw new Error('local peer identity is not ready');
+    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
   };
 }
