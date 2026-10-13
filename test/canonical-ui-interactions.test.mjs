@@ -90,3 +90,43 @@ test("React dashboards and utility pages wire every button to an action or form"
     assert.deepEqual(unwired, [], path + " contains a button without an action, form submit, or intentional disabled state");
   }
 });
+
+test("shared controls drawer and display settings are attached to all six apps", async () => {
+  const controls = await readPublic("apex-ui-controls.js");
+  const styles = await readPublic("apex-ui-controls.css");
+  for (const app of Object.values(APEX_APPS)) {
+    const file = app.entry === "/" ? "index.html" : app.entry.slice(1);
+    const html = await readPublic(file);
+    assert.match(html, /apex-ui-controls\\.css/, app.name + " must load shared controls styling");
+    assert.match(html, /apex-ui-controls\\.js/, app.name + " must load shared controls behavior");
+  }
+  assert.match(controls, /addToggle\\("Higher contrast", "apex-ui-high-contrast"/);
+  assert.match(controls, /addToggle\\("Compact spacing", "apex-ui-compact"/);
+  assert.match(controls, /event\\.key === "Escape"/);
+  assert.match(controls, /event\\.shiftKey/);
+  assert.match(controls, /priorFocus\\.focus\\(\\)/);
+  assert.match(styles, /body\\.apex-ui-high-contrast/);
+  assert.match(styles, /body\\.apex-ui-compact/);
+});
+
+test("XShield failure states remain unavailable and are announced accessibly", async () => {
+  const page = await readPublic("xshield.html");
+  assert.match(page, /networkResponse\\.ok&&network\\.enabled===true/);
+  assert.match(page, /networkResponse\\.ok&&network\\.enabled===false/);
+  assert.ok(page.includes("id=\"appState\" class=\"metric\" role=\"status\" aria-live=\"polite\""));
+  assert.ok(page.includes("id=\"networkState\" class=\"metric\" role=\"status\" aria-live=\"polite\""));
+  assert.ok(page.includes("document.getElementById('networkState').textContent='UNAVAILABLE'"));
+});
+
+test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async () => {
+  const hub = await readSource("src/pages/SixAppHub.tsx");
+  assert.match(hub, /const active = visibleApps\\.find/);
+  const planet = await readPublic("planet-apex.html");
+  assert.match(planet, /aria-label="PlanetApeX study and research"/);
+  assert.ok(planet.includes('href="/bible-study-room.html"'));
+  assert.ok(planet.includes('href="/garden-of-apex.html"'));
+  assert.ok(planet.includes('href="/special-search.html"'));
+  const music = await readPublic("kernelodies.html");
+  assert.match(music, /Listen, discover, and build your music library/);
+  assert.match(music, /id="kernelodies-discovery"/);
+});
