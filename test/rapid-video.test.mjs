@@ -48,3 +48,20 @@ test('Rapid checkout module exposes payment-gate primitives',async()=>{
   assert.equal(typeof source.verifyRapidStripeSignature,'function');
   assert.equal(typeof source.decodeRapidCheckoutMetadata,'function');
 });
+
+test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WAL', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const worker = await readFile(new URL('../src/workers/rapid-video-worker.mjs', import.meta.url), 'utf8');
+  const queue = await readFile(new URL('../src/core/mesh/durable-worker-store.mjs', import.meta.url), 'utf8');
+  const page = await readFile(new URL('../public/rapid-video.html', import.meta.url), 'utf8');
+  const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  assert.match(worker, /generateOracleStoryboard/);
+  assert.match(worker, /hookCandidates: hookResult\.candidates/);
+  assert.match(worker, /pipeline: "oracle-to-forge"/);
+  assert.match(queue, /apexPureStore\.enqueue/);
+  assert.doesNotMatch(queue, /durable_jobs/);
+  assert.match(page, /id="oracleTab"/);
+  assert.match(page, /id="forgeTab"/);
+  assert.match(page, /body\.result\.storyboard/);
+  assert.doesNotMatch(server, /app\.get\('\/rapid-video\.html', \(_req, res\) => res\.redirect\(308, '\/teevee-buyer\.html'\)\)/);
+});
