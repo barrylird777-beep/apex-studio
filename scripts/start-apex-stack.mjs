@@ -19,7 +19,7 @@ function stopAll(code = 0, signal = "SIGTERM") {
   stopping = true;
   exitCode = code;
   clearTimeout(restartTimer);
-  console.log("[APEX STACK] stopping services", JSON.stringify({ code, signal }));
+  console.log("[APEX STACK] stopping services", JSON.stringify({ code, signal, drainDeadlineMs: 25000 }));
   for (const child of children.values()) {
     if (child && child.exitCode == null && child.signalCode == null) child.kill(signal);
   }
@@ -27,7 +27,7 @@ function stopAll(code = 0, signal = "SIGTERM") {
     for (const child of children.values()) {
       if (child && child.exitCode == null && child.signalCode == null) child.kill("SIGKILL");
     }
-  }, 10000);
+  }, 25000);
   force.unref?.();
 }
 
