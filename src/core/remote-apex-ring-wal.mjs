@@ -96,11 +96,9 @@ export class RemoteApexRingWAL {
       await this._records({ retainRing: true, allowHeadLag: true, repairHead: true });
       const record = { version: 1, id: randomUUID(), seq: this.seq + 1, ts: new Date().toISOString(), type: String(type), payload, meta, prevHash: this.lastHash };
       record.hash = sha(record);
+      // Remote WAL is append-only and is not blocked by the legacy local-WAL byte cap.
+      // Provider quota/billing remains external; do not silently drop durable records.
       const incoming = Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
-      if (this.offset + incoming > this.maxBytes) {
-        const error = new Error("WAL_CAPACITY_EXCEEDED: remote WAL exceeds configured logical limit");
-        error.code = "WAL_CAPACITY_EXCEEDED"; error.currentBytes = this.offset; error.incomingBytes = incoming; error.maxBytes = this.maxBytes; throw error;
-      }
       const recordKey = this.scope + "-" + keyFor(record.seq);
       await this.cas.writeRef("wal", recordKey, record, { expectedHash: null });
       const currentHead = await this.cas.readRef("system", this.headKey);
