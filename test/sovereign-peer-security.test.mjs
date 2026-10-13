@@ -249,3 +249,59 @@ test("outgoing sovereign envelopes wait for accepted bytes to drain before repor
     else process.env.APEX_ALLOWED_PEER_IDS = previous;
   }
 });
+
+
+test("BFT quorum accepts three of four authenticated validator signatures", () => {
+  const validators = new Map();
+  const keys = new Map();
+  for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
+    const pair = generateKeyPairSync("ed25519");
+    validators.set(peerId,pair.publicKey);
+    keys.set(peerId,pair.privateKey);
+  }
+  const body = {height:7,round:1,proposalHash:"hash-proposal-7",prevHash:"hash-proposal-6"};
+  const votes = ["peer-a","peer-b","peer-c"].map(peerId=>signSovereignVote({...body,peerId,privateKey:keys.get(peerId)}));
+  const certificate = verifySovereignQuorum({...body,votes,validators});
+  assert.equal(certificate.valid,true);
+  assert.equal(certificate.maxFaults,1);
+  assert.equal(certificate.quorum,3);
+  assert.equal(certificate.acceptedSigners.length,3);
+});
+
+test("BFT quorum rejects two votes and never counts duplicate signers twice", () => {
+  const validators = new Map();
+  const keys = new Map();
+  for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
+    const pair = generateKeyPairSync("ed25519");
+    validators.set(peerId,pair.publicKey);
+    keys.set(peerId,pair.privateKey);
+  }
+  const body = {height:8,round:0,proposalHash:"hash-proposal-8",prevHash:"hash-proposal-7"};
+  const a = signSovereignVote({...body,peerId:"peer-a",privateKey:keys.get("peer-a")});
+  const b = signSovereignVote({...body,peerId:"peer-b",privateKey:keys.get("peer-b")});
+  const short = verifySovereignQuorum({...body,votes:[a,b],validators});
+  assert.equal(short.valid,false);
+  const duplicate = verifySovereignQuorum({...body,votes:[a,a,b],validators});
+  assert.equal(duplicate.valid,false);
+  assert.equal(duplicate.acceptedSigners.length,2);
+  assert.ok(duplicate.rejected.some(item=>item.reason==="duplicate-vote"));
+});
+
+test("BFT quorum quarantines a known validator with an invalid signature or equivocation", () => {
+  const validators = new Map();
+  const keys = new Map();
+  for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
+    const pair = generateKeyPairSync("ed25519");
+    validators.set(peerId,pair.publicKey);
+    keys.set(peerId,pair.privateKey);
+  }
+  const body = {height:9,round:0,proposalHash:"hash-proposal-9",prevHash:"hash-proposal-8"};
+  const a = signSovereignVote({...body,peerId:"peer-a",privateKey:keys.get("peer-a")});
+  const b = signSovereignVote({...body,peerId:"peer-b",privateKey:keys.get("peer-b")});
+  const c = signSovereignVote({...body,peerId:"peer-c",privateKey:keys.get("peer-c")});
+  const forged = {...c,proposalHash:"tampered-proposal"};
+  const result = verifySovereignQuorum({...body,votes:[a,b,forged],validators});
+  assert.equal(result.valid,false);
+  assert.ok(result.quarantine.includes("peer-c"));
+  assert.ok(result.rejected.some(item=>item.reason==="invalid-signature"||item.reason==="conflicting-proposal"));
+});
