@@ -24,9 +24,9 @@ const apps: ApexApp[] = [
     icon: Eye, accent: "violet", status: "Studio workspace",
     features: ["Creative development", "Scenes and production", "Media pipeline", "Production analytics"],
     links: [
-      { label: "Open Studio projects", href: "/", note: "Existing project dashboard" },
-      { label: "Scenes and shots", href: "/scenes", note: "Existing scene workspace" },
-      { label: "Characters and worlds", href: "/characters", note: "Existing character database" },
+      { label: "Open KernelVision", href: "/kernel-vision.html", note: "Production and media studio" },
+      { label: "Open scenes and shots", href: "/scenes", note: "Production workspace" },
+      { label: "Open characters and worlds", href: "/characters", note: "Creative development workspace" },
     ],
   },
   {
@@ -35,8 +35,8 @@ const apps: ApexApp[] = [
     icon: ShieldCheck, accent: "cyan", status: "Security workspace",
     features: ["Protection overview", "Privacy controls", "Tracker and ad blocking", "Connection safety"],
     links: [
-      { label: "Inspect network status", href: "/network", note: "Existing network dashboard" },
-      { label: "Review local AI isolation", href: "/local-ai", note: "Existing on-device AI workspace" },
+      { label: "Open XShield", href: "/xshield.html", note: "Security and privacy workspace" },
+      { label: "Review privacy safeguards", href: "/network", note: "Network protection status" },
     ],
   },
   {
@@ -45,7 +45,7 @@ const apps: ApexApp[] = [
     icon: Music2, accent: "rose", status: "Music workspace",
     features: ["Music library and playback", "Artist and album discovery", "DeckOfKobs controls", "KobSense and KornYtunes"],
     links: [
-      { label: "Explore app capabilities", href: "/apps#kernelodies", note: "Kernelodies overview" },
+      { label: "Open Kernelodies", href: "/kernelodies.html", note: "Music library and discovery" },
       { label: "Return to APEX apps", href: "/apps", note: "Six-app home" },
     ],
   },
@@ -55,9 +55,9 @@ const apps: ApexApp[] = [
     icon: Globe2, accent: "green", status: "Research and universe",
     features: ["Bible study and Scripture", "Manuscripts and source research", "GardenApex universe", "Research analytics"],
     links: [
-      { label: "Open Scripture breakdown", href: "/breakdown", note: "Existing Scripture workspace" },
-      { label: "Explore characters and worlds", href: "/characters", note: "Existing world-building workspace" },
-      { label: "Open research network", href: "/network", note: "Existing network dashboard" },
+      { label: "Open PlanetApeX", href: "/planet-apex.html", note: "Bible study and research universe" },
+      { label: "Enter GardenApex", href: "/characters", note: "Living universe and world-building" },
+      { label: "Explore research network", href: "/network", note: "Research and source discovery" },
     ],
   },
   {
@@ -66,17 +66,17 @@ const apps: ApexApp[] = [
     icon: WalletCards, accent: "amber", status: "Finance workspace",
     features: ["Opportunity discovery", "Transaction surfaces", "Data tools", "Video-rendering storefront"],
     links: [
-      { label: "Open Studio projects", href: "/", note: "Existing project workspace" },
+      { label: "Open KashKorner", href: "/kash-korner.html", note: "Financial tools and video storefront" },
       { label: "Return to APEX apps", href: "/apps", note: "Six-app home" },
     ],
   },
   {
-    key: "koinkob", name: "KoinKob", role: "THE SIXTH APP", tagline: "One system. Clear boundaries.",
-    description: "The sixth canonical APEX app, kept distinct from the other app identities and their private data.",
+    key: "koinkob", name: "KoinKob", role: "THE ECONOMY LAB", tagline: "Model systems. Test outcomes.",
+    description: "The autonomous-economy lab for worker activity, asset markets, market clearing, simulations, and adversarial events—separate from the other apps and their private data.",
     icon: Blocks, accent: "blue", status: "App workspace",
-    features: ["Dedicated app boundary", "Shared APEX capabilities", "Private data separation", "Unified navigation"],
+    features: ["Worker and agent economies", "Asset markets and market clearing", "Systemic and adversarial events", "Simulation and outcome analysis"],
     links: [
-      { label: "Inspect network status", href: "/network", note: "Existing network dashboard" },
+      { label: "Open KoinKob", href: "/koin-kob.html", note: "Autonomous-economy lab" },
       { label: "Return to APEX apps", href: "/apps", note: "Six-app home" },
     ],
   },
