@@ -71,6 +71,12 @@ const MAX_ENVELOPE_BYTES = Math.min(1024 * 1024, Math.max(1024, Number(process.e
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
+const boundedPositiveInteger = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.max(min, Math.min(max, Math.floor(parsed)))
+    : fallback;
+};
 
 const streamReaders = new WeakMap();
 const peerSecurity = createPeerSecurityGuard();
@@ -242,9 +248,9 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const ingressGuard = createPeerIngressGuard({
     windowMs: 60_000,
-    maxRequestsPerPeer: Math.max(1, Math.min(600, Number(process.env.APEX_PEER_MAX_REQUESTS_PER_MINUTE || 60))),
-    maxConcurrentPerPeer: Math.max(1, Math.min(32, Number(process.env.APEX_PEER_MAX_CONCURRENT_PER_PEER || 8))),
-    maxConcurrentTotal: Math.max(1, Math.min(1024, Number(process.env.APEX_PEER_MAX_CONCURRENT_TOTAL || 128))),
+    maxRequestsPerPeer: boundedPositiveInteger(process.env.APEX_PEER_MAX_REQUESTS_PER_MINUTE, 60, 1, 600),
+    maxConcurrentPerPeer: boundedPositiveInteger(process.env.APEX_PEER_MAX_CONCURRENT_PER_PEER, 8, 1, 32),
+    maxConcurrentTotal: boundedPositiveInteger(process.env.APEX_PEER_MAX_CONCURRENT_TOTAL, 128, 1, 1024),
     maxTrackedPeers: 4096
   });
   const node = await createLibp2p({
