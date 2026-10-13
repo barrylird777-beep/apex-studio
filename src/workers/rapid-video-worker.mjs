@@ -75,20 +75,70 @@ function buildSceneFilters(scenes, duration, palette, brand = "APEX RAPID VIDEO"
   }).join(",");
 }
 
+function hookScore(value) {
+  const text = String(value || "").trim();
+  const words = text.split(/\\s+/).filter(Boolean);
+  const hasQuestion = /\\?/.test(text) ? 2 : 0;
+  const hasContrast = /\\b(but|until|secret|never|truth|why|what if|instead)\\b/i.test(text) ? 3 : 0;
+  const concise = words.length >= 4 && words.length <= 14 ? 4 : Math.max(0, 4 - Math.abs(words.length - 9) * 0.4);
+  const concrete = /\\b(you|your|one|first|hidden|lost|last|impossible|real|truth)\\b/i.test(text) ? 2 : 0;
+  return concise + hasQuestion + hasContrast + concrete;
+}
+
 async function generateHook(brief, platform, provider, model) {
+  const candidates = [];
+  const primaryProvider = provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter";
+  const primaryModel = model || process.env.APEX_RAPID_AI_MODEL || undefined;
+  const requests = [
+    { provider: primaryProvider, model: primaryModel, angle: "curiosity gap" },
+    { provider: "pollinations", model: process.env.POLLINATIONS_MODEL || "openai", angle: "bold contrast" },
+    ...(process.env.APEX_RAPID_ENABLE_GROQ === "true" && process.env.GROQ_API_KEY
+      ? [{ provider: "groq", model: process.env.GROQ_MODEL || undefined, angle: "emotional stakes" }] : [])
+  ];
+  await Promise.allSettled(requests.map(async request => {
+    try {
+      const result = await generateUnifiedAi({
+        provider: request.provider,
+        model: request.model,
+        system: "You are Oracle, the hook editor for a cinematic short-form studio. Write ONE original opening hook for the requested angle. Max 14 words. No quotes, labels, markdown, or claims not supported by the brief.",
+        prompt: "Angle: " + request.angle + "\\nIdea: " + brief + "\\nPlatform: " + platform,
+        temperature: 0.85,
+        max_tokens: 100
+      });
+      const text = cleanText(result.text, "");
+      if (text) candidates.push({ text, provider: request.provider, score: hookScore(text) });
+    } catch (error) {
+      candidates.push({ provider: request.provider, error: String(error?.message || error).slice(0, 120) });
+    }
+  }));
+  const valid = candidates.filter(item => item.text).sort((a, b) => b.score - a.score);
+  return valid[0]?.text || "STOP THE SCROLL.";
+}
+
+async function generateOracleStoryboard(brief, platform, hook, provider, model) {
+  const fallback = [
+    { title: hook, dialogue: brief, visualPrompt: "Dark cinematic anime, high-contrast rim light, dramatic close-up, vertical 9:16 composition." },
+    { title: "THE HIDDEN TURN", dialogue: "Show the choice that changes everything.", visualPrompt: "A vast shadowed environment, one striking silhouette, ember particles, dramatic perspective." },
+    { title: "THE CONSEQUENCE", dialogue: "Make the stakes unmistakable.", visualPrompt: "Cinematic wide shot, powerful scale, volumetric light, textured dark-fantasy anime." },
+    { title: "THE LAST WORD", dialogue: platform + " — the story does not end here.", visualPrompt: "Heroic final frame, clean negative space for captions, strong silhouette, polished anime finish." }
+  ];
   try {
     const result = await generateUnifiedAi({
       provider: provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter",
       model: model || process.env.APEX_RAPID_AI_MODEL || undefined,
-      system: "Write one original short-form video hook. Return only the hook, no quotes, no markdown.",
-      prompt: "Idea: " + brief + "\nPlatform: " + platform,
-      temperature: 0.8,
-      max_tokens: 120
+      system: "You are Oracle, a storyboard writer. Return valid JSON only: {\\"scenes\\":[{\\"title\\":string,\\"dialogue\\":string,\\"visualPrompt\\":string}]} with exactly 4 concise scenes. Keep dialogue faithful to the brief. Prompts must specify dark cinematic anime, cel shading, high-contrast cinematic lighting, and vertical 9:16 framing. No markdown.",
+      prompt: "Create a production storyboard. Platform: " + platform + "\\nChosen opening hook: " + hook + "\\nBrief: " + brief,
+      temperature: 0.65,
+      max_tokens: 1000
     });
-    return cleanText(result.text, "STOP THE SCROLL.");
-  } catch {
-    return "STOP THE SCROLL.";
-  }
+    const raw = String(result.text || "").replace(/^\\s*```(?:json)?/i, "").replace(/```\\s*$/i, "").trim();
+    const parsed = JSON.parse(raw);
+    const scenes = Array.isArray(parsed.scenes) ? parsed.scenes.slice(0, 4) : [];
+    if (scenes.length === 4 && scenes.every(scene => scene && typeof scene.title === "string" && typeof scene.dialogue === "string" && typeof scene.visualPrompt === "string")) {
+      return scenes.map(scene => ({ title: cleanText(scene.title, "SCENE"), dialogue: cleanText(scene.dialogue, brief), visualPrompt: String(scene.visualPrompt).slice(0, 500) }));
+    }
+  } catch {}
+  return fallback;
 }
 
 function commonVideoArgs(output, duration, vf) {
