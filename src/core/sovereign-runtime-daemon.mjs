@@ -1,6 +1,6 @@
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
-import { verifyRemoteWalProbe } from './runtime-readiness.mjs';
+import { verifyRemotePersistenceProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
@@ -32,7 +32,7 @@ let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
-const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
+const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (envelope?.protocol === 'apex.cas.v1') {
@@ -108,24 +108,21 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   return true;
 }
 
-async function verifyRemoteWalReadiness() {
-  if (!apexPureStore.remoteMode || apexPureStore.wal?.constructor?.name !== 'RemoteApexRingWAL') {
-    runtimeReadiness.remoteWalVerified = false;
+async function verifyRemotePersistenceReadiness() {
+  if (!apexPureStore.remoteMode || !apexPureStore.cas?.writeRef || !apexPureStore.cas?.readRef || !apexPureStore.cas?.deleteRef) {
+    runtimeReadiness.remotePersistenceVerified = false;
     return false;
   }
-  const record = await apexPureStore.wal.append('runtime.readiness.probe', {
-    version: 1,
-    nonce: randomUUID(),
-    peerId: peerNode?.peerId?.toString() || null,
-    checkedAt: new Date().toISOString()
-  });
-  const snapshot = await apexPureStore.wal.snapshot();
-  if (!verifyRemoteWalProbe(record, snapshot)) {
-    throw new Error('RemoteApexRingWAL readiness append/readback/hash-chain verification failed');
+  const key = 'runtime-probe-' + randomUUID();
+  const probe = { version: 1, nonce: randomUUID(), peerId: peerNode?.peerId?.toString() || null, checkedAt: new Date().toISOString() };
+  const written = await apexPureStore.cas.writeRef('system', key, probe, { expectedHash: null });
+  const readback = await apexPureStore.cas.readRef('system', key);
+  if (!verifyRemotePersistenceProbe(probe, readback) || written?.hash !== readback?.hash) {
+    throw new Error('Remote CAS readiness write/read/hash verification failed');
   }
-  runtimeReadiness.remoteWalVerified = true;
-  runtimeReadiness.remoteWalSequence = record.seq;
-  runtimeReadiness.remoteWalHash = record.hash;
+  await apexPureStore.cas.deleteRef('system', key, { expectedHash: readback.hash });
+  runtimeReadiness.remotePersistenceVerified = true;
+  runtimeReadiness.remotePersistenceHash = readback.hash;
   return true;
 }
 
@@ -163,10 +160,10 @@ async function main() {
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
   try {
-    await verifyRemoteWalReadiness();
+    await verifyRemotePersistenceReadiness();
   } catch (error) {
-    runtimeReadiness.remoteWalVerified = false;
-    console.error('[SOVEREIGN READINESS] remote WAL probe failed; readiness remains closed', String(error?.message || error));
+    runtimeReadiness.remotePersistenceVerified = false;
+    console.error('[SOVEREIGN READINESS] remote CAS probe failed; readiness remains closed', String(error?.message || error));
   }
   await publishRuntimeIdentity('starting');
   if (stopping) return;
@@ -216,7 +213,7 @@ async function main() {
   if (stopping) return;
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
-  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady;
   console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
     status: readinessReady ? 'online' : 'starting',
     readiness: { ...runtimeReadiness, ready: readinessReady },
@@ -251,7 +248,7 @@ async function publishRuntimeIdentity(status = 'online') {
   const publicPeerAddress = buildPublicPeerAddress(peerId);
   const readiness = {
     ...runtimeReadiness,
-    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady
   };
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
@@ -269,11 +266,11 @@ async function publishRuntimeIdentity(status = 'online') {
 }
 
 async function runCycle(activeBridge) {
-  if (!runtimeReadiness.remoteWalVerified) {
+  if (!runtimeReadiness.remotePersistenceVerified) {
     try {
-      await verifyRemoteWalReadiness();
+      await verifyRemotePersistenceReadiness();
     } catch (error) {
-      console.error('[SOVEREIGN READINESS] remote WAL retry failed; readiness remains closed', String(error?.message || error));
+      console.error('[SOVEREIGN READINESS] remote CAS retry failed; readiness remains closed', String(error?.message || error));
     }
   }
   await publishRuntimeIdentity('online');
@@ -313,9 +310,8 @@ async function shutdown(signal) {
     offlineIdentityCommitted: false,
     edgeStopped: false,
     peerStopped: false,
-    remoteWalVerified: runtimeReadiness.remoteWalVerified,
-    remoteWalSequence: runtimeReadiness.remoteWalSequence,
-    remoteWalHash: runtimeReadiness.remoteWalHash
+    remotePersistenceVerified: runtimeReadiness.remotePersistenceVerified,
+    remotePersistenceHash: runtimeReadiness.remotePersistenceHash
   };
   console.log('[SOVEREIGN] draining', JSON.stringify(shutdownEvidence));
   try {
