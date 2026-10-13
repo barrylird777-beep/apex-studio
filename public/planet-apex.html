@@ -380,7 +380,7 @@ render();refresh();
  };
  const svg=document.querySelector(".pa-map-stage .pa-map-points");
  if(!svg)return;
- const markers=[...svg.querySelectorAll("circle")].filter(el=>["246","412","145"].includes(el.getAttribute("cx")));
+ const markers=[...svg.querySelectorAll("circle")].filter(el=>["246","412","145"].includes(el.getAttribute("cx"))&&Number(el.getAttribute("r"))<=5);
  const ids=["rootlight","north","creek"];
  markers.forEach((marker,i)=>{marker.dataset.location=ids[i];marker.setAttribute("tabindex","0");marker.setAttribute("role","button");marker.setAttribute("aria-label","Inspect "+locations[ids[i]].name)});
  function select(id){const item=locations[id];if(!item)return;document.getElementById("pa-map-location-name").textContent=item.name;document.getElementById("pa-map-location-detail").textContent=item.detail;markers.forEach(m=>m.setAttribute("aria-pressed",String(m.dataset.location===id)))}
