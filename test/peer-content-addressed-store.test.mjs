@@ -7,7 +7,6 @@ import {
 } from '../src/core/peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
 
-const canonical = value => JSON.stringify(value);
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function memoryStore() {
