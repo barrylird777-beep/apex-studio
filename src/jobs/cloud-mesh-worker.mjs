@@ -8,7 +8,7 @@ const workerId = String(process.env.APEX_CLOUD_WORKER_ID || randomUUID());
 const handlerModule = String(process.env.APEX_CLOUD_HANDLER_MODULE || "");
 const pollMs = Math.max(250, Number(process.env.APEX_CLOUD_WORKER_POLL_MS || 1500));
 const leaseMs = Math.max(5000, Math.min(300000, Number(process.env.APEX_CLOUD_WORKER_LEASE_MS || 30000)));
-const capabilities = (process.env.APEX_CLOUD_WORKER_CAPABILITIES || "cloud-job-worker").split(",").map(x => x.trim()).filter(Boolean);
+const capabilities = (process.env.APEX_CLOUD_WORKER_CAPABILITIES || "").split(",").map(x => x.trim()).filter(Boolean);
 const taskTypes = (process.env.APEX_CLOUD_WORKER_TASK_TYPES || "").split(",").map(x => x.trim()).filter(Boolean);
 const coordinator = new SovereignCloudCoordinator();
 let stopping = false;
@@ -62,6 +62,7 @@ async function execute(job, lease) {
 
 async function main() {
   if (!["KernelVision", "XShield", "Kernelodies", "PlanetApeX", "KashKorner", "KoinKob"].includes(app)) throw new Error("APEX_CLOUD_WORKER_APP must be one of the six canonical apps");
+  if (capabilities.length === 0) throw new Error("APEX_CLOUD_WORKER_CAPABILITIES must explicitly list supported job capabilities");
   const health = await coordinator.health();
   await coordinator.advertisePeer({ app, peerId: workerId, capabilities, maxConcurrent: 1, expiresInMs: 30000 });
   const peerHeartbeat = setInterval(() => {
