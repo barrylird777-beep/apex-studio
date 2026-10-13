@@ -34,8 +34,8 @@ button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4}
 </div>
 <section id="xshield-panel-overview" role="tabpanel" aria-labelledby="xshield-tab-overview">
 <section class="grid">
-<article class="card"><div class="eyebrow">Application</div><div id="appState" class="metric">Loading…</div><p id="appDetail" class="muted">Reading XShield's operational contract.</p></article>
-<article class="card"><div class="eyebrow">Network filter</div><div id="networkState" class="metric">Loading…</div><p id="networkDetail" class="muted">Reading the active filtering subsystem.</p></article>
+<article class="card"><div class="eyebrow">Application</div><div id="appState" class="metric" role="status" aria-live="polite">Loading…</div><p id="appDetail" class="muted">Reading XShield's operational contract.</p></article>
+<article class="card"><div class="eyebrow">Network filter</div><div id="networkState" class="metric" role="status" aria-live="polite">Loading…</div><p id="networkDetail" class="muted">Reading the active filtering subsystem.</p></article>
 </section>
 </section>
 <section id="xshield-panel-diagnostics" role="tabpanel" aria-labelledby="xshield-tab-diagnostics" hidden>
@@ -49,16 +49,23 @@ async function load(){
   if(!appResponse.ok) throw new Error(app.error||'XShield status unavailable');
   document.getElementById('appState').textContent=app.app?.name||'XShield';
   document.getElementById('appDetail').textContent=(app.filtering?'Filtering active':'Filtering not active')+' · '+(app.firstPartyPolicy||'policy unavailable');
-  document.getElementById('networkState').textContent=network.enabled===false?'DEGRADED':'ACTIVE';
-  document.getElementById('networkState').className='metric '+(network.enabled===false?'bad':'good');
+  const networkState=document.getElementById('networkState');
+  const networkEnabled=networkResponse.ok&&network.enabled===true;
+  const networkDegraded=networkResponse.ok&&network.enabled===false;
+  networkState.textContent=networkEnabled?'ACTIVE':networkDegraded?'DEGRADED':'UNAVAILABLE';
+  networkState.className='metric '+(networkEnabled?'good':networkDegraded?'bad':'status-warn');
   document.getElementById('networkDetail').textContent='Safari rules: '+(app.safariRules??'n/a');
   const lastStatusAt=new Date().toISOString();
   sessionStorage.setItem('apex.xshield.lastStatusAt',lastStatusAt);
   document.getElementById('output').textContent=JSON.stringify({app,network,session:{lastStatusAt}},null,2);
  }catch(error){
+  const message=error.message||String(error);
   document.getElementById('appState').textContent='UNAVAILABLE';
-  document.getElementById('appDetail').textContent=error.message||String(error);
-  document.getElementById('output').textContent=error.message||String(error);
+  document.getElementById('appDetail').textContent=message;
+  document.getElementById('networkState').textContent='UNAVAILABLE';
+  document.getElementById('networkState').className='metric bad';
+  document.getElementById('networkDetail').textContent=message;
+  document.getElementById('output').textContent=message;
  }
 }
 const tabOverview=document.getElementById('xshield-tab-overview');
