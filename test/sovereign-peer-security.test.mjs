@@ -340,7 +340,7 @@ test("peer security guard rejects replayed message IDs and throttles noisy peers
   assert.equal(guard.admit("peer-a", { type: "heartbeat" }).allowed, true);
   assert.equal(guard.admit("peer-a", { type: "heartbeat-2" }).reason, "peer rate limit exceeded");
   assert.equal(guard.admit("peer-b", { type: "heartbeat" }).allowed, true);
-  now += 10_001;
+  now += 60_001;
   assert.equal(guard.admit("peer-a", first).allowed, true);
 });
 
