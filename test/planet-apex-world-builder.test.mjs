@@ -25,3 +25,16 @@ test("PlanetApeX record IDs match the durable fabric's safe key format", async (
   assert.match(html, /function validId/);
   assert.match(html, /!id\.includes\("\.\."\)/);
 });
+
+
+test("PlanetApeX map supports accessible location inspection and GardenApeX handoff", async () => {
+  const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
+  assert.match(html, /id="pa-map-inspector"/);
+  assert.match(html, /id="pa-map-location-name"/);
+  assert.match(html, /data-location=\?"rootlight\?/);
+  assert.match(html, /setAttribute\("role","button"\)/);
+  assert.match(html, /setAttribute\("tabindex","0"\)/);
+  assert.match(html, /North Ridge/);
+  assert.match(html, /Lower Creek/);
+  assert.match(html, /pa-map-open-world/);
+});
