@@ -10,12 +10,12 @@ Set these only on a deployment that is meant to host a storage peer:
 - `APEX_APP_ID` to exactly one of `KernelVision`, `XShield`, `Kernelodies`, `PlanetApeX`, `KashKorner`, `KoinKob`
 - `APEX_PEER_STORAGE_BACKEND_MODULE` to an absolute path or file URL for a trusted module exporting `createPeerStorageBackend({ peerId, env })`
 - `APEX_PEER_NAMESPACE_ACL` with explicit canonical app namespaces and authorized writer peer IDs, for example `KernelVision=peer-id-a,peer-id-b;PlanetApeX=peer-id-c`
-- For each app, `APEX_PEER_STORAGE_PEERS_<APP_SUFFIX>` as semicolon-separated `peerId@multiaddr` entries. Suffixes are uppercase with camel-case boundaries converted to underscores, e.g. `KERNEL_VISION` and `PLANET_APE_X`.
-- For each app, `APEX_PEER_STORAGE_KEY_<APP_SUFFIX>` as canonical base64 for a 32-byte AES-256 key. Do not reuse keys across app namespaces.
+- For the one app named by `APEX_APP_ID`, `APEX_PEER_STORAGE_PEERS_<APP_SUFFIX>` as semicolon-separated `peerId@multiaddr` entries. Suffixes are uppercase with camel-case boundaries converted to underscores, e.g. `KERNEL_VISION` and `PLANET_APE_X`.
+- For that app only, `APEX_PEER_STORAGE_KEY_<APP_SUFFIX>` as canonical base64 for a 32-byte AES-256 key. Each app deployment loads only its own encryption key; do not reuse keys across app namespaces.
 - `APEX_PEER_STORAGE_REPLICA_COUNT` (defaults to 2), `APEX_PEER_STORAGE_MIN_FAILURE_DOMAINS` (defaults to 1), and `APEX_PEER_STORAGE_FAILURE_DOMAINS` as semicolon-separated `peerId=domain` entries. When more than one replica is required, each target peer must have an explicit failure domain.
 - `APEX_PEER_PRIVATE_KEY_BASE64` or the existing peer identity provisioning required by the libp2p runtime.
 
-The stack supervisor generates a fresh 256-bit bridge token and shares it only with its API and daemon child processes. The IPC listener binds to loopback and accepts only authenticated binary-CBOR requests. It does not expose the bridge on the public interface.
+Each API/daemon deployment is bound to one `APEX_APP_ID`; the media assembly exposes only that app namespace and does not load the other five apps' encryption keys. The stack supervisor generates a fresh 256-bit bridge token and shares it only with its API and daemon child processes. The IPC listener binds to loopback and accepts only authenticated binary-CBOR requests. It does not expose the bridge on the public interface.
 
 ## Durable backend contract
 
