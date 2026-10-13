@@ -60,7 +60,8 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.equal(result.receipts.every(receipt => receipt.hash === result.hash), true);
   assert.deepEqual(await mesh.client.getObject(result.hash), value);
   assert.equal(mesh.stores.get('peer-a').objects.has(result.hash), true);
-  assert.equal(mesh.stores.get('peer-b').objects.has(result.hash), true);\n  assert.equal(JSON.stringify(mesh.stores.get('peer-a').objects.get(result.hash)).includes('manuscript'), false);
+  assert.equal(mesh.stores.get('peer-b').objects.has(result.hash), true);
+  assert.equal(JSON.stringify(mesh.stores.get('peer-a').objects.get(result.hash)).includes('manuscript'), false);
 });
 
 test('peer CAS fails closed when the configured replica count cannot be met', async () => {
