@@ -1,3 +1,7 @@
+import { createGuardedFetch, sanitizeOutboundPayload } from "../../security/sovereign-outbound-gateway.mjs";
+
+const outboundFetch = createGuardedFetch(["api.anthropic.com"]);
+
 export class ClaudeMeshProvider {
   constructor() {
     this.apiKey = process.env.ANTHROPIC_API_KEY || '';
@@ -6,18 +10,19 @@ export class ClaudeMeshProvider {
   }
 
   async generate(prompt, options = {}) {
-  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Claude');
+    if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Claude');
     if (!this.apiKey) throw new Error('Claude not configured');
     const model = options.model || this.model;
+    const safeInput = sanitizeOutboundPayload({ prompt: String(prompt), system: options.system == null ? '' : String(options.system) });
     const body = {
       model,
       max_tokens: Number(options.maxTokens || process.env.CLAUDE_MAX_OUTPUT_TOKENS || 64000),
       thinking: options.thinking === false ? { type: 'disabled' } : { type: 'adaptive' },
       output_config: { effort: options.effort || process.env.CLAUDE_EFFORT || 'max' },
-      messages: [{ role: 'user', content: String(prompt) }]
+      messages: [{ role: 'user', content: safeInput.prompt }]
     };
-    if (options.system) body.system = String(options.system);
-    const response = await fetch(this.endpoint, {
+    if (safeInput.system) body.system = safeInput.system;
+    const response = await outboundFetch(this.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
