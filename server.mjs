@@ -1825,9 +1825,15 @@ app.post('/api/music-radar/handoff', requireControlPlaneAuth, async (req, res) =
 app.use('/api/mobile', createMobileControlPlane({
   getSovereignStatus: () => sovereignAppFabric.status(),
   getSovereignApps: () => sovereignAppFabric.apps(),
-  getSovereignRecord: (appId, recordId) => recordId == null ? sovereignAppFabric.list(appId) : sovereignAppFabric.get(appId, recordId),
-  putSovereignRecord: (appId, recordId, record) => sovereignAppFabric.put(appId, recordId, record),
-  dispatchSovereign: payload => sovereignAppFabric.dispatch(payload),
+  getSovereignRecord: (appId, recordId) => appId === 'ko-blocks'
+    ? (recordId == null ? sovereignAppFabric.listCapability('ko-blocks') : sovereignAppFabric.getCapability('ko-blocks', recordId))
+    : (recordId == null ? sovereignAppFabric.list(appId) : sovereignAppFabric.get(appId, recordId)),
+  putSovereignRecord: (appId, recordId, record) => appId === 'ko-blocks'
+    ? sovereignAppFabric.putCapability('ko-blocks', recordId, record)
+    : sovereignAppFabric.put(appId, recordId, record),
+  dispatchSovereign: payload => payload?.appId === 'ko-blocks'
+    ? sovereignAppFabric.dispatch({ ...payload, appId: 'planet-apex', data: { ...(payload.data && typeof payload.data === 'object' ? payload.data : {}), capabilityId: 'ko-blocks' } })
+    : sovereignAppFabric.dispatch(payload),
   getHealth: async () => ({ ok: true, uptime: process.uptime() }),
   getAiStatus: async () => ({ ...unifiedAiStatus(), openai: openAiMaxStatus(), grok: grokStatus() }),
   getCapacity: async () => capacitySnapshot(),
