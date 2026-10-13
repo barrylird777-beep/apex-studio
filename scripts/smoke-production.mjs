@@ -71,7 +71,7 @@ try {
   }
 
   const readiness = await getJson('/api/apex/readiness');
-  const expectedApps = ['PlanetApeX', 'KoBlocks', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies'];
+  const expectedApps = ['PlanetApeX', 'XShield', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies'];
   const actualApps = readiness.json?.canonicalApps?.map(app => app.name);
   if (
     readiness.status !== 200 ||
@@ -84,7 +84,7 @@ try {
 
   const canonicalAppIds = [
     ['planet-apex', 'PlanetApeX'],
-    ['ko-blocks', 'KoBlocks'],
+    ['xshield', 'XShield'],
     ['kernel-vision', 'KernelVision'],
     ['koin-kob', 'KoinKob'],
     ['kash-korner', 'KashKorner'],
@@ -161,7 +161,7 @@ try {
     throw new Error(`KoBlocks cycle rejection smoke failed: ${JSON.stringify(cyclicGraph)}`);
   }
 
-  console.log('production server smoke: PASS (health, six canonical apps, XShield identity, and reusable KoBlocks valid/cyclic graph validation verified)');
+  console.log('production server smoke: PASS (health, canonical XShield identity, six-app registry, and reusable KoBlocks valid/cyclic graph validation verified)');
 } finally {
   child.kill('SIGTERM');
   await Promise.race([
