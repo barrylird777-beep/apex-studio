@@ -510,12 +510,15 @@ export class ApexPureStore {
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null,onlyId=null}={}){
     if(this.remoteMode)await this.ensureRemoteQueueIndex();
+    // Listing the remote queue can require many object-store reads. Do it before
+    // acquiring the global mutation lease; each candidate is revalidated under
+    // the lease below, so a stale snapshot cannot claim a job twice.
+    const indexedQueueRefs=this.remoteMode?await this.cas.listRefs("queue"):null;
     const run=()=>this.withMutationLock(async()=>{
       const now=Date.now(),out=[];
       let candidates;
       if(this.remoteMode){
-        const indexed=await this.cas.listRefs("queue");
-        candidates=indexed.map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value})).filter(item=>
+        candidates=indexedQueueRefs.map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value})).filter(item=>
           item.index&&Number(item.index.runAt||0)<=now&&
           (onlyId==null||String(item.index.id)===String(onlyId))&&
           (role?item.index.role===role:item.index.role!=="sovereign-runtime")
@@ -570,11 +573,13 @@ export class ApexPureStore {
     });
   }
   async recoverExpired(limit=25){
+    // The running-index scan is also remote I/O. Snapshot it outside the global
+    // mutation lease, then re-read each job under the lease before changing it.
+    const runningIndexRefs=this.remoteMode?await this.cas.listRefs("running"):null;
     return this.withMutationLock(async()=>{
       let candidates;
       if(this.remoteMode){
-        const refs=await this.cas.listRefs("running");
-        candidates=refs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
+        candidates=runningIndexRefs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
       }else{
         await this.refreshJobs();
         candidates=[...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<Date.now()).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(job=>({index:job}));
