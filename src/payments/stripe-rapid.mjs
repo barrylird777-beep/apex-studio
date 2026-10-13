@@ -31,7 +31,7 @@ export async function createRapidCheckout({orderId,name,type,brief,platform,emai
   // Offer lower-cost US bank debit alongside cards; Stripe confirms the actual payment asynchronously.
   add('payment_method_types[0]','card'); add('payment_method_types[1]','us_bank_account');
   add('payment_method_options[us_bank_account][verification_method]','automatic');
-  add('payment_method_options[us_bank_account][financial_connections][permissions][0]','payment_method');
+  add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
   if(String(email||'').trim()) add('customer_email',String(email).trim());
   add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','KornKash Video');
