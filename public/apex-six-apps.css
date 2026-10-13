@@ -187,3 +187,11 @@ body:has(.apex-app-nav a[aria-current="page"][href="/"]){--apex-accent:#80c6ff}
 .apex-shell [aria-live=polite],.apex-shell [role=status]{overflow-wrap:anywhere}
 .apex-shell .risk-modal{padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
 .apex-shell .risk-card{max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain}
+
+/* Display settings from the shared controls drawer. */
+body.apex-ui-high-contrast{--apex-ink:#fff;--apex-muted:#d3dbea;--apex-line:#62738b}
+body.apex-ui-high-contrast .apex-shell .card,body.apex-ui-high-contrast .apex-shell .panel{border-color:#667992;background:#080d16}
+body.apex-ui-high-contrast .apex-shell p,body.apex-ui-high-contrast .apex-shell label,body.apex-ui-high-contrast .apex-shell .muted{color:#e5ecf7}
+body.apex-ui-compact main.apex-shell{padding-top:12px;padding-bottom:28px}
+body.apex-ui-compact .apex-shell .card,body.apex-ui-compact .apex-shell .panel{padding:14px;border-radius:13px}
+body.apex-ui-compact .apex-shell .grid{gap:10px}
