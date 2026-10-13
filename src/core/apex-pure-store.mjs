@@ -32,7 +32,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.remoteMode?new RemoteApexRingWAL({cas:this.cas}):this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.remoteMode?(remoteWal||new RemoteApexRingWAL({cas:this.cas,scope:walScope})):this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -151,15 +151,33 @@ export class ApexPureStore {
     await this.cas.init();
     const scope=String(process.env.RAILWAY_SERVICE_NAME||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
     const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
-    if(await this.cas.readRef("system",markerKey))return this;
-    await this.withRemoteLock(lockKey,async()=>{
+    await this.withRemoteLock("queue-mutations",async()=>{
+      await this.wal.recover({onRecord:async record=>{
+        const p=record.payload||{};
+        if(record.type==="state.put"&&p.collection!=null&&p.id!=null&&p.record!=null){
+          await this.persistState(String(p.collection),String(p.id),p.record,{appendWal:false,walSeq:record.seq});
+        }else if(record.type==="state.delete"&&p.collection!=null&&p.id!=null){
+          await this.persistDelete(String(p.collection),String(p.id),{appendWal:false,walSeq:record.seq});
+        }else if(record.type==="job.put"&&p.job?.id!=null){
+          await this.persistJob(p.job,{appendWal:false,walSeq:record.seq});
+        }
+      }});
+      if(await this.cas.readRef("system",markerKey))return;
+      await this.withRemoteLock(lockKey,async()=>{
       if(await this.cas.readRef("system",markerKey))return;
       for(const namespace of ["state","jobs"]){
         try{await stat(path.join(this.localCas.refs,namespace));}
         catch(error){if(error.code==="ENOENT")continue;throw error;}
         for(const ref of await this.localCas.listRefs(namespace)){
           const current=await this.cas.readRef(namespace,ref.key);
-          if(!current)await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
+          if(current)continue;
+          if(namespace==="state"&&ref.value?.collection!=null&&ref.value?.id!=null&&ref.value?.record!=null){
+            await this.persistState(String(ref.value.collection),String(ref.value.id),ref.value.record);
+          }else if(namespace==="jobs"&&ref.value?.job?.id!=null){
+            await this.persistJob(ref.value.job);
+          }else{
+            await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
+          }
         }
       }
       let legacyExists=false;
@@ -170,12 +188,12 @@ export class ApexPureStore {
           const writes=[];
           for(const item of pendingState.values())writes.push(async()=>{
             const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
-            if(item.deleted){if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});}
-            else if(!current)await this.cas.writeRef("state",key,{collection:item.collection,id:item.id,record:clone(item.record)},{expectedHash:null});
+            if(item.deleted){if(current)await this.persistDelete(item.collection,item.id);}
+            else if(!current)await this.persistState(item.collection,item.id,item.record);
           });
           for(const [id,job] of pendingJobs)writes.push(async()=>{
             const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
-            if(!current)await this.cas.writeRef("jobs",key,{id,job:clone(job)},{expectedHash:null});
+            if(!current)await this.persistJob(job);
           });
           await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
         };
@@ -194,6 +212,7 @@ export class ApexPureStore {
         await flush();
       }
       await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-content-addressed",service:scope,migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
+      });
     });
     return this;
   }
@@ -267,7 +286,7 @@ export class ApexPureStore {
   }
   async loadStateReferences(){
     this.state.clear();
-    for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null)this.state.set(this.key(v.collection,v.id),clone(v.record));}
+    for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null&&!v.deleted)this.state.set(this.key(v.collection,v.id),clone(v.record));}
   }
   async loadJobReferences(){
     this.jobsState.clear();
@@ -278,31 +297,107 @@ export class ApexPureStore {
   async refreshJobs(){await this.init();await this.loadJobReferences();return this;}
   async refresh(){await this.init();await this.loadReferences();return this;}
   refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
-  async persistJob(job){
-    const key=this.refKey("job",job.id);
-    await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
+  async persistJob(job,{appendWal=true,walSeq=null}={}){
+    let effectiveJob=clone(job),effectiveSeq=Number(walSeq)||0;
     if(this.remoteMode){
-      if(job.dedupeKey!=null&&String(job.dedupeKey)){
-        const dedupeKey=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
-        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||"")});
+      if(appendWal){
+        const enqueueMutation=job.status==="queued"&&Number(job.attempts||0)===0&&Number(job.leaseFence||0)===0&&!job.leaseToken;
+        const requestHash=createHash("sha256").update(JSON.stringify(job)).digest("hex");
+        const idempotencyKey=enqueueMutation
+          ? "job.enqueue:"+String(job.id)
+          : "job.put:"+String(job.id)+":"+requestHash;
+        const idempotencyPayload=enqueueMutation?{
+          id:String(job.id),type:String(job.type),payload:job.payload,priority:Number(job.priority)||0,
+          runAt:Number(job.runAt)||0,maxAttempts:Number(job.maxAttempts)||5,dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey)
+        }:undefined;
+        const logged=await this.wal.append("job.put",{job:clone(job)},{idempotencyKey,...(idempotencyPayload?{idempotencyPayload}:{})});
+        effectiveSeq=logged.seq;
+        if(logged.payload?.job)effectiveJob=clone(logged.payload.job);
+      }
+      const key=this.refKey("job",effectiveJob.id);
+      let persisted=false;
+      for(let attempt=0;attempt<8;attempt++){
+        const current=await this.cas.readRef("jobs",key);
+        if(effectiveSeq>0&&Number(current?.value?.walSeq||0)>=effectiveSeq){
+          effectiveJob=clone(current.value.job);
+          effectiveSeq=Number(current.value.walSeq)||effectiveSeq;
+          persisted=true;break;
+        }
+        try{
+          await this.cas.writeRef("jobs",key,{id:String(effectiveJob.id),job:clone(effectiveJob),walSeq:effectiveSeq},{expectedHash:current?.hash??null});
+          persisted=true;break;
+        }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+      }
+      if(!persisted)throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed job state.");
+      if(effectiveJob.dedupeKey!=null&&String(effectiveJob.dedupeKey)){
+        const dedupeKey=createHash("sha256").update(String(effectiveJob.dedupeKey)).digest("hex");
+        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(effectiveJob.dedupeKey),id:String(effectiveJob.id),status:String(effectiveJob.status||""),type:String(effectiveJob.type||""),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq});
       }
       const current=await this.cas.readRef("queue",key);
       const running=await this.cas.readRef("running",key);
-      if(job.status==="queued"){
-        const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
-        await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+      if(effectiveJob.status==="queued"){
+        const value={id:String(effectiveJob.id),runAt:Number(effectiveJob.runAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq};
+        if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
         if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-      }else if(job.status==="running"){
-        const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
-        await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+      }else if(effectiveJob.status==="running"){
+        const value={id:String(effectiveJob.id),leaseExpiresAt:Number(effectiveJob.leaseExpiresAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq};
+        if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
         if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
       }else{
         if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
         if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
       }
+      return clone(effectiveJob);
     }
+    const key=this.refKey("job",job.id);
+    await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
+    return clone(job);
   }
-  async persistState(collection,id,record){await this.cas.writeRef("state",this.refKey(collection,id),{collection:String(collection),id:String(id),record:clone(record)});}
+  async persistState(collection,id,record,{appendWal=true,walSeq=null}={}){
+    const key=this.refKey(collection,id),value={collection:String(collection),id:String(id),record:clone(record)};
+    if(!this.remoteMode){await this.cas.writeRef("state",key,value);return value;}
+    if(appendWal){
+      const contentHash=createHash("sha256").update(JSON.stringify(value)).digest("hex");
+      const logged=await this.wal.append("state.put",value,{idempotencyKey:"state.put:"+String(collection)+":"+String(id)+":"+contentHash});
+      walSeq=logged.seq;
+    }
+    const seq=Number(walSeq)||0;
+    for(let attempt=0;attempt<8;attempt++){
+      const current=await this.cas.readRef("state",key);
+      if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return current.value;
+      try{
+        const stored={...value,walSeq:seq};
+        await this.cas.writeRef("state",key,stored,{expectedHash:current?.hash??null});
+        return stored;
+      }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+    }
+    throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed state.");
+  }
+  async persistDelete(collection,id,{appendWal=true,walSeq=null}={}){
+    const key=this.refKey(collection,id);
+    if(!this.remoteMode){
+      const current=await this.cas.readRef("state",key);
+      if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});
+      return true;
+    }
+    let current=await this.cas.readRef("state",key);
+    if(appendWal){
+      if(!current||current.value?.deleted)return true;
+      const priorHash=current.hash;
+      const logged=await this.wal.append("state.delete",{collection:String(collection),id:String(id),priorHash},{idempotencyKey:"state.delete:"+String(collection)+":"+String(id)+":"+priorHash});
+      walSeq=logged.seq;
+    }
+    const seq=Number(walSeq)||0;
+    for(let attempt=0;attempt<8;attempt++){
+      current=await this.cas.readRef("state",key);
+      if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return true;
+      try{
+        await this.cas.writeRef("state",key,{collection:String(collection),id:String(id),deleted:true,walSeq:seq},{expectedHash:current?.hash??null});
+        return true;
+      }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+    }
+    throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed deletion.");
+  }
   async withMutationLock(operation){
     // Reentrant for nested mutations in the same async call chain; otherwise a
     // nested acquisition waits on its own lock until the global timeout.
@@ -391,24 +486,36 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    const target=this.remoteMode?null:await this.checkedFile(collection,id,{createDir:true});
-    const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
-    await this.persistState(collection,id,value);
-    this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
-    if(!this.remoteMode)await this.atomic(target,value);
-    return clone(value);
+    const run=async()=>{
+      const target=this.remoteMode?null:await this.checkedFile(collection,id,{createDir:true});
+      const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
+      await this.persistState(collection,id,value);
+      this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
+      if(!this.remoteMode)await this.atomic(target,value);
+      return clone(value);
+    };
+    return this.remoteMode?this.withMutationLock(run):run();
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
-  async get(collection,id){await this.init();const key=this.key(collection,id);const ref=await this.cas.readRef("state",this.refKey(collection,id));const v=ref?.value;if(v?.collection&&v?.id!=null){this.state.set(key,clone(v.record));return clone(v.record);}this.state.delete(key);return null;}
+  async get(collection,id){await this.init();const key=this.key(collection,id);const ref=await this.cas.readRef("state",this.refKey(collection,id));const v=ref?.value;if(v?.collection&&v?.id!=null&&!v.deleted){this.state.set(key,clone(v.record));return clone(v.record);}this.state.delete(key);return null;}
   async list(collection){await this.refreshState();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
-    const target=this.remoteMode?null:await this.checkedFile(collection,id);
-    await this.cas.deleteRef("state",this.refKey(collection,id));
-    this.state.delete(this.key(collection,id));
-    if(!this.remoteMode){const { unlink }=await import("node:fs/promises");try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}}
-    return true;
+    const run=async()=>{
+      const target=this.remoteMode?null:await this.checkedFile(collection,id);
+      if(this.remoteMode){
+        await this.persistDelete(collection,id);
+        this.state.delete(this.key(collection,id));
+        return true;
+      }
+      await this.cas.deleteRef("state",this.refKey(collection,id));
+      this.state.delete(this.key(collection,id));
+      const { unlink }=await import("node:fs/promises");
+      try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
+      return true;
+    };
+    return this.remoteMode?this.withMutationLock(run):run();
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
@@ -432,9 +539,9 @@ export class ApexPureStore {
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
       const job={id:String(id),type:String(type),payload:clone(payload),priority:Number(priority)||0,status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
-      await this.persistJob(job);
-      this.apply({type:"job.enqueue",payload:{id:job.id,job}});
-      return {durable:true,id:job.id};
+      const persisted=await this.persistJob(job);
+      this.jobsState.set(String(persisted.id),clone(persisted));
+      return {durable:true,id:persisted.id,duplicate:persisted.id!==job.id||persisted.createdAt!==job.createdAt,status:persisted.status};
     });
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
@@ -472,8 +579,9 @@ export class ApexPureStore {
         if(!current||current.status!=="queued")continue;
         const token=randomUUID(),fence=Number(current.leaseFence||0)+1;
         const patch={status:"running",attempts:Number(current.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+Math.max(1000,Number(leaseMs)||45000),updatedAt:new Date().toISOString()};
-        const updated={...current,...patch};await this.persistJob(updated);
-        this.apply({type:"job.transition",payload:{id:current.id,patch}});out.push(updated);
+        const updated={...current,...patch};
+        const persisted=await this.persistJob(updated);
+        this.jobsState.set(String(persisted.id),clone(persisted));out.push(persisted);
       }
       return out;
     });
@@ -495,8 +603,8 @@ export class ApexPureStore {
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
       if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
       if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
-      await this.persistJob({...j,...patch});
-      this.apply({type:"job.transition",payload:{id:j.id,patch}});return true;
+      const persisted=await this.persistJob({...j,...patch});
+      this.jobsState.set(String(persisted.id),clone(persisted));return true;
     });
   }
   async recoverExpired(limit=500){
@@ -516,8 +624,8 @@ export class ApexPureStore {
         if(!j||j.status!=="running"||Number(j.leaseExpiresAt||0)>=now)continue;
         this.jobsState.set(String(j.id),clone(j));
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
-        await this.persistJob({...j,...patch});
-        this.apply({type:"job.transition",payload:{id:j.id,patch}});n++;
+        const persisted=await this.persistJob({...j,...patch});
+        this.jobsState.set(String(persisted.id),clone(persisted));n++;
       }
       return n;
     });
