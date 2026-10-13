@@ -341,6 +341,8 @@ export class PeerContentAddressedStore {
       error.code = conflicts ? 'CAS_CONFLICT' : 'INSUFFICIENT_REPLICAS';
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = verifiedDomains;
       error.failures = failures;
       throw error;
     }
