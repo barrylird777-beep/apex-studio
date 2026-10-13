@@ -38,6 +38,7 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
 import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { createTokenSecurity } from './src/security/scoped-token-security.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -100,6 +101,10 @@ app.use(express.json({
   limit: CAPACITY.jsonBody,
   type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
 }));
+
+// Parse signed scoped tokens globally without changing public status-route access.
+const { parseTokenScopes, requireAiInferenceAuth, aiInferenceRateLimit } = createTokenSecurity();
+app.use(parseTokenScopes);
 
 function timingSafeSecret(expected, supplied) {
   if (!expected || !supplied) return false;
@@ -3025,7 +3030,7 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.post('/api/ai/generate-max', requireControlPlaneAuth, async (req, res) => {
+app.post('/api/ai/generate-max', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth), async (req, res) => {
   try {
     const body = req.body || {};
     const result = await generateMax({
@@ -3052,7 +3057,7 @@ app.get('/api/ai/generate-max/status', (_req, res) => {
   res.json({ success: true, ...openAiMaxStatus() });
 });
 
-app.post('/api/ai/generate-grok', requireControlPlaneAuth, async (req, res) => {
+app.post('/api/ai/generate-grok', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth), async (req, res) => {
   try {
     const body = req.body || {};
     const result = await generateGrok({
@@ -3098,7 +3103,7 @@ app.get('/api/ai/providers', (_req, res) => {
   res.json({ success: true, providers: AI_PROVIDER_CATALOG, ...unifiedAiStatus() });
 });
 
-app.post('/api/ai/generate/:provider', requireControlPlaneAuth, async (req, res) => {
+app.post('/api/ai/generate/:provider', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth), async (req, res) => {
   try {
     const result = await generateUnifiedAi({ provider: req.params.provider, ...(req.body || {}) });
     return res.json({ success: true, ...result });
@@ -3110,7 +3115,7 @@ app.post('/api/ai/generate/:provider', requireControlPlaneAuth, async (req, res)
   }
 });
 
-app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
+app.post('/api/ai/generate', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth), async (req, res) => {
   const prompt = String(req.body?.prompt || '').trim();
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
   const requested = String(req.body?.provider || '').trim();
@@ -3132,7 +3137,7 @@ app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
+app.post('/api/ai/collaborate', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth), async (req, res) => {
   const task = String(req.body?.task || req.body?.prompt || '').trim();
   if (!task) return res.status(400).json({ success: false, error: 'task is required' });
 
