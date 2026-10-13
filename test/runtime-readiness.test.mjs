@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { isSovereignRuntimeReady, verifyRemoteWalProbe } from '../src/core/runtime-readiness.mjs';
 
 const hash = 'a'.repeat(64);
+const instanceId = 'supervisor-generation-1';
 
 test('sovereign readiness requires every runtime gate and a live lease', () => {
   const identity = {
     status: 'online',
+    instanceId,
     leaseExpiresAt: 5000,
     readiness: {
       storageReady: true,
@@ -16,12 +18,14 @@ test('sovereign readiness requires every runtime gate and a live lease', () => {
       dispatchReady: true
     }
   };
-  assert.equal(isSovereignRuntimeReady(identity, 4000), true);
-  assert.equal(isSovereignRuntimeReady(identity, 5000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalVerified: false } }, 4000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalHash: 'bad' } }, 4000), false);
+  assert.equal(isSovereignRuntimeReady(identity, 4000, instanceId), true);
+  assert.equal(isSovereignRuntimeReady({ ...identity, instanceId: 'old-generation' }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady(identity, 4000), false);
+  assert.equal(isSovereignRuntimeReady(identity, 5000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalVerified: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalHash: 'bad' } }, 4000, instanceId), false);
 });
 
 test('remote WAL probe must appear in a validly shaped snapshot at or beyond its sequence', () => {
