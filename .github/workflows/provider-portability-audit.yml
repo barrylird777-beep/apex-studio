@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
+      - name: Install declared project dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Run read-only portability scan
         run: npm run audit:provider-portability
       - name: Test remote content-addressed persistence and migration safety
