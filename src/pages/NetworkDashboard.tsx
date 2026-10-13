@@ -16,13 +16,18 @@ function BrowserPeerTest(){
   const [received,setReceived]=useState(0);
   const [sent,setSent]=useState(0);
   const [busy,setBusy]=useState(false);
+  const [transferRate,setTransferRate]=useState("Not measured");
+  const [transferStatus,setTransferStatus]=useState("No transfer run");
   const [note,setNote]=useState("Opt-in test only. No application traffic is routed over this channel.");
   const attachChannel=(dc:RTCDataChannel)=>{
     channel.current=dc;
     dc.onopen=()=>{setChannelState("Open");setNote("Data channel open. Messages sent here travel browser-to-browser when ICE selects a direct candidate pair.");};
     dc.onclose=()=>setChannelState("Closed");
     dc.onerror=()=>setNote("Data channel error. Check network policy and repeat the handshake.");
-    dc.onmessage=(event)=>{setReceived(n=>n+(typeof event.data==="string"?new Blob([event.data]).size:event.data?.byteLength||0));};
+    dc.onmessage=(event)=>{
+      const size=typeof event.data==="string"?new Blob([event.data]).size:event.data?.byteLength||0;
+      setReceived(n=>n+size);
+    };
   };
   const createPeer=()=>{
     if(pc.current)pc.current.close();
@@ -88,16 +93,55 @@ function BrowserPeerTest(){
       setNote("Probe sent. Byte counters are local measurements; repeat in both directions to verify received bytes.");
     }catch{setNote("Probe sent; candidate-path telemetry was unavailable.");}
   };
+  const runTransfer=async()=>{
+    const dc=channel.current;
+    if(!dc||dc.readyState!=="open"){setNote("Connect both browsers before running a transfer.");return;}
+    setBusy(true);setTransferStatus("Sending test payload…");setTransferRate("Measuring…");
+    const totalBytes=1024*1024;
+    const chunkBytes=32*1024;
+    const chunk="x".repeat(chunkBytes);
+    const started=performance.now();
+    let sentBytes=0;
+    try{
+      dc.bufferedAmountLowThreshold=128*1024;
+      for(let offset=0;offset<totalBytes;offset+=chunkBytes){
+        const packet=JSON.stringify({type:"apex-webrtc-benchmark",index:offset/chunkBytes,payload:chunk});
+        if(dc.bufferedAmount>256*1024){
+          await new Promise<void>((resolve,reject)=>{
+            const timeout=window.setTimeout(()=>{dc.removeEventListener("bufferedamountlow",onLow);reject(new Error("Timed out waiting for WebRTC backpressure."));},10000);
+            const onLow=()=>{window.clearTimeout(timeout);resolve();};
+            dc.addEventListener("bufferedamountlow",onLow,{once:true});
+          });
+        }
+        dc.send(packet);
+        sentBytes+=new Blob([packet]).size;
+      }
+      await new Promise<void>((resolve,reject)=>{
+        const deadline=window.setTimeout(()=>{dc.removeEventListener("bufferedamountlow",onLow);reject(new Error("Timed out draining the WebRTC send buffer."));},10000);
+        const onLow=()=>{if(dc.bufferedAmount===0){window.clearTimeout(deadline);dc.removeEventListener("bufferedamountlow",onLow);resolve();}};
+        if(dc.bufferedAmount===0){window.clearTimeout(deadline);resolve();return;}
+        dc.addEventListener("bufferedamountlow",onLow);
+      });
+      const seconds=Math.max((performance.now()-started)/1000,0.001);
+      setSent(n=>n+sentBytes);
+      setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s queued");
+      setTransferStatus("Sent 1 MiB test payload; receiver byte counter is independent.");
+      setNote("Transfer finished sending through the WebRTC data channel. This measures browser-to-browser test traffic, not verified savings for application traffic or Railway egress.");
+    }catch(e){
+      setTransferStatus("Transfer incomplete");
+      setNote(e instanceof Error?e.message:"WebRTC transfer failed.");
+    }finally{setBusy(false);}
+  };
   const close=()=>{pc.current?.close();pc.current=null;channel.current=null;setConnection("Closed");setChannelState("Closed");setPathType("Not measured");setNote("Peer connection closed. No background connection remains.");};
   useEffect(()=>()=>{pc.current?.close();},[]);
   return <Card className="mt-6"><CardHeader><CardTitle>Browser-to-browser WebRTC proof</CardTitle></CardHeader><CardContent>
-    <p className="text-sm text-muted-foreground">Optional two-browser data-channel test. Signaling is manual copy/paste; a public STUN service helps discover network routes. No media, jobs, or app data are offloaded by this prototype.</p>
+    <p className="text-sm text-muted-foreground">Optional two-browser data-channel test with manual copy/paste signaling and a 1 MiB synthetic transfer. No media, jobs, files, or app data are routed through this prototype.</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Peer connection</div><b>{connection}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Data channel</div><b>{channelState}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Candidate path</div><b>{pathType}</b></div></div>
     <label className="mt-4 block text-sm font-medium" htmlFor="apex-webrtc-signal">Offer / answer JSON</label>
     <textarea id="apex-webrtc-signal" value={signal} onChange={e=>setSignal(e.target.value)} rows={5} autoCapitalize="off" spellCheck={false} className="mt-2 w-full rounded-lg border bg-background p-3 font-mono text-xs" placeholder="Generate an offer here, or paste the other browser's offer/answer." />
-    <div className="mt-3 flex flex-wrap gap-2"><Button onClick={makeOffer} disabled={busy}>Create offer</Button><Button onClick={makeAnswer} disabled={busy}>Create answer from pasted offer</Button><Button onClick={applyAnswer} disabled={busy}>Apply pasted answer</Button><Button onClick={sendProbe} disabled={channelState!=="Open"}>Send 16 KiB probe</Button><Button onClick={close}>Disconnect</Button><Button onClick={async()=>{try{await navigator.clipboard.writeText(signal);setNote("Signaling JSON copied.");}catch{setNote("Clipboard unavailable. Select and copy the JSON manually.");}}} disabled={!signal}>Copy JSON</Button></div>
+    <div className="mt-3 flex flex-wrap gap-2"><Button onClick={makeOffer} disabled={busy}>Create offer</Button><Button onClick={makeAnswer} disabled={busy}>Create answer from pasted offer</Button><Button onClick={applyAnswer} disabled={busy}>Apply pasted answer</Button><Button onClick={sendProbe} disabled={channelState!=="Open"||busy}>Send 16 KiB probe</Button><Button onClick={runTransfer} disabled={channelState!=="Open"||busy}>Transfer 1 MiB test</Button><Button onClick={close}>Disconnect</Button><Button onClick={async()=>{try{await navigator.clipboard.writeText(signal);setNote("Signaling JSON copied.");}catch{setNote("Clipboard unavailable. Select and copy the JSON manually.");}}} disabled={!signal}>Copy JSON</Button></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Bytes sent from this browser</div><b>{sent.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Bytes received by this browser</div><b>{received.toLocaleString()}</b></div></div>
-    <p role="status" className="mt-3 text-sm text-muted-foreground">{note}</p>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Test transfer</div><b>{transferStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Send rate (browser queue drain)</div><b>{transferRate}</b></div></div><p role="status" className="mt-3 text-sm text-muted-foreground">{note}</p>
     <p className="mt-2 text-xs text-muted-foreground">Security note: WebRTC encrypts data channels at the transport layer. This test does not establish libp2p peer identity, Noise authentication, mesh membership, or a production relay fallback. Never paste signaling JSON from an untrusted party.</p>
   </CardContent></Card>;
 }
