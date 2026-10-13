@@ -90,6 +90,7 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["post", "/api/workforce/burst"],
     ["post", "/api/broadcast/start"],
     ["post", "/api/broadcast/stop"],
+    ["post", "/api/music-radar/handoff"],
     ["post", "/api/voiceover/jobs"],
     ["post", "/api/projects"],
     ["put", "/api/projects/:id"],
