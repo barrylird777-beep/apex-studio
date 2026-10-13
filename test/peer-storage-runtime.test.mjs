@@ -110,7 +110,7 @@ test('peer object storage provides encrypted atomic references with compare-and-
 test('peer storage assembly fails closed when no durable peer-owned backend is configured', async () => {
   const peerNode = { dialProtocol() {}, peerId: { toString: () => 'local-peer' } };
   await assert.rejects(
-    createPeerStorageAssembly({ peerNode, env: {} }),
+    createPeerStorageAssembly({ peerNode, env: { APEX_APP_ID: 'KernelVision' } }),
     /APEX_PEER_STORAGE_BACKEND_MODULE/
   );
 });
