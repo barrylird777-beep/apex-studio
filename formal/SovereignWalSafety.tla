@@ -1,12 +1,13 @@
 ---- MODULE SovereignWalSafety ----
 EXTENDS Naturals, FiniteSets, TLC
 
-CONSTANTS MaxSeq, Jobs, Peers, Ops, NoRecord
+CONSTANTS MaxSeq, Jobs, Peers, Ops
 
 ASSUME MaxSeq \in Nat /\ MaxSeq >= 1
 
 (* Hashes are abstract sequence tokens here; TLC checks chain linkage, not SHA-256 implementation. *)
 Record == [seq : 1..MaxSeq, prevHash : 0..MaxSeq, hash : 1..MaxSeq]
+NoRecord == [seq |-> 0, prevHash |-> 0, hash |-> 0]
 RecordSet == {NoRecord} \cup Record
 
 VARIABLES head, records, pendingRecord, recordWritten, activeClaims, effects
