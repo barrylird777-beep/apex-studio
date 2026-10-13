@@ -2174,16 +2174,22 @@ app.get('/korn-knob', async (_req, res) => {
 });
 // Serve the canonical Rapid Video Oracle-to-Forge production surface directly.
 app.use(express.static(path.join(__dirname, 'public')));
-// Persistent SE-X assets are served through a dedicated static mount. The
-// storage module validates all filenames before they are written, while
-// Express prevents traversal outside STORAGE_DIR when serving them.
-app.use('/files', express.static(STORAGE_DIR, {
-  fallthrough: false,
-  dotfiles: 'deny',
-  index: false,
-  redirect: false,
-  maxAge: '1h'
-}));
+// Never serve user media from local disk in peer-only mode. Existing /files
+// URLs fail closed until their owning media workflow is migrated to peer storage.
+if (peerStorageRequired) {
+  app.use('/files', (_req, res) => res.status(503).json({
+    success: false, error: 'Local media serving is disabled in peer-only mode',
+    code: 'LOCAL_STORAGE_FORBIDDEN'
+  }));
+} else {
+  app.use('/files', express.static(STORAGE_DIR, {
+    fallthrough: false,
+    dotfiles: 'deny',
+    index: false,
+    redirect: false,
+    maxAge: '1h'
+  }));
+}
 
 // Bounded retry for transient upstream gateway failures. Provider routing below
 // still escalates to the next eligible swarm node when the final response fails.
@@ -3092,6 +3098,7 @@ app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
 
 function storagePathFromFileUrl(value) {
   const raw = String(value || '').trim();
+  if (peerStorageRequired) throw Object.assign(new Error('Local media paths are forbidden in peer-only mode'), { code: 'LOCAL_STORAGE_FORBIDDEN' });
   if (!raw.startsWith('/files/')) throw new Error('Asset is not a persistent /files/ resource');
   const name = decodeURIComponent(raw.slice('/files/'.length));
   if (!/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') throw new Error('Invalid persisted asset path');
