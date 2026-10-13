@@ -8,10 +8,12 @@ import { randomUUID, createHash } from "node:crypto";
 import { buildEpisodeProductionJobs } from "../core/teevee-production.mjs";
 import { apexPureStore } from "../core/apex-pure-store.mjs";
 import { createRemotePureStore } from "../core/remote-pure-store.mjs";
+import { createGuardedFetch, sanitizeOutboundPayload, OutboundPolicyError } from "../security/sovereign-outbound-gateway.mjs";
 
 
 const ROOT = process.env.TEEVEE_OUTPUT_DIR || path.join(process.env.STORAGE_DIR || (process.env.APEX_WORKER_API_URL ? "/tmp/apex-se-x" : "/srv/apex/se-x"), "teevee");
 const teeveeStore = process.env.APEX_WORKER_API_URL && process.env.APEX_WORKER_TOKEN ? createRemotePureStore() : apexPureStore;
+const teeveeProviderFetch = createGuardedFetch(["openrouter.ai", "api.groq.com", "api.openai.com", "api-inference.huggingface.co", "gen.pollinations.ai"]);
 
 function teeveeObjectStore() {
   const endpoint = String(process.env.APEX_OBJECT_STORAGE_ENDPOINT || "").trim();
@@ -233,7 +235,7 @@ async function fetchWithRetry(url,options={},label="provider"){
   let lastError;
   for(let attempt=1;attempt<=5;attempt++){
     try{
-      const response=await fetch(url,options);
+      const response=await teeveeProviderFetch(url,{...options,redirect:"error"});
       if(response.ok) return response;
       if(![408,425,429,500,502,503,504].includes(response.status)) return response;
       const retryAfter=Number(response.headers.get("retry-after")||0);
@@ -241,6 +243,7 @@ async function fetchWithRetry(url,options={},label="provider"){
       if(attempt<5) await new Promise(resolve=>setTimeout(resolve,delay));
       lastError=new Error(`${label} returned ${response.status}`);
     }catch(error){
+      if(error instanceof OutboundPolicyError) throw error;
       lastError=error;
       if(attempt<5) await new Promise(resolve=>setTimeout(resolve,Math.min(30000,500*2**(attempt-1)+Math.floor(Math.random()*250))));
     }
@@ -249,6 +252,7 @@ async function fetchWithRetry(url,options={},label="provider"){
 }
 
 async function generateText(prompt){
+  const safePrompt = sanitizeOutboundPayload({ prompt: String(prompt) }).prompt;
   const providers=[
     ["OPENROUTER_API_KEY","https://openrouter.ai/api/v1/chat/completions",process.env.OPENROUTER_MODEL||"openai/gpt-5-mini"],
     ["GROQ_API_KEY","https://api.groq.com/openai/v1/chat/completions",process.env.GROQ_MODEL||"llama-3.3-70b-versatile"],
@@ -259,7 +263,7 @@ async function generateText(prompt){
     if(!process.env[key]) continue;
     try{
       const r=await fetchWithRetry(url,{method:"POST",headers:{"Authorization":`Bearer ${process.env[key]}`,"Content-Type":"application/json"},body:JSON.stringify({
-        model,messages:[{role:"system",content:"You are the TeeVee original-animation writers room. Create original material only. Do not imitate living artists. Return production-ready text, concise and concrete."},{role:"user",content:prompt}],temperature:.8
+        model,messages:[{role:"system",content:"You are the TeeVee original-animation writers room. Create original material only. Do not imitate living artists. Return production-ready text, concise and concrete."},{role:"user",content:safePrompt}],temperature:.8
       })});
       if(!r.ok){ failures.push(`${key}: HTTP ${r.status}`); continue; }
       const data=await r.json(); const text=data?.choices?.[0]?.message?.content;
@@ -280,10 +284,11 @@ async function makeAudioBed(narrationPath, output, runtimeSeconds){
 }
 
 async function tts(text, output){
+  const safeText = sanitizeOutboundPayload({ text: String(text) }).text;
   if(!process.env.HF_TOKEN) throw new Error("HF_TOKEN is required for TeeVee voice generation");
   const model=process.env.HF_TTS_MODEL||"espnet/kan-bayashi_ljspeech_vits";
   const r=await fetchWithRetry(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`,{
-    method:"POST",headers:{Authorization:`Bearer ${process.env.HF_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({inputs:text})
+    method:"POST",headers:{Authorization:`Bearer ${process.env.HF_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({inputs:safeText})
   });
   if(!r.ok) throw new Error("Hugging Face TTS returned "+r.status);
   const type=r.headers.get("content-type")||"";
@@ -324,11 +329,12 @@ async function concatAnimation(sceneFiles, output, runtimeSeconds){
 }
 
 async function media(kind,prompt,output){
+  const safePrompt = sanitizeOutboundPayload({ prompt: String(prompt) }).prompt;
   if(!process.env.POLLINATIONS_API_KEY) throw new Error("POLLINATIONS_API_KEY is required for TeeVee "+kind+" generation");
   const base=kind==="video"?"https://gen.pollinations.ai/video/":"https://gen.pollinations.ai/image/";
   const model=kind==="video"?(process.env.POLLINATIONS_VIDEO_MODEL||"alibaba/wan-2.2-fast"):(process.env.POLLINATIONS_IMAGE_MODEL||"flux");
   const params=kind==="video"?new URLSearchParams({model,duration:"6",aspectRatio:"16:9"}):new URLSearchParams({model,width:"1280",height:"720",nologo:"true"});
-  const r=await fetchWithRetry(base+encodeURIComponent(prompt)+"?"+params,{headers:{Authorization:`Bearer ${process.env.POLLINATIONS_API_KEY}`}},"Pollinations "+kind);
+  const r=await fetchWithRetry(base+encodeURIComponent(safePrompt)+"?"+params,{headers:{Authorization:`Bearer ${process.env.POLLINATIONS_API_KEY}`}},"Pollinations "+kind);
   if(!r.ok) throw new Error(`Pollinations ${kind} returned ${r.status}`);
   const buf=Buffer.from(await r.arrayBuffer()); if(!buf.length) throw new Error("Empty media response");
   await fs.mkdir(path.dirname(output),{recursive:true}); await fs.writeFile(output,buf); return output;
