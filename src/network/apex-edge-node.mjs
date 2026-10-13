@@ -2,7 +2,7 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { selectNetworkPath } from './path-selector.mjs';
-import { createSovereignPeer, sendToPeer } from './sovereign-peer.mjs';
+import { createSovereignPeer, sendToPeerAuto as sendToPeer } from './sovereign-peer.mjs';
 
 const exec = promisify(execFile);
 const DEFAULT_INTERVAL_MS = 5000;
