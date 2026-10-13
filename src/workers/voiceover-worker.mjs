@@ -4,9 +4,19 @@ import path from "node:path";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { synthesizeSpeech, listVoiceOptions } from "../core/audio-station.mjs";
 import { enqueueWorkerTask, getWorkerTask, queueStats } from "../core/mesh/durable-worker-store.mjs";
+import { resolveContainedPath, ensureContainedDirectory } from "../core/se-x-paths.mjs";
 
 const STORAGE_PREFIX = "apex-business";
-const OUT_DIR = process.env.APEX_VOICEOVER_DIR || path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "voiceover");
+const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR || process.env.APEX_PROJECTS_DIR || "/srv/apex/se-x/projects");
+const OUT_DIR_CONFIG = process.env.APEX_VOICEOVER_DIR || path.join(STORAGE_ROOT, "voiceover");
+
+async function outputDirectory() {
+  const relative = path.relative(STORAGE_ROOT, path.resolve(OUT_DIR_CONFIG));
+  if (!relative || relative === "." || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+    throw new TypeError("Voiceover output must stay inside the SE-X project storage root");
+  }
+  return ensureContainedDirectory(STORAGE_ROOT, relative);
+}
 
 export async function enqueueVoiceoverJob(input = {}, options = {}) {
   const text = String(input.text || "").trim();
@@ -56,9 +66,11 @@ async function synth(job) {
           voice = voices.find(item => item.engine === "espeak-ng" || item.engine === "espeak")?.id || "";
         }
         if (!voice) throw new Error("No installed local TTS engine found; configure Piper/eSpeak-ng or select a configured cloud provider");
+        const outDir = await outputDirectory();
         const result = await synthesizeSpeech({ text: job.text, voice, speed: job.speed,
-          pitch: job.pitch, format: job.format, outputDir: OUT_DIR });
-        return { provider, path: result.path, format: job.format };
+          pitch: job.pitch, format: job.format, outputDir: outDir });
+        const safeResultPath = await resolveContainedPath(STORAGE_ROOT, path.relative(STORAGE_ROOT, result.path), { mustExist: true });
+        return { provider, path: safeResultPath, format: job.format };
       }
       let bytes;
       if (provider === "elevenlabs" && process.env.ELEVENLABS_API_KEY) {
@@ -81,9 +93,9 @@ async function synth(job) {
         bytes = Buffer.from((await response.json()).audioContent || "", "base64");
       } else continue;
       if (!bytes || !bytes.length) throw new Error("Voiceover provider returned empty audio");
-      await fs.mkdir(OUT_DIR, { recursive: true });
-      const file = path.join(OUT_DIR, crypto.randomUUID() + ".mp3");
-      await fs.writeFile(file, bytes, { mode: 0o600 });
+      const outDir = await outputDirectory();
+      const file = await resolveContainedPath(STORAGE_ROOT, path.relative(STORAGE_ROOT, path.join(outDir, crypto.randomUUID() + ".mp3")));
+      await fs.writeFile(file, bytes, { flag: "wx", mode: 0o600 });
       return { provider, path: file, format: "mp3" };
     } catch (error) { lastError = error; }
   }
@@ -96,7 +108,8 @@ export async function executeVoiceoverTask(payload = {}, taskId = crypto.randomU
   const result = await synth({ ...payload, text });
   try {
     const { client, bucket } = objectStore();
-    const bytes = await fs.readFile(result.path);
+    const safeResultPath = await resolveContainedPath(STORAGE_ROOT, path.relative(STORAGE_ROOT, result.path), { mustExist: true });
+    const bytes = await fs.readFile(safeResultPath);
     const extension = result.format === "mp3" ? "mp3" : "wav";
     const key = "voiceover/" + String(taskId).replace(/[^a-zA-Z0-9_-]/g, "") + "." + extension;
     await client.send(new PutObjectCommand({ Bucket: bucket, Key: "mobile/" + STORAGE_PREFIX + "/" + key,
@@ -104,7 +117,14 @@ export async function executeVoiceoverTask(payload = {}, taskId = crypto.randomU
       Metadata: { "apex-task-id": String(taskId) } }));
     return { ok: true, taskId: String(taskId), provider: result.provider, storageKey: key,
       storagePrefix: STORAGE_PREFIX, format: extension, bytes: bytes.length, completedAt: new Date().toISOString() };
-  } finally { await fs.unlink(result.path).catch(() => {}); }
+  } finally {
+    try {
+      const safeResultPath = await resolveContainedPath(STORAGE_ROOT, path.relative(STORAGE_ROOT, result.path), { mustExist: true });
+      await fs.unlink(safeResultPath);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
 }
 
 export async function getVoiceoverJob(id) {
