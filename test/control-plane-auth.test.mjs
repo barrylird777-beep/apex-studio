@@ -104,7 +104,8 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["get", "/api/engine-apex/chat-runtime/state"],
     ["get", "/api/engine-apex/chat-runtime/events"],
     ["get", "/api/engine-apex/chat-runtime/status"],
-    ["get", "/api/engine-apex/snapshot"]
+    ["get", "/api/engine-apex/snapshot"],
+    ["get", "/api/workforce/status/details"]
   ];
   for (const [method, route] of protectedRoutes) {
     assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
@@ -123,4 +124,15 @@ test("high-cost API routes require control-plane auth and public flows remain ex
   assert.match(server, /app\.post\(['"]\/api\/rapid\/preview['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/rapid\/orders['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/network\/client-telemetry['"],\s*requirePublicRequestSlot,/);
+});
+
+
+test("public workforce status is coarse while full worker diagnostics require owner auth", async () => {
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const publicStart = server.indexOf("app.get('/api/workforce/status',");
+  const privateStart = server.indexOf("app.get('/api/workforce/status/details',");
+  assert.ok(publicStart >= 0 && privateStart > publicStart);
+  const publicRoute = server.slice(publicStart, privateStart);
+  assert.doesNotMatch(publicRoute, /massiveAiWorkforce\.status\(\)|aiCrew\.status\(\)|fleetStatus\(permanentWorkerFleet\)/);
+  assert.match(server, /app\.get\('\/api\/workforce\/status\/details', requireControlPlaneAuth,/);
 });
