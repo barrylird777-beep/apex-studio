@@ -26,7 +26,7 @@ export class PeerContentAddressedStore {
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
-      throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
+      throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB for a single envelope; use putBlob for larger binary content');
     }
     if (!Number.isSafeInteger(this.replicaCount) || this.replicaCount < 1) {
       throw new TypeError('replicaCount must be a positive integer');
