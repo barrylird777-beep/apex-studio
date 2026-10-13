@@ -4,6 +4,7 @@ import { executeRapidTrendRender } from "../workers/rapid-video-worker.mjs";
 import { buildUniversalExecutionEnvelope } from "../core/apex-universal-capabilities.mjs";
 import { createKornKnobIdea } from "../core/korn-knob.mjs";
 import { apexPureStore } from "../core/apex-pure-store.mjs";
+import { silentAssetCompiler } from "../core/silent-asset-compiler.mjs";
 
 const store = { enqueue: options => apexPureStore.enqueue(options) };
 const clean = (value, max = 2000) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
@@ -77,7 +78,19 @@ async function evaluateKornKnobIdea(job) {
   };
 }
 
+async function compileSilentAsset(job) {
+  const payload = job?.payload || {};
+  return silentAssetCompiler.compile({
+    id: payload.id || job.id,
+    kind: payload.kind || "generation-data",
+    data: payload.data,
+    metadata: payload.metadata || {}
+  });
+}
+
 export const handlers = {
+  "asset.compile": compileSilentAsset,
+  "silent.asset.compile": compileSilentAsset,
   "trend.analyze": analyzeTrend,
   "rapid.trend.render": renderTrend,
   "kornknob.idea.evaluate": evaluateKornKnobIdea
