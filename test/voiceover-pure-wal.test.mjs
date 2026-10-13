@@ -20,6 +20,6 @@ test("voiceover jobs use the durable Pure-WAL queue without PostgreSQL", async (
   assert.equal(job?.result, null);
 
   const status = await voiceoverWorkerStatus();
-  assert.equal(status.storage, "content-addressed");
+  assert.equal(status.storage, "local-content-addressed-pure-wal");
   assert.ok(status.queued >= 1);
 });
