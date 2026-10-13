@@ -100,6 +100,28 @@ test("remote queue index keeps claim, heartbeat, and completion off full job sca
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("remote active-job indexes are committed before queued/running job state", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-index-first-"));
+  try {
+    const cas = new MemoryCAS();
+    const store = new ApexPureStore({ root, cas });
+    await store.init();
+    await store.ensureRemoteQueueIndex();
+    const writeRef = cas.writeRef.bind(cas);
+    cas.writeRef = async (namespace, key, value, options) => {
+      if (namespace === "jobs" && value?.job?.id === "index-before-state") {
+        const indexNamespace = value.job.status === "queued" ? "queue" : value.job.status === "running" ? "running" : null;
+        if (indexNamespace) assert.ok(await cas.readRef(indexNamespace, key), indexNamespace + " index must exist before job state is committed");
+      }
+      return writeRef(namespace, key, value, options);
+    };
+    await store.enqueue({ id: "index-before-state", type: "test.index-first", payload: {} });
+    const claimed = await store.claim({ workerId: "index-first-test", limit: 1 });
+    assert.equal(claimed.length, 1);
+    assert.equal(claimed[0].id, "index-before-state");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("remote queue listing does not hold the global mutation lease", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-queue-lock-scope-"));
   try {
