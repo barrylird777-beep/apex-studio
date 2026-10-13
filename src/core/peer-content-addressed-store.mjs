@@ -411,13 +411,6 @@ export function createPeerObjectStorageHandler({
     if (operation === 'storage.health') {
       return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, ...capacityReceipt };
     }
-    const capacityReceipt = {
-      durable: store.durable === true,
-      ownership: store.ownership === 'peer-owned' ? 'peer-owned' : null
-    };
-    if (operation === 'storage.health') {
-      return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, ...capacityReceipt };
-    }
     if (operation === 'ref.get') {
       const key = String(envelope.key || '');
       if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(key) || key.includes('..')) throw new Error('invalid peer reference key');
