@@ -9,7 +9,7 @@
   const trigger = document.createElement("button");
   trigger.type = "button";
   trigger.className = "apex-ui-menu-trigger";
-  trigger.textContent = "Menu";
+  trigger.textContent = window.matchMedia("(max-width: 760px)").matches ? "Menu" : "Controls";
   trigger.setAttribute("aria-expanded", "false");
   trigger.setAttribute("aria-controls", "apex-ui-drawer");
   trigger.setAttribute("aria-label", "Open app menu and display settings");
