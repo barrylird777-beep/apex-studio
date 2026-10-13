@@ -66,6 +66,8 @@ test("HTTP guard fails closed, disables caching, and emits a redacted audit deci
   assert.equal(res.headers["cache-control"], "no-store");
   assert.equal(res.headers.vary, "Authorization");
   assert.equal(JSON.stringify(events).includes("secret-must-not-be-logged"), false);
+  assert.equal(events[0].principalId, undefined);
+  assert.equal(events[0].principalFingerprint, null);
   assert.equal(events[0].reason, "identity_not_verified");
 });
 
