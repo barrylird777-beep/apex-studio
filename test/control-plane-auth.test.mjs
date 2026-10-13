@@ -131,7 +131,9 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["get", "/api/engine-apex/snapshot"]
   ];
   for (const [method, route] of protectedRoutes) {
-    assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
+    const singleQuotedRoute = server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,");
+    const doubleQuotedRoute = server.includes('app.' + method + '("' + route + '", requireControlPlaneAuth,');
+    assert.ok(singleQuotedRoute || doubleQuotedRoute, method.toUpperCase() + " " + route + " must require control-plane auth");
   }
   assert.match(server, /app\.get\(['"]\/api\/health['"],/);
   assert.match(server, /app\.get\(['"]\/api\/canon\/apps['"],/);
