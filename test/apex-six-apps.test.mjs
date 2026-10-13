@@ -232,3 +232,17 @@ test("legacy TeeVee pages identify KernelVision as their canonical owner",async(
   assert.match(buyer,/historical name for KernelVision's 24\/7 original animated entertainment network/);
   assert.match(buyer,/not a separate canonical app/);
 });
+
+test("absorbed Garden, PayPex, and EngineApex pages use current canonical ownership",async()=>{
+  const garden=await readFile(resolve(process.cwd(),"public/garden-of-apex.html"),"utf8");
+  const paypex=await readFile(resolve(process.cwd(),"public/paypex.html"),"utf8");
+  const engine=await readFile(resolve(process.cwd(),"public/engine-apex.html"),"utf8");
+  const nav=garden.match(/<nav aria-label="Six canonical apps">[\s\S]*?<\/nav>/)?.[0]||"";
+  for(const name of ["PlanetApeX","XShield","KernelVision","Kernelodies","KashKorner","KoinKob"]) assert.ok(nav.includes(name),name+" must appear in GardenApex canonical navigation");
+  assert.doesNotMatch(nav,/TeeVee|PayPex|KORNKNOB|KoBlocks|ShieldApex/);
+  assert.match(garden,/GardenApex is the living universe inside PlanetApeX—not a separate app/);
+  assert.match(paypex,/historical opportunity, market and monetization engine now owned by KashKorner/);
+  assert.match(paypex,/KernelVision owns production execution/);
+  assert.match(engine,/historical opportunity-decision capability now assigned to KashKorner/);
+  assert.match(engine,/production execution belongs to KernelVision/);
+});
