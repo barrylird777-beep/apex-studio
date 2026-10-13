@@ -55,6 +55,18 @@ select:focus,input:focus{border-color:#111;box-shadow:0 0 0 3px rgba(17,17,18,.0
 .status{min-height:18px;color:#9b3022;font-size:11px;font-weight:800;margin-top:7px}
 .preview{margin-top:12px;border-radius:19px;overflow:hidden;background:#050506}.preview video{display:block;width:100%;max-height:600px}
 .previewActions{display:flex;gap:8px;padding:9px}.previewActions>*{flex:1;border:1px solid #333;background:#171719;color:#fff;border-radius:10px;padding:11px;text-align:center;font-size:10px;font-weight:900;text-decoration:none}
+.pipelineTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.pipelineTab{border:1px solid #d0ccc2;background:#ebe8e0;color:#222;border-radius:12px;padding:12px 10px;text-align:left;font-size:10px;font-weight:950;letter-spacing:.07em}
+.pipelineTab[aria-selected="true"]{background:#111;color:#fff;border-color:#111}
+.pipelineBlock{border:1px solid #d8d3c8;border-radius:15px;padding:14px;background:#f7f5ee;color:#171717}
+.pipelineBlock strong{display:block;font-size:12px;margin-bottom:5px}
+.pipelineBlock p{font-size:10px;line-height:1.5;color:#69665f;margin:0}
+.storyboard{padding:12px;color:#f7f5ef}
+.storyboard h3{font-size:14px;margin:0 0 9px}
+.sceneRow{padding:10px 0;border-top:1px solid #333;font-size:11px;line-height:1.45}
+.sceneRow b{display:block;color:#e5bb77;margin-bottom:4px}
+.sceneRow span{display:block;color:#aaa8b0}
+.sceneRow small{display:block;color:#74717b;margin-top:5px;line-height:1.4}
 .section{padding:110px 0 0}.sectionHead{display:flex;justify-content:space-between;align-items:end;gap:30px;margin-bottom:24px}.sectionHead h2{font-size:52px;line-height:.9;letter-spacing:-.07em;margin:0}.sectionHead p{max-width:400px;color:#88868e;font-size:12px;line-height:1.5;margin:0}
 .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
 .card{border:1px solid var(--line);border-radius:25px;background:linear-gradient(145deg,#141417,#0c0c0e);padding:25px}
@@ -92,7 +104,13 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
  </div>
 
  <div class="proof" id="proofBox">
-  <div class="proofTop"><h2>Start with the idea.</h2><p>10-second proof · no card required</p></div>
+  <div class="proofTop"><h2>Start with the idea.</h2><p>Oracle → Forge · 10-second proof</p></div>
+  <div class="pipelineTabs" role="tablist" aria-label="Production pipeline">
+   <button class="pipelineTab" id="oracleTab" type="button" role="tab" aria-selected="true" onclick="selectPipelineTab('oracle')">01 · ORACLE SCRIPT</button>
+   <button class="pipelineTab" id="forgeTab" type="button" role="tab" aria-selected="false" onclick="selectPipelineTab('forge')">02 · FORGE RENDER</button>
+  </div>
+  <div class="pipelineBlock" id="oraclePanel" role="tabpanel" aria-labelledby="oracleTab"><strong>Oracle · Kimi K2-Instruct when configured</strong><p>Generates parallel hook variations, scores the strongest opening, and builds a four-scene storyboard. OpenRouter is the default; Pollinations and Groq join when enabled and configured.</p></div>
+  <div class="pipelineBlock" id="forgePanel" role="tabpanel" aria-labelledby="forgeTab" hidden><strong>Forge · FLUX.1-dev / RealVisXL when configured</strong><p>Creates a cinematic vertical background with Pollinations Flux or Hugging Face FLUX.1-dev / RealVisXL, then renders scene timing, motion, captions and audio into a shareable MP4.</p></div>
   <textarea id="brief" placeholder="What should people see, feel, or remember?"></textarea>
   <div class="quick">
    <button type="button" onclick="setIdea('Bible story')">BIBLE STORY</button>
@@ -125,13 +143,13 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
 <section class="section" id="order">
  <div class="priceBox"><div><h2>Viral Short-Form Video.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4<br>Delivered through your order flow.</p></div><div class="price">$25</div></div>
  <div class="order">
-  <div class="orderHead"><h2>Send it into production.</h2><span>Card or lower-fee bank payment · $25 total</span></div>
+  <div class="orderHead"><h2>Send it into production.</h2><span>Card or lower-fee bank debit · $25 total</span></div>
   <div class="orderGrid">
    <div class="field"><label for="name">Name / brand</label><input id="name" placeholder="Your name or brand" autocomplete="name"></div>
    <div class="field"><label for="email">Email for your order</label><input id="email" type="email" inputmode="email" placeholder="you@example.com" autocomplete="email"></div>
    <div class="field"><label for="type">What are we making?</label><input id="type" placeholder="Product, story, song…"></div>
    <div class="field"><label for="platform">Platform</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select></div>
-   <button class="primary full" type="button" onclick="startOrder()">START PRODUCTION · $26.10 ALL-IN →</button>
+   <button class="primary full" type="button" onclick="startOrder()">START PRODUCTION · $25 CHECKOUT →</button>
   </div>
   <div id="orderStatus" class="status" aria-live="polite"></div>
  </div>
@@ -141,6 +159,13 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
 </div>
 </main>
 <script>
+function selectPipelineTab(which){
+ const oracle=which==='oracle';
+ document.getElementById('oracleTab').setAttribute('aria-selected',String(oracle));
+ document.getElementById('forgeTab').setAttribute('aria-selected',String(!oracle));
+ document.getElementById('oraclePanel').hidden=!oracle;
+ document.getElementById('forgePanel').hidden=oracle;
+}
 function setIdea(kind){
  const examples={
   'Bible story':'Turn a Bible story into a dark cinematic anime short with an opening hook that makes people stop scrolling.',
@@ -172,10 +197,17 @@ async function pollPreview(id){
    const body=await response.json();
    if(body.status==='completed'&&body.result?.url){
     const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.src=body.result.url;
+    const oracle=document.createElement('div');oracle.className='storyboard';
+    const oracleTitle=document.createElement('h3');oracleTitle.textContent='ORACLE · SELECTED HOOK';oracle.appendChild(oracleTitle);
+    const chosen=document.createElement('div');chosen.className='sceneRow';chosen.textContent=body.result.chosenHook||'Storyboard ready';oracle.appendChild(chosen);
+    if(Array.isArray(body.result.storyboard)){
+     const scenesTitle=document.createElement('h3');scenesTitle.textContent='FORGE · SCENE PLAN';scenesTitle.style.marginTop='16px';oracle.appendChild(scenesTitle);
+     body.result.storyboard.forEach((scene,index)=>{const row=document.createElement('div');row.className='sceneRow';const title=document.createElement('b');title.textContent=String(index+1).padStart(2,'0')+' · '+String(scene.title||'SCENE');const dialogue=document.createElement('span');dialogue.textContent=String(scene.dialogue||'');const prompt=document.createElement('small');prompt.textContent=String(scene.visualPrompt||'');row.append(title,dialogue,prompt);oracle.appendChild(row);});
+    }
     const actions=document.createElement('div');actions.className='previewActions';
     const make=document.createElement('a');make.href='#order';make.textContent='MAKE THE FULL VERSION →';
     const share=document.createElement('button');share.type='button';share.textContent='SHARE THIS PROOF';share.onclick=shareProof;
-    actions.append(make,share);result.append(video,actions);result.hidden=false;setStatus('previewStatus','Proof ready. If the direction is right, make the full version.');document.getElementById('previewButton').disabled=false;return;
+    actions.append(make,share);result.append(video,oracle,actions);result.hidden=false;selectPipelineTab("forge");setStatus('previewStatus','Proof ready. If the direction is right, make the full version.');document.getElementById('previewButton').disabled=false;return;
    }
    if(body.status==='failed'){setStatus('previewStatus','Proof failed: '+(body.error||'unknown error'));document.getElementById('previewButton').disabled=false;return;}
    setStatus('previewStatus','Apex is working… '+String(body.status||'queued'));

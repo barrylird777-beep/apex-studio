@@ -48,3 +48,29 @@ test('Rapid checkout module exposes payment-gate primitives',async()=>{
   assert.equal(typeof source.verifyRapidStripeSignature,'function');
   assert.equal(typeof source.decodeRapidCheckoutMetadata,'function');
 });
+
+test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WAL', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const worker = await readFile(new URL('../src/workers/rapid-video-worker.mjs', import.meta.url), 'utf8');
+  const queue = await readFile(new URL('../src/core/mesh/durable-worker-store.mjs', import.meta.url), 'utf8');
+  const router = await readFile(new URL('../src/providers/unified-ai-router.mjs', import.meta.url), 'utf8');
+  const page = await readFile(new URL('../public/rapid-video.html', import.meta.url), 'utf8');
+  const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  assert.match(worker, /generateOracleStoryboard/);
+  assert.match(worker, /hookCandidates: hookResult\.candidates/);
+  assert.match(worker, /pipeline: "oracle-to-forge"/);
+  assert.match(worker, /new RemoteContentAddressedStore/);
+  assert.match(worker, /generateForgeBackground/);
+  assert.ok(worker.includes("black-forest-labs/FLUX.1-dev"));
+  assert.ok(worker.includes("SG161222/RealVisXL_V4.0"));
+  assert.match(worker, /Sovereign video rendering requires remote CAS/);
+  assert.match(worker, /assetStorage: asset\.storage/);
+  assert.match(queue, /apexPureStore\.enqueue/);
+  assert.doesNotMatch(queue, /durable_jobs/);
+  assert.match(router, /FREE_AI_PROVIDERS = new Set\(\['openrouter', 'pollinations', 'groq'\]\)/);
+  assert.match(page, /id="oracleTab"/);
+  assert.match(page, /id="forgeTab"/);
+  assert.match(page, /body\.result\.storyboard/);
+  assert.ok(server.includes("/api/rapid/assets/:id"));
+  assert.doesNotMatch(server, /app\.get\('\/rapid-video\.html', \(_req, res\) => res\.redirect\(308, '\/teevee-buyer\.html'\)\)/);
+});
