@@ -151,7 +151,23 @@ export class RemoteApexRingWAL {
       // than misclassifying a moving, valid log as corrupted.
       const headBefore = await this.cas.readRef("system", this.headKey);
       this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0; this.idempotencyIndex = new Map();
-      const refs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r")).sort((a,b) => String(a.key).localeCompare(String(b.key)));
+      const listedRefs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r"));
+      const observedHead = await this.cas.readRef("system", this.headKey);
+      const headMoved = (headBefore?.hash ?? null) !== (observedHead?.hash ?? null);
+      // A normal replay may run beside live writers. If the head moved while
+      // refs were being listed, replay the consistent prefix named by the
+      // earlier head instead of retrying until a busy WAL looks corrupt.
+      // Recovery/repair must hold the append lock and therefore retries if
+      // the head changes underneath it.
+      if (headMoved && repairHead) {
+        if (attempt + 1 < maxSnapshotAttempts) continue;
+        throw new Error("[REMOTE_WAL_CONCURRENT] Remote WAL head kept changing during recovery.");
+      }
+      const head = headMoved ? headBefore : observedHead;
+      const snapshotSequence = head ? Number(head.value?.seq) : 0;
+      const refs = listedRefs
+        .filter(ref => !headMoved || (Number.isSafeInteger(Number(ref.value?.seq)) && Number(ref.value.seq) <= snapshotSequence))
+        .sort((a,b) => String(a.key).localeCompare(String(b.key)));
       let previous = ZERO, sequence = 0, bytes = 0;
       const hashAtSequence = new Map([[0, ZERO]]);
       for (const ref of refs) {
@@ -165,11 +181,6 @@ export class RemoteApexRingWAL {
         previous = record.hash; sequence = record.seq; hashAtSequence.set(sequence, previous);
       }
       this.offset = bytes;
-      const head = await this.cas.readRef("system", this.headKey);
-      if ((headBefore?.hash ?? null) !== (head?.hash ?? null)) {
-        if (attempt + 1 < maxSnapshotAttempts) continue;
-        throw new Error("[REMOTE_WAL_CONCURRENT] Remote WAL head kept changing during replay.");
-      }
       const headSeq = head ? Number(head.value?.seq) : 0;
       const headHash = head ? String(head.value?.lastHash || "") : ZERO;
       const exact = headSeq === sequence && headHash === previous;
