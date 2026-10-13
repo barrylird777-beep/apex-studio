@@ -47,7 +47,7 @@ export class SovereignMeshEngine {
   async _initializeStorage() {
     if (!this.remoteMode) await fs.mkdir(this.storageDir, { recursive: true, mode: 0o700 });
     await this.cas.init();
-    const scope = String(process.env.RAILWAY_SERVICE_NAME || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
+    const scope = String(process.env.APEX_SERVICE_SCOPE || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
     const remoteMarkerKey = "mesh-migration-v1-" + scope;
     const remoteMarker = { version: 1, storage: "remote-content-addressed", service: scope, migratedAt: new Date().toISOString() };
     let migrated = false;
