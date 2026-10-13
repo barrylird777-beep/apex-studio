@@ -160,6 +160,17 @@ app.post('/api/auth/sign-in', (req, res) => {
     : { startedAt: now, count: 0 };
   attempt.count += 1;
   ownerSignInAttempts.set(clientKey, attempt);
+  // Bound attacker-controlled client-key growth without changing the per-client lockout.
+  if (ownerSignInAttempts.size > 2000) {
+    for (const [key, item] of ownerSignInAttempts) {
+      if (now - item.startedAt >= OWNER_SIGN_IN_WINDOW_MS) ownerSignInAttempts.delete(key);
+    }
+    while (ownerSignInAttempts.size > 2000) {
+      const oldest = ownerSignInAttempts.keys().next().value;
+      if (oldest === undefined) break;
+      ownerSignInAttempts.delete(oldest);
+    }
+  }
   if (!verifyOwnerPassword(req.body?.password)) {
     return res.status(401).json({ success: false, error: 'That owner passphrase did not match.' });
   }

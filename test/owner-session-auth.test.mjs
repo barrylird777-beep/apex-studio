@@ -59,4 +59,6 @@ test("served PlanetApeX pages show the owner gate and private app pages require 
   assert.match(server, /app\.post\('\/api\/auth\/sign-in'/);
   assert.match(server, /app\.post\('\/api\/auth\/sign-out'/);
   assert.match(server, /if \(!isAppPage \|\| hasValidOwnerSession\(req\)\) return next\(\)/);
+  assert.match(server, /ownerSignInAttempts\.size > 2000/);
+  assert.match(server, /now - item\.startedAt >= OWNER_SIGN_IN_WINDOW_MS/);
 });
