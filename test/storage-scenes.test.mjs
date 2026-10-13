@@ -5,6 +5,20 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 
+test("production refuses local project/media storage until a remote media backend exists",async()=>{
+  const previousNodeEnv=process.env.NODE_ENV;
+  process.env.NODE_ENV="production";
+  try{
+    const storage=await import("../src/core/storage.mjs?production-guard="+crypto.randomUUID());
+    await assert.rejects(
+      storage.initStorage(),
+      /Local project\/media storage is disabled in production; configure the remote media backend before startup/
+    );
+  }finally{
+    if(previousNodeEnv===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=previousNodeEnv;
+  }
+});
+
 test("scene assets persist with media URLs and a hydrated project manifest",async()=>{
   const root=await mkdtemp(path.join(tmpdir(),"apex-scene-store-"));
   const previousRoot=process.env.APEX_TEST_STORAGE_DIR;
