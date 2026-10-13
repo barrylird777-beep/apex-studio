@@ -99,11 +99,14 @@ export function createPeerStorageIpcClient({
   token,
   port = Number(process.env.APEX_PEER_STORAGE_BRIDGE_PORT || 18743),
   host = '127.0.0.1',
-  fetchImpl = globalThis.fetch
+  fetchImpl = globalThis.fetch,
+  apps = ['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob']
 } = {}) {
   if (host !== '127.0.0.1' && host !== '::1') throw new Error('peer storage IPC client must target loopback only');
   if (typeof token !== 'string' || Buffer.byteLength(token) < 32) throw new Error('peer storage IPC requires a random secret of at least 32 bytes');
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
+  const appList = Object.freeze([...apps]);
+  if (!appList.length || appList.some(app => !['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob'].includes(app)) || new Set(appList).size !== appList.length) throw new TypeError('IPC client apps must be a non-empty unique canonical app list');
   async function call(operation, payload) {
     const body = encodeCanonical({ version: 1, operation, payload });
     if (body.length > MAX_BODY_BYTES) throw new Error('peer storage IPC request exceeds configured limit');
@@ -123,7 +126,7 @@ export function createPeerStorageIpcClient({
     return envelope.result;
   }
   return Object.freeze({
-    apps: Object.freeze(['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob']),
+    apps: appList,
     async waitUntilReady({ timeoutMs = 30000 } = {}) {
       const deadline = Date.now() + Math.max(1, Number(timeoutMs));
       let delayMs = 100;
@@ -131,7 +134,7 @@ export function createPeerStorageIpcClient({
       while (Date.now() < deadline) {
         try {
           const result = await call('health', {});
-          if (result?.ready === true && Array.isArray(result.apps) && this.apps.every(app => result.apps.includes(app))) return result;
+          if (result?.ready === true && Array.isArray(result.apps) && appList.every(app => result.apps.includes(app))) return result;
           throw new Error('peer storage daemon readiness response is incomplete');
         } catch (error) {
           lastError = error;
