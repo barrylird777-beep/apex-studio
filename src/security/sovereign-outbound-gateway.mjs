@@ -129,3 +129,30 @@ export function validateStagedChange({ value, expectedDigest, approved = false, 
 export const APEX_CANONICAL_APPS = Object.freeze([
   "PlanetApeX", "KoBlocks", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"
 ]);
+
+
+/**
+ * Enforce an exact HTTPS hostname allowlist on outbound HTTP calls.
+ * Redirects are rejected by createGuardedFetch so a trusted host cannot bounce
+ * credentials or prompts to an untrusted destination.
+ */
+export function validateOutboundTarget(url, allowedHosts) {
+  let target;
+  try { target = new URL(url instanceof URL ? url.toString() : url instanceof Request ? url.url : String(url)); }
+  catch { throw new OutboundPolicyError("Invalid outbound URL.", "INVALID_OUTBOUND_URL"); }
+  if (target.protocol !== "https:" || target.username || target.password ||
+      !Array.isArray(allowedHosts) || !allowedHosts.includes(target.hostname)) {
+    throw new OutboundPolicyError("Outbound target is not on the HTTPS host allowlist.", "TARGET_NOT_ALLOWED");
+  }
+  return target;
+}
+
+export function createGuardedFetch(allowedHosts, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") throw new TypeError("fetch implementation required");
+  const hosts = [...new Set(allowedHosts || [])];
+  if (!hosts.length) throw new TypeError("at least one allowed outbound host is required");
+  return (input, init = {}) => {
+    validateOutboundTarget(input, hosts);
+    return fetchImpl(input, { ...init, redirect: "error" });
+  };
+}
