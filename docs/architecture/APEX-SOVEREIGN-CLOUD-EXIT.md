@@ -89,6 +89,12 @@ A release is not “cloud-free” until all are true:
 
 The repository already has local and S3-compatible remote content-addressed stores, a sovereign mesh engine, peer-replica receipt verification, and an on-device Local AI surface. The remote CAS still requires an S3-compatible endpoint and credentials; therefore it is not itself a cloud-exit implementation. The mesh engine can still select a local content-addressed store. The missing proof is a production-ready, authenticated peer-backed object data plane with tested replication and recovery across independent peers.
 
+## Implementation status (draft branch)
+
+An initial `src/core/peer-content-addressed-store.mjs` primitive now exists in the draft branch. It encrypts JSON objects with AES-256-GCM before replication, checks SHA-256 hashes and peer identity receipts, requires explicit per-app namespace authorization on the peer handler, and fails closed if the configured replica count is not met. Focused tests cover successful replication, insufficient replicas, reads from a surviving peer, tampered writes, and namespace isolation. The tests are included in the repository's sovereign and full-file test scripts.
+
+This primitive is **not yet wired into the production runtime**. CI for the latest branch head has not been verified, and the primitive does not by itself provide peer discovery, address-to-identity binding, production key management, placement across independent failure domains, namespace-specific ACL provisioning, durable restart/recovery proof, repair/garbage collection, or an end-to-end iPhone-to-peer demonstration. These are blockers, not completed features.
+
 ## Immediate next implementation
 
-Build the peer-backed CAS adapter and its fault-injection tests first. Do not simply switch the existing remote CAS flag off in production: that could route writes to ephemeral local storage and violate the no-local-system-of-record rule. Keep all existing providers and data intact while the peer path is developed and verified.
+Wire the primitive to the existing authenticated libp2p transport and a peer-owned persistent object backend behind an explicit opt-in feature flag. Route only encrypted, app-namespaced objects; do not expose a generic peer read/write endpoint without an ACL. Add integration tests using two real peer nodes, prove identity-to-address binding and restart recovery, and run CI. Do not switch the existing remote CAS flag off in production: that could route writes to an unverified or ephemeral backend and violate the no-single-copy system-of-record rule. Keep all existing providers and data intact until the peer path is verified end to end.
