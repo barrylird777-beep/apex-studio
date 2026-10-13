@@ -329,3 +329,66 @@ body:has(main[data-apex-app="koinkob"]) .apex-shell :is(input,textarea,select){b
  .apex-shell :is(input,textarea,select,button){font-size:16px}
  .apex-shell :is(pre,table,.table-wrap){overflow-x:auto}
 }
+
+
+/* APEX PHONE-FIRST PASS — free, responsive, and usable on narrow touch screens. */
+:root{color-scheme:dark}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scrollbar-gutter:stable}
+body{min-width:320px;overflow-x:hidden}
+main.apex-shell{width:100%;max-width:1240px;margin-inline:auto}
+.apex-shell :is(section,article,header,footer,nav,div,form,fieldset){min-width:0}
+.apex-shell :is(img,video,audio,canvas,svg,iframe){max-width:100%}
+.apex-shell :is(input,select,textarea,button){font:inherit;max-width:100%}
+.apex-shell :is(input,select,textarea){font-size:16px;min-height:46px}
+.apex-shell :is(button,a,.launch,summary,[role=button]){min-height:44px}
+.apex-shell :is(p,li,h1,h2,h3,label,small){overflow-wrap:anywhere}
+.apex-shell .grid{grid-template-columns:repeat(12,minmax(0,1fr))}
+.apex-shell .grid>*{grid-column:span 6;min-width:0}
+.apex-shell .grid>.wide,.apex-shell .grid>*:only-child{grid-column:1/-1}
+.apex-app-nav{max-width:100%;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right));overscroll-behavior-x:contain}
+.apex-app-nav a:not(.apex-app-brand){min-height:44px}
+.apex-shell :is(pre,.result,.table-wrap){max-width:100%;overflow:auto;overscroll-behavior:contain}
+.apex-shell table{border-collapse:collapse}
+.apex-shell :is(th,td){overflow-wrap:anywhere}
+@media(max-width:760px){
+ html{scroll-padding-top:calc(62px + env(safe-area-inset-top))}
+ body{padding-bottom:env(safe-area-inset-bottom)}
+ main.apex-shell{padding:12px 12px calc(28px + env(safe-area-inset-bottom))}
+ .apex-app-nav{position:sticky;top:0;z-index:1000;display:flex;flex-wrap:nowrap;gap:4px;margin:0 -12px 16px;padding: max(8px,env(safe-area-inset-top)) 10px 8px;border-radius:0 0 12px 12px;overflow-x:auto;white-space:nowrap;background:rgba(7,11,19,.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+ .apex-app-nav .apex-app-brand{width:auto;flex:0 0 auto;margin:0 3px 0 0;padding:4px 9px 4px 3px;border:0;border-right:1px solid var(--apex-line);font-size:10px;letter-spacing:.035em}
+ .apex-app-nav .apex-app-brand-mark{width:30px;height:30px}
+ .apex-app-nav a:not(.apex-app-brand){flex:0 0 auto;padding:9px 11px;font-size:11px}
+ .apex-shell h1{font-size:clamp(30px,8.5vw,44px);line-height:1.04;letter-spacing:-.04em}
+ .apex-shell h2{font-size:19px;line-height:1.25}
+ .apex-shell .lead{font-size:15px;line-height:1.65}
+ .apex-shell .grid{grid-template-columns:minmax(0,1fr);gap:10px}
+ .apex-shell .grid>*{grid-column:1/-1}
+ .apex-shell .card,.apex-shell .panel{padding:15px;border-radius:12px}
+ .apex-shell .row{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px}
+ .apex-shell .row>*{min-width:0;max-width:100%}
+ .apex-shell .row button{flex:1 1 135px}
+ .apex-shell :is(button,.launch){min-height:46px}
+ .apex-shell :is(input,select,textarea){width:100%;min-height:46px}
+ .apex-shell textarea{min-height:110px}
+ .apex-shell .metric{font-size:clamp(22px,7vw,32px)}
+ .apex-shell .table-wrap table{min-width:500px}
+ .apex-shell details>summary{min-height:46px}
+ .apex-shell :is(dialog,[role=dialog]){width:calc(100vw - 24px);max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);margin:auto}
+ .apex-app-footer{padding-bottom:env(safe-area-inset-bottom)}
+}
+@media(max-width:390px){
+ main.apex-shell{padding-inline:10px}
+ .apex-app-nav{margin-inline:-10px;padding-inline:8px}
+ .apex-app-nav a:not(.apex-app-brand){padding-inline:9px;font-size:10px}
+ .apex-shell .card,.apex-shell .panel{padding:13px}
+ .apex-shell .row button{flex-basis:100%}
+ .apex-shell :is(.metric,.pill){overflow-wrap:anywhere}
+}
+@media(hover:none){
+ .apex-shell button:hover:not(:disabled){filter:none}
+ .apex-shell .card:hover,.apex-shell .panel:hover{transform:none}
+}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto}
+ *,*::before,*::after{animation:none!important;transition:none!important}
+}
