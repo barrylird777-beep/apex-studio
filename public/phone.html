@@ -7,7 +7,7 @@
 :root{--bg:#05070b;--panel:#10141c;--line:#252c38;--text:#f5f7fb;--muted:#98a2b1;--good:#72e0a0;--warn:#ffd27a;--bad:#ff8585;--accent:#dfe6ef}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:15px -apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif}
 body{min-height:100vh;background:radial-gradient(700px 360px at 50% -10%,#1b2432 0,transparent 65%),linear-gradient(#080a0f,#040508);padding-bottom:32px}
-header{position:sticky;top:0;z-index:10;padding:14px 16px;border-bottom:1px solid var(--line);background:#07090ddd;backdrop-filter:blur(22px);display:flex;justify-content:space-between;align-items:center}
+header{position:relative;top:auto;z-index:1;padding:14px 16px;border-bottom:1px solid var(--line);background:#07090ddd;backdrop-filter:blur(22px);display:flex;justify-content:space-between;align-items:center}
 .brand{font-weight:900;letter-spacing:.12em}.status{font-size:12px;font-weight:800}.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
 main{max-width:760px;margin:auto;padding:18px 14px}.hero h1{font-size:34px;line-height:1;margin:4px 0 9px}.hero p{color:var(--muted);line-height:1.5;margin:0}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}.card{background:linear-gradient(145deg,#151a23,#0b0e14);border:1px solid var(--line);border-radius:20px;padding:15px;box-shadow:0 16px 38px #0005}.wide{grid-column:1/-1}
