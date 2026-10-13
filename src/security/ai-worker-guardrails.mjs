@@ -128,7 +128,11 @@ export function createAiWorkerGuard({
     return { sequence, headHash: previousHash, sinkRequired: true, hashChained: true };
   }
 
-  return Object.freeze({ issueLease, authorize, execute, auditStatus });
+  // Keep lease issuance in a separate trusted-side capability. The AI-facing
+  // worker surface never receives the method that can create new permissions.
+  const issuer = Object.freeze({ issueLease });
+  const worker = Object.freeze({ authorize, execute });
+  return Object.freeze({ issuer, worker, auditStatus });
 }
 
 /**
