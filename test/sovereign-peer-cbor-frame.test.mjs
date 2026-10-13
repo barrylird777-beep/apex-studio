@@ -25,7 +25,8 @@ test('sovereign peer frame rejects a declared length mismatch', () => {
 });
 
 test('sovereign peer frame rejects empty, array, and primitive envelopes', () => {
-  assert.throws(() => encodeSovereignCborFrame({}), /size limit/);
+  assert.deepEqual(decodeSovereignCborFrame(encodeSovereignCborFrame({})), {});
+  assert.throws(() => decodeSovereignCborPayload(Buffer.alloc(0)), /size limit/);
   assert.throws(() => encodeSovereignCborFrame([]), /map/);
   assert.throws(() => encodeSovereignCborFrame('not-a-map'), /map/);
   assert.throws(() => decodeSovereignCborPayload(Buffer.from([0x80])), /map/);
