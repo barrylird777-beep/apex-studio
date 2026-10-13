@@ -160,6 +160,20 @@ export function createPolygonUsdcRouter({ store, durableWorkerEnabled, enqueueWo
         return res.json({ success: true, duplicate: true, orderId, status: existingTask.status });
       }
 
+      // Reserve a transaction hash under the shared remote-store mutation lock.
+      // A concurrent request cannot spend the same on-chain payment for a second order.
+      const reservation = await store.withMutationLock(async () => {
+        const current = await store.get('rapid_usdc_transactions', txKey);
+        if (current && current.orderId !== orderId) return false;
+        if (!current) await store.put('rapid_usdc_transactions', txKey, {
+          recordType: 'rapid-usdc-transaction', txHash: txKey, orderId,
+          status: 'processing', chainId: POLYGON_CHAIN_ID,
+          tokenContract: cfg.contract, reservedAt: new Date().toISOString()
+        });
+        return true;
+      });
+      if (!reservation) return res.status(409).json({ success: false, error: 'Transaction hash has already been used for another order' });
+
       await enqueueWorkerTask({
         id: orderId, workerId: 'rapid-video-intake', role: 'rapid-video',
         task: 'rapid-video-order',
