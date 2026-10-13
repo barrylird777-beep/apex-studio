@@ -144,6 +144,13 @@ async function main() {
   if (stopping) return;
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
+  // The network-only storage adapter must reach its upstream during assembly,
+  // so bring libp2p online before its durable-capacity handshake.
+  await peerNode.start();
+  if (stopping) {
+    await peerNode.stop().catch(() => {});
+    return;
+  }
   const peerStorageEnabled = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
     String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
   if (peerStorageEnabled) {
@@ -160,11 +167,6 @@ async function main() {
   }
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
 
-  if (stopping) {
-    await peerNode.stop().catch(() => {});
-    return;
-  }
-  await peerNode.start();
   if (stopping) {
     await peerNode.stop().catch(() => {});
     return;
