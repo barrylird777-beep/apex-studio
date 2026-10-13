@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { decodeCanonical } from './apex-cbor.mjs';
+import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
+import { sendToPeer } from '../network/sovereign-peer.mjs';
 import { createLibp2pPeerStorageTransport } from './peer-storage-libp2p-transport.mjs';
 import { APEX_MEDIA_APPS } from './peer-media-store.mjs';
 
@@ -10,7 +11,7 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
  * forwarded to an explicitly identified peer that must prove durable, peer-owned
  * capacity before this adapter advertises durability.
  */
-export async function createPeerStorageBackend({ peerId, peerNode, env = process.env } = {}) {
+export async function createPeerStorageBackend({ peerId, peerNode, env = process.env, send = sendToPeer } = {}) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') {
     throw new TypeError('peerNode is required for the peer-network backend');
   }
@@ -29,7 +30,8 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
   }
   const transport = createLibp2pPeerStorageTransport({
     node: peerNode,
-    addressesByPeerId: { [upstreamPeerId]: upstreamAddress }
+    addressesByPeerId: { [upstreamPeerId]: upstreamAddress },
+    send
   });
   const request = async envelope => {
     const result = await transport.request(upstreamPeerId, envelope);
