@@ -55,7 +55,7 @@ import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } fro
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
-import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
+import { createApexSecurityHeaders, createStrictCorsOriginGuard, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -77,6 +77,7 @@ const corsOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
   .filter(Boolean);
+app.use(createStrictCorsOriginGuard({ allowedOrigins: corsOrigins, production: productionMode }));
 app.use(cors({
   origin(origin, callback) {
     return callback(null, isCorsOriginAllowed({
@@ -105,6 +106,11 @@ const shieldApex = createShieldApex({
 app.use(express.json({
   limit: CAPACITY.jsonBody,
   type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
+}));
+app.use(express.urlencoded({
+  extended: false,
+  limit: CAPACITY.urlencodedBody,
+  parameterLimit: 1000
 }));
 
 function timingSafeSecret(expected, supplied) {
