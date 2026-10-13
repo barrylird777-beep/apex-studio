@@ -118,11 +118,12 @@ function BrowserPeerTest(){
         if(dc.bufferedAmount>256*1024)await waitForBufferLow();
         if(dc.readyState!=="open")throw new Error("WebRTC data channel closed during transfer.");
         dc.send(packet);
-        sentBytes+=new Blob([packet]).size;
+        const packetBytes=new Blob([packet]).size;
+        sentBytes+=packetBytes;
+        setSent(n=>n+packetBytes);
       }
       if(dc.bufferedAmount>dc.bufferedAmountLowThreshold)await waitForBufferLow();
       const seconds=Math.max((performance.now()-started)/1000,0.001);
-      setSent(n=>n+sentBytes);
       setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s to low-water mark");
       setTransferStatus("Sent 1 MiB test payload; send buffer reached its low-water mark. Receiver byte counter is independent.");
       setNote("Transfer finished sending through the WebRTC data channel. This measures browser-to-browser test traffic, not verified savings for application traffic or Railway egress.");
