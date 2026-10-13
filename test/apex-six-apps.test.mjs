@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { APEX_APPS, assertSixAppInvariant, getApexApp, listApexApps } from "../src/apps/apex-six-apps.mjs";
 import { planetApexStatus, createPlanet, addPlanetRegion, addPlanetEntity } from "../src/apps/planet-apex.mjs";
@@ -22,6 +22,15 @@ test("all canonical registry entries point to real surfaces and modules",async()
     await access(resolve(process.cwd(),"public",app.entry === "/" ? "index.html" : app.entry.slice(1)));
     await access(resolve(process.cwd(),"src/apps",app.module.replace("../apps/","")));
   }
+});
+
+test("PlanetApeX home exposes exactly the six canonical app links",async()=>{
+  const html=await readFile(resolve(process.cwd(),"public/index.html"),"utf8");
+  const nav=html.match(/<nav class="apex-app-nav"[\\s\\S]*?<\\/nav>/)?.[0];
+  assert.ok(nav,"PlanetApeX home must show the canonical app switcher");
+  for(const name of ["PlanetApeX","XShield","KernelVision","Kernelodies","KashKorner","KoinKob"]) assert.ok(nav.includes(name),name+" must be linked from PlanetApeX");
+  assert.doesNotMatch(nav,/KoBlocks/,"KoBlocks is a legacy capability, not a canonical app");
+  assert.match(nav,/aria-current="page"[^>]*title="THE BRAIN/);
 });
 test("PlanetApeX builds world state",()=>{
   let planet=createPlanet({id:"earth",name:"Test World"});
