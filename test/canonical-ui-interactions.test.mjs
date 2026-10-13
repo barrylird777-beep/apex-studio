@@ -127,7 +127,7 @@ test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async 
   assert.match(planet, /<main class="apex-shell" data-apex-app="planetapex"/);
   assert.match(planet, /GardenApeX—the living universe/);
   assert.ok(planet.includes('href="/bible-study-room.html"'));
-  assert.ok(planet.includes('href="/garden-of-apex.html"'));
+  assert.ok(planet.includes('href="#garden"'));
   assert.ok(planet.includes('href="/special-search.html"'));
   const music = await readPublic("kernelodies.html");
   assert.match(music, /Listen, discover, and build your music library/);
