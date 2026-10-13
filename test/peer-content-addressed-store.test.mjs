@@ -115,6 +115,23 @@ test('peer storage denies cross-app namespace access', async () => {
   );
 });
 
+test('peer CAS authenticates the app namespace as AES-GCM additional data', () => {
+  const mesh = makeMesh();
+  const envelope = mesh.client.encrypt({ private: 'app-bound' });
+  const otherNamespace = new PeerContentAddressedStore({
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
+    namespace: 'KernelVision',
+    encryptionKey: Buffer.alloc(32, 7)
+  });
+  assert.throws(
+    () => otherNamespace.decrypt({ ...envelope, namespace: 'KernelVision' }),
+    /authenticate|decrypt|Unsupported state|unable to authenticate/i
+  );
+});
+
 test('peer CAS cannot decrypt an object under a different app namespace', async () => {
   const mesh = makeMesh();
   const result = await mesh.client.putObject({ secret: 'private' });
