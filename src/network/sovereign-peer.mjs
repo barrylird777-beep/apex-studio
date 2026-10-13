@@ -321,15 +321,24 @@ export async function sendToPeer(node, multiaddr, envelope) {
   for (let attempt = 0; attempt < 2; attempt++) {
     let stream;
     try {
+      console.info('[HEARTBEAT_DIAL_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, attempt: attempt + 1 }));
       stream = await node.dialProtocol(target, PROTOCOL, {
         signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
       });
+      console.info('[HEARTBEAT_DIAL_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       // Resume an open libp2p v3 stream so its message events flow. readerFor safely
       // skips closed streams and catches the close race if status changes after this check.
-      const responsePromise = readSovereignEnvelope(stream);
+      const responsePromise = (async () => {
+        console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+        return readSovereignEnvelope(stream);
+      })();
       const [, response] = await Promise.all([
-        sendSovereignEnvelope(stream, envelope),
+        (async () => {
+          console.info('[HEARTBEAT_WRITE_START]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+          await sendSovereignEnvelope(stream, envelope);
+          console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+        })(),
         responsePromise
       ]);
       if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
@@ -342,7 +351,10 @@ export async function sendToPeer(node, multiaddr, envelope) {
       if (!transportFailure || attempt === 1) throw error;
       console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ destinationPeerId, attempt: attempt + 1, error: message }));
     } finally {
-      try { await stream?.close?.(); } catch {}
+      console.info('[HEARTBEAT_CLOSE_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1 }));
+      try { await stream?.close?.(); } catch (closeError) {
+        console.warn('[HEARTBEAT_CLOSE_FAILED]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, error: closeError instanceof Error ? closeError.message : String(closeError), attempt: attempt + 1 }));
+      }
     }
   }
   throw new Error('sovereign peer send failed after transport retry');
