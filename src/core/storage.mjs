@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, constants as fsConstants } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
@@ -30,10 +30,21 @@ async function storagePath(relativePath, options = {}) {
   return resolveContainedPath(STORAGE_DIR, relativePath, { allowHidden: true, ...options });
 }
 
+async function writeContainedFile(relativePath, data, { exclusive = false, encoding = "utf8" } = {}) {
+  const target = await storagePath(relativePath);
+  const flags = fsConstants.O_WRONLY | fsConstants.O_CREAT |
+    (exclusive ? fsConstants.O_EXCL : fsConstants.O_TRUNC) | (fsConstants.O_NOFOLLOW || 0);
+  const handle = await fs.open(target, flags, 0o600);
+  try { await handle.writeFile(data, typeof data === "string" ? { encoding } : undefined); }
+  finally { await handle.close(); }
+}
+
 async function readManifest() {
   try {
     const manifestPath = await storagePath("manifest.json", { mustExist: true });
-    return JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    const handle = await fs.open(manifestPath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW || 0));
+    try { return JSON.parse(await handle.readFile("utf8")); }
+    finally { await handle.close(); }
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
     return { assets: [], exports: [] };
@@ -53,11 +64,7 @@ export async function initStorage() {
     await fs.access(manifestPath);
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
-    await fs.writeFile(manifestPath, JSON.stringify({ assets: [], exports: [] }, null, 2), {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx"
-    }).catch((writeError) => {
+    await writeContainedFile("manifest.json", JSON.stringify({ assets: [], exports: [] }, null, 2), { exclusive: true }).catch((writeError) => {
       if (writeError?.code !== "EEXIST") throw writeError;
     });
   }
@@ -70,7 +77,7 @@ export async function saveProjectAsset(type, buffer, extension) {
   const filename = `project_${assetType}.${ext}`;
   const filepath = await storagePath(filename);
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-  await fs.writeFile(filepath, bytes, { mode: 0o600 });
+  await writeContainedFile(filename, bytes);
 
   return queueManifestWrite(async () => {
     const manifest = await readManifest();
@@ -85,9 +92,7 @@ export async function saveProjectAsset(type, buffer, extension) {
     manifest.exports = [record, ...manifest.exports.filter(entry => entry?.type !== assetType)];
     const manifestPath = await storagePath("manifest.json");
     const temp = await storagePath(`manifest.json.tmp-${process.pid}-${Date.now()}`);
-    await fs.writeFile(temp, JSON.stringify(manifest, null, 2), {
-      encoding: "utf8", mode: 0o600
-    });
+    await writeContainedFile(path.relative(STORAGE_DIR, temp), JSON.stringify(manifest, null, 2), { exclusive: true });
     await fs.rename(temp, manifestPath);
     return record;
   });
@@ -108,7 +113,7 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   const filename = `scene_${sceneKey}_${assetKind}_${crypto.randomUUID()}.${ext}`;
   const filepath = await storagePath(filename);
   const temp = await storagePath(filename + ".part-" + process.pid);
-  await fs.writeFile(temp, bytes, { flag: "wx", mode: 0o600 });
+  await writeContainedFile(path.relative(STORAGE_DIR, temp), bytes, { exclusive: true });
   try {
     await fs.rename(temp, filepath);
   } catch (error) {
@@ -141,7 +146,7 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
     });
     const manifestPath = await storagePath("manifest.json");
     const tempManifest = await storagePath(`manifest.json.tmp-${process.pid}-${crypto.randomUUID()}`);
-    await fs.writeFile(tempManifest, JSON.stringify(manifest, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await writeContainedFile(path.relative(STORAGE_DIR, tempManifest), JSON.stringify(manifest, null, 2), { exclusive: true });
     try {
       await fs.rename(tempManifest, manifestPath);
     } catch (error) {
