@@ -12,6 +12,7 @@ test("AI worker lease is exact-scope, short-lived, and cannot be widened by edit
   const sink = makeAuditSink();
   const guard = createAiWorkerGuard({ clock: () => now, auditSink: sink });
   const lease = guard.issuer.issueLease({ taskId: "task-7", resources: ["app-kernelvision/episode-1"], actions: ["record.read"], ttlMs: 1000 });
+  assert.equal(Object.hasOwn(guard.worker, "issueLease"), false, "AI-facing worker API must not mint new permissions");
   assert.equal(await guard.worker.authorize({ lease, taskId: "task-7", resource: "app-kernelvision/episode-1", action: "record.read" }), true);
   assert.equal(await guard.worker.authorize({ lease, taskId: "task-7", resource: "app-kernelvision/episode-2", action: "record.read" }), false);
   assert.equal(await guard.worker.authorize({ lease, taskId: "other-task", resource: "app-kernelvision/episode-1", action: "record.read" }), false);
