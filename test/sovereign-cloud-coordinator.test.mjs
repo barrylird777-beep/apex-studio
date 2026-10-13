@@ -20,14 +20,14 @@ function fakeS3() {
           }
         }
         const etag = '"' + String(objects.size + 1) + '-test-etag"';
-        objects.set(input.Key, { body: Buffer.isBuffer(input.Body) ? input.Body.toString() : String(input.Body), metadata: input.Metadata || {}, etag });
+        objects.set(input.Key, { body: Buffer.isBuffer(input.Body) ? Buffer.from(input.Body) : Buffer.from(String(input.Body)), metadata: input.Metadata || {}, etag });
         return { ETag: etag };
       }
       if (name === "GetObjectCommand" || name === "HeadObjectCommand") {
         const obj = objects.get(input.Key);
         if (!obj) { const error = new Error("not found"); error.name = "NoSuchKey"; error.$metadata = { httpStatusCode: 404 }; throw error; }
         if (name === "HeadObjectCommand") return { Metadata: obj.metadata, ETag: obj.etag };
-        return { Body: { async transformToString() { return obj.body; } }, Metadata: obj.metadata, ETag: obj.etag };
+        return { Body: { async transformToString() { return obj.body.toString(); }, async transformToByteArray() { return Uint8Array.from(obj.body); }, async *[Symbol.asyncIterator]() { yield obj.body; } }, Metadata: obj.metadata, ETag: obj.etag };
       }
       if (name === "ListObjectsV2Command") {
         const contents = [...objects.keys()].filter(k => k.startsWith(input.Prefix)).slice(0, input.MaxKeys).map(Key => ({ Key }));
@@ -93,4 +93,24 @@ test("only one worker wins a cloud lease and only its token can finish", async (
   const wrongId = winnerId === "worker-a" ? "worker-b" : "worker-a";
   assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: wrongId, leaseToken: winner.lease.token }), { accepted: false, reason: "lease-invalid" });
   assert.equal((await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: winnerId, leaseToken: winner.lease.token, resultHash: "c".repeat(64) })).accepted, true);
+});
+
+test("binary payloads are content-addressed and verified without text conversion", async () => {
+  const c = coordinator(fakeS3());
+  const bytes = Buffer.from([0, 255, 1, 128, 13, 10, 42]);
+  const stored = await c.putPayload({ app: "KernelVision", bytes, contentType: "application/octet-stream" });
+  assert.equal(stored.payloadHash.length, 64);
+  assert.deepEqual(await c.getPayload({ app: "KernelVision", payloadHash: stored.payloadHash }), bytes);
+  await assert.rejects(c.getPayload({ app: "XShield", payloadHash: stored.payloadHash }), /NoSuchKey|not found/i);
+});
+
+test("completed jobs leave the queue and cannot be claimed again", async () => {
+  const c = coordinator(fakeS3());
+  await c.publishJob({ app: "Kernelodies", jobId: "music-job", taskType: "master", capability: "audio", payloadHash: "d".repeat(64) });
+  const claimed = await c.claimNextJob({ app: "Kernelodies", workerId: "worker-music" });
+  assert.equal(claimed.job.jobId, "music-job");
+  const finished = await c.finishJob({ app: "Kernelodies", jobId: "music-job", workerId: "worker-music", leaseToken: claimed.lease.token, status: "completed" });
+  assert.equal(finished.accepted, true);
+  assert.equal((await c.listQueuedJobs({ app: "Kernelodies" })).count, 0);
+  assert.equal(await c.claimJob({ app: "Kernelodies", jobId: "music-job", workerId: "worker-other" }).then(x => x.claimed), false);
 });
