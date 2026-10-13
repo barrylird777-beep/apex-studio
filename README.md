@@ -8,19 +8,20 @@
 2. **XShield — shield:** security and privacy, ad/tracker blocking, DNS protection, content filtering and protected connectivity. KoBlocks remains a reusable workflow capability, not a separate app.
 3. **KernelVision — eyes:** creative production and delivery: direction, scripts, scenes, images, video, animation, VFX, editing, mixing/mastering, rendering, QC, publishing, Special Search and social/manager analytics. KernelVision Theatre and Kornmax are viewing experiences within this app.
 4. **KoinKob — autonomous economy:** worker accounts, asset markets, market clearing and settlement, systemic events, adversarial rounds, and a 2,000-worker simulation exploring how a society organizes itself.
-5. **KashKorner — cash/connectivity:** cash flow, ledger and financial state, carrying forward relevant EngineApex/Apexus connectivity lineage without creating extra app identities.
+5. **KashKorner — money/connectivity:** cash flow, ledger and financial state, carrying forward relevant EngineApex/Apexus connectivity lineage without creating extra app identities.
 6. **Kernelodies — ears:** music, sound, audio creation, discovery and audio identity. Jesus Freaks / KORNS PEOPLE music follows the locked 432 Hz rule.
 
 ## Historical lineage
 
-ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex and related names are historical systems, names or capabilities to recover. KoBlocks is a reusable workflow capability, not a separate canonical app. GardenOfApex is historical; GardenApex is the living universe inside PlanetApeX. TeeVee and PayPex are supporting/legacy capability surfaces, not extra canonical apps.
+ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex and related names are historical systems, names or capabilities to recover. KoBlocks is a reusable workflow capability, not a separate canonical app. GardenOfApex is historical/absorbed; GardenApex is the living universe inside PlanetApeX. TeeVee and PayPex are supporting/legacy capability surfaces, not extra canonical apps.
 
 ## Integration and sovereignty
 
-- Keep all six apps distinct, with separate identities and isolated data namespaces. Shared transport does not grant cross-app data access. Shared transport does not grant cross-app data access.
-- Shared handoffs must be authenticated, validated, durable and idempotent. A queued handoff is not proof of peer delivery; only verified peer acknowledgements count.
-- Use content-addressed durable storage for active writes. **Do not restore WAL writes, PostgreSQL, or SQL/SQLite runtime dependencies.** Legacy WAL files are read-only migration/rollback evidence; current production is not complete until active write paths are removed and the queue/storage/recovery tests pass.
-- Keep path confinement, symlink checks, atomic writes, fsync, hash-chain verification, fail-closed peer authorization and independent inspection.
+- Keep all six apps distinct, with separate identities and isolated data namespaces. Shared transport does not grant cross-app data access.
+- Shared handoffs must be authenticated, validated and idempotent. A queued handoff is not proof of peer delivery; only verified peer acknowledgements count.
+- **Storage target:** no WAL, no local disk as the system of record, no PostgreSQL, and no persisted JSON records. Use authenticated remote CAS/peer-backed storage, isolated app namespaces and verified replica receipts.
+- **Known gap:** WAL implementations and a local-store fallback remain in code, and remote CAS currently persists JSON-encoded objects/manifests. These are not compliant with the target and must be removed or replaced with tests proving no production path can fall back to them.
+- Keep path confinement, symlink checks, fail-closed peer authorization and independent inspection.
 - Network status must describe measured client/server paths accurately. Do not claim multipath, failover, or worldwide peer connectivity without end-to-end evidence.
 - Public access should work over authenticated HTTPS; peer-to-peer networking must remain separately authenticated and allowlisted.
 - Production claims require real evidence: real output artifacts, durable recovery after restart, working iPhone controls, and confirmed cross-app handoffs.
@@ -40,4 +41,4 @@ npm start
 
 ## Current implementation note
 
-This repository contains the shared implementation surfaces for the six-app layer. A live Railway service does not by itself prove every feature works. The active recovery work is correcting the canonical registry, retiring PostgreSQL-backed worker execution in favor of content-addressed storage, and verifying secure peer transport and app-to-app flows before release.
+This repository contains shared implementation surfaces for the six-app layer. A live Railway service does not by itself prove every feature works. The active recovery work includes removing WAL/local fallback paths, replacing JSON-backed persistence, verifying secure peer transport, and proving all six app interfaces and app-to-app flows independently.
