@@ -141,3 +141,10 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
 .apex-shell[data-apex-app="planetapex"] .card[aria-label="PlanetApeX study and research"]{grid-column:1/-1}
 
 .apex-shell .status-warn{color:#ffd38b}
+
+.apex-shell .links a{
+  display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 13px;
+  border:1px solid color-mix(in srgb,var(--apex-accent) 42%,var(--apex-line));border-radius:10px;
+  background:color-mix(in srgb,var(--apex-accent) 10%,#101827);text-decoration:none;font-weight:700;
+}
+.apex-shell .links a:hover{background:color-mix(in srgb,var(--apex-accent) 17%,#101827)}
