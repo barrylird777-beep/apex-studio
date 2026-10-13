@@ -119,3 +119,39 @@ test('public health routes stay outside AI inference auth and rate limiting', as
     assert.ok(server.includes(`app.post('${route}', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth),`), route + ' must be rate-limited and scope-aware');
   }
 });
+
+
+test('overseer metrics requires its own scoped capability or the existing control token and has a separate stateful limit', () => {
+  const secret = 'test-signing-secret';
+  const security = createTokenSecurity({
+    env: { APEX_TOKEN_SIGNING_SECRET: secret, APEX_CONTROL_TOKEN: 'legacy-secret' },
+    limit: 1,
+    windowMs: 60_000
+  });
+  const token = createScopedToken({ id: 'metrics-reader', scopes: ['overseer:metrics:read'], secret });
+  const req = request({ authorization: 'Bearer ' + token });
+  parse(security, req);
+  let scopedPassed = false;
+  security.requireTokenOrLegacyAuth('overseer:metrics:read', (_req, _res, next) => assert.fail('valid scoped token should not fall through to legacy auth'))(req, response(), () => { scopedPassed = true; });
+  assert.equal(scopedPassed, true);
+
+  const wrongScope = request({ authorization: 'Bearer ' + createScopedToken({ id: 'ai-only', scopes: ['ai:inference'], secret }) });
+  parse(security, wrongScope);
+  const denied = response();
+  security.requireTokenOrLegacyAuth('overseer:metrics:read', (_req, _res, next) => next())(wrongScope, denied, () => assert.fail('AI-only token must not read overseer metrics'));
+  assert.equal(denied.statusCode, 403);
+
+  const first = response();
+  security.overseerMetricsRateLimit(request({}, '198.51.100.22'), first, () => { first.statusCode = 204; });
+  assert.equal(first.statusCode, 204);
+  const second = response();
+  security.overseerMetricsRateLimit(request({}, '198.51.100.22'), second, () => assert.fail('second metrics request should be throttled'));
+  assert.equal(second.statusCode, 429);
+  assert.equal(second.body.error, 'Overseer metrics rate limit reached');
+});
+
+test('overseer metrics route is protected by its dedicated rate limiter and scoped capability guard', async () => {
+  const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  assert.ok(server.includes("app.get('/api/overseer/metrics', overseerMetricsRateLimit, requireOverseerMetricsAuth, async"));
+  assert.ok(server.includes("const requireOverseerMetricsAuth = requireTokenOrLegacyAuth('overseer:metrics:read', requireControlPlaneAuth)"));
+});
