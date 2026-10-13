@@ -61,6 +61,21 @@ The Library of Congress digitized microfilm collection is a high-value expansion
 - **Status:** **VERIFIED COLLECTION / DISCOVERY PORTAL.** Searchable text and linguistic annotations are not identical to a full photographic manuscript facsimile. Parallel witnesses may differ; the corpus documentation explicitly warns that some are not text-identical.
 - **Next action:** identify biblical and early-Christian works by URN; preserve edition, dialect, witness relationship, annotation level, version, and license. Do not treat automated linguistic annotation as a verified critical edition.
 
+
+## F. Additional cross-language Gospel witness — Coptic and Arabic
+
+- **Official LOC source:** [Orient to Rome — Vatican Library & Renaissance Culture, item “Four Gospels. In Bohairic Coptic and Arabic”](https://wwws.loc.gov/exhibits/vatican/orient.html#obj14)
+- **Catalog/exhibition facts:** LOC describes a Coptic-Arabic Four Gospels codex copied by Georgis in Cairo in 1205. Its description notes the Eusebius letter to Carpianus, Eusebian/Ammonian canon tables, historical prefaces before each Gospel in the Byzantine tradition, and a mixed Coptic/Arabic text history.
+- **Status:** **VERIFIED INSTITUTIONAL DESCRIPTION; MANUSCRIPT-LEVEL CATALOG LINK STILL NEEDED.** This is a high-value comparative lead, not a verified direct image set in this addendum.
+- **Next action:** identify the underlying Vatican Library shelfmark and current digitized item record before any text comparison. Keep the Coptic and Arabic textual traditions distinct and record whether each observation comes from the LOC description, a manuscript image, or a scholarly edition.
+
+## G. Syriac Gospel palimpsests — preserve layered evidence
+
+- **Official project source:** [Sinai Palimpsests Project overview](https://sinaied.library.ucla.edu/about-project/index.html)
+- **Specific scholarly lead named by the project:** Syriac 30, associated with the Curetonian Syriac Gospel tradition and dated to the fourth/fifth century in the project overview's historical note.
+- **Status:** **FOLLOW-UP LEAD FROM PROJECT DOCUMENTATION.** The overview cites published scholarly work; this note does not claim independent verification of the manuscript's date or readings.
+- **Next action:** connect the manuscript's current Sinai portal record to published editions and images, then record the overtext, undertext, reading confidence, and edition-level differences separately.
+
 ## Cross-collection ingestion rules
 
 1. Keep the source institution's stable URL and catalog identifier as the primary external locator.
