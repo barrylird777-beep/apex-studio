@@ -33,3 +33,5 @@ jobs:
         run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-pure-store.test.mjs
       - name: Test cloud-only mesh coordinator
         run: node --test test/sovereign-cloud-coordinator.test.mjs
+      - name: Syntax-check cloud-only runtime modules
+        run: node --check src/core/mesh/sovereign-cloud-coordinator.mjs && node --check src/jobs/cloud-mesh-worker.mjs
