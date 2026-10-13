@@ -3100,6 +3100,11 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
     await masterSoundtrack(timelineAudioItems, bgmPath, masteredAudioPath);
     await masterFinalVideo(stitchedVideoPath, masteredAudioPath, finalExportPath, format);
 
+    // Drop intermediates as soon as the final render exists; keep only the final artifact for registration.
+    await Promise.all([unlink(stitchedVideoPath).catch(() => {}), unlink(masteredAudioPath).catch(() => {})]);
+    stitchedVideoPath = null;
+    masteredAudioPath = null;
+
     const buffer = await readFile(finalExportPath);
     const assetSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
     const saved = await saveProjectAsset('master', buffer, 'mp4');
