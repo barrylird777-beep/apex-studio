@@ -24,8 +24,8 @@ test('Rapid checkout offers lower-cost US bank debit with card fallback at the a
     platform:'Other',email:'buyer@example.com',
     successUrl:'https://example.com/paid',cancelUrl:'https://example.com/canceled'
   });
-  assert.equal(params.get('payment_method_types[0]'),'card');
-  assert.equal(params.get('payment_method_types[1]'),'us_bank_account');
+  assert.equal(params.get('payment_method_types[0]'),'us_bank_account');
+  assert.equal(params.get('payment_method_types[1]'),'card');
   assert.equal(params.get('payment_method_options[us_bank_account][verification_method]'),'automatic');
   assert.equal(params.get('payment_method_options[us_bank_account][financial_connections][permissions][]'),'payment_method');
   assert.equal(params.get('line_items[0][price_data][unit_amount]'),'2500');
