@@ -1867,7 +1867,7 @@ app.use('/api/mobile', createMobileControlPlane({
   }
 }));
 
-app.use('/api/rapid/usdc', createPolygonUsdcRouter({ store: apexPureStore, durableWorkerEnabled, enqueueWorkerTask, getWorkerTask }));
+app.use('/api/rapid/usdc', createPolygonUsdcRouter({ store: apexPureStore, durableWorkerEnabled, enqueueWorkerTask, getWorkerTask, requirePublicRequestSlot }));
 
 app.post('/api/rapid/preview', requirePublicRequestSlot, async (req, res) => {
   try {
