@@ -553,7 +553,7 @@ app.get('/ready', async (_req, res) => {
       return res.status(503).json({ ok: false, status: 'not-ready', reason: 'remote durable storage is not enabled' });
     }
     const identity = await apexPureStore.get('sovereign_runtime', 'identity');
-    const ready = isSovereignRuntimeReady(identity);
+    const ready = isSovereignRuntimeReady(identity, Date.now(), process.env.APEX_RUNTIME_INSTANCE_ID || '');
     return res.status(ready ? 200 : 503).json({
       ok: ready,
       status: ready ? 'ready' : 'not-ready',
