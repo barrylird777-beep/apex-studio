@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createPeerMediaStore, APEX_MEDIA_APPS } from '../src/core/peer-media-store.mjs';
 
 function makePeerStore(namespace) {
@@ -10,7 +11,7 @@ function makePeerStore(namespace) {
     async putBlob(input) {
       const bytes = Buffer.from(input);
       const contentSha256 = (await import('node:crypto')).createHash('sha256').update(bytes).digest('hex');
-      const hash = contentSha256;
+      const hash = createHash('sha256').update(Buffer.concat([Buffer.from(namespace), bytes])).digest('hex');
       blobs.set(hash, Buffer.from(bytes));
       return { hash, contentSha256, totalBytes: bytes.length, replicas: ['peer-a', 'peer-b'] };
     },
@@ -25,7 +26,7 @@ function makePeerStore(namespace) {
     async writeRef(key, value, { expectedHash = null } = {}) {
       const current = refs.get(key);
       if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('CAS mismatch'), { code: 'CAS_CONFLICT' });
-      const hash = JSON.stringify(value);
+      const hash = createHash('sha256').update(JSON.stringify(value)).digest('hex');
       refs.set(key, { value: structuredClone(value), hash });
       return { hash };
     }
