@@ -2,11 +2,50 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { migrateSovereignStorage } from "../src/core/sovereign-storage-migration.mjs";
-import { reportStorageFootprint } from "./report-storage-footprint.mjs";
-import { archiveLegacyPgdata } from "./archive-legacy-pgdata.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const mountedVolume = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.resolve(process.env.RAILWAY_VOLUME_MOUNT_PATH) : null;
+const configuredStorageRoot = path.resolve(process.env.APEX_SE_X_ROOT || "/srv/apex/se-x");
+const insideOrEqual = (parent, candidate) => {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+};
+
+// Railway's writable container layer is ephemeral. If the configured sovereign
+// root is outside the mounted volume, rebase local state paths onto the volume
+// before importing modules that capture these environment variables at load time.
+if (mountedVolume && !insideOrEqual(mountedVolume, configuredStorageRoot)) {
+  const persistentRoot = path.join(mountedVolume, "se-x");
+  const rebase = (key, fallback) => {
+    const value = process.env[key];
+    if (!value) {
+      process.env[key] = fallback;
+      return;
+    }
+    const resolved = path.resolve(value);
+    if (insideOrEqual(mountedVolume, resolved)) return;
+    const relative = path.relative(configuredStorageRoot, resolved);
+    // Preserve an existing path's role (for example, "projects") when it
+    // already lives under the old root; otherwise use the safe canonical path.
+    process.env[key] = relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))
+      ? path.resolve(persistentRoot, relative)
+      : fallback;
+  };
+  process.env.APEX_SE_X_ROOT = persistentRoot;
+  rebase("APEX_PROJECTS_DIR", path.join(persistentRoot, "projects"));
+  rebase("APEX_SOVEREIGN_STORAGE_DIR", path.join(persistentRoot, "projects"));
+  rebase("APEX_WAL_DIR", path.join(persistentRoot, "wal"));
+  rebase("APEX_WAL_FILE", path.join(persistentRoot, "wal", "ring.wal.jsonl"));
+  console.warn("[APEX STACK] rebased non-persistent storage paths onto mounted volume", JSON.stringify({
+    mountPath: mountedVolume,
+    previousRoot: configuredStorageRoot,
+    persistentRoot: process.env.APEX_SE_X_ROOT
+  }));
+}
+
+const { migrateSovereignStorage } = await import("../src/core/sovereign-storage-migration.mjs");
+const { reportStorageFootprint } = await import("./report-storage-footprint.mjs");
+const { archiveLegacyPgdata } = await import("./archive-legacy-pgdata.mjs");
 const apiScript = path.join(root, "server.mjs");
 const runtimeScript = path.join(root, "src/core/sovereign-runtime-daemon.mjs");
 const children = new Map();
@@ -86,8 +125,19 @@ function finishIfStopped() {
 process.once("SIGTERM", () => stopAll(0, "SIGTERM"));
 process.once("SIGINT", () => stopAll(0, "SIGINT"));
 try {
-  const migration = await migrateSovereignStorage();
-  console.log("[APEX STACK] persistent sovereign storage ready", JSON.stringify({ migrated: migration.migrated, copiedFiles: migration.copied.length }));
+  const targetRoot = path.resolve(process.env.APEX_SE_X_ROOT || "/srv/apex/se-x");
+  const legacyRoots = [...new Set([configuredStorageRoot, "/srv/apex/se-x"])]
+    .filter(sourceRoot => path.resolve(sourceRoot) !== targetRoot);
+  const copied = [];
+  for (const sourceRoot of legacyRoots) {
+    const migration = await migrateSovereignStorage({ sourceRoot, destination: targetRoot });
+    copied.push(...migration.copied);
+  }
+  console.log("[APEX STACK] persistent sovereign storage ready", JSON.stringify({
+    root: targetRoot,
+    migrated: copied.length > 0,
+    copiedFiles: copied.length
+  }));
   if (String(process.env.APEX_ARCHIVE_LEGACY_PGDATA || "").toLowerCase() === "true") {
     try {
       const result = await archiveLegacyPgdata({ prune: String(process.env.APEX_PRUNE_LEGACY_PGDATA || "").toLowerCase() === "true" });
