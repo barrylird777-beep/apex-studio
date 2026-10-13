@@ -2117,12 +2117,15 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
   }
   const guardedOptions = { ...options, redirect: 'error' };
   if (typeof guardedOptions.body === 'string') {
+    const rawBody = guardedOptions.body;
+    let parsedBody;
     try {
-      guardedOptions.body = JSON.stringify(sanitizeOutboundPayload(JSON.parse(guardedOptions.body)));
+      parsedBody = JSON.parse(rawBody);
     } catch (error) {
-      if (['SECRET_DETECTED', 'SECRET_FIELD_DETECTED', 'BYPASS_SECRET_BLOCK'].includes(error?.code)) throw error;
-      guardedOptions.body = sanitizeOutboundPayload({ payload: guardedOptions.body }).payload;
+      if (!(error instanceof SyntaxError)) throw error;
+      guardedOptions.body = sanitizeOutboundPayload({ payload: rawBody }).payload;
     }
+    if (parsedBody !== undefined) guardedOptions.body = JSON.stringify(sanitizeOutboundPayload(parsedBody));
   }
   return fetchWithRetry(target.href, guardedOptions, {
     timeoutMs, maxRetries: 3, baseDelayMs: 500, maxDelayMs: 4000, fetchImpl
