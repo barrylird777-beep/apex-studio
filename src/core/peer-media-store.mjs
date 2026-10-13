@@ -103,7 +103,7 @@ export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxMa
       return { ...record, refHash: updated.refHash };
     },
     async getAsset(appInput, projectInput, assetInput) {
-      const app = assertApp(appInput);
+      const app = assertApp(appInput, allowedApps);
       const projectId = assertKey(projectInput, 'project ID');
       const assetId = assertKey(assetInput, 'asset ID');
       const { manifest } = await readManifest(app, projectId);
@@ -122,7 +122,7 @@ export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxMa
       return { record: clone(record), bytes };
     },
     async getProject(appInput, projectInput) {
-      const app = assertApp(appInput);
+      const app = assertApp(appInput, allowedApps);
       const projectId = assertKey(projectInput, 'project ID');
       const { manifest, hash } = await readManifest(app, projectId);
       return { manifest, hash };
