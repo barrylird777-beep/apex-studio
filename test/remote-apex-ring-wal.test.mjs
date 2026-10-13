@@ -167,12 +167,20 @@ test("remote WAL lock contention replays under seeded virtual time without wall-
       scheduleInterval: () => () => {},
       tokenFactory: () => "seeded-" + sim.randomInt(1, 1000000)
     });
-    const pendingAppend = wal.append("simulation.claim", { opportunity: "job-1" });
-    const simulation = await sim.run({ maxEvents: 100 });
+    let settled = false;
+    const pendingAppend = wal.append("simulation.claim", { opportunity: "job-1" }).finally(() => { settled = true; });
+    let processed = 0;
+    for (let turn = 0; turn < 100 && !settled; turn += 1) {
+      await Promise.resolve();
+      const result = await sim.run({ maxEvents: 100 });
+      processed += result.processed;
+      await Promise.resolve();
+    }
+    assert.equal(settled, true, "simulated append should settle without wall-clock timers");
     const record = await pendingAppend;
     return {
       now: sim.now,
-      processed: simulation.processed,
+      processed,
       sleeps,
       trace: sim.trace,
       record: { id: record.id, seq: record.seq, ts: record.ts, type: record.type },
