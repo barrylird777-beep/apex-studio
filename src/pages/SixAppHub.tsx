@@ -86,12 +86,11 @@ const apps: ApexApp[] = [
 export default function SixAppHub() {
   const [activeKey, setActiveKey] = useState<AppKey>("kernelvision");
   const [query, setQuery] = useState("");
-  
-  const active = apps.find((app) => app.key === activeKey) ?? apps[0];
   const visibleApps = useMemo(() => {
     const q = query.trim().toLowerCase();
     return apps.filter((app) => !q || [app.name, app.role, app.tagline, app.description, ...app.features].join(" ").toLowerCase().includes(q));
   }, [query]);
+  const active = visibleApps.find((app) => app.key === activeKey) ?? visibleApps[0] ?? apps.find((app) => app.key === activeKey) ?? apps[0];
   const ActiveIcon = active.icon;
 
   return (
