@@ -4,13 +4,17 @@ import path from "node:path";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { synthesizeSpeech, listVoiceOptions } from "../core/audio-station.mjs";
 import { enqueueWorkerTask, getWorkerTask, queueStats } from "../core/mesh/durable-worker-store.mjs";
+import { createGuardedFetch, sanitizeOutboundPayload } from "../security/sovereign-outbound-gateway.mjs";
 
 const STORAGE_PREFIX = "apex-business";
 const OUT_DIR = process.env.APEX_VOICEOVER_DIR || path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "voiceover");
+const elevenLabsFetch = createGuardedFetch(["api.elevenlabs.io"]);
+const googleTtsFetch = createGuardedFetch(["texttospeech.googleapis.com"]);
 
 export async function enqueueVoiceoverJob(input = {}, options = {}) {
   const text = String(input.text || "").trim();
   if (!text) throw new Error("text is required");
+  if (text.length > 12000) throw new Error("text exceeds 12000 characters");
   const id = String(options.id || input.id || crypto.randomUUID());
   const queued = await enqueueWorkerTask({
     id, workerId: "voiceover", role: "voiceover", task: "voiceover-synthesize",
@@ -40,7 +44,9 @@ function objectStore() {
   const accessKeyId = String(process.env.APEX_OBJECT_STORAGE_ACCESS_KEY_ID || "").trim();
   const secretAccessKey = String(process.env.APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY || "").trim();
   if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) throw new Error("Voiceover object storage is not configured");
-  return { bucket, client: new S3Client({ endpoint, region: String(process.env.APEX_OBJECT_STORAGE_REGION || "auto"),
+  const parsed = new URL(endpoint);
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error("Object storage endpoint must be HTTPS without embedded credentials");
+  return { bucket, client: new S3Client({ endpoint: parsed.toString(), region: String(process.env.APEX_OBJECT_STORAGE_REGION || "auto"),
     forcePathStyle: false, credentials: { accessKeyId, secretAccessKey } }) };
 }
 
@@ -60,20 +66,21 @@ async function synth(job) {
           pitch: job.pitch, format: job.format, outputDir: OUT_DIR });
         return { provider, path: result.path, format: job.format };
       }
+      const safeText = sanitizeOutboundPayload({ text: String(job.text || "") }).text;
       let bytes;
       if (provider === "elevenlabs" && process.env.ELEVENLABS_API_KEY) {
         const voice = job.voice || process.env.ELEVENLABS_VOICE_ID;
         if (!voice) throw new Error("ElevenLabs voice_id required");
-        const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(voice) + "?output_format=mp3_44100_192", {
+        const response = await elevenLabsFetch("https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(String(voice)) + "?output_format=mp3_44100_192", {
           method: "POST", headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "content-type": "application/json" },
-          body: JSON.stringify({ text: job.text, model_id: process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2",
+          body: JSON.stringify({ text: safeText, model_id: process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2",
             voice_settings: { speed: Number(job.speed || 1) } }), signal: AbortSignal.timeout(90000) });
         if (!response.ok) throw new Error("ElevenLabs " + response.status);
         bytes = Buffer.from(await response.arrayBuffer());
       } else if (provider === "google" && process.env.GOOGLE_TTS_API_KEY) {
-        const response = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize?key=" + encodeURIComponent(process.env.GOOGLE_TTS_API_KEY), {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ input: { text: job.text }, voice: { languageCode: job.language || "en-US",
+        const response = await googleTtsFetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
+          method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": process.env.GOOGLE_TTS_API_KEY },
+          body: JSON.stringify({ input: { text: safeText }, voice: { languageCode: job.language || "en-US",
             name: job.voice || process.env.GOOGLE_TTS_VOICE || "en-US-Neural2-D" },
             audioConfig: { audioEncoding: "MP3", speakingRate: Number(job.speed || 1), pitch: Number(job.pitch || 0) } }),
           signal: AbortSignal.timeout(90000) });
@@ -93,6 +100,7 @@ async function synth(job) {
 export async function executeVoiceoverTask(payload = {}, taskId = crypto.randomUUID()) {
   const text = String(payload.text || "").trim();
   if (!text) throw new Error("Voiceover task has no text");
+  if (text.length > 12000) throw new Error("text exceeds 12000 characters");
   const result = await synth({ ...payload, text });
   try {
     const { client, bucket } = objectStore();
