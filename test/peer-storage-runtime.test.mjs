@@ -1,10 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mjs';
+
+function binaryMemoryStore() {
+  const objects = new Map();
+  return {
+    objects,
+    async putBytes(hash, input) {
+      const bytes = Buffer.from(input);
+      if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('hash mismatch');
+      objects.set(hash, Buffer.from(bytes));
+      return { hash, bytes: bytes.length };
+    },
+    async getBytes(hash) {
+      if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
+      return Buffer.from(objects.get(hash));
+    }
+  };
+}
 
 test('peer object storage stays disabled unless explicitly enabled', async () => {
   const runtime = await initializePeerObjectStorage({ enabled: false });
@@ -12,46 +27,45 @@ test('peer object storage stays disabled unless explicitly enabled', async () =>
   await assert.rejects(runtime.handle({}, { remotePeerId: 'writer-peer' }), /disabled/);
 });
 
-test('peer object storage requires an absolute root and canonical explicit namespace ACL', async () => {
+test('peer object storage requires an injected binary backend and canonical explicit namespace ACL', async () => {
   await assert.rejects(
-    initializePeerObjectStorage({ enabled: true, root: 'relative/path', namespaceAcl: { PlanetApeX: ['writer-peer'] }, peerId: () => 'storage-peer' }),
-    /explicit absolute non-root/
+    initializePeerObjectStorage({ enabled: true, namespaceAcl: 'PlanetApeX=writer-peer', peerId: () => 'storage-peer' }),
+    /injected peer-owned binary backend/
   );
   await assert.rejects(
-    initializePeerObjectStorage({ enabled: true, root: path.join(os.tmpdir(), 'apex-peer-acl-invalid'), namespaceAcl: { KoBlocks: ['writer-peer'] }, peerId: () => 'storage-peer' }),
+    initializePeerObjectStorage({ enabled: true, store: binaryMemoryStore(), namespaceAcl: 'KoBlocks=writer-peer', peerId: () => 'storage-peer' }),
     /non-canonical app/
+  );
+  await assert.rejects(
+    initializePeerObjectStorage({ enabled: true, store: binaryMemoryStore(), namespaceAcl: '', peerId: () => 'storage-peer' }),
+    /ACL is empty/
   );
 });
 
-test('opt-in runtime persists only encrypted peer objects and enforces namespace ACL', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'apex-peer-object-store-'));
-  try {
-    const runtime = await initializePeerObjectStorage({
-      enabled: true,
-      root,
-      namespaceAcl: { PlanetApeX: ['writer-peer'] },
-      peerId: () => 'storage-peer'
-    });
-    const client = new PeerContentAddressedStore({
-      transport: { request: async (_peerId, envelope) => runtime.handle(envelope, { remotePeerId: 'writer-peer' }) },
-      peers: ['storage-peer'],
-      replicaCount: 1,
-      failureDomainsByPeerId: { 'storage-peer': 'test-domain-storage-peer' },
-      namespace: 'PlanetApeX',
-      encryptionKey: Buffer.alloc(32, 23)
-    });
-    const value = { privateTitle: 'unpublished manuscript', app: 'PlanetApeX' };
-    const receipt = await client.putObject(value);
-    assert.equal(receipt.replicas[0], 'storage-peer');
-    assert.deepEqual(await client.getObject(receipt.hash), value);
-    const storedEnvelope = await runtime.store.getObject(receipt.hash);
-    assert.equal(storedEnvelope.algorithm, 'aes-256-gcm');
-    assert.equal(JSON.stringify(storedEnvelope).includes('unpublished manuscript'), false);
-    await assert.rejects(
-      runtime.handle({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'PlanetApeX', hash: receipt.hash }, { remotePeerId: 'unlisted-peer' }),
-      /namespace access denied/
-    );
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+test('opt-in runtime stores encrypted bytes through an injected backend and enforces namespace ACL', async () => {
+  const store = binaryMemoryStore();
+  const runtime = await initializePeerObjectStorage({
+    enabled: true,
+    store,
+    namespaceAcl: 'PlanetApeX=writer-peer',
+    peerId: () => 'storage-peer'
+  });
+  const client = new PeerContentAddressedStore({
+    transport: { request: async (_peerId, envelope) => runtime.handle(envelope, { remotePeerId: 'writer-peer' }) },
+    peers: ['storage-peer'],
+    replicaCount: 1,
+    namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 23)
+  });
+  const value = { privateTitle: 'unpublished manuscript', app: 'PlanetApeX' };
+  const receipt = await client.putObject(value);
+  assert.equal(receipt.replicas[0], 'storage-peer');
+  assert.deepEqual(await client.getObject(receipt.hash), value);
+  const storedBytes = store.objects.get(receipt.hash);
+  assert.equal(Buffer.isBuffer(storedBytes), true);
+  assert.equal(storedBytes.includes(Buffer.from('unpublished manuscript')), false);
+  await assert.rejects(
+    runtime.handle({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'PlanetApeX', hash: receipt.hash }, { remotePeerId: 'unlisted-peer' }),
+    /namespace access denied/
+  );
 });
