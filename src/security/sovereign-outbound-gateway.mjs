@@ -146,7 +146,7 @@ export function validateStagedChange({ value, expectedDigest, approved = false, 
 }
 
 export const APEX_CANONICAL_APPS = Object.freeze([
-  "PlanetApeX", "KoBlocks", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"
+  "PlanetApeX", "XShield", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"
 ]);
 
 
