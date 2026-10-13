@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { deserialize, serialize } from 'node:v8';
 import {
   PeerContentAddressedStore,
   createPeerObjectStorageHandler
@@ -14,15 +15,15 @@ function memoryStore() {
   const objects = new Map();
   return {
     objects,
-    async putObject(value) {
-      const bytes = Buffer.from(canonical(value), 'utf8');
-      const hash = digest(bytes);
-      objects.set(hash, JSON.parse(bytes.toString('utf8')));
-      return { hash, bytes: bytes.length, uri: 'cas://sha256/' + hash };
+    async putBytes(hash, input) {
+      const bytes = Buffer.from(input);
+      if (digest(bytes) !== hash) throw new Error('memory peer store hash mismatch');
+      objects.set(hash, Buffer.from(bytes));
+      return { hash, bytes: bytes.length };
     },
-    async getObject(hash) {
+    async getBytes(hash) {
       if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
-      return structuredClone(objects.get(hash));
+      return Buffer.from(objects.get(hash));
     }
   };
 }
@@ -62,7 +63,7 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.deepEqual(await mesh.client.getObject(result.hash), value);
   assert.equal(mesh.stores.get('peer-a').objects.has(result.hash), true);
   assert.equal(mesh.stores.get('peer-b').objects.has(result.hash), true);
-  assert.equal(JSON.stringify(mesh.stores.get('peer-a').objects.get(result.hash)).includes('manuscript'), false);
+  assert.equal(mesh.stores.get('peer-a').objects.get(result.hash).includes(Buffer.from('manuscript')), false);
 });
 
 test('peer CAS fails closed when the configured replica count cannot be met', async () => {
