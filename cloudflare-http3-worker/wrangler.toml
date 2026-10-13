@@ -1,0 +1,4 @@
+name = "apex-free-http3-edge"
+main = "src/index.js"
+compatibility_date = "2026-10-13"
+workers_dev = true
