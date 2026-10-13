@@ -114,6 +114,44 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 .owner-auth-note{font-size:11px;line-height:1.6;color:var(--muted)}
 #owner-sign-out{min-height:36px;padding:7px 11px;border-radius:999px;font-size:11px}
 @media(max-width:560px){.owner-auth-card{padding:24px}.owner-auth-card h1{font-size:26px}}
+
+/* Phone-first PlanetApeX workspace controls. */
+@media(max-width:950px){
+  header{padding-inline:14px}
+  .layout{min-height:calc(100dvh - 58px)}
+  aside{position:sticky;top:54px;z-index:24;background:rgba(7,9,14,.94);backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);padding:7px max(8px,env(safe-area-inset-left))}
+  .nav{display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 0 4px}
+  .nav::-webkit-scrollbar{display:none}
+  .nav button{flex:0 0 auto;min-height:44px;padding:10px 14px;white-space:nowrap;border-radius:999px}
+  .nav button.active{background:color-mix(in srgb,#80c6ff 15%,transparent);border-color:rgba(128,198,255,.4)}
+}
+@media(max-width:560px){
+  header{height:56px;min-height:56px;gap:8px}
+  .brand{font-size:12px;letter-spacing:.06em}
+  #connection{font-size:10px;white-space:nowrap}
+  #owner-sign-out{min-height:40px;padding:7px 10px}
+  .top{display:block}
+  .top h1{font-size:clamp(25px,7vw,32px)}
+  .actions{display:grid;grid-template-columns:1fr 1fr}
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .card{min-width:0;padding:13px}
+  .card .num{font-size:clamp(21px,6vw,27px)}
+  .workspace,.omni-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .panel{min-width:0;padding:14px}
+  .form .inline{grid-template-columns:minmax(0,1fr)}
+  .stage{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .omni-terminal,.render-console{max-width:100%;overflow:auto;overscroll-behavior:contain}
+  .row{align-items:flex-start}
+  .row>*{min-width:0;overflow-wrap:anywhere}
+  input,textarea,select{font-size:16px}
+  main{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+}
+@media(max-width:360px){
+  .cards{grid-template-columns:minmax(0,1fr)}
+  .actions{grid-template-columns:minmax(0,1fr)}
+  .nav button{padding-inline:11px}
+}
+
 </style></head>
 <body><a class="apex-skip-link" href="#main-content">Skip to PlanetApeX content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/" aria-label="Apex app home"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/" aria-current="page" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><div id="owner-auth-gate" role="dialog" aria-modal="true" aria-labelledby="owner-auth-title">
 <section class="owner-auth-card">
