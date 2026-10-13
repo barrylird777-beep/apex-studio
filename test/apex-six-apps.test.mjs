@@ -291,3 +291,10 @@ test("PayPex compatibility wrapper reports KernelVision as production owner",asy
   assert.equal(brief.system,"kash-korner");
   assert.equal(brief.executionOwner,"KernelVision");
 });
+
+test("rapid-video storefront is presented as KashKorner's public offer",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/rapid-video.html"),"utf8");
+  assert.match(page,/<title>KashKorner · Public Rapid Video Offer<\/title>/);
+  assert.match(page,/KashKorner home/);
+  assert.match(page,/KASHKORNER<\/b> · PUBLIC RAPID-VIDEO OFFER/);
+});
