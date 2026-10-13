@@ -327,20 +327,15 @@ export async function sendToPeer(node, multiaddr, envelope) {
       });
       console.info('[HEARTBEAT_DIAL_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
-      // Resume an open libp2p v3 stream so its message events flow. readerFor safely
-      // skips closed streams and catches the close race if status changes after this check.
-      const responsePromise = (async () => {
-        console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
-        return readSovereignEnvelope(stream);
-      })();
-      const [, response] = await Promise.all([
-        (async () => {
-          console.info('[HEARTBEAT_WRITE_START]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
-          await sendSovereignEnvelope(stream, envelope);
-          console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
-        })(),
-        responsePromise
-      ]);
+      // Attach the reader before writing so event-based streams cannot lose a fast ACK,
+      // but do not await the response until the complete envelope has drained.
+      // This preserves incoming bytes that arrive during the write without racing read/write.
+      readerFor(stream);
+      console.info('[HEARTBEAT_WRITE_START]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      await sendSovereignEnvelope(stream, envelope);
+      console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      const response = await readSovereignEnvelope(stream);
       if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
       console.log('[SOVEREIGN PEER] outbound acknowledged', JSON.stringify({ destinationPeerId, remotePeerId: response.peerId || null, attempt: attempt + 1 }));
       return response;
