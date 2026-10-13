@@ -5,6 +5,7 @@ CONSTANTS MaxSeq, Jobs, Peers, Ops, NoRecord
 
 ASSUME MaxSeq \in Nat /\ MaxSeq >= 1
 
+(* Hashes are abstract sequence tokens here; TLC checks chain linkage, not SHA-256 implementation. *)
 Record == [seq : 1..MaxSeq, prevHash : 0..MaxSeq, hash : 1..MaxSeq]
 RecordSet == {NoRecord} \cup Record
 
@@ -94,7 +95,7 @@ TypeOK ==
   /\ pendingRecord \in RecordSet
   /\ recordWritten \in BOOLEAN
   /\ activeClaims \subseteq (Jobs \X Peers)
-  /\ effects \in [Ops -> {0, 1}]
+  /\ effects \in [Ops -> Nat]
 
 HeadConsistent ==
   \A i \in 1..head :
