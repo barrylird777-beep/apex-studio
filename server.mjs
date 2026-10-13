@@ -16,6 +16,7 @@ import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { apexPureStore } from './src/core/apex-pure-store.mjs';
+import { RemoteContentAddressedStore } from './src/core/remote-content-addressed-store.mjs';
 import { isSovereignRuntimeReady } from './src/core/runtime-readiness.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
@@ -1936,6 +1937,35 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
   } catch (error) {
     console.error('[rapid-order]', error);
     return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
+  }
+});
+
+app.get('/api/rapid/assets/:id', async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!/^[a-f0-9-]{36}$/i.test(id)) return res.status(400).json({ success:false, error:'Invalid asset id' });
+  if (String(process.env.APEX_CAS_REMOTE_ENABLED || '').toLowerCase() !== 'true') {
+    return res.status(404).json({ success:false, error:'Remote asset is not available in filesystem development mode' });
+  }
+  try {
+    const store = new RemoteContentAddressedStore();
+    const ref = await store.readRef('rapid_video_assets', id);
+    const asset = ref?.value;
+    if (!asset || asset.version !== 1 || asset.contentType !== 'video/mp4' || typeof asset.base64 !== 'string') {
+      return res.status(404).json({ success:false, error:'Asset not found' });
+    }
+    const bytes = Buffer.from(asset.base64, 'base64');
+    const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (digest !== asset.sha256 || bytes.length !== Number(asset.sizeBytes)) {
+      return res.status(502).json({ success:false, error:'Remote asset integrity verification failed' });
+    }
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Length', String(bytes.length));
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.setHeader('ETag', '"' + digest + '"');
+    return res.status(200).send(bytes);
+  } catch (error) {
+    console.error('[rapid-asset]', error?.message || error);
+    return res.status(503).json({ success:false, error:'Remote asset storage unavailable' });
   }
 });
 
