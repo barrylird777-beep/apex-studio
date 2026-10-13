@@ -6,12 +6,12 @@ import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
-function upstreamHarness({ durable = true, ownership = 'peer-owned' } = {}) {
+function upstreamHarness({ durable = true, ownership = 'peer-owned', recoveryVerified = true } = {}) {
   const objects = new Map();
   const refs = new Map();
   const peerNode = { dialProtocol() {}, peerId: { toString: () => 'writer-peer' } };
   const send = async (_node, _address, request) => {
-    const base = { accepted: true, peerId: 'upstream-peer', namespace: request.namespace, durable, ownership };
+    const base = { accepted: true, peerId: 'upstream-peer', namespace: request.namespace, durable, ownership, recoveryVerified };
     if (request.operation === 'storage.health') return base;
     if (request.operation === 'object.put') {
       const bytes = Buffer.from(request.bytesBase64, 'base64');
@@ -72,7 +72,7 @@ test('network backend forwards verified binary objects and atomic refs without l
 });
 
 test('network backend refuses an upstream without durable peer-owned capacity', async () => {
-  const harness = upstreamHarness({ durable: false, ownership: null });
+  const harness = upstreamHarness({ durable: false, ownership: null, recoveryVerified: false });
   await assert.rejects(
     createPeerStorageBackend({ peerId: 'writer-peer', peerNode: harness.peerNode, env, send: harness.send }),
     /did not prove durable peer-owned/
@@ -92,7 +92,7 @@ test('network backend refuses wrong upstream identity and mismatched hashes', as
   );
   const backend = await createPeerStorageBackend({
     peerId: 'writer-peer', peerNode: harness.peerNode, env,
-    send: async (_node, _address, request) => ({ accepted: true, peerId: 'upstream-peer', namespace: request.namespace, durable: true, ownership: 'peer-owned' })
+    send: async (_node, _address, request) => ({ accepted: true, peerId: 'upstream-peer', namespace: request.namespace, durable: true, ownership: 'peer-owned', recoveryVerified: true })
   });
   const bytes = encryptedEnvelope();
   await assert.rejects(backend.putBytes(sha256(bytes), bytes), /object receipt did not prove durable/);
