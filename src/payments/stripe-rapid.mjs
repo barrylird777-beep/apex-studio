@@ -25,14 +25,22 @@ export function decodeRapidCheckoutMetadata(metadata={}){
   const keys=Object.keys(metadata).filter(k=>/^brief_\d+$/.test(k)).sort();
   return {orderId:String(metadata.orderId||''),name:String(metadata.name||''),type:String(metadata.type||''),platform:String(metadata.platform||'Other'),email:String(metadata.email||''),brief:keys.map(k=>decode(metadata[k])).join('')};
 }
-export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
-  const secret=requireSecret(),params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
+export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
+  const params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
   if(String(email||'').trim()) add('customer_email',String(email).trim());
+  // Keep cards available while offering ACH Direct Debit for substantially lower US processing fees.
+  add('payment_method_types[0]','card');
+  add('payment_method_types[1]','us_bank_account');
+  add('payment_method_options[us_bank_account][verification_method]','automatic');
   add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','KornKash Video');
   add('line_items[0][price_data][product_data][description]','One finished short-form video production.'); add('line_items[0][quantity]','1');
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
+  return params;
+}
+export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
+  const secret=requireSecret(),params=buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl});
   const body=await new Promise((resolve,reject)=>{
     const request=https.request(STRIPE_API+'/checkout/sessions',{method:'POST',family:4,lookup:(hostname,options,callback)=>dns.lookup(hostname,{family:4,all:false},callback),headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(params.toString())},timeout:15000},response=>{
       let text=''; response.setEncoding('utf8'); response.on('data',chunk=>{text+=chunk;}); response.on('end',()=>{
