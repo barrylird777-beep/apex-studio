@@ -275,6 +275,7 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     readerFor(stream);
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
+      console.info('[SOVEREIGN PEER] inbound stream opened', JSON.stringify({ remotePeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null }));
       if (!isAllowedPeer(remotePeerId)) {
         await sendSovereignEnvelope(stream, { accepted: false, error: 'peer is not allowlisted' });
         return;
@@ -323,6 +324,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       stream = await node.dialProtocol(target, PROTOCOL, {
         signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
       });
+      console.info('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       // Resume an open libp2p v3 stream so its message events flow. readerFor safely
       // skips closed streams and catches the close race if status changes after this check.
       const responsePromise = readSovereignEnvelope(stream);
@@ -335,6 +337,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      console.warn('[SOVEREIGN PEER] outbound stream failed', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1, error: message }));
       const transportFailure = /stream (?:has been reset|is closed|closed)|Cannot write to a stream that is closed|timed out|connection reset|ECONNRESET|EPIPE/i.test(message);
       if (!transportFailure || attempt === 1) throw error;
       console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ destinationPeerId, attempt: attempt + 1, error: message }));
