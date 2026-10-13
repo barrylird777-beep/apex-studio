@@ -1,4 +1,5 @@
 import { acquireAiRateLimit } from "./durable-worker-store.mjs";
+import { safeOutboundFetch } from "../../security/safe-outbound-fetch.mjs";
 
 export class GeminiMeshProvider {
   constructor() {
@@ -21,7 +22,7 @@ export class GeminiMeshProvider {
       contents: [{ role: 'user', parts: [{ text: String(prompt) }] }]
     };
     if (options.system) body.systemInstruction = { parts: [{ text: String(options.system) }] };
-    const response = await fetch(`${this.endpoint}/${encodeURIComponent(model)}:generateContent`, {
+    const response = await safeOutboundFetch(`${this.endpoint}/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
       body: JSON.stringify(body)

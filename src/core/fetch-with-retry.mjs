@@ -1,3 +1,5 @@
+import { safeOutboundFetch } from "../security/safe-outbound-fetch.mjs";
+
 const RETRYABLE_GATEWAY_STATUSES = new Set([502, 503, 504]);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -21,7 +23,7 @@ export async function fetchWithRetry(url, options = {}, {
   maxRetries = 3,
   baseDelayMs = 500,
   maxDelayMs = 4000,
-  fetchImpl = globalThis.fetch,
+  fetchImpl = safeOutboundFetch,
   sleepImpl = sleep,
   random = Math.random
 } = {}) {
