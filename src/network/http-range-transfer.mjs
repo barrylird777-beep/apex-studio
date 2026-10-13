@@ -56,14 +56,24 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
         for await (const chunk of response.body || []) { const data = Buffer.from(chunk); await handle.write(data, 0, data.length, offset); offset += data.length; }
         if (offset !== range.end + 1) throw new Error("Range length mismatch");
         return;
-      } catch (e) { last = e; if (attempt < retryLimit) await new Promise(r => setTimeout(r, Math.min(4000, 100 * 2 ** attempt))); }
+      } catch (e) { last = e; if (transferAbort.signal.aborted) throw e; if (attempt < retryLimit) await new Promise(r => setTimeout(r, Math.min(4000, 100 * 2 ** attempt))); }
     }
     throw last;
   };
   const worker = async () => {
-    while (true) {
-      const index = cursor++; if (index >= ranges.length) return;
-      await getRange(ranges[index]); completed++;
+    while (!transferAbort.signal.aborted) {
+      const index = cursor++;
+      if (index >= ranges.length) return;
+      try {
+        await getRange(ranges[index]);
+      } catch (error) {
+        // Stop sibling streams on the first terminal failure. Wait for every
+        // worker to settle before closing the destination file, preventing
+        // late writes from racing the close or corrupting a later transfer.
+        if (!transferAbort.signal.aborted) transferAbort.abort(error);
+        throw error;
+      }
+      completed++;
       const elapsedSeconds = Math.max(0.001, (performance.now() - started) / 1000);
       const completedBytes = Math.min(total, completed === ranges.length ? total : completed * size);
       const observedMbps = completedBytes * 8 / elapsedSeconds / 1e6;
@@ -72,9 +82,15 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
     }
   };
   try {
-    await Promise.all(Array.from({ length: Math.min(workers, ranges.length) }, worker));
+    const results = await Promise.allSettled(Array.from({ length: Math.min(workers, ranges.length) }, worker));
+    const failure = results.find(result => result.status === "rejected");
+    if (failure) throw failure.reason;
+    if (signal?.aborted) throw signal.reason || new Error("Transfer aborted");
     await handle.sync();
-  } finally { signal?.removeEventListener("abort", forwardAbort); await handle.close(); }
+  } finally {
+    signal?.removeEventListener("abort", forwardAbort);
+    await handle.close();
+  }
   const digest = crypto.createHash("sha256");
   for await (const chunk of createReadStream(destinationPath)) digest.update(chunk);
   return Object.freeze({ path: destinationPath, bytes: total, sha256: digest.digest("hex"), parallelStreams: workers, ranges: ranges.length });
