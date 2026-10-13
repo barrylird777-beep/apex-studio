@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { createGuardedFetch } from '../security/sovereign-outbound-gateway.mjs';
+import { createGuardedFetch, sanitizeOutboundPayload } from '../security/sovereign-outbound-gateway.mjs';
 
 const DEFAULT_MODEL = process.env.GROK_MODEL || 'grok-4.7';
 const MAX_PROMPT_CHARS = Math.max(1000, Number(process.env.GROK_MAX_PROMPT_CHARS || 50000));
@@ -46,7 +46,7 @@ export async function generateGrok({
 } = {}) {
   if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Grok');
   const client = getClient();
-  const input = normalizeInput({ prompt, messages });
+  const input = sanitizeOutboundPayload({ input: normalizeInput({ prompt, messages }) }).input;
   const normalizedSchema = normalizeSchema(schema);
   const tools = [];
   if (webSearch) tools.push({ type: 'web_search' });
