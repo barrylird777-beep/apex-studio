@@ -1,3 +1,4 @@
+import { createGuardedFetch } from "../security/sovereign-outbound-gateway.mjs";
 import { createHash } from "node:crypto";
 
 const MAX_QUERY = 512;
@@ -213,8 +214,9 @@ export async function searchAnything(query, options = {}) {
   const limit = boundedInt(options.limit, DEFAULT_LIMIT, 1, MAX_LIMIT);
   const page = boundedInt(options.page, 1, 1, MAX_PAGE);
   const timeoutMs = boundedInt(options.timeoutMs, PROVIDER_TIMEOUT_MS, 1000, 20000);
-  const fetchImpl = options.fetchImpl || globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("Fetch is unavailable in this runtime.");
+  const rawFetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof rawFetchImpl !== "function") throw new Error("Fetch is unavailable in this runtime.");
+  const fetchImpl = createGuardedFetch(["html.duckduckgo.com", "en.wikipedia.org", "api.openalex.org", "api.crossref.org", "export.arxiv.org"], rawFetchImpl);
   const perSourceLimit = Math.max(1, Math.min(25, Math.ceil(limit / 5)));
   const params = { fetchImpl, timeoutMs, limit: perSourceLimit, page };
   const providers = [
