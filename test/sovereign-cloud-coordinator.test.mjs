@@ -4,6 +4,7 @@ import { SovereignCloudCoordinator } from "../src/core/mesh/sovereign-cloud-coor
 
 function fakeS3() {
   const objects = new Map();
+  let version = 0;
   return {
     objects,
     async send(command) {
@@ -19,7 +20,7 @@ function fakeS3() {
             const error = new Error("precondition failed"); error.name = "PreconditionFailed"; error.$metadata = { httpStatusCode: 412 }; throw error;
           }
         }
-        const etag = '"' + String(objects.size + 1) + '-test-etag"';
+        const etag = '"' + String(++version) + '-test-etag"';
         objects.set(input.Key, { body: Buffer.isBuffer(input.Body) ? Buffer.from(input.Body) : Buffer.from(String(input.Body)), metadata: input.Metadata || {}, etag });
         return { ETag: etag };
       }
@@ -52,6 +53,7 @@ test("cloud readiness proves remote write/read/delete round trip", async () => {
   assert.equal(status.ready, true);
   assert.equal(status.readAfterWrite, true);
   assert.equal(status.persistence, "remote-s3-compatible");
+  assert.deepEqual(status.conditionalWrites, { verified: true, ifNoneMatch: true, compareAndSwap: true });
   assert.equal(c.client.objects.size, 0);
 });
 
