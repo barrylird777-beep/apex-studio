@@ -20,7 +20,7 @@ type ApexApp = {
 const apps: ApexApp[] = [
   {
     key: "kernelvision", name: "KernelVision", role: "THE EYES", tagline: "Create what you can imagine.",
-    description: "The production and media studio that creates original work and owns the 24/7 self-updating entertainment stream, from development and rendering through publishing.",
+    description: "The production and media studio that creates original work and owns the 24/7 self-uploading entertainment stream, from development and rendering through publishing.",
     icon: Eye, accent: "violet", status: "Studio workspace",
     features: ["24/7 entertainment stream", "Creative development", "Media production pipeline", "Publishing and analytics"],
     links: [
