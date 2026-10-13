@@ -14,6 +14,7 @@
     if (
       path.startsWith("/api/internal/") ||
       path === "/api/rapid/stripe/webhook" ||
+      path.startsWith("/api/rapid/usdc/") ||
       path === "/api/kash-korner/opportunities" ||
       path === "/api/kernelodies/library" ||
       path.startsWith("/api/kernelodies/library/")
