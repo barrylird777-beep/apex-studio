@@ -166,11 +166,11 @@ function hookScore(value) {
 }
 
 async function generateHook(brief, platform, provider, model) {
-  const primaryProvider = provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter";
-  const primaryModel = model || process.env.APEX_ORACLE_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined;
+  const primaryProvider = provider || process.env.APEX_ORACLE_PROVIDER || process.env.APEX_RAPID_AI_PROVIDER || (process.env.APEX_RAPID_ENABLE_POLLINATIONS === "true" ? "pollinations" : "openrouter");
+  const primaryModel = model || (primaryProvider === "pollinations" ? process.env.POLLINATIONS_MODEL || "openai" : process.env.APEX_ORACLE_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined);
   const requests = [
     { provider: primaryProvider, model: primaryModel, angle: "curiosity gap" },
-    ...(process.env.APEX_RAPID_ENABLE_POLLINATIONS === "true" ? [{ provider: "pollinations", model: process.env.POLLINATIONS_MODEL || "openai", angle: "bold contrast" }] : []),
+    ...(process.env.APEX_RAPID_ENABLE_POLLINATIONS === "true" && primaryProvider !== "pollinations" ? [{ provider: "pollinations", model: process.env.POLLINATIONS_MODEL || "openai", angle: "bold contrast" }] : []),
     ...(process.env.APEX_RAPID_ENABLE_GROQ === "true" && process.env.GROQ_API_KEY
       ? [{ provider: "groq", model: process.env.GROQ_MODEL || undefined, angle: "emotional stakes" }] : [])
   ];
@@ -198,10 +198,12 @@ async function generateOracleStoryboard(brief, platform, hook, provider, model) 
     { title: "THE CONSEQUENCE", dialogue: "Make the stakes unmistakable.", visualPrompt: "Cinematic wide shot, powerful scale, volumetric light, textured dark-fantasy anime, cel shading." },
     { title: "THE LAST WORD", dialogue: platform + " — the story does not end here.", visualPrompt: "Heroic final frame, clean negative space for captions, strong silhouette, polished anime finish, vertical 9:16." }
   ];
+  const oracleProvider = provider || process.env.APEX_ORACLE_PROVIDER || process.env.APEX_RAPID_AI_PROVIDER || (process.env.APEX_RAPID_ENABLE_POLLINATIONS === "true" ? "pollinations" : "openrouter");
+  const oracleModel = model || (oracleProvider === "pollinations" ? process.env.POLLINATIONS_MODEL || "openai" : process.env.APEX_ORACLE_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined);
   try {
     const result = await generateUnifiedAi({
-      provider: provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter",
-      model: model || process.env.APEX_ORACLE_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined,
+      provider: oracleProvider,
+      model: oracleModel,
       system: "You are Oracle, a storyboard writer. Return valid JSON only with a scenes array of exactly 4 objects. Each object has string fields title, dialogue, visualPrompt. Keep dialogue faithful to the brief. Every visualPrompt must specify dark cinematic anime, cel shading, high-contrast cinematic lighting, and vertical 9:16 framing. No markdown.",
       prompt: "Create a production storyboard. Platform: " + platform + "\nChosen opening hook: " + hook + "\nBrief: " + brief,
       temperature: 0.65,
@@ -254,7 +256,7 @@ export async function executeRapidVideoPreview(payload = {}) {
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/10':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 10, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
-  const backgroundImage = await generateForgeBackground(storyboard, brief, orderId);
+  const backgroundImage = await generateForgeBackground(storyboard, brief, orderId).catch(error => { console.error("[rapid-forge-image] optional image generation failed; using cinematic fallback:", String(error?.message || error).slice(0, 180)); return null; });
   try { await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf, backgroundImage), { maxBuffer: 1024 * 1024 * 4 }); }
   catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); if (backgroundImage) await unlink(backgroundImage).catch(() => {}); throw error; }
   if (backgroundImage) await unlink(backgroundImage).catch(() => {});
