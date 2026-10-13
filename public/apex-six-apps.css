@@ -175,3 +175,15 @@ body{min-width:320px;padding-bottom:env(safe-area-inset-bottom)}
 }
 /* PlanetApeX root dashboard uses the root route rather than a data-apex-app shell. */
 body:has(.apex-app-nav a[aria-current="page"][href="/"]){--apex-accent:#80c6ff}
+/* Form controls used by settings, filters, sliders, and toggles. */
+.apex-shell input[type=checkbox],.apex-shell input[type=radio]{width:20px;height:20px;min-height:20px;margin:0 8px 0 0;flex:0 0 auto;accent-color:var(--apex-accent);vertical-align:middle}
+.apex-shell input[type=range]{width:100%;min-height:28px;padding:0;margin:10px 0;accent-color:var(--apex-accent);background:transparent;border:0;cursor:pointer}
+.apex-shell input[type=color]{min-height:46px;padding:5px;cursor:pointer}
+.apex-shell input[type=file]{min-height:48px;padding:8px}
+.apex-shell input:invalid,.apex-shell select:invalid,.apex-shell textarea:invalid{border-color:#b76e78}
+.apex-shell :is(input,select,textarea):disabled{opacity:.62;background:#0b1019}
+.apex-shell :is(button,[role=button]){overflow-wrap:anywhere}
+.apex-shell button[aria-pressed=true]{border-color:var(--apex-accent);background:color-mix(in srgb,var(--apex-accent) 20%,#111827)}
+.apex-shell [aria-live=polite],.apex-shell [role=status]{overflow-wrap:anywhere}
+.apex-shell .risk-modal{padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
+.apex-shell .risk-card{max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain}
