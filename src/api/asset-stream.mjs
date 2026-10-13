@@ -1,4 +1,4 @@
-import { createReadStream, constants as fsConstants } from 'node:fs';
+import { constants as fsConstants } from 'node:fs';
 import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { resolveContainedPath } from '../core/se-x-paths.mjs';
