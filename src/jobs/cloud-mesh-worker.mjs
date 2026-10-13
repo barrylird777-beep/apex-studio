@@ -35,6 +35,10 @@ async function execute(job, lease) {
     }
   }, Math.max(1500, Math.floor(leaseMs / 3)));
   leaseHeartbeat.unref?.();
+  const stopLeaseHeartbeat = async () => {
+    clearInterval(leaseHeartbeat);
+    while (renewing) await sleep(10);
+  };
   try {
     const payloadBytes = await coordinator.getPayload({ app, payloadHash: job.payloadHash });
     let payload;
@@ -46,6 +50,7 @@ async function execute(job, lease) {
     const result = await handler({ id: job.jobId, type: job.taskType, app, payload, capability: job.capability, workerId });
     const resultBytes = Buffer.from(JSON.stringify(result ?? null));
     const persisted = await coordinator.putPayload({ app, bytes: resultBytes, contentType: "application/json" });
+    await stopLeaseHeartbeat();
     const completed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: persisted.payloadHash, status: "completed" });
     if (!completed.accepted) throw new Error("Cloud job completion rejected: " + completed.reason);
     console.log("[APEX CLOUD WORKER] completed", JSON.stringify({ app, jobId: job.jobId, workerId, resultHash: persisted.payloadHash }));
@@ -53,6 +58,7 @@ async function execute(job, lease) {
     const bytes = Buffer.from(JSON.stringify({ error: String(error?.message || error), at: new Date().toISOString() }));
     let errorHash = null;
     try { errorHash = (await coordinator.putPayload({ app, bytes, contentType: "application/json" })).payloadHash; } catch {}
+    await stopLeaseHeartbeat();
     const failed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: errorHash, status: "failed" }).catch(() => ({ accepted: false }));
     console.error("[APEX CLOUD WORKER] job failed", JSON.stringify({ app, jobId: job.jobId, workerId, persisted: failed.accepted, error: String(error?.message || error) }));
   } finally {
