@@ -172,3 +172,21 @@ test("completed result is retrievable only through its app-scoped verified hash"
   assert.equal(duplicateFinish.reason, "lease-not-active");
   assert.equal(await c.getJobResult({ app: "KoinKob", jobId: "result-job" }), null);
 });
+
+test("lease mutation fails closed when provider omits ETags", async () => {
+  const base = fakeS3();
+  const client = {
+    objects: base.objects,
+    async send(command) {
+      const result = await base.send(command);
+      if (command.constructor.name === "GetObjectCommand" && command.input.Key.includes("/leases/")) return { ...result, ETag: "" };
+      return result;
+    }
+  };
+  const c = coordinator(client);
+  await c.submitJob({ app: "KernelVision", jobId: "etag-required", taskType: "render", capability: "ffmpeg", payload: { frame: 1 } });
+  const claim = await c.claimJob({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag" });
+  assert.equal(claim.claimed, true);
+  assert.deepEqual(await c.renewJobLease({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag", leaseToken: claim.lease.token }), { renewed: false, reason: "lease-etag-unavailable" });
+  assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag", leaseToken: claim.lease.token }), { accepted: false, reason: "lease-etag-unavailable" });
+});
