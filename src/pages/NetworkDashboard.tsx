@@ -37,7 +37,7 @@ function BrowserPeerTest(){
         const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,Uint8Array>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
         if(!Number.isInteger(packet.index)||!Number.isInteger(packet.totalChunks)||packet.totalChunks<1||packet.totalChunks>128||packet.index<0||packet.index>=packet.totalChunks||transfer.totalChunks!==packet.totalChunks||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
         const bytes=Uint8Array.from(atob(packet.payload),ch=>ch.charCodeAt(0));
-        if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,bytes);transfer.payloadBytes+=bytes.byteLength;setReceived(n=>packet.index===0?bytes.byteLength:n+bytes.byteLength);}
+        if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,bytes);transfer.payloadBytes+=bytes.byteLength;setReceived(transfer.payloadBytes);}
         incomingTransfers.current.set(packet.transferId,transfer);
         if(transfer.chunks.size!==transfer.totalChunks)return;
         const payload=new Uint8Array(transfer.payloadBytes);let offset=0;
