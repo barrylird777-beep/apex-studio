@@ -51,4 +51,8 @@ try {
 } catch (error) {
   console.error("[REMOTE_CAS_PREFLIGHT] failed:", String(error?.message || error).slice(0, 300));
   throw error;
+} finally {
+  // Close the AWS SDK HTTP connection pool so the pre-deploy process can exit.
+  // Without this, completed probes can leave keep-alive sockets open until Railway times out.
+  store.client?.destroy?.();
 }
