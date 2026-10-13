@@ -77,16 +77,15 @@ function buildSceneFilters(scenes, duration, palette, brand = "APEX RAPID VIDEO"
 
 function hookScore(value) {
   const text = String(value || "").trim();
-  const words = text.split(/\\s+/).filter(Boolean);
-  const hasQuestion = /\\?/.test(text) ? 2 : 0;
-  const hasContrast = /\\b(but|until|secret|never|truth|why|what if|instead)\\b/i.test(text) ? 3 : 0;
+  const words = text.split(/\s+/).filter(Boolean);
+  const hasQuestion = /\?/.test(text) ? 2 : 0;
+  const hasContrast = /\b(but|until|secret|never|truth|why|what if|instead)\b/i.test(text) ? 3 : 0;
   const concise = words.length >= 4 && words.length <= 14 ? 4 : Math.max(0, 4 - Math.abs(words.length - 9) * 0.4);
-  const concrete = /\\b(you|your|one|first|hidden|lost|last|impossible|real|truth)\\b/i.test(text) ? 2 : 0;
+  const concrete = /\b(you|your|one|first|hidden|lost|last|impossible|real|truth)\b/i.test(text) ? 2 : 0;
   return concise + hasQuestion + hasContrast + concrete;
 }
 
 async function generateHook(brief, platform, provider, model) {
-  const candidates = [];
   const primaryProvider = provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter";
   const primaryModel = model || process.env.APEX_RAPID_AI_MODEL || undefined;
   const requests = [
@@ -95,44 +94,40 @@ async function generateHook(brief, platform, provider, model) {
     ...(process.env.APEX_RAPID_ENABLE_GROQ === "true" && process.env.GROQ_API_KEY
       ? [{ provider: "groq", model: process.env.GROQ_MODEL || undefined, angle: "emotional stakes" }] : [])
   ];
-  await Promise.allSettled(requests.map(async request => {
-    try {
-      const result = await generateUnifiedAi({
-        provider: request.provider,
-        model: request.model,
-        system: "You are Oracle, the hook editor for a cinematic short-form studio. Write ONE original opening hook for the requested angle. Max 14 words. No quotes, labels, markdown, or claims not supported by the brief.",
-        prompt: "Angle: " + request.angle + "\\nIdea: " + brief + "\\nPlatform: " + platform,
-        temperature: 0.85,
-        max_tokens: 100
-      });
-      const text = cleanText(result.text, "");
-      if (text) candidates.push({ text, provider: request.provider, score: hookScore(text) });
-    } catch (error) {
-      candidates.push({ provider: request.provider, error: String(error?.message || error).slice(0, 120) });
-    }
+  const settled = await Promise.allSettled(requests.map(async request => {
+    const result = await generateUnifiedAi({
+      provider: request.provider,
+      model: request.model,
+      system: "You are Oracle, the hook editor for a cinematic short-form studio. Write ONE original opening hook for the requested angle. Max 14 words. No quotes, labels, markdown, or unsupported claims.",
+      prompt: "Angle: " + request.angle + "\nIdea: " + brief + "\nPlatform: " + platform,
+      temperature: 0.85,
+      max_tokens: 100
+    });
+    const text = cleanText(result.text, "");
+    return text ? { text, provider: request.provider, score: hookScore(text) } : null;
   }));
-  const valid = candidates.filter(item => item.text).sort((a, b) => b.score - a.score);
-  return valid[0]?.text || "STOP THE SCROLL.";
+  const candidates = settled.filter(item => item.status === "fulfilled").map(item => item.value).filter(Boolean);
+  candidates.sort((a, b) => b.score - a.score);
+  return { hook: candidates[0]?.text || "STOP THE SCROLL.", candidates: candidates.map(({text,provider,score}) => ({text,provider,score})), providersTried: requests.map(item => item.provider) };
 }
 
 async function generateOracleStoryboard(brief, platform, hook, provider, model) {
   const fallback = [
-    { title: hook, dialogue: brief, visualPrompt: "Dark cinematic anime, high-contrast rim light, dramatic close-up, vertical 9:16 composition." },
-    { title: "THE HIDDEN TURN", dialogue: "Show the choice that changes everything.", visualPrompt: "A vast shadowed environment, one striking silhouette, ember particles, dramatic perspective." },
-    { title: "THE CONSEQUENCE", dialogue: "Make the stakes unmistakable.", visualPrompt: "Cinematic wide shot, powerful scale, volumetric light, textured dark-fantasy anime." },
-    { title: "THE LAST WORD", dialogue: platform + " — the story does not end here.", visualPrompt: "Heroic final frame, clean negative space for captions, strong silhouette, polished anime finish." }
+    { title: hook, dialogue: brief, visualPrompt: "Dark cinematic anime, cel shading, high-contrast rim light, dramatic close-up, vertical 9:16 composition." },
+    { title: "THE HIDDEN TURN", dialogue: "Show the choice that changes everything.", visualPrompt: "A vast shadowed environment, one striking silhouette, ember particles, dramatic perspective, dark cinematic anime." },
+    { title: "THE CONSEQUENCE", dialogue: "Make the stakes unmistakable.", visualPrompt: "Cinematic wide shot, powerful scale, volumetric light, textured dark-fantasy anime, cel shading." },
+    { title: "THE LAST WORD", dialogue: platform + " — the story does not end here.", visualPrompt: "Heroic final frame, clean negative space for captions, strong silhouette, polished anime finish, vertical 9:16." }
   ];
   try {
     const result = await generateUnifiedAi({
       provider: provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter",
       model: model || process.env.APEX_RAPID_AI_MODEL || undefined,
-      system: "You are Oracle, a storyboard writer. Return valid JSON only: {\\"scenes\\":[{\\"title\\":string,\\"dialogue\\":string,\\"visualPrompt\\":string}]} with exactly 4 concise scenes. Keep dialogue faithful to the brief. Prompts must specify dark cinematic anime, cel shading, high-contrast cinematic lighting, and vertical 9:16 framing. No markdown.",
-      prompt: "Create a production storyboard. Platform: " + platform + "\\nChosen opening hook: " + hook + "\\nBrief: " + brief,
+      system: "You are Oracle, a storyboard writer. Return valid JSON only with a scenes array of exactly 4 objects. Each object has string fields title, dialogue, visualPrompt. Keep dialogue faithful to the brief. Every visualPrompt must specify dark cinematic anime, cel shading, high-contrast cinematic lighting, and vertical 9:16 framing. No markdown.",
+      prompt: "Create a production storyboard. Platform: " + platform + "\nChosen opening hook: " + hook + "\nBrief: " + brief,
       temperature: 0.65,
       max_tokens: 1000
     });
-    const raw = String(result.text || "").replace(/^\\s*```(?:json)?/i, "").replace(/```\\s*$/i, "").trim();
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(String(result.text || "").trim());
     const scenes = Array.isArray(parsed.scenes) ? parsed.scenes.slice(0, 4) : [];
     if (scenes.length === 4 && scenes.every(scene => scene && typeof scene.title === "string" && typeof scene.dialogue === "string" && typeof scene.visualPrompt === "string")) {
       return scenes.map(scene => ({ title: cleanText(scene.title, "SCENE"), dialogue: cleanText(scene.dialogue, brief), visualPrompt: String(scene.visualPrompt).slice(0, 500) }));
@@ -172,13 +167,10 @@ export async function executeRapidVideoPreview(payload = {}) {
   const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
   const output = path.join(outputDir, filename);
   const [bg, accent, warm] = paletteFor(brief + platform);
-  const hook = await generateHook(brief, platform, payload.provider, payload.model);
-  const scenes = [
-    [hook, brief],
-    ["MAKE IT WATCHABLE.", "Apex turns the raw idea into a sharp visual direction."],
-    ["THE HOOK.", "Clear story. Fast pacing. A reason to keep watching."],
-    ["READY FOR MORE?", platform + " — full production is one click away."]
-  ];
+  const hookResult = await generateHook(brief, platform, payload.provider, payload.model);
+  const hook = hookResult.hook;
+  const storyboard = await generateOracleStoryboard(brief, platform, hook, payload.provider, payload.model);
+  const scenes = storyboard.map(scene => [scene.title, scene.dialogue]);
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/10':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 10, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
@@ -192,6 +184,11 @@ export async function executeRapidVideoPreview(payload = {}) {
     brief,
     platform,
     stage: "rendered",
+    pipeline: "oracle-to-forge",
+    chosenHook: hook,
+    hookCandidates: hookResult.candidates,
+    providersTried: hookResult.providersTried,
+    storyboard,
     durationSeconds: 10,
     format: "mp4",
     url: "/files/previews/" + encodeURIComponent(filename),
@@ -212,14 +209,10 @@ export async function executeRapidVideoOrder(payload = {}) {
 
   const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
   const output = path.join(outputDir, filename);
-  const hook = await generateHook(brief, platform, payload.provider, payload.model);
-  const scenes = [
-    [hook, brief],
-    ["BUILD THE HOOK.", "Open hard. Give the viewer a reason to stay."],
-    ["BUILD THE STORY.", "Turn the core idea into a fast, clear visual sequence."],
-    ["MAKE IT FEEL BIG.", "Cinematic motion, strong typography, music and pacing."],
-    ["READY TO POST.", platform + " — Apex Rapid Video"]
-  ];
+  const hookResult = await generateHook(brief, platform, payload.provider, payload.model);
+  const hook = hookResult.hook;
+  const storyboard = await generateOracleStoryboard(brief, platform, hook, payload.provider, payload.model);
+  const scenes = storyboard.concat([{ title: "READY TO POST.", dialogue: platform + " — Apex Rapid Video", visualPrompt: "Polished dark anime end card, clean negative space." }]).map(scene => [scene.title, scene.dialogue]);
   const [bg, accent, warm] = paletteFor(brief + name);
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/30':h=5:color=0x${accent}:t=fill`;
@@ -236,6 +229,11 @@ export async function executeRapidVideoOrder(payload = {}) {
     brief,
     platform,
     stage: "rendered",
+    pipeline: "oracle-to-forge",
+    chosenHook: hook,
+    hookCandidates: hookResult.candidates,
+    providersTried: hookResult.providersTried,
+    storyboard,
     durationSeconds: 30,
     format: "mp4",
     url: "/files/" + encodeURIComponent(filename),
