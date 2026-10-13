@@ -146,3 +146,24 @@ test("failed manifest publication never overwrites or mutates an existing job", 
   assert.equal(after.payloadHash, before.payloadHash);
   assert.equal(after.status, "queued");
 });
+
+test("capability-aware scheduling leaves unsupported jobs queued", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "KernelVision", jobId: "audio-only", taskType: "master", capability: "audio", payload: { source: "asset" } });
+  const claimed = await c.claimNextJob({ app: "KernelVision", workerId: "video-worker", capabilities: ["ffmpeg"] });
+  assert.equal(claimed, null);
+  assert.equal((await c.getJob({ app: "KernelVision", jobId: "audio-only" })).status, "queued");
+  const audioClaim = await c.claimNextJob({ app: "KernelVision", workerId: "audio-worker", capabilities: ["audio"], taskTypes: ["master"] });
+  assert.equal(audioClaim.job.jobId, "audio-only");
+});
+
+test("completed result is retrievable only through its app-scoped verified hash", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "KashKorner", jobId: "result-job", taskType: "settle", capability: "ledger", payload: { amount: 1 } });
+  const claim = await c.claimJob({ app: "KashKorner", jobId: "result-job", workerId: "ledger-worker" });
+  const result = { accepted: true, receipt: "test-receipt" };
+  const stored = await c.putPayload({ app: "KashKorner", bytes: Buffer.from(JSON.stringify(result)), contentType: "application/json" });
+  await c.finishJob({ app: "KashKorner", jobId: "result-job", workerId: "ledger-worker", leaseToken: claim.lease.token, resultHash: stored.payloadHash });
+  assert.deepEqual((await c.getJobResult({ app: "KashKorner", jobId: "result-job" })).result, result);
+  assert.equal(await c.getJobResult({ app: "KoinKob", jobId: "result-job" }), null);
+});
