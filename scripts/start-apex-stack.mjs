@@ -18,11 +18,22 @@ if (mountedVolume && !insideOrEqual(mountedVolume, configuredStorageRoot)) {
   const persistentRoot = path.join(mountedVolume, "se-x");
   const rebase = (key, fallback) => {
     const value = process.env[key];
-    if (!value || !insideOrEqual(mountedVolume, path.resolve(value))) process.env[key] = fallback;
+    if (!value) {
+      process.env[key] = fallback;
+      return;
+    }
+    const resolved = path.resolve(value);
+    if (insideOrEqual(mountedVolume, resolved)) return;
+    const relative = path.relative(configuredStorageRoot, resolved);
+    // Preserve an existing path's role (for example, "projects") when it
+    // already lives under the old root; otherwise use the safe canonical path.
+    process.env[key] = relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))
+      ? path.resolve(persistentRoot, relative)
+      : fallback;
   };
   process.env.APEX_SE_X_ROOT = persistentRoot;
   rebase("APEX_PROJECTS_DIR", path.join(persistentRoot, "projects"));
-  rebase("APEX_SOVEREIGN_STORAGE_DIR", path.join(persistentRoot, "sovereign"));
+  rebase("APEX_SOVEREIGN_STORAGE_DIR", path.join(persistentRoot, "projects"));
   rebase("APEX_WAL_DIR", path.join(persistentRoot, "wal"));
   rebase("APEX_WAL_FILE", path.join(persistentRoot, "wal", "ring.wal.jsonl"));
   console.warn("[APEX STACK] rebased non-persistent storage paths onto mounted volume", JSON.stringify({
