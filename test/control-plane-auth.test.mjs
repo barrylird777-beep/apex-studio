@@ -53,6 +53,20 @@ test("control-plane auth accepts a bearer token without exposing it in the URL",
   assert.equal(nextCalled, true);
 });
 
+test("Music Radar handoff delegates to the shared timing-safe control-plane guard", async () => {
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const auth = await readFile(new URL("../src/security/control-plane-auth.mjs", import.meta.url), "utf8");
+  assert.match(server, /app\.post\(["']\/api\/music-radar\/handoff["'],\s*requireControlPlaneAuth,/);
+  assert.match(auth, /crypto\.timingSafeEqual\(left, right\)/);
+  assert.match(server, /app\.use\(['"]\/api\/relay['"],\s*requireControlPlaneAuth,\s*createRelayRouter\(/);
+  assert.match(server, /app\.use\(['"]\/api\/studio\/audio['"],\s*requireControlPlaneAuth,\s*createAudioStationRouter\(/);
+  const routeStart = server.indexOf('app.post("/api/music-radar/handoff"');
+  assert.notEqual(routeStart, -1);
+  const routeEnd = server.indexOf("\n});", routeStart);
+  assert.ok(routeEnd > routeStart);
+  assert.doesNotMatch(server.slice(routeStart, routeEnd), /supplied\s*!==\s*expected/);
+});
+
 test("high-cost API routes require control-plane auth and public flows remain explicitly rate-limited", async () => {
   const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   const home = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
@@ -90,6 +104,15 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["get", "/api/workforce/status"],
     ["post", "/api/workforce/burst"],
     ["post", "/api/broadcast/start"],
+    ["get", "/api/workforce/status"],
+    ["get", "/api/studio/omni/events"],
+    ["get", "/api/capacity"],
+    ["get", "/api/workers/permanent"],
+    ["get", "/api/workers/overseer"],
+    ["get", "/api/workers/durable"],
+    ["get", "/api/mesh/workers"],
+    ["get", "/api/crew/status"],
+    ["get", "/api/mesh/status"],
     ["post", "/api/broadcast/stop"],
     ["post", "/api/music-radar/handoff"],
     ["post", "/api/voiceover/jobs"],
@@ -109,7 +132,9 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["get", "/api/engine-apex/snapshot"]
   ];
   for (const [method, route] of protectedRoutes) {
-    assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
+    const singleQuotedRoute = server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,");
+    const doubleQuotedRoute = server.includes('app.' + method + '("' + route + '", requireControlPlaneAuth,');
+    assert.ok(singleQuotedRoute || doubleQuotedRoute, method.toUpperCase() + " " + route + " must require control-plane auth");
   }
   assert.match(server, /app\.get\(['"]\/api\/health['"],/);
   assert.match(server, /app\.get\(['"]\/api\/canon\/apps['"],/);
