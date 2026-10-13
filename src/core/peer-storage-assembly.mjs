@@ -31,8 +31,8 @@ const parseFailureDomains = raw => Object.fromEntries(String(raw || '').split(';
 function validateBackend(backend) {
   const required = ['putBytes', 'getBytes', 'readRef', 'writeRef'];
   if (!backend || required.some(name => typeof backend[name] !== 'function') || backend.durable !== true ||
-      backend.ownership !== 'peer-owned') {
-    throw new Error('peer storage backend must declare durable=true and ownership=peer-owned and implement putBytes/getBytes/readRef/writeRef; local or ephemeral stores are rejected');
+      backend.ownership !== 'peer-owned' || backend.recoveryVerified !== true) {
+    throw new Error('peer storage backend must declare durable=true, ownership=peer-owned, recoveryVerified=true and implement putBytes/getBytes/readRef/writeRef; local or ephemeral stores are rejected');
   }
   return backend;
 }
