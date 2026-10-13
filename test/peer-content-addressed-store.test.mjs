@@ -48,7 +48,7 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     stores,
     handlers,
     unavailable,
-    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
+    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
   };
 }
 
@@ -123,6 +123,7 @@ test('peer CAS cannot decrypt an object under a different app namespace', async 
     transport: mesh.client.transport,
     peers: ['peer-a', 'peer-b'],
     replicaCount: 2,
+    failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
     namespace: 'KernelVision',
     encryptionKey: Buffer.alloc(32, 7)
   });
