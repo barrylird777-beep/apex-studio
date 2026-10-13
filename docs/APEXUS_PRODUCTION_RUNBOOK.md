@@ -1,54 +1,38 @@
 # Apexus Production Runbook
 
-Apexus is the 24/7 original animated entertainment network.
+Apexus is a historical production-network capability being carried forward under the six canonical apps. Production and release capabilities belong under KernelVision; shared research and living-universe knowledge belongs under PlanetApeX. Apexus is not a seventh app.
 
 ## Production inventory
 
-The launch registry contains 2,785 deterministic episode slots:
-
+The launch registry historically described 2,785 deterministic episode slots:
 - APX-0001 through APX-2785
 - seven audience lanes
-- durable episode state
-- durable production assets
-- catalog registration
-- broadcast scheduling
+- episode state and production assets
+- catalog registration and broadcast scheduling
+
+Treat this as a planned inventory, not proof that all episodes or workers are currently running.
 
 ## Production flow
 
 IDEA -> STORY -> SCRIPT -> STORYBOARD -> VOICE -> AUDIO -> VISUAL DEVELOPMENT -> ANIMATION -> EDIT -> QC -> MASTER -> CATALOG -> SCHEDULED
 
-The durable worker advances one stage at a time. A completed stage enqueues only its next stage, preventing the entire 2,785-episode graph from being claimed out of order.
+A durable worker should advance one stage at a time. A completed stage should enqueue only its next stage, preventing out-of-order claims.
 
 ## Real media rule
 
-Media stages do not manufacture fake completion records.
-
-Voice requires HF_TOKEN.
-Visual development and animation require POLLINATIONS_API_KEY.
-Edit and master require FFmpeg.
-QC checks that required media files actually exist and contain bytes.
-
-Text generation tries configured OpenRouter, Groq, then OpenAI credentials.
+Media stages must not manufacture fake completion records.
+- Voice requires a configured provider credential.
+- Visual development and animation require a configured provider credential.
+- Edit and master require FFmpeg.
+- QC must verify required media artifacts actually exist and contain bytes.
+- Text generation requires a configured supported provider.
 
 ## Start production
 
-1. Apply PostgreSQL migrations:
-   npm run db:migrate:postgres
+**Do not use the retired PostgreSQL setup flow below.** The active sovereign storage implementation is still under remediation; verify the actual persistence backend and readiness before enabling production workers. Do not start workers against an unverified or local-fallback store.
 
-2. Seed all 2,785 episode slots and the first production wave:
-   npm run apexus:bootstrap
+The prior PostgreSQL migrations, bootstrap commands, and local `./data/apexus` output instructions are legacy documentation, not an approved current deployment procedure.
 
-3. Run the durable Apexus worker:
-   npm run apexus:worker
+## Output and release
 
-The worker can be scaled horizontally. Durable leases, fencing, retries, dedupe keys, and FOR UPDATE SKIP LOCKED prevent duplicate claims.
-
-## Output
-
-Default production artifacts are written beneath:
-
-./data/apexus/APX-####/
-
-Each episode receives stage-specific artifacts and provenance records.
-
-No episode is considered broadcast-ready merely because a database row exists. Required production media must exist and QC must pass before catalog/scheduling progression.
+No episode is broadcast-ready merely because a task or database record exists. Required production media must exist, source provenance must be retained, and quality control must pass before catalog/scheduling progression.
