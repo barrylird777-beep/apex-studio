@@ -4,6 +4,7 @@ import { createPeerMediaStore, APEX_MEDIA_APPS } from '../src/core/peer-media-st
 
 function makePeerStore(namespace) {
   const blobs = new Map();
+  const refs = new Map();
   return {
     namespace,
     async putBlob(input) {
@@ -16,28 +17,24 @@ function makePeerStore(namespace) {
     async getBlob(hash) {
       if (!blobs.has(hash)) throw Object.assign(new Error('object unavailable'), { code: 'OBJECT_UNAVAILABLE' });
       return Buffer.from(blobs.get(hash));
+    },
+    async readRef(key) {
+      const record = refs.get(key);
+      return record ? { value: structuredClone(record.value), hash: record.hash } : null;
+    },
+    async writeRef(key, value, { expectedHash = null } = {}) {
+      const current = refs.get(key);
+      if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('CAS mismatch'), { code: 'CAS_CONFLICT' });
+      const hash = JSON.stringify(value);
+      refs.set(key, { value: structuredClone(value), hash });
+      return { hash };
     }
   };
 }
 
 function setup() {
   const peerStores = Object.fromEntries(APEX_MEDIA_APPS.map(app => [app, makePeerStore(app)]));
-  const records = new Map();
-  const refs = {
-    async readRef(namespace, id) {
-      const record = records.get(namespace + ':' + id);
-      return record ? { value: structuredClone(record.value), hash: record.hash } : null;
-    },
-    async writeRef(namespace, id, value, { expectedHash } = {}) {
-      const key = namespace + ':' + id;
-      const current = records.get(key);
-      if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('CAS mismatch'), { code: 'CAS_MISMATCH' });
-      const hash = JSON.stringify(value);
-      records.set(key, { value: structuredClone(value), hash });
-      return { hash };
-    }
-  };
-  return { media: createPeerMediaStore({ peerStores, refs }), peerStores };
+  return { media: createPeerMediaStore({ peerStores }), peerStores };
 }
 
 test('peer media store persists and verifies binary media', async () => {
