@@ -9,12 +9,15 @@ export const APEX_APPS = Object.freeze({
 export const APEX_APP_IDS = Object.freeze(Object.values(APEX_APPS).map(app=>app.id));
 
 const LEGACY_SUPPORT_APPS = Object.freeze({
-  "korn-knob": Object.freeze({ id:"korn-knob", name:"KornKnob", system:"kernelodies", role:"historical music identity absorbed into Kernelodies", entry:"/korn-knob.html" }),
+  "korn-knob": Object.freeze({ id:"korn-knob", name:"KornKnob", system:"kernelodies", role:"historical music/media-AI identity; music-facing capabilities belong to Kernelodies", entry:"/korn-knob.html" }),
   "teevee": Object.freeze({ id:"teevee", name:"TeeVee", system:"kernel-vision", role:"historical 24/7 entertainment programming and broadcast surface owned by KernelVision", entry:"/teevee-buyer.html" }),
   "paypex": Object.freeze({ id:"paypex", name:"PayPex", system:"kash-korner", role:"historical opportunity, market and monetization intelligence surface owned by KashKorner", entry:"/paypex.html" }),
-  "apex-studio": Object.freeze({ id:"apex-studio", name:"ApexStudio", system:"apex-studio", role:"supporting production system surface", entry:"/" }),
-  "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", system:"planet-apex", role:"embedded PlanetApeX knowledge universe: Bible study, Jesus Freaks and KORNS PEOPLE", entry:"/garden-of-apex.html" }),
+  "apex-studio": Object.freeze({ id:"apex-studio", name:"ApexStudio", system:"apex-studio", role:"historical umbrella system; surviving production capabilities belong to KernelVision and other capabilities follow their canonical app owners", entry:"/" }),
+  "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", system:"planet-apex", role:"historical name for the PlanetApeX knowledge universe; GardenApex is the current living-universe name", entry:"/garden-of-apex.html" }),
   "ko-blocks": Object.freeze({ id:"ko-blocks", name:"KoBlocks", system:"apex-studio", role:"reusable execution blocks, graph composition and validation capability; not a separate canonical app", entry:"/ko-blocks.html" }),
+  "engine-apex": Object.freeze({ id:"engine-apex", name:"EngineApex", system:"kash-korner", role:"historical opportunity-decision capability owned by KashKorner", entry:"/engine-apex.html" }),
+  "shield-apex": Object.freeze({ id:"shield-apex", name:"ShieldApex", system:"xshield", role:"historical security-boundary capability owned by XShield", entry:"/shield-apex.html" }),
+  "apex-adblocker": Object.freeze({ id:"apex-adblocker", name:"ApexAdBlocker", system:"xshield", role:"historical ad-blocking capability owned by XShield", entry:"/xshield.html" }),
   "xshield-legacy": Object.freeze({ id:"xshield-legacy", name:"XShield legacy alias", system:"xshield", role:"compatibility alias for the canonical XShield security app", entry:"/xshield.html" })
 });
 
