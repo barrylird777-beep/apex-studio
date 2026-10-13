@@ -246,3 +246,13 @@ test("absorbed Garden, PayPex, and EngineApex pages use current canonical owners
   assert.match(engine,/historical opportunity-decision capability now assigned to KashKorner/);
   assert.match(engine,/production execution belongs to KernelVision/);
 });
+
+test("legacy EngineApex and ShieldApex capabilities resolve to canonical owners",()=>{
+  assert.equal(getApexApp("engine-apex").system,"kash-korner");
+  assert.equal(getApexApp("shield-apex").system,"xshield");
+  assert.equal(getApexApp("apex-adblocker").system,"xshield");
+  assert.equal(getApexApp("garden-of-apex").system,"planet-apex");
+  assert.equal(getApexApp("korn-knob").system,"kernelodies");
+  assert.equal(getApexApp("ko-blocks").name,"KoBlocks");
+  assert.equal(listApexApps().length,6);
+});
