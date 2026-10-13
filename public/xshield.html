@@ -31,8 +31,9 @@ async function load(){
   if(!appResponse.ok) throw new Error(app.error||'XShield status unavailable');
   document.getElementById('appState').textContent=app.app?.name||'XShield';
   document.getElementById('appDetail').textContent=(app.filtering?'Filtering active':'Filtering not active')+' · '+(app.firstPartyPolicy||'policy unavailable');
-  document.getElementById('networkState').textContent=network.enabled===false?'DEGRADED':'ACTIVE';
-  document.getElementById('networkState').className='metric '+(network.enabled===false?'bad':'good');
+  const networkActive=networkResponse.ok&&network.enabled===true;
+  document.getElementById('networkState').textContent=networkActive?'ACTIVE':(networkResponse.ok&&network.enabled===false?'DEGRADED':'UNAVAILABLE');
+  document.getElementById('networkState').className='metric '+(networkActive?'good':'bad');
   document.getElementById('networkDetail').textContent='Safari rules: '+(app.safariRules??'n/a');
   const lastStatusAt=new Date().toISOString();
   sessionStorage.setItem('apex.xshield.lastStatusAt',lastStatusAt);
