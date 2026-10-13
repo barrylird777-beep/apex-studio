@@ -10,7 +10,7 @@ const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(val
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, referenceLeaderPeerId = '', maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -19,6 +19,10 @@ export class PeerContentAddressedStore {
     if (key.length !== 32) throw new TypeError('encryptionKey must be a 32-byte AES-256 key');
     this.transport = transport;
     this.peers = [...new Set(peers.map(String).filter(Boolean))];
+    this.referenceLeaderPeerId = String(referenceLeaderPeerId || '');
+    if (this.referenceLeaderPeerId && !this.peers.includes(this.referenceLeaderPeerId)) {
+      throw new Error('referenceLeaderPeerId must be in the configured peer allowlist');
+    }
     this.replicaCount = Number(replicaCount);
     this.minFailureDomains = Number(minFailureDomains);
     this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
@@ -278,75 +282,90 @@ export class PeerContentAddressedStore {
 
   async readRef(key) {
     const refKey = String(key || '');
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(refKey) || refKey.includes('..')) throw new Error('invalid peer reference key');
-    const observations = [];
-    const failures = [];
-    for (const peerId of this.peers) {
-      try {
-        const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.get', namespace: this.namespace, key: refKey });
-        if (response.hash == null) {
-          observations.push({ peerId, hash: null, value: null });
-          continue;
-        }
-        const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
-        if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) throw new Error('peer reference failed content hash verification');
-        observations.push({ peerId, hash: response.hash, value: this.decrypt(decodeCanonical(bytes)) });
-      } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
-      }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(refKey) || refKey.includes('..')) {
+      throw new Error('invalid peer reference key');
     }
-    const groups = new Map();
-    for (const item of observations) {
-      const group = groups.get(item.hash) || { hash: item.hash, value: item.value, peers: [] };
-      group.peers.push(item.peerId);
-      groups.set(item.hash, group);
+    if (!this.referenceLeaderPeerId) {
+      const error = new Error('mutable peer references require an explicit referenceLeaderPeerId until quorum consensus is available');
+      error.code = 'REF_LEADER_REQUIRED';
+      throw error;
     }
-    const winner = [...groups.values()].sort((a, b) => b.peers.length - a.peers.length)[0];
-    if (winner && winner.peers.length >= this.replicaCount) {
-      return winner.hash === null ? null : { value: winner.value, hash: winner.hash, replicas: winner.peers };
+    const response = await this.request(this.referenceLeaderPeerId, {
+      protocol: 'apex.cas.v1',
+      operation: 'ref.get',
+      namespace: this.namespace,
+      key: refKey
+    });
+    if (response.hash == null) return null;
+    const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
+    if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) {
+      throw new Error('peer reference failed content hash verification');
     }
-    const error = new Error(winner ? 'peer reference replicas disagree; no value reached the required quorum' : 'peer reference was not recoverable from any configured peer');
-    error.code = winner ? 'REF_QUORUM_CONFLICT' : 'OBJECT_UNAVAILABLE';
-    error.failures = failures;
-    error.observed = observations.map(item => ({ peerId: item.peerId, hash: item.hash }));
-    throw error;
+    const decoded = this.decrypt(decodeCanonical(bytes));
+    if (decoded?.kind !== 'apex.ref.v1' || decoded.namespace !== this.namespace ||
+        !Object.prototype.hasOwnProperty.call(decoded, 'value')) {
+      throw new Error('peer reference payload failed schema or namespace verification');
+    }
+    return {
+      value: decoded.value,
+      hash: response.hash,
+      leaderPeerId: this.referenceLeaderPeerId,
+      replicas: [this.referenceLeaderPeerId]
+    };
   }
 
   async writeRef(key, value, { expectedHash = null } = {}) {
     const refKey = String(key || '');
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(refKey) || refKey.includes('..')) throw new Error('invalid peer reference key');
-    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) throw new Error('invalid expected peer reference hash');
-    const bytes = encodeCanonical(this.encrypt(value));
-    const hash = sha256(bytes);
-    const receipts = [];
-    const failures = [];
-    for (const peerId of this.peers) {
-      try {
-        const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: this.namespace,
-          key: refKey, expectedHash, hash, bytesBase64: bytes.toString('base64')
-        });
-        if (response.hash !== hash || response.namespace !== this.namespace) throw new Error('peer returned an invalid reference durability receipt');
-        receipts.push({ peerId, hash, failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null) });
-      } catch (error) {
-        failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
-      }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(refKey) || refKey.includes('..')) {
+      throw new Error('invalid peer reference key');
     }
-    const verifiedDomains = new Set(receipts.map(item => item.failureDomain).filter(Boolean)).size;
-    if (receipts.length < this.replicaCount || verifiedDomains < this.minFailureDomains) {
-      const conflicts = failures.length > 0 && failures.every(item => item.code === 'CAS_CONFLICT' || item.code === 'CAS_MISMATCH');
-      const error = new Error(conflicts
-        ? 'peer reference compare-and-swap conflict'
-        : 'peer reference write did not reach the configured replica count');
-      error.code = conflicts ? 'CAS_CONFLICT' : 'INSUFFICIENT_REPLICAS';
-      error.requiredReplicas = this.replicaCount;
-      error.verifiedReplicas = receipts.length;
-      error.requiredFailureDomains = this.minFailureDomains;
-      error.verifiedFailureDomains = verifiedDomains;
-      error.failures = failures;
+    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) {
+      throw new Error('invalid expected peer reference hash');
+    }
+    if (!this.referenceLeaderPeerId) {
+      const error = new Error('mutable peer references require an explicit referenceLeaderPeerId until quorum consensus is available');
+      error.code = 'REF_LEADER_REQUIRED';
       throw error;
     }
-    return { hash, namespace: this.namespace, replicas: receipts.map(item => item.peerId), receipts };
+    const current = await this.request(this.referenceLeaderPeerId, {
+      protocol: 'apex.cas.v1',
+      operation: 'ref.get',
+      namespace: this.namespace,
+      key: refKey
+    });
+    if ((current.hash ?? null) !== expectedHash) {
+      const error = new Error('peer reference compare-and-swap conflict');
+      error.code = 'CAS_CONFLICT';
+      error.expectedHash = expectedHash;
+      error.currentHash = current.hash ?? null;
+      throw error;
+    }
+    const bytes = encodeCanonical(this.encrypt({
+      kind: 'apex.ref.v1',
+      namespace: this.namespace,
+      previousHash: expectedHash,
+      value
+    }));
+    const hash = sha256(bytes);
+    const response = await this.request(this.referenceLeaderPeerId, {
+      protocol: 'apex.cas.v1',
+      operation: 'ref.cas',
+      namespace: this.namespace,
+      key: refKey,
+      expectedHash,
+      hash,
+      bytesBase64: bytes.toString('base64')
+    });
+    if (response.hash !== hash || response.namespace !== this.namespace) {
+      throw new Error('peer returned an invalid reference durability receipt');
+    }
+    return {
+      hash,
+      namespace: this.namespace,
+      leaderPeerId: this.referenceLeaderPeerId,
+      replicas: [this.referenceLeaderPeerId],
+      receipts: [{ peerId: this.referenceLeaderPeerId, hash, failureDomain: this.failureDomainsByPeerId[this.referenceLeaderPeerId] || 'unspecified' }]
+    };
   }
 
   async getObject(hash) {
