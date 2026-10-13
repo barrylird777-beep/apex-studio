@@ -39,3 +39,12 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
 .apex-app-footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--apex-line);margin-top:30px;padding-top:16px;color:#7f8ca2;font-size:11px}
 @media(max-width:680px){main.apex-shell{padding-top:12px}.apex-app-nav{gap:5px;padding:7px;margin-bottom:20px}.apex-app-brand{width:100%;margin:0;padding:3px 4px 8px;border-bottom:1px solid var(--apex-line)}.apex-app-nav a:not(.apex-app-brand){flex:1;text-align:center;padding:9px 5px;font-size:11px}.apex-shell .grid{grid-template-columns:minmax(0,1fr)}.apex-shell .card{grid-column:1/-1}.apex-shell .row{gap:7px}.apex-shell .row button{flex:1}}
 @media(prefers-reduced-motion:reduce){.apex-app-nav a,.apex-shell button{transition:none}.apex-shell button:hover{transform:none}}
+
+
+/* Keyboard and screen-reader navigation across the six app surfaces. */
+.apex-skip-link{position:fixed;z-index:9999;top:10px;left:10px;transform:translateY(-160%);padding:12px 16px;border-radius:10px;background:var(--apex-ink);color:#07101b!important;font-weight:800;text-decoration:none;box-shadow:0 8px 30px #0008}
+.apex-skip-link:focus{transform:translateY(0);outline:3px solid var(--apex-accent);outline-offset:3px}
+.apex-shell:focus{outline:none}
+.apex-app-footer{align-items:center}
+.apex-app-footer span:last-child{color:#8f9db2}
+@media(max-width:420px){.apex-app-footer{font-size:10px}.apex-app-nav a:not(.apex-app-brand){font-size:10px;padding-inline:3px}}
