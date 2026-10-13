@@ -144,7 +144,10 @@ export class RemoteApexRingWAL {
     return head;
   }
   async _records({ onRecord = async () => {}, retainRing = true, allowHeadLag = false, repairHead = false } = {}) {
-    const maxSnapshotAttempts = 4;
+    // During a busy deployment, independent processes can advance the head while a
+    // replay is listing records. Retry with a short yield instead of failing startup
+    // after four immediate, contention-heavy snapshots.
+    const maxSnapshotAttempts = 12;
     for (let attempt = 0; attempt < maxSnapshotAttempts; attempt += 1) {
       // A remote append can commit between listing WAL refs and reading the
       // head. Compare the head before and after the listing, then retry rather
@@ -167,7 +170,10 @@ export class RemoteApexRingWAL {
       this.offset = bytes;
       const head = await this.cas.readRef("system", this.headKey);
       if ((headBefore?.hash ?? null) !== (head?.hash ?? null)) {
-        if (attempt + 1 < maxSnapshotAttempts) continue;
+        if (attempt + 1 < maxSnapshotAttempts) {
+          await this.sleep(Math.min(100, 10 * (attempt + 1)));
+          continue;
+        }
         throw new Error("[REMOTE_WAL_CONCURRENT] Remote WAL head kept changing during replay.");
       }
       const headSeq = head ? Number(head.value?.seq) : 0;
@@ -176,7 +182,10 @@ export class RemoteApexRingWAL {
       const validLag = allowHeadLag && Number.isSafeInteger(headSeq) && headSeq >= 0 && headSeq < sequence && hashAtSequence.get(headSeq) === headHash;
       const missingHeadWithRecords = allowHeadLag && !head && sequence > 0;
       if (!exact && !validLag && !missingHeadWithRecords) {
-        if (attempt + 1 < maxSnapshotAttempts) continue;
+        if (attempt + 1 < maxSnapshotAttempts) {
+          await this.sleep(Math.min(100, 10 * (attempt + 1)));
+          continue;
+        }
         throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL head does not match record chain.");
       }
       // A crash can occur after the immutable record is committed but before its
