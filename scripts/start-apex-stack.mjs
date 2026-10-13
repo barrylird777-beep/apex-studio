@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrateSovereignStorage } from "../src/core/sovereign-storage-migration.mjs";
@@ -12,7 +12,8 @@ const runtimeScript = path.join(root, "src/core/sovereign-runtime-daemon.mjs");
 const children = new Map();
 // Reject readiness records left by a prior supervisor/process generation.
 const runtimeInstanceId = randomUUID();
-const childEnv = { ...process.env, APEX_RUNTIME_INSTANCE_ID: runtimeInstanceId };
+const peerStorageBridgeToken = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || randomBytes(32).toString("base64url"));
+const childEnv = { ...process.env, APEX_RUNTIME_INSTANCE_ID: runtimeInstanceId, APEX_PEER_STORAGE_BRIDGE_TOKEN: peerStorageBridgeToken };
 let stopping = false;
 let exitCode = 0;
 let restartTimer;
