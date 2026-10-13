@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useEffect, useState, type FormEvent} from "react";
 import ProjectDashboard from "./pages/ProjectDashboard";
 import CharacterDatabase from "./pages/CharacterDatabase";
 import ScriptureBreakdown from "./pages/ScriptureBreakdown";
@@ -45,7 +45,7 @@ export default function App(){
   },[]);
 
   const go=(key:typeof p,url:string)=>{history.pushState(null,"",url);setP(key);};
-  async function signIn(event:React.FormEvent<HTMLFormElement>){
+  async function signIn(event:FormEvent<HTMLFormElement>){
     event.preventDefault();
     setBusy(true);setAuthError("");
     try{
