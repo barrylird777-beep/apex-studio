@@ -269,3 +269,10 @@ test("ShieldApex status reports XShield as the canonical owner",async()=>{
   assert.match(server,/app\.get\('\/api\/shield-apex\/status'[\s\S]*?system: 'xshield'[\s\S]*?ownerApp: 'XShield'/);
   assert.match(page,/ShieldApex is a historical security-boundary implementation now owned by XShield/);
 });
+
+test("GardenApex legacy page does not restore obsolete three-system ownership",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/garden-of-apex.html"),"utf8");
+  assert.match(page,/PlanetApeX owns Bible study, research, knowledge, analytics, and the GardenApex living universe/);
+  assert.match(page,/KernelVision owns production/);
+  assert.doesNotMatch(page,/Apex Studio owns production|KORNKNOB supplies computational/);
+});
