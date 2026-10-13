@@ -26,7 +26,7 @@ test("all canonical registry entries point to real surfaces and modules",async()
 
 test("PlanetApeX home exposes exactly the six canonical app links",async()=>{
   const html=await readFile(resolve(process.cwd(),"public/index.html"),"utf8");
-  const nav=html.match(/<nav class="apex-app-nav"[\\s\\S]*?<\\/nav>/)?.[0];
+  const nav=html.match(/<nav class="apex-app-nav"[\s\S]*?<\/nav>/)?.[0];
   assert.ok(nav,"PlanetApeX home must show the canonical app switcher");
   for(const name of ["PlanetApeX","XShield","KernelVision","Kernelodies","KashKorner","KoinKob"]) assert.ok(nav.includes(name),name+" must be linked from PlanetApeX");
   assert.doesNotMatch(nav,/KoBlocks/,"KoBlocks is a legacy capability, not a canonical app");
