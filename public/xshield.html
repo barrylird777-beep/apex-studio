@@ -15,19 +15,21 @@ main{max-width:1180px;padding:30px 18px 46px}
 button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4}
 </style>
 <link rel="stylesheet" href="/apex-six-apps.css"><script src="/apex-six-apps.js" defer></script><style>
-.xshield-tabs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0 14px;padding:7px;border:1px solid var(--apex-line);border-radius:15px;background:rgba(7,12,20,.7)}
+.xshield-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0 14px}.xshield-tabs{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;padding:7px;border:1px solid var(--apex-line);border-radius:15px;background:rgba(7,12,20,.7)}
 .xshield-tabs [role=tab]{flex:1 1 auto;min-height:44px}
 .xshield-tabs [aria-selected=true]{background:color-mix(in srgb,var(--apex-accent) 24%,#101827);border-color:var(--apex-accent);box-shadow:inset 0 -2px 0 var(--apex-accent)}
 .xshield-tabs [role=tab]:focus-visible{outline:3px solid var(--apex-accent);outline-offset:2px}
 #xshield-panel-overview[hidden],#xshield-panel-diagnostics[hidden]{display:none}
-@media(max-width:520px){.xshield-tabs{position:sticky;top:60px;z-index:15;flex-wrap:nowrap;overflow-x:auto}.xshield-tabs [role=tab]{flex:0 0 auto}.xshield-tabs #xshield-refresh{flex:0 0 auto}}
+@media(max-width:520px){.xshield-controls{position:sticky;top:60px;z-index:15;flex-wrap:nowrap;align-items:stretch;background:rgba(8,11,18,.94);padding:6px;border-radius:14px;backdrop-filter:blur(14px)}.xshield-tabs{flex-wrap:nowrap;overflow-x:auto;min-width:0}.xshield-tabs [role=tab]{flex:1 0 auto}.xshield-controls>#xshield-refresh{flex:0 0 auto}}
 </style>
 </head>
 <body><a class="apex-skip-link" href="#apex-main">Skip to XShield content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" aria-current="page" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="xshield" id="apex-main" tabindex="-1">
 <header class="top"><div class="eyebrow">Apex application surface</div><h1>XShield</h1><p class="muted">Ad blocking, tracker blocking and network filtering.</p><div class="links"><a href="/">PlanetApeX home</a><a href="/shield-apex.html">ShieldApex security surface</a><a href="/api/network/adblock/profile">Mobile profile</a></div></header>
+<div class="xshield-controls">
 <div class="xshield-tabs" role="tablist" aria-label="XShield views">
 <button id="xshield-tab-overview" type="button" role="tab" aria-selected="true" aria-controls="xshield-panel-overview">Overview</button>
 <button id="xshield-tab-diagnostics" type="button" role="tab" aria-selected="false" aria-controls="xshield-panel-diagnostics" tabindex="-1">Diagnostics</button>
+</div>
 <button id="xshield-refresh" type="button">Refresh status</button>
 </div>
 <section id="xshield-panel-overview" role="tabpanel" aria-labelledby="xshield-tab-overview">
