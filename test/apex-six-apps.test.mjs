@@ -195,3 +195,31 @@ test("all six canonical browser surfaces use the shared responsive UI system",as
   assert.match(css,/focus-visible/,"shared UI must expose keyboard focus");
   assert.match(css,/overflow-x:auto/,"app switcher must remain usable on narrow screens");
 });
+
+
+test("legacy TeeVee and PayPex surfaces resolve to current canonical owners",()=>{
+  const teevee=getApexApp("teevee");
+  const paypex=getApexApp("paypex");
+  assert.equal(teevee.system,"kernel-vision");
+  assert.match(teevee.role,/24\/7 entertainment programming and broadcast surface owned by KernelVision/);
+  assert.equal(paypex.system,"kash-korner");
+  assert.match(paypex.role,/opportunity, market and monetization intelligence surface owned by KashKorner/);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+});
+
+test("KernelVision registry assigns the continuous network and keeps Theatre/Kornmax as playback experiences",()=>{
+  const app=getApexApp("kernel-vision");
+  assert.match(app.role,/24\/7 original entertainment stream/);
+  assert.match(app.role,/Theatre and Kornmax are playback experiences/);
+});
+
+test("KernelVision presents the continuous network as canonical and Theatre as a playback capability",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/kernel-vision.html"),"utf8");
+  const hub=await readFile(resolve(process.cwd(),"src/pages/SixAppHub.tsx"),"utf8");
+  assert.match(page,/24\/7 original entertainment network/i);
+  assert.match(page,/api\/apex\/apps\/teevee\/status/);
+  assert.match(page,/href="\/teevee\.html"/);
+  assert.match(page,/Theatre and Kornmax remain playback experiences/);
+  assert.match(hub,/24\/7 entertainment stream/);
+  assert.match(hub,/href: "\/teevee\.html"/);
+});
