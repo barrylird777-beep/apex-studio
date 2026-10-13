@@ -46,8 +46,8 @@ export async function createPeerStorageAssembly({ peerNode, env = process.env } 
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('active libp2p peer node is required');
   const appId = String(env.APEX_APP_ID || '').trim();
   if (!APEX_MEDIA_APPS.includes(appId)) throw new Error('APEX_APP_ID must identify exactly one canonical app for isolated peer media storage');
-  const backendSpecifier = String(env.APEX_PEER_STORAGE_BACKEND_MODULE || '').trim();
-  if (!backendSpecifier) throw new Error('APEX_PEER_STORAGE_BACKEND_MODULE must identify the peer-owned durable backend; local fallback is forbidden');
+  const backendSpecifier = String(env.APEX_PEER_STORAGE_BACKEND_MODULE || (env.APEX_PEER_STORAGE_UPSTREAM ? new URL('./peer-network-storage-backend.mjs', import.meta.url).href : '')).trim();
+  if (!backendSpecifier) throw new Error('configure APEX_PEER_STORAGE_BACKEND_MODULE or APEX_PEER_STORAGE_UPSTREAM; local fallback is forbidden');
   const backendUrl = backendSpecifier.startsWith('file:')
     ? backendSpecifier
     : pathToFileURL(path.resolve(backendSpecifier)).href;
