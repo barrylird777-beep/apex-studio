@@ -122,6 +122,28 @@ test("remote dispatch dedupe uses an index and retains completed dispatch keys",
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("remote queue indexes recover from a crash after job persistence", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-queue-recovery-"));
+  try {
+    const cas = new MemoryCAS();
+    const first = new ApexPureStore({ root, cas });
+    await first.init();
+    await first.ensureRemoteQueueIndex();
+    const queued = await first.enqueue({ id: "crash-window-job", type: "test.recover", payload: {} });
+    assert.equal(queued.durable, true);
+    const queueKey = first.refKey("job", "crash-window-job");
+    const index = await cas.readRef("queue", queueKey);
+    assert.ok(index, "enqueue creates the queue index");
+    await cas.deleteRef("queue", queueKey, { expectedHash: index.hash });
+
+    const restarted = new ApexPureStore({ root, cas });
+    await restarted.init();
+    const claimed = await restarted.claim({ workerId: "recovery-test", limit: 1 });
+    assert.equal(claimed.length, 1, "startup reconciliation must rebuild a missing index even when an old marker exists");
+    assert.equal(claimed[0].id, "crash-window-job");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("remote migration imports local CAS records without deleting the source", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-migration-"));
   try {
