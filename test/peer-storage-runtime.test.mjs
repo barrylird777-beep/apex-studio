@@ -144,3 +144,11 @@ test('peer storage health does not advertise an ephemeral backend as durable', a
   assert.equal(result.durable, false);
   assert.equal(result.ownership, null);
 });
+
+
+test('peer storage assembly rejects self-replication as independent durability', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../src/core/peer-storage-assembly.mjs', import.meta.url), 'utf8');
+  assert.match(source, /targets\.some\(target => target\.peerId === localPeerId\)/);
+  assert.match(source, /self-replication does not provide independent durability/);
+});
