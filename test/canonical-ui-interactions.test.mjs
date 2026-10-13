@@ -101,7 +101,7 @@ test("shared controls drawer and display settings are attached to all six apps",
     assert.match(html, /apex-ui-controls\\.js/, app.name + " must load shared controls behavior");
   }
   assert.match(controls, /addToggle\("Higher contrast", "apex-ui-high-contrast"/);
-  assert.match(controls, /addToggle\\("Compact spacing", "apex-ui-compact"/);
+  assert.match(controls, /addToggle\("Compact spacing", "apex-ui-compact"/);
   assert.match(controls, /event\\.key === "Escape"/);
   assert.match(controls, /event\\.shiftKey/);
   assert.match(controls, /priorFocus\\.focus\\(\\)/);
