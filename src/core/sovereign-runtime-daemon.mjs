@@ -182,7 +182,10 @@ async function main() {
   await runCycle(bridge);
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
-  console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
+  console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
+    status: readinessReady ? 'online' : 'starting',
+    readiness: { ...runtimeReadiness, ready: readinessReady },
     workerId,
     peerId: peerNode.peerId.toString(),
     peerAddress: peerAddress || null,
