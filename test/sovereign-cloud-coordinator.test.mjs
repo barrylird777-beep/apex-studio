@@ -190,3 +190,19 @@ test("lease mutation fails closed when provider omits ETags", async () => {
   assert.deepEqual(await c.renewJobLease({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag", leaseToken: claim.lease.token }), { renewed: false, reason: "lease-etag-unavailable" });
   assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag", leaseToken: claim.lease.token }), { accepted: false, reason: "lease-etag-unavailable" });
 });
+
+test("terminal job rejection does not mutate an otherwise active lease", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "KernelVision", jobId: "already-terminal", taskType: "render", capability: "ffmpeg", payload: { frame: 1 } });
+  const claim = await c.claimJob({ app: "KernelVision", jobId: "already-terminal", workerId: "worker-active" });
+  const key = "apex-mesh/v1/apps/KernelVision/jobs/already-terminal.json";
+  const stored = c.client.objects.get(key);
+  const job = JSON.parse(stored.body.toString("utf8"));
+  job.status = "completed";
+  stored.body = Buffer.from(JSON.stringify(job));
+  stored.metadata.sha256 = (await import("node:crypto")).createHash("sha256").update(stored.body).digest("hex");
+  const result = await c.finishJob({ app: "KernelVision", jobId: "already-terminal", workerId: "worker-active", leaseToken: claim.lease.token });
+  assert.deepEqual(result, { accepted: false, reason: "job-not-queued" });
+  const lease = JSON.parse(c.client.objects.get("apex-mesh/v1/apps/KernelVision/leases/already-terminal.json").body.toString("utf8"));
+  assert.equal(lease.status, "active");
+});
