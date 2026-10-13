@@ -211,3 +211,12 @@ test('peer CAS verifies replica count and distinct failure domains before report
   assert.equal(new Set(result.receipts.map(receipt => receipt.failureDomain)).size, 2);
   assert.deepEqual(await client.getObject(result.hash), { critical: 'must survive a domain loss' });
 });
+
+
+test('peer CAS rejects objects that exceed the safe single-envelope limit until chunking exists', async () => {
+  const mesh = makeMesh();
+  await assert.rejects(
+    mesh.client.putObject({ large: 'x'.repeat(40 * 1024) }),
+    error => error.code === 'OBJECT_TOO_LARGE_REQUIRES_CHUNKING' && error.maxObjectBytes === 32 * 1024
+  );
+});
