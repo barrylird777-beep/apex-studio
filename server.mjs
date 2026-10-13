@@ -349,7 +349,8 @@ app.use('/api/teevee/production', createTeeVeeProductionRouter({ enqueue: enqueu
 app.get('/api/shield-apex/status', (_req, res) => {
   res.status(200).json({
     success: true,
-    system: 'apex-studio',
+    system: 'xshield',
+    ownerApp: 'XShield',
     capability: 'ShieldApex',
     role: 'network_security',
     ...shieldApex.status()

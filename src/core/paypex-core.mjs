@@ -70,7 +70,7 @@ export async function getPaypexSnapshot() {
 
   return {
     engine: "PayPex",
-    system: "apex-studio",
+    system: "kash-korner",
     role: "paypex_decision_engine",
     purpose: "money-making stock, market, business and monetization intelligence",
     state: state.channel ? "evidence-backed" : "awaiting-evidence",
@@ -81,17 +81,17 @@ export async function getPaypexSnapshot() {
       id: randomUUID(),
       opportunityId: item.id,
       action: "build-brief",
-      handoff: "TeeVee",
-      ownerSystem: "apex-studio",
-      ownerApp: "PayPex",
+      handoff: "KernelVision",
+      ownerSystem: "kash-korner",
+      ownerApp: "KashKorner",
       status: "proposed"
     })),
     separation: {
-      PayPex: "Studio money-making stock, market, business and monetization intelligence",
-      ApexStudio: "production, mastering, QC, delivery and infrastructure",
-      TeeVee: "Studio production surface for original animated entertainment",
-      GardenOfApex: "knowledge and research source where applicable",
-      KORNKNOB: "AI, model, media and computational capability"
+      KashKorner: "cash/ledger, financial state, opportunity and monetization intelligence",
+      KernelVision: "production, mastering, QC, delivery and the 24/7 entertainment network",
+      PlanetApeX: "knowledge and research source where applicable",
+      Kernelodies: "music/audio and music-specific AI/media capabilities",
+      XShield: "security, privacy and network protection"
     },
     generatedAt: new Date().toISOString()
   };
@@ -103,13 +103,13 @@ export function buildPaypexBrief(input = {}) {
   return {
     id: randomUUID(),
     engine: "PayPex",
-    system: "apex-studio",
+    system: "kash-korner",
     topic,
     objective: text(input.objective) || "Test the highest-value opportunity with the smallest credible production.",
     audience: text(input.audience) || "existing Apex audience",
     monetization: text(input.monetization) || "attention → audience growth → downstream revenue",
     evidenceRequired: true,
-    handoff: text(input.handoff) || "TeeVee",
+    handoff: text(input.handoff) || "KernelVision",
     createdAt: new Date().toISOString()
   };
 }

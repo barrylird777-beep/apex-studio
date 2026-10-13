@@ -11,6 +11,8 @@ import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus, saveKoinKobRecord, listKoinKobRecords } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
+import { buildPaypexBrief } from "../src/core/paypex-core.mjs";
+import { buildEngineBrief } from "../src/core/engine-apex.mjs";
 
 test("Apex exposes the six locked canonical apps",()=>{
   assert.equal(assertSixAppInvariant(),true);
@@ -194,4 +196,113 @@ test("all six canonical browser surfaces use the shared responsive UI system",as
   assert.match(css,/prefers-reduced-motion/,"shared UI must respect reduced motion");
   assert.match(css,/focus-visible/,"shared UI must expose keyboard focus");
   assert.match(css,/overflow-x:auto/,"app switcher must remain usable on narrow screens");
+});
+
+
+test("legacy TeeVee and PayPex surfaces resolve to current canonical owners",()=>{
+  const teevee=getApexApp("teevee");
+  const paypex=getApexApp("paypex");
+  assert.equal(teevee.system,"kernel-vision");
+  assert.match(teevee.role,/24\/7 entertainment programming and broadcast surface owned by KernelVision/);
+  assert.equal(paypex.system,"kash-korner");
+  assert.match(paypex.role,/opportunity, market and monetization intelligence surface owned by KashKorner/);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+});
+
+test("KernelVision registry assigns the continuous network and keeps Theatre/Kornmax as playback experiences",()=>{
+  const app=getApexApp("kernel-vision");
+  assert.match(app.role,/24\/7 original entertainment stream/);
+  assert.match(app.role,/Theatre and Kornmax are playback experiences/);
+});
+
+test("KernelVision presents the continuous network as canonical and Theatre as a playback capability",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/kernel-vision.html"),"utf8");
+  const hub=await readFile(resolve(process.cwd(),"src/pages/SixAppHub.tsx"),"utf8");
+  assert.match(page,/24\/7 original entertainment network/i);
+  assert.match(page,/api\/apex\/apps\/teevee\/status/);
+  assert.match(page,/href="\/teevee\.html"/);
+  assert.match(page,/Theatre and Kornmax remain playback experiences/);
+  assert.match(hub,/24\/7 entertainment stream/);
+  assert.match(hub,/href: "\/teevee\.html"/);
+});
+
+test("legacy TeeVee pages identify KernelVision as their canonical owner",async()=>{
+  const network=await readFile(resolve(process.cwd(),"public/teevee.html"),"utf8");
+  const buyer=await readFile(resolve(process.cwd(),"public/teevee-buyer.html"),"utf8");
+  assert.match(network,/KernelVision owns the continuous network/);
+  assert.match(network,/href="\/kernel-vision\.html">KernelVision/);
+  assert.match(buyer,/historical name for KernelVision's 24\/7 original animated entertainment network/);
+  assert.match(buyer,/not a separate canonical app/);
+});
+
+test("absorbed Garden, PayPex, and EngineApex pages use current canonical ownership",async()=>{
+  const garden=await readFile(resolve(process.cwd(),"public/garden-of-apex.html"),"utf8");
+  const paypex=await readFile(resolve(process.cwd(),"public/paypex.html"),"utf8");
+  const engine=await readFile(resolve(process.cwd(),"public/engine-apex.html"),"utf8");
+  const nav=garden.match(/<nav aria-label="Six canonical apps">[\s\S]*?<\/nav>/)?.[0]||"";
+  for(const name of ["PlanetApeX","XShield","KernelVision","Kernelodies","KashKorner","KoinKob"]) assert.ok(nav.includes(name),name+" must appear in GardenApex canonical navigation");
+  assert.doesNotMatch(nav,/TeeVee|PayPex|KoBlocks|ShieldApex/);
+  assert.match(garden,/GardenApex is the living universe inside PlanetApeX—not a separate app/);
+  assert.match(paypex,/historical opportunity, market and monetization engine now owned by KashKorner/);
+  assert.match(paypex,/KernelVision owns production execution/);
+  assert.match(engine,/historical opportunity-decision capability now assigned to KashKorner/);
+  assert.match(engine,/production execution belongs to KernelVision/);
+});
+
+test("legacy EngineApex and ShieldApex capabilities resolve to canonical owners",()=>{
+  assert.equal(getApexApp("engine-apex").system,"kash-korner");
+  assert.equal(getApexApp("shield-apex").system,"xshield");
+  assert.equal(getApexApp("apex-adblocker").system,"xshield");
+  assert.equal(getApexApp("garden-of-apex").system,"planet-apex");
+  assert.equal(getApexApp("korn-knob").system,"kernelodies");
+  assert.equal(getApexApp("ko-blocks").name,"KoBlocks");
+  assert.equal(listApexApps().length,6);
+});
+
+test("legacy Music Radar bridge follows Kernelodies-to-KernelVision production ownership",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/korn-knob.html"),"utf8");
+  assert.match(page,/Music Radar is a Kernelodies discovery and integration surface, not a separate production authority/);
+  assert.match(page,/KernelVision owns final audiovisual production/);
+  assert.match(page,/KernelVision URL/);
+});
+test("ShieldApex status reports XShield as the canonical owner",async()=>{
+  const server=await readFile(resolve(process.cwd(),"server.mjs"),"utf8");
+  const page=await readFile(resolve(process.cwd(),"public/shield-apex.html"),"utf8");
+  assert.match(server,/app\.get\('\/api\/shield-apex\/status'[\s\S]*?system: 'xshield'[\s\S]*?ownerApp: 'XShield'/);
+  assert.match(page,/ShieldApex is a historical security-boundary implementation now owned by XShield/);
+});
+
+test("GardenApex legacy page does not restore obsolete three-system ownership",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/garden-of-apex.html"),"utf8");
+  assert.match(page,/PlanetApeX owns Bible study, research, knowledge, analytics, and the GardenApex living universe/);
+  assert.match(page,/KernelVision owns production/);
+  assert.doesNotMatch(page,/Apex Studio owns production|KORNKNOB supplies computational/);
+});
+
+test("PayPex opportunity engine now hands off to KashKorner and KernelVision",()=>{
+  const brief=buildPaypexBrief({topic:"Historical lineage test"});
+  assert.equal(brief.system,"kash-korner");
+  assert.equal(brief.handoff,"KernelVision");
+  assert.equal(brief.engine,"PayPex");
+});
+test("PayPex compatibility wrapper reports KernelVision as production owner",async()=>{
+  const { createPayPexBrief }=await import("../src/apps/paypex.mjs");
+  const brief=createPayPexBrief({topic:"Historical lineage test"});
+  assert.equal(brief.app.name,"PayPex");
+  assert.equal(brief.system,"kash-korner");
+  assert.equal(brief.executionOwner,"KernelVision");
+});
+
+test("rapid-video storefront is presented as KashKorner's public offer",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/rapid-video.html"),"utf8");
+  assert.match(page,/<title>KashKorner · Public Rapid Video Offer<\/title>/);
+  assert.match(page,/KashKorner home/);
+  assert.match(page,/KASHKORNER<\/b> · PUBLIC RAPID-VIDEO OFFER/);
+});
+
+test("EngineApex opportunity engine now hands off to KashKorner and KernelVision",()=>{
+  const brief=buildEngineBrief({topic:"Historical lineage test"});
+  assert.equal(brief.system,"kash-korner");
+  assert.equal(brief.handoff,"KernelVision");
+  assert.equal(brief.engine,"EngineApex");
 });

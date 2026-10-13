@@ -20,11 +20,12 @@ type ApexApp = {
 const apps: ApexApp[] = [
   {
     key: "kernelvision", name: "KernelVision", role: "THE EYES", tagline: "Create what you can imagine.",
-    description: "The production and media studio for developing stories, building scenes, shaping sound, and preparing releases.",
+    description: "The production and media studio that creates original work and owns the 24/7 self-uploading entertainment stream, from development and rendering through publishing.",
     icon: Eye, accent: "violet", status: "Studio workspace",
-    features: ["Creative development", "Scenes and production", "Media pipeline", "Production analytics"],
+    features: ["24/7 entertainment stream", "Creative development", "Media production pipeline", "Publishing and analytics"],
     links: [
-      { label: "Open KernelVision", href: "/kernel-vision.html", note: "Production and media studio" },
+      { label: "Open KernelVision", href: "/kernel-vision.html", note: "Production studio and continuous stream" },
+      { label: "Open 24/7 network status", href: "/teevee.html", note: "TeeVee network capability under KernelVision" },
       { label: "Open scenes and shots", href: "/scenes", note: "Production workspace" },
       { label: "Open characters and worlds", href: "/characters", note: "Creative development workspace" },
     ],
