@@ -69,7 +69,7 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
 const encoder = new TextEncoder();
 const MAX_ENVELOPE_BYTES = Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVELOPE_BYTES || 65536));
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
-const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
+const allowedPeerIds = () => new Set([process.env.APEX_ALLOWED_PEER_IDS, process.env.APEX_ALLOWED_PEER_IDS_EXTRA].filter(Boolean).flatMap(value => value.split(',')).map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 
