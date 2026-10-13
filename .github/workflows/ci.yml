@@ -36,6 +36,8 @@ jobs:
         run: npm run smoke:production
       - name: SIGTERM readiness race
         run: npm run test:sigterm-race
+      - name: Deterministic fault simulator
+        run: npm run test:deterministic-sim
       - name: Canonical six-app contract
         run: npm run check:canonical
       - name: KernelVision episode smoke
