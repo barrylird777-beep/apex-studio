@@ -290,29 +290,92 @@ export class ApexPureStore {
   async refreshJobs(){await this.init();await this.loadJobReferences();return this;}
   async refresh(){await this.init();await this.loadReferences();return this;}
   refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
-  async persistJob(job){
+  async persistJob(job,{appendWal=true,walSeq=null}={}){
     const key=this.refKey("job",job.id);
-    await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
     if(this.remoteMode){
+      if(appendWal){
+        const requestHash=createHash("sha256").update(JSON.stringify(job)).digest("hex");
+        const logged=await this.wal.append("job.put",{job:clone(job)},{idempotencyKey:"job.put:"+String(job.id)+":"+requestHash});
+        walSeq=logged.seq;
+      }
+      const seq=Number(walSeq)||0;
+      let persisted=false;
+      for(let attempt=0;attempt<8;attempt++){
+        const current=await this.cas.readRef("jobs",key);
+        if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return clone(current.value.job);
+        try{
+          await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job),walSeq:seq},{expectedHash:current?.hash??null});
+          persisted=true;break;
+        }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+      }
+      if(!persisted)throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed job state.");
       if(job.dedupeKey!=null&&String(job.dedupeKey)){
         const dedupeKey=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
-        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||"")});
+        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||""),walSeq:seq});
       }
       const current=await this.cas.readRef("queue",key);
       const running=await this.cas.readRef("running",key);
       if(job.status==="queued"){
-        const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+        const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||""),walSeq:seq};
         await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
         if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
       }else if(job.status==="running"){
-        const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||"")};
+        const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||""),walSeq:seq};
         await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
         if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
       }else{
         if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
         if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
       }
+      return clone(job);
     }
+    await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
+    return clone(job);
+  }
+  async persistState(collection,id,record,{appendWal=true,walSeq=null}={}){
+    const key=this.refKey(collection,id),value={collection:String(collection),id:String(id),record:clone(record)};
+    if(!this.remoteMode){await this.cas.writeRef("state",key,value);return value;}
+    if(appendWal){
+      const contentHash=createHash("sha256").update(JSON.stringify(value)).digest("hex");
+      const logged=await this.wal.append("state.put",value,{idempotencyKey:"state.put:"+String(collection)+":"+String(id)+":"+contentHash});
+      walSeq=logged.seq;
+    }
+    const seq=Number(walSeq)||0;
+    for(let attempt=0;attempt<8;attempt++){
+      const current=await this.cas.readRef("state",key);
+      if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return current.value;
+      try{
+        const stored={...value,walSeq:seq};
+        await this.cas.writeRef("state",key,stored,{expectedHash:current?.hash??null});
+        return stored;
+      }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+    }
+    throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed state.");
+  }
+  async persistDelete(collection,id,{appendWal=true,walSeq=null}={}){
+    const key=this.refKey(collection,id);
+    if(!this.remoteMode){
+      const current=await this.cas.readRef("state",key);
+      if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});
+      return true;
+    }
+    let current=await this.cas.readRef("state",key);
+    if(appendWal){
+      if(!current||current.value?.deleted)return true;
+      const priorHash=current.hash;
+      const logged=await this.wal.append("state.delete",{collection:String(collection),id:String(id),priorHash},{idempotencyKey:"state.delete:"+String(collection)+":"+String(id)+":"+priorHash});
+      walSeq=logged.seq;
+    }
+    const seq=Number(walSeq)||0;
+    for(let attempt=0;attempt<8;attempt++){
+      current=await this.cas.readRef("state",key);
+      if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return true;
+      try{
+        await this.cas.writeRef("state",key,{collection:String(collection),id:String(id),deleted:true,walSeq:seq},{expectedHash:current?.hash??null});
+        return true;
+      }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+    }
+    throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed deletion.");
   }
   async persistState(collection,id,record){await this.cas.writeRef("state",this.refKey(collection,id),{collection:String(collection),id:String(id),record:clone(record)});}
   async withMutationLock(operation){
