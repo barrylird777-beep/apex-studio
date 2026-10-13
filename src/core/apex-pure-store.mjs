@@ -377,7 +377,6 @@ export class ApexPureStore {
     }
     throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed deletion.");
   }
-  async persistState(collection,id,record){await this.cas.writeRef("state",this.refKey(collection,id),{collection:String(collection),id:String(id),record:clone(record)});}
   async withMutationLock(operation){
     // Reentrant for nested mutations in the same async call chain; otherwise a
     // nested acquisition waits on its own lock until the global timeout.
