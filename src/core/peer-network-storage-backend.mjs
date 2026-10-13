@@ -39,13 +39,14 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
     return result;
   };
   const capability = await request({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: app });
-  if (capability.durable !== true || capability.ownership !== 'peer-owned') {
+  if (capability.durable !== true || capability.ownership !== 'peer-owned' || capability.recoveryVerified !== true) {
     throw new Error('upstream peer did not prove durable peer-owned storage capacity');
   }
 
   return Object.freeze({
     durable: true,
     ownership: 'peer-owned',
+    recoveryVerified: true,
     upstreamPeerId,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
@@ -60,7 +61,7 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
         protocol: 'apex.cas.v1', operation: 'object.put', namespace: app,
         hash, bytesBase64: bytes.toString('base64')
       });
-      if (result.hash !== hash || result.bytes !== bytes.length || result.durable !== true || result.ownership !== 'peer-owned') {
+      if (result.hash !== hash || result.bytes !== bytes.length || result.durable !== true || result.ownership !== 'peer-owned' || result.recoveryVerified !== true) {
         throw new Error('upstream object receipt did not prove durable peer-owned storage');
       }
       return { hash, bytes: bytes.length };
