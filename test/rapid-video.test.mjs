@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {buildRapidCheckoutMetadata,decodeRapidCheckoutMetadata,verifyRapidStripeSignature} from '../src/payments/stripe-rapid.mjs';
+import {buildRapidCheckoutMetadata,buildRapidCheckoutParams,decodeRapidCheckoutMetadata,verifyRapidStripeSignature} from '../src/payments/stripe-rapid.mjs';
 
 test('Rapid checkout metadata round-trips full brief',()=>{
   const brief='Line one\nLine two — cinematic hook. '.repeat(140);
@@ -32,4 +32,14 @@ test('Rapid checkout module exposes payment-gate primitives',async()=>{
   assert.equal(typeof source.createRapidCheckout,'function');
   assert.equal(typeof source.verifyRapidStripeSignature,'function');
   assert.equal(typeof source.decodeRapidCheckoutMetadata,'function');
+});
+
+
+test('Rapid checkout offers lower-fee US bank debit alongside card payments',()=>{
+  const params=buildRapidCheckoutParams({orderId:'order-low-fee',name:'Buyer',type:'Product ad',brief:'Make a launch video',platform:'TikTok',email:'buyer@example.com',successUrl:'https://example.com/success',cancelUrl:'https://example.com/cancel'});
+  assert.equal(params.get('payment_method_types[0]'),'card');
+  assert.equal(params.get('payment_method_types[1]'),'us_bank_account');
+  assert.equal(params.get('payment_method_options[us_bank_account][verification_method]'),'automatic');
+  assert.equal(params.get('payment_method_options[us_bank_account][financial_connections][permissions][0]'),'payment_method');
+  assert.equal(params.get('line_items[0][price_data][unit_amount]'),'2500');
 });
