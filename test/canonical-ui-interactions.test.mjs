@@ -56,3 +56,19 @@ test("project dashboard reports failed mutations and prevents duplicate submissi
   assert.match(page, /disabled=\{saving\}/);
   assert.match(page, /role="alert"/);
 });
+
+test("main dashboard tabs resolve to real views and network settings refresh is wired", async () => {
+  const html = await readPublic("index.html");
+  const buttons = [...html.matchAll(/<button\\b[^>]*data-view=["']([^"']+)["'][^>]*>/gi)];
+  assert.ok(buttons.length >= 15, "main dashboard should expose its existing workspaces");
+  const sectionIds = new Set([...html.matchAll(/<(?:section|div)\\b[^>]*id=["']([^"']+)["']/gi)].map(match => match[1]));
+  for (const match of buttons) {
+    const view = match[1];
+    assert.ok(sectionIds.has(view), "dashboard tab " + view + " has no matching view container");
+    assert.match(match[0], /onclick=["']view\\(/i, "dashboard tab " + view + " must call the view switcher");
+  }
+  assert.match(html, /<h1>Network Settings<\\/h1>/);
+  assert.match(html, /onclick=["']loadNetwork\\(\\)["']/);
+  assert.match(html, /async function loadNetwork\\(\\)/);
+  assert.match(html, /api\\(["']\\/api\\/network\\/status["']\\)/);
+});
