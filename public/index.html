@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080b12"><meta name="description" content="PlanetApeX — the brain of the six-app Apex universe: Bible study, research, knowledge, AI and interactive experiences.">
-<link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css"><title>PlanetApeX — Apex Universe</title>
+<link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css"><script src="/apex-six-apps.js" defer></script><title>PlanetApeX — Apex Universe</title>
 <style>
 :root{
   --bg:#05070b;--panel:rgba(18,22,30,.62);--panel2:rgba(13,17,24,.72);
@@ -152,7 +152,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
   .nav button{padding-inline:11px}
 }
 
-</style><script src="/apex-ui-controls.js" defer></script></head>
+</style></head>
 <body><a class="apex-skip-link" href="#main-content">Skip to PlanetApeX content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/" aria-label="Apex app home"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/" aria-current="page" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><div id="owner-auth-gate" role="dialog" aria-modal="true" aria-labelledby="owner-auth-title">
 <section class="owner-auth-card">
 <div class="owner-auth-mark" aria-hidden="true">A</div>
@@ -194,7 +194,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <aside><nav class="nav">
 <button data-view="overview" class="active" onclick="view('overview')">Overview</button>
 <button data-view="stories" onclick="view('stories')">Stories</button>
-<button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="audio-station" onclick="view('audio-station')">Music + Audio</button><button data-view="audio" onclick="view('audio')">Audio Lab</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
+<button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="audio-station" onclick="view('audio-station')">Music + Audio</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
 <button data-view="timeline" onclick="view('timeline')">Timeline</button><button data-view="production" onclick="view('production')">Production</button><button data-view="network" onclick="view('network')">Network</button><button data-view="storyboard" onclick="view('storyboard')">Storyboard</button><button data-view="visuals" onclick="view('visuals')">Visual Bible</button><button onclick="location.href='/production.html'">Production Desk</button><button data-view="bible" onclick="view('bible')">Bible Library</button><button data-view="retention" onclick="view('retention')">Retention Hook</button>
 </nav></aside>
 <main id="main-content">
@@ -595,4 +595,4 @@ async function musicRadarHandoff(){try{
 const _view=view;view=function(name){_view(name);if(name==="audio-station")loadAudioStation()}
 </script><script src="/vision-editor.js"></script><script src="/omni-studio.js"></script><script src="/apex-dashboard.js"></script>
 <script>if(location.pathname==='/korn-knob') view('music-radar');</script>
-</body></html>
+<script src="/apex-ui-controls.js"></script></body></html>
