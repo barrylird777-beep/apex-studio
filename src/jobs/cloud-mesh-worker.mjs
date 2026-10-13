@@ -22,14 +22,22 @@ function moduleUrl(specifier) {
 
 async function execute(job, lease) {
   let renewing = false;
+  let leaseLost = false;
+  const controller = new AbortController();
   const leaseHeartbeat = setInterval(async () => {
     if (renewing) return;
     renewing = true;
     try {
       const result = await coordinator.renewJobLease({ app, jobId: job.jobId, workerId, leaseToken: lease.token, leaseMs });
-      if (!result.renewed) console.error("[APEX CLOUD WORKER] lease renewal rejected", JSON.stringify({ app, jobId: job.jobId, reason: result.reason }));
+      if (!result.renewed) {
+        leaseLost = true;
+        controller.abort(new Error("Cloud lease lost: " + result.reason));
+        console.error("[APEX CLOUD WORKER] lease renewal rejected; aborting work", JSON.stringify({ app, jobId: job.jobId, reason: result.reason }));
+      }
     } catch (error) {
-      console.error("[APEX CLOUD WORKER] lease renewal failed", JSON.stringify({ app, jobId: job.jobId, error: String(error?.message || error) }));
+      leaseLost = true;
+      controller.abort(new Error("Cloud lease renewal failed"));
+      console.error("[APEX CLOUD WORKER] lease renewal failed; aborting work", JSON.stringify({ app, jobId: job.jobId, error: String(error?.message || error) }));
     } finally {
       renewing = false;
     }
@@ -47,9 +55,11 @@ async function execute(job, lease) {
     const mod = await import(moduleUrl(handlerModule));
     const handler = mod.handlers?.[job.taskType] ?? mod.default?.[job.taskType] ?? mod.handleJob ?? mod.default;
     if (typeof handler !== "function") throw new Error("No real handler registered for cloud job type: " + job.taskType);
-    const result = await handler({ id: job.jobId, type: job.taskType, app, payload, capability: job.capability, workerId });
+    const result = await handler({ id: job.jobId, type: job.taskType, app, payload, capability: job.capability, workerId, signal: controller.signal });
+    if (leaseLost || controller.signal.aborted) throw new Error("Cloud lease lost; refusing to persist stale worker output");
     const resultBytes = Buffer.from(JSON.stringify(result ?? null));
     const persisted = await coordinator.putPayload({ app, bytes: resultBytes, contentType: "application/json" });
+    if (leaseLost || controller.signal.aborted) throw new Error("Cloud lease lost; refusing to finalize stale worker output");
     await stopLeaseHeartbeat();
     const completed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: persisted.payloadHash, status: "completed" });
     if (!completed.accepted) throw new Error("Cloud job completion rejected: " + completed.reason);
