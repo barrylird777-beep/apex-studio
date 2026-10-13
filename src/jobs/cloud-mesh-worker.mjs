@@ -1,4 +1,4 @@
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { SovereignCloudCoordinator } from "../core/mesh/sovereign-cloud-coordinator.mjs";
@@ -11,7 +11,6 @@ const leaseMs = Math.max(5000, Math.min(300000, Number(process.env.APEX_CLOUD_WO
 const coordinator = new SovereignCloudCoordinator();
 let stopping = false;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 
 if (!handlerModule) throw new Error("APEX_CLOUD_HANDLER_MODULE is required; no simulated handler is permitted");
 
@@ -20,6 +19,20 @@ function moduleUrl(specifier) {
 }
 
 async function execute(job, lease) {
+  let renewing = false;
+  const leaseHeartbeat = setInterval(async () => {
+    if (renewing || stopping) return;
+    renewing = true;
+    try {
+      const result = await coordinator.renewJobLease({ app, jobId: job.jobId, workerId, leaseToken: lease.token, leaseMs });
+      if (!result.renewed) console.error("[APEX CLOUD WORKER] lease renewal rejected", JSON.stringify({ app, jobId: job.jobId, reason: result.reason }));
+    } catch (error) {
+      console.error("[APEX CLOUD WORKER] lease renewal failed", JSON.stringify({ app, jobId: job.jobId, error: String(error?.message || error) }));
+    } finally {
+      renewing = false;
+    }
+  }, Math.max(1500, Math.floor(leaseMs / 3)));
+  leaseHeartbeat.unref?.();
   try {
     const payloadBytes = await coordinator.getPayload({ app, payloadHash: job.payloadHash });
     let payload;
@@ -40,12 +53,20 @@ async function execute(job, lease) {
     try { errorHash = (await coordinator.putPayload({ app, bytes, contentType: "application/json" })).payloadHash; } catch {}
     const failed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: errorHash, status: "failed" }).catch(() => ({ accepted: false }));
     console.error("[APEX CLOUD WORKER] job failed", JSON.stringify({ app, jobId: job.jobId, workerId, persisted: failed.accepted, error: String(error?.message || error) }));
+  } finally {
+    clearInterval(leaseHeartbeat);
   }
 }
 
 async function main() {
   if (!["KernelVision", "XShield", "Kernelodies", "PlanetApeX", "KashKorner", "KoinKob"].includes(app)) throw new Error("APEX_CLOUD_WORKER_APP must be one of the six canonical apps");
   const health = await coordinator.health();
+  await coordinator.advertisePeer({ app, peerId: workerId, capabilities: ["cloud-job-worker"], maxConcurrent: 1, expiresInMs: 30000 });
+  const peerHeartbeat = setInterval(() => {
+    coordinator.advertisePeer({ app, peerId: workerId, capabilities: ["cloud-job-worker"], maxConcurrent: 1, expiresInMs: 30000 })
+      .catch(error => console.error("[APEX CLOUD WORKER] peer heartbeat failed", String(error?.message || error)));
+  }, 10000);
+  peerHeartbeat.unref?.();
   console.log("[APEX CLOUD WORKER] cloud storage verified", JSON.stringify({ app, workerId, persistence: health.persistence, readAfterWrite: health.readAfterWrite }));
   while (!stopping) {
     try {
