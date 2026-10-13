@@ -318,7 +318,7 @@ test("remote PureStore mutations use direct CAS and rebuild missing indexes with
     assert.deepEqual(await reopened.get("projects","project-1"),project);
     assert.equal(await reopened.get("projects","to-delete"),null,"durable CAS tombstone keeps deleted state deleted");
     assert.equal((await cas.readRef("state",store.refKey("projects","to-delete")))?.value?.deleted,true);
-    await reopened.ensureRemoteQueueIndex();
+    await reopened.ensureRemoteQueueIndex({force:true});
     assert.ok(await cas.readRef("queue",jobKey),"startup reconciliation rebuilds the queue index");
     assert.ok(await cas.readRef("dedupe",dedupeKey),"startup reconciliation rebuilds the dedupe index");
     await assert.rejects(access(root),{code:"ENOENT"},"remote mode must not create the local projects directory");
