@@ -6,7 +6,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 import { RemoteContentAddressedStore } from "../core/remote-content-addressed-store.mjs";
-import { createGuardedFetch } from "../security/sovereign-outbound-gateway.mjs";
+import { createGuardedFetch, sanitizeOutboundPayload } from "../security/sovereign-outbound-gateway.mjs";
 
 const execFileAsync = promisify(execFile);
 const forgeFetch = createGuardedFetch(["gen.pollinations.ai", "api-inference.huggingface.co"]);
@@ -27,13 +27,13 @@ async function generateForgeBackground(storyboard, brief, orderId) {
   const provider = String(process.env.APEX_RAPID_IMAGE_PROVIDER || "").trim().toLowerCase();
   if (!provider) return null;
   const sceneText = (storyboard || []).map((scene, index) => "Scene " + (index + 1) + ": " + scene.visualPrompt).join("\n");
-  const prompt = [
+  const prompt = sanitizeOutboundPayload({ prompt: [
     "Create one cinematic vertical 9:16 storyboard background for a short-form video.",
     "Dark fantasy anime, sharp cel shading, high-contrast cinematic lighting, detailed environments, strong readable silhouettes.",
     "No words, captions, logos, watermark, or typography.",
     "Core idea: " + brief,
     sceneText
-  ].join("\n").slice(0, 7000);
+  ].join("\n").slice(0, 7000) }).prompt;
   let response;
   if (provider === "pollinations") {
     const token = String(process.env.POLLINATIONS_API_KEY || "").trim();
