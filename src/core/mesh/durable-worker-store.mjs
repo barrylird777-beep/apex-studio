@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { apexPureStore } from "../apex-pure-store.mjs";
 
 const clone = value => value == null ? value : structuredClone(value);
-const ownerId = () => process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local";
+// Provider-neutral identity; HOSTNAME is a portable fallback across common container hosts.
+const ownerId = () => process.env.APEX_WORKER_INSTANCE_ID || process.env.HOSTNAME || "local";
 
 export function durableWorkerEnabled() {
   return String(process.env.APEX_DISABLE_DURABLE_WORKERS || "").toLowerCase() !== "true";
