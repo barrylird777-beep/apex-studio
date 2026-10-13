@@ -1,0 +1,90 @@
+/* Apex canonical six-app UI system — additive styles, no app logic changes. */
+:root{
+  --apex-bg:#070910;--apex-surface:rgba(18,23,35,.86);--apex-surface-2:rgba(12,17,27,.94);
+  --apex-line:rgba(174,195,230,.17);--apex-line-strong:rgba(174,195,230,.32);
+  --apex-text:#f4f7ff;--apex-muted:#aab5c9;--apex-accent:#a9c9ff;--apex-good:#86e7b4;
+  --apex-radius:18px;--apex-shadow:0 18px 52px rgba(0,0,0,.28);
+}
+html{scroll-padding-top:100px}
+body[data-apex-app]{
+  color:var(--apex-text);
+  background:
+    radial-gradient(850px 500px at 85% -12%,color-mix(in srgb,var(--apex-accent) 12%,transparent),transparent 68%),
+    radial-gradient(700px 420px at -8% 12%,rgba(78,112,173,.10),transparent 65%),
+    var(--apex-bg);
+}
+body[data-apex-app="planet-apex"]{--apex-accent:#d9c2ff}
+body[data-apex-app="ko-blocks"]{--apex-accent:#8bbcff}
+body[data-apex-app="kernel-vision"]{--apex-accent:#f0c48b}
+body[data-apex-app="koin-kob"]{--apex-accent:#86e7b4}
+body[data-apex-app="kash-korner"]{--apex-accent:#a9c9ff}
+body[data-apex-app="kernelodies"]{--apex-accent:#e4a9ff}
+.apex-universe-nav{
+  position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:7px;
+  padding:10px max(14px,calc((100vw - 1420px)/2));margin:0;
+  overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;
+  border-bottom:1px solid var(--apex-line);
+  background:rgba(7,9,16,.91);backdrop-filter:blur(20px) saturate(140%);
+  -webkit-backdrop-filter:blur(20px) saturate(140%);
+}
+.apex-universe-nav .apex-nav-brand{
+  flex:0 0 auto;margin-right:7px;padding:8px 11px;color:var(--apex-text);
+  font-size:11px;font-weight:950;letter-spacing:.13em;text-decoration:none;
+  border-right:1px solid var(--apex-line);
+}
+.apex-universe-nav a:not(.apex-nav-brand){
+  flex:0 0 auto;min-height:38px;display:inline-flex;align-items:center;justify-content:center;
+  padding:8px 12px;border:1px solid transparent;border-radius:999px;
+  color:var(--apex-muted);font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap;
+  transition:background .18s,border-color .18s,color .18s;
+}
+.apex-universe-nav a:not(.apex-nav-brand):hover,
+.apex-universe-nav a[aria-current="page"]{
+  color:var(--apex-text);border-color:var(--apex-line-strong);
+  background:color-mix(in srgb,var(--apex-accent) 13%,transparent);
+}
+.apex-universe-nav a:focus-visible,body[data-apex-app] button:focus-visible,
+body[data-apex-app] input:focus-visible,body[data-apex-app] select:focus-visible,
+body[data-apex-app] textarea:focus-visible{
+  outline:3px solid color-mix(in srgb,var(--apex-accent) 82%,white);
+  outline-offset:2px;
+}
+body[data-apex-app] main{width:min(100% - 32px,1420px);margin-inline:auto;padding-top:clamp(22px,4vw,46px)}
+body[data-apex-app] h1{letter-spacing:-.045em;line-height:1.06;text-wrap:balance}
+body[data-apex-app] h2,body[data-apex-app] h3{letter-spacing:-.025em}
+body[data-apex-app] p{line-height:1.65}
+body[data-apex-app] .panel,body[data-apex-app] .card,body[data-apex-app] .metric-card,
+body[data-apex-app] .section,body[data-apex-app] .workspace-card{
+  border-color:var(--apex-line);border-radius:var(--apex-radius);
+  box-shadow:var(--apex-shadow);
+}
+body[data-apex-app] button{
+  min-height:42px;transition:transform .16s ease,border-color .16s ease,background .16s ease;
+}
+body[data-apex-app] button:hover{border-color:var(--apex-line-strong)}
+body[data-apex-app] button:active{transform:translateY(1px)}
+body[data-apex-app] input,body[data-apex-app] select,body[data-apex-app] textarea{
+  min-height:42px;max-width:100%;border-radius:11px;
+}
+body[data-apex-app] textarea{min-height:100px;resize:vertical}
+body[data-apex-app] a{overflow-wrap:anywhere}
+body[data-apex-app] pre{max-width:100%;overflow:auto;border-radius:12px}
+body[data-apex-app] table{width:100%;border-collapse:collapse}
+body[data-apex-app] th,body[data-apex-app] td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--apex-line)}
+body[data-apex-app] th{color:var(--apex-muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.apex-skip-link{position:absolute;left:12px;top:-60px;z-index:2000;padding:10px 14px;background:#fff;color:#111;border-radius:10px}
+.apex-skip-link:focus{top:12px}
+@media(max-width:720px){
+  .apex-universe-nav{gap:4px;padding:8px 10px}
+  .apex-universe-nav .apex-nav-brand{font-size:10px;padding:8px 9px;margin-right:2px}
+  .apex-universe-nav a:not(.apex-nav-brand){font-size:11px;padding:8px 10px}
+  body[data-apex-app] main{width:calc(100% - 24px);padding-top:22px}
+  body[data-apex-app] .grid,body[data-apex-app] .workspace{grid-template-columns:minmax(0,1fr)!important}
+  body[data-apex-app] .top{align-items:flex-start;flex-direction:column}
+  body[data-apex-app] .actions{flex-wrap:wrap}
+  body[data-apex-app] button{min-height:44px}
+  body[data-apex-app] table{display:block;overflow-x:auto;white-space:nowrap}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
+}
