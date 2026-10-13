@@ -44,6 +44,8 @@ function validateBackend(backend) {
  */
 export async function createPeerStorageAssembly({ peerNode, env = process.env } = {}) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('active libp2p peer node is required');
+  const app = String(env.APEX_APP_ID || '').trim();
+  if (!APEX_MEDIA_APPS.includes(app)) throw new Error('APEX_APP_ID must identify exactly one canonical app namespace');
   const backendSpecifier = String(env.APEX_PEER_STORAGE_BACKEND_MODULE || (env.APEX_PEER_STORAGE_UPSTREAM ? new URL('./peer-network-storage-backend.mjs', import.meta.url).href : '')).trim();
   if (!backendSpecifier) throw new Error('configure APEX_PEER_STORAGE_BACKEND_MODULE or APEX_PEER_STORAGE_UPSTREAM; local fallback is forbidden');
   const backendUrl = backendSpecifier.startsWith('file:')
@@ -65,7 +67,7 @@ export async function createPeerStorageAssembly({ peerNode, env = process.env } 
   }
   const failureDomainsByPeerId = parseFailureDomains(env.APEX_PEER_STORAGE_FAILURE_DOMAINS);
   const peerStores = Object.create(null);
-  for (const app of APEX_MEDIA_APPS) {
+  {
     const keyName = 'APEX_PEER_STORAGE_KEY_' + suffix(app);
     const peersName = 'APEX_PEER_STORAGE_PEERS_' + suffix(app);
     const encodedKey = String(env[keyName] || '').trim();
@@ -91,6 +93,6 @@ export async function createPeerStorageAssembly({ peerNode, env = process.env } 
       encryptionKey
     });
   }
-  const mediaStore = createPeerMediaStore({ peerStores });
+  const mediaStore = createPeerMediaStore({ peerStores, apps: [app] });
   return Object.freeze({ backend, mediaStore, peerStores });
 }
