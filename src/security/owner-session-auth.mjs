@@ -63,8 +63,8 @@ function cookieValue(req) {
   return "";
 }
 
-export function hasValidOwnerSession(req) {
-  return verifyOwnerSessionToken(cookieValue(req));
+export function hasValidOwnerSession(req, now = Date.now()) {
+  return verifyOwnerSessionToken(cookieValue(req), now);
 }
 
 export function ownerSessionSetCookie(token, { production = process.env.NODE_ENV === "production" } = {}) {
