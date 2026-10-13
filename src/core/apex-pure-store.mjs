@@ -138,17 +138,17 @@ export class ApexPureStore {
         if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out waiting for "+key);
         await sleep(40+Math.floor(Math.random()*80));continue;
       }
-      try{const lock=await this.cas.writeRef("system",key,{token,leaseUntil:now+90000,owner:process.env.RAILWAY_SERVICE_NAME||"apex"},{expectedHash:current?.hash??null});currentHash=lock.hash;break;}
+      try{const lock=await this.cas.writeRef("system",key,{token,leaseUntil:now+90000,owner:process.env.APEX_SERVICE_SCOPE||"apex"},{expectedHash:current?.hash??null});currentHash=lock.hash;break;}
       catch(error){if(error.code!=="CAS_CONFLICT")throw error;if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out acquiring "+key);await sleep(40+Math.floor(Math.random()*80));}
     }
-    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:process.env.RAILWAY_SERVICE_NAME||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed",String(error?.message||error).slice(0,250));});},20000);
+    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:process.env.APEX_SERVICE_SCOPE||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed",String(error?.message||error).slice(0,250));});},20000);
     heartbeat.unref?.();
     try{return await operation();}
     finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
   }
   async initializeRemote(){
     await this.cas.init();
-    const scope=String(process.env.RAILWAY_SERVICE_NAME||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
+    const scope=String(process.env.APEX_SERVICE_SCOPE||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
     const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
     await this.withRemoteLock("queue-mutations",async()=>{
       // Active remote startup reads durable CAS refs directly. Legacy WAL is migration-only.
