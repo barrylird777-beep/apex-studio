@@ -234,6 +234,7 @@ export class SovereignCloudCoordinator {
     const leaseKey = this.key("apps", app, "leases", id + ".json");
     const current = await this.read(leaseKey);
     if (!current || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { accepted: false, reason: "lease-invalid" };
+    if (current.value.status && current.value.status !== "active") return { accepted: false, reason: "lease-not-active" };
     const finishingLease = { ...current.value, status: "finishing", finishingAt: now(), expiresAt: now() + 30000 };
     try {
       await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(finishingLease), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(finishingLease)) }, IfMatch: current.etag }));
