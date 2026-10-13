@@ -87,6 +87,7 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["post", "/api/kernel-vision/sessions"],
     ["post", "/api/kernelodies/tracks"],
     ["post", "/api/episodes/produce"],
+    ["get", "/api/workforce/status"],
     ["post", "/api/workforce/burst"],
     ["post", "/api/broadcast/start"],
     ["post", "/api/broadcast/stop"],
