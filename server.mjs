@@ -151,7 +151,7 @@ const streamRelay = new RtmpSessionMultiplexer({
   autoStart: relayAutoStart
 });
 
-app.use('/api/relay', createRelayRouter(streamRelay));
+app.use('/api/relay', requireControlPlaneAuth, createRelayRouter(streamRelay));
 
 const researchEngine = new FrictionlessResearchEngine();
 app.use('/api/research', createResearchRouter(researchEngine));
@@ -1697,7 +1697,7 @@ app.get('/api/network/status', requireControlPlaneAuth, async (req,res)=>{
     res.set('Cache-Control', 'no-store').json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy({ clientVerifiedPaths: 0 }),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:Boolean(fabric.verification?.starlinkVerified),sixGObserved:Boolean(fabric.verification?.sixGVerified)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
-app.use('/api/studio/audio', createAudioStationRouter());
+app.use('/api/studio/audio', requireControlPlaneAuth, createAudioStationRouter());
 app.use('/api/kernelodies/library', createKernelodiesLibraryRouter({ storageDir: STORAGE_DIR, authorize: createKernelodiesLibraryAuth() }));
 app.use('/api/kernelodies/discovery', createKernelodiesDiscoveryRouter({ authorize: requireControlPlaneAuth }));
 
