@@ -34,6 +34,9 @@ test("peer ingress guard refuses missing identities and bounds peer tracking", (
   first.release();
   const second = guard.acquire("peer-b");
   second.release();
-  assert.equal(guard.acquire("peer-c").reason, "peer-tracking-capacity");
+  // Inactive peer entries may be evicted to make room; active requests are never evicted.
+  const third = guard.acquire("peer-c");
+  assert.equal(third.ok, true);
+  third.release();
   assert.equal(guard.snapshot().trackedPeers, 2);
 });
