@@ -55,7 +55,7 @@ function transferValue(receipt, cfg) {
   return total;
 }
 
-export function createPolygonUsdcRouter({ store, durableWorkerEnabled, enqueueWorkerTask, getWorkerTask }) {
+export function createPolygonUsdcRouter({ store, durableWorkerEnabled, enqueueWorkerTask, getWorkerTask, requirePublicRequestSlot = (_req, _res, next) => next() }) {
   const router = express.Router();
 
   const remoteStoreReady = () => Boolean(store && store.remoteMode === true && String(process.env.APEX_CAS_REMOTE_ENABLED || '').toLowerCase() === 'true');
@@ -76,7 +76,7 @@ export function createPolygonUsdcRouter({ store, durableWorkerEnabled, enqueueWo
     });
   });
 
-  router.post('/intent', async (req, res) => {
+  router.post('/intent', requirePublicRequestSlot, async (req, res) => {
     try {
       const cfg = config();
       if (!cfg.configured || !remoteStoreReady()) return res.status(503).json({ success: false, error: 'USDC checkout is not configured for remote-only storage' });
@@ -119,7 +119,7 @@ export function createPolygonUsdcRouter({ store, durableWorkerEnabled, enqueueWo
     }
   });
 
-  router.post('/verify', async (req, res) => {
+  router.post('/verify', requirePublicRequestSlot, async (req, res) => {
     try {
       const cfg = config();
       if (!cfg.configured || !remoteStoreReady()) return res.status(503).json({ success: false, error: 'USDC verification requires remote-only storage and Polygon configuration' });
