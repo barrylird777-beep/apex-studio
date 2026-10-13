@@ -136,3 +136,13 @@ test("submitJob persists payload before publishing a hash-only job manifest", as
   assert.deepEqual(JSON.parse((await c.getPayload({ app: "KernelVision", payloadHash: submitted.payload.payloadHash })).toString("utf8")), payload);
   assert.equal(await c.getJob({ app: "XShield", jobId: "submit-roundtrip" }), null);
 });
+
+test("failed manifest publication never overwrites or mutates an existing job", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "PlanetApeX", jobId: "immutable-job", taskType: "research", capability: "search", payload: { version: 1 } });
+  const before = await c.getJob({ app: "PlanetApeX", jobId: "immutable-job" });
+  await assert.rejects(c.submitJob({ app: "PlanetApeX", jobId: "immutable-job", taskType: "research", capability: "search", payload: { version: 2 } }), /already exists/);
+  const after = await c.getJob({ app: "PlanetApeX", jobId: "immutable-job" });
+  assert.equal(after.payloadHash, before.payloadHash);
+  assert.equal(after.status, "queued");
+});
