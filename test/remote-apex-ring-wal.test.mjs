@@ -197,3 +197,30 @@ test("remote WAL lock contention replays under seeded virtual time without wall-
   assert.equal(first.record.ts, new Date(first.now).toISOString());
   assert.equal(first.lock, null, "lock is released after append");
 });
+
+
+test("remote WAL recovers a committed record after injected ENOSPC on head update", async () => {
+  class EnospcHeadCAS extends MemoryCAS {
+    constructor() { super(); this.failHeadKey = null; this.failed = false; }
+    async writeRef(ns, key, value, options) {
+      if (!this.failed && ns === "system" && key === this.failHeadKey && value?.seq === 1) {
+        this.failed = true;
+        throw Object.assign(new Error("simulated remote CAS disk full"), { code: "ENOSPC" });
+      }
+      return super.writeRef(ns, key, value, options);
+    }
+  }
+
+  const cas = new EnospcHeadCAS();
+  const first = new RemoteApexRingWAL({ cas, scope: "enospc-head-recovery", ringSize: 8 });
+  cas.failHeadKey = first.headKey;
+  await assert.rejects(first.append("state.put", { id: "survives-head-enospc" }), { code: "ENOSPC" });
+  assert.equal(cas.failed, true);
+  assert.ok(await cas.listRefs("wal").then(rows => rows.some(row => row.key.includes("enospc-head-recovery"))));
+
+  const recovered = new RemoteApexRingWAL({ cas, scope: "enospc-head-recovery", ringSize: 8 });
+  assert.equal(await recovered.replay(), 1, "immutable record remains recoverable after head update failure");
+  const next = await recovered.append("state.put", { id: "after-enospc" });
+  assert.equal(next.seq, 2);
+  assert.equal(next.payload.id, "after-enospc");
+});
