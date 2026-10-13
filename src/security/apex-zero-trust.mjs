@@ -42,7 +42,7 @@ function safeAudit(audit, event) {
       action: event.action,
       resource: event.resource,
       principalFingerprint: event.principalId ? apexZeroTrustFingerprint(event.principalId) : null,
-      requestId: event.requestId || null
+      requestFingerprint: event.requestId ? apexZeroTrustFingerprint(event.requestId) : null
     });
   } catch {
     // Audit sink failures must not accidentally grant access or leak request data.
