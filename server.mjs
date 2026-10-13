@@ -1314,7 +1314,8 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     const amount = Number(session.amount_total);
     const paid = session.payment_status === 'paid';
     const sessionId = String(session.id || '');
-    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !sessionId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
+    const paymentIntentId = String(typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || sessionId);
+    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !sessionId || !paymentIntentId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
     if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
@@ -1323,11 +1324,11 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     // The session ID is the stable payment identity across webhook retries and event types.
     await apexPureStore.init();
     const wal = apexPureStore.wal;
-    const paymentKey = 'payment.verified:stripe:' + sessionId;
+    const paymentKey = 'payment.verified:stripe:' + paymentIntentId;
     const payment = {
       provider: 'stripe',
       providerEventId: String(event.id || ''),
-      transactionId: sessionId,
+      transactionId: paymentIntentId,
       orderId: metadata.orderId,
       amountMinor: amount,
       currency: 'usd',
@@ -1338,10 +1339,10 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     // The receipt reference also covers WAL implementations that do not expose
     // an in-memory idempotency index. Serialize check+write across replicas.
     const wasRecorded = await apexPureStore.withMutationLock(async () => {
-      const existingReceipt = await apexPureStore.get('apex_payment_receipts', sessionId);
+      const existingReceipt = await apexPureStore.get('apex_payment_receipts', paymentIntentId);
       if (existingReceipt) return true;
       await wal.append('payment.verified', payment, { idempotencyKey: paymentKey });
-      await apexPureStore.put('apex_payment_receipts', sessionId, payment);
+      await apexPureStore.put('apex_payment_receipts', paymentIntentId, payment);
       return false;
     });
 
