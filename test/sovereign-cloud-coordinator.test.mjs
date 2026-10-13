@@ -114,3 +114,14 @@ test("completed jobs leave the queue and cannot be claimed again", async () => {
   assert.equal((await c.listQueuedJobs({ app: "Kernelodies" })).count, 0);
   assert.equal(await c.claimJob({ app: "Kernelodies", jobId: "music-job", workerId: "worker-other" }).then(x => x.claimed), false);
 });
+
+test("active workers can renew a lease before completion", async () => {
+  const c = coordinator(fakeS3());
+  await c.publishJob({ app: "KoinKob", jobId: "long-job", taskType: "compute", capability: "general", payloadHash: "e".repeat(64) });
+  const claim = await c.claimJob({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseMs: 5000 });
+  assert.equal(claim.claimed, true);
+  const renewed = await c.renewJobLease({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseToken: claim.lease.token, leaseMs: 30000 });
+  assert.equal(renewed.renewed, true);
+  const completed = await c.finishJob({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseToken: claim.lease.token });
+  assert.equal(completed.accepted, true);
+});
