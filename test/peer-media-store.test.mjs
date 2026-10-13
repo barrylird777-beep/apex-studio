@@ -83,7 +83,7 @@ test('all six canonical apps round-trip the same asset ID without cross-app read
 
 test('peer media store rejects unknown apps and empty assets', async () => {
   const { media } = setup();
-  await assert.rejects(media.saveAsset('KoBlocks', 'project-1', 'asset-1', Buffer.from('x')), /Unknown canonical Apex app/);
+  await assert.rejects(media.saveAsset('KoBlocks', 'project-1', 'asset-1', Buffer.from('x')), /Unknown or unconfigured canonical Apex app/);
   await assert.rejects(media.saveAsset('PlanetApeX', 'project-1', 'asset-1', Buffer.alloc(0)), /cannot be empty/);
 });
 
