@@ -130,3 +130,15 @@ test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async 
   assert.match(music, /Listen, discover, and build your music library/);
   assert.match(music, /id="kernelodies-discovery"/);
 });
+
+test("XShield tabs switch panels and support keyboard navigation", async () => {
+  const page = await readPublic("xshield.html");
+  assert.ok(page.includes('id="xshield-tab-overview"'));
+  assert.ok(page.includes('id="xshield-tab-diagnostics"'));
+  assert.ok(page.includes('id="xshield-panel-overview"'));
+  assert.ok(page.includes('id="xshield-panel-diagnostics"'));
+  assert.match(page, /function selectXShieldTab\\(which\\)/);
+  assert.match(page, /tabOverview\\.addEventListener\\('click'/);
+  assert.match(page, /tabDiagnostics\\.addEventListener\\('click'/);
+  assert.match(page, /event\\.key==='ArrowRight'\\|\\|event\\.key==='ArrowLeft'/);
+});
