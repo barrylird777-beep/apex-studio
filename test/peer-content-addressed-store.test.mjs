@@ -245,3 +245,27 @@ test('peer CAS detects a missing blob chunk instead of returning partial content
   mesh.stores.get('peer-b').objects.delete(missingHash);
   await assert.rejects(mesh.client.getBlob(receipt.hash), error => error.code === 'OBJECT_UNAVAILABLE');
 });
+
+
+test('peer CAS repairs a missing replica without changing the immutable object hash', async () => {
+  const mesh = makeMesh();
+  const value = { repairable: true, app: 'PlanetApeX' };
+  const receipt = await mesh.client.putObject(value);
+  mesh.stores.get('peer-b').objects.delete(receipt.hash);
+  const repaired = await mesh.client.repairObject(receipt.hash, ['peer-b']);
+  assert.equal(repaired.sourcePeerId, 'peer-a');
+  assert.equal(repaired.repaired[0].peerId, 'peer-b');
+  assert.equal(repaired.hash, receipt.hash);
+  assert.deepEqual(await mesh.client.getObject(receipt.hash), value);
+});
+
+test('peer CAS repair fails closed when no authorized source replica survives', async () => {
+  const mesh = makeMesh();
+  const receipt = await mesh.client.putObject({ shouldNotDisappear: true });
+  mesh.stores.get('peer-a').objects.delete(receipt.hash);
+  mesh.stores.get('peer-b').objects.delete(receipt.hash);
+  await assert.rejects(
+    mesh.client.repairObject(receipt.hash, ['peer-a']),
+    error => error.code === 'OBJECT_UNAVAILABLE'
+  );
+});
