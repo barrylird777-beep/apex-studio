@@ -603,8 +603,8 @@ export class ApexPureStore {
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
       if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
       if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
-      await this.persistJob({...j,...patch});
-      this.apply({type:"job.transition",payload:{id:j.id,patch}});return true;
+      const persisted=await this.persistJob({...j,...patch});
+      this.jobsState.set(String(persisted.id),clone(persisted));return true;
     });
   }
   async recoverExpired(limit=500){
@@ -624,8 +624,8 @@ export class ApexPureStore {
         if(!j||j.status!=="running"||Number(j.leaseExpiresAt||0)>=now)continue;
         this.jobsState.set(String(j.id),clone(j));
         const patch={status:j.attempts>=j.maxAttempts?"dead":"queued",leaseOwner:null,leaseToken:null,leaseExpiresAt:0,recoveredCount:Number(j.recoveredCount||0)+1,lastError:"Worker lease expired; task reclaimed",runAt:Date.now()+1000,updatedAt:new Date().toISOString()};
-        await this.persistJob({...j,...patch});
-        this.apply({type:"job.transition",payload:{id:j.id,patch}});n++;
+        const persisted=await this.persistJob({...j,...patch});
+        this.jobsState.set(String(persisted.id),clone(persisted));n++;
       }
       return n;
     });
