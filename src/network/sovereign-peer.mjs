@@ -578,7 +578,7 @@ export async function sendToPeerAuto(node, multiaddr, envelope, {
     return await sendCbor(node, multiaddr, envelope);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const protocolUnavailable = /protocol.*(?:not supported|unsupported|not found|no handler|not registered)|no protocol handler/i.test(message);
+    const protocolUnavailable = /protocol.*(?:not supported|unsupported|not found|no handler|not registered|selection failed)|no protocol handler/i.test(message);
     if (!protocolUnavailable) throw error;
     console.warn('[SOVEREIGN PEER] remote lacks CBOR v2; using authenticated v1 compatibility protocol');
     return sendLegacy(node, multiaddr, envelope);
