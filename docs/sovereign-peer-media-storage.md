@@ -1,6 +1,6 @@
 # Sovereign peer media storage wiring
 
-This path is intentionally fail-closed. The HTTP API process sends binary canonical-CBOR requests to the local sovereign daemon over loopback. The daemon owns the authenticated libp2p node. Each deployment is bound to one canonical app and loads only that app's encrypted content-addressed client and key.
+This path is intentionally fail-closed. The HTTP API process sends binary canonical-CBOR requests to the local sovereign daemon over loopback. Peer-to-peer storage uses the dedicated `/apex/cas/1.0.0` libp2p protocol with length-framed canonical CBOR, separate from the legacy JSON control-envelope protocol. The daemon owns the authenticated libp2p node. Each deployment is bound to one canonical app and loads only that app's encrypted content-addressed client and key.
 
 ## Required deployment configuration
 
