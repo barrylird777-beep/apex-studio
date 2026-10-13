@@ -49,7 +49,7 @@ import { createRelayRouter } from './src/api/relay-routes.mjs';
 import { createResearchRouter } from './src/api/research-routes.mjs';
 import { searchAnything } from './src/core/apex-web-search.mjs';
 import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
-import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
+import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata, RAPID_VIDEO_PRICE_USD } from './src/payments/stripe-rapid.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
@@ -1928,7 +1928,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
       success: true,
       orderId,
       status: 'payment_required',
-      price: 26.10,
+      price: RAPID_VIDEO_PRICE_USD,
       checkoutUrl: checkout.url,
       statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
