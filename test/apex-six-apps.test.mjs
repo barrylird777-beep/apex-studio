@@ -172,3 +172,15 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
   assert.equal(rows[0].record.workerCount, 20);
   assert.equal(rows[0].record.recordType, "simulation");
 });
+
+
+test("KernelVision presents the continuous network as canonical and Theatre as a playback capability",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/kernel-vision.html"),"utf8");
+  const hub=await readFile(resolve(process.cwd(),"src/pages/SixAppHub.tsx"),"utf8");
+  assert.match(page,/24\/7 original entertainment network/i);
+  assert.match(page,/api\/apex\/apps\/teevee\/status/);
+  assert.match(page,/href="\/teevee\.html"/);
+  assert.match(page,/Theatre and Kornmax remain playback experiences/);
+  assert.match(hub,/24\/7 entertainment stream/);
+  assert.match(hub,/href: "\/teevee\.html"/);
+});
