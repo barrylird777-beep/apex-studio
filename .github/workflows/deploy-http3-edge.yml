@@ -21,3 +21,16 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cloudflare-http3-worker
           command: deploy
+
+      - name: Smoke-test deployed edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://apex-free-http3-edge.tbtristan777.workers.dev/"
+          status="$(curl --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_code}' "$url")"
+          echo "APEX edge HTTP status: $status"
+          if [[ ! "$status" =~ ^[234][0-9][0-9]$ ]]; then
+            echo "Edge smoke test failed; expected an HTTP 2xx, 3xx, or 4xx response, not a transport/server failure." >&2
+            exit 1
+          fi
+          echo "Edge endpoint is reachable. This smoke test does not prove HTTP/3 negotiation."
