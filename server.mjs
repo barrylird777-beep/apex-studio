@@ -1312,7 +1312,7 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     const metadata = decodeRapidCheckoutMetadata(session.metadata || {});
     const amount = Number(session.amount_total);
     const paid = session.payment_status === 'paid';
-    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
+    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2610 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
     if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
@@ -1332,7 +1332,7 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
         brief: metadata.brief,
         platform: metadata.platform,
         email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
-        price: 25,
+        price: 26.10, netTarget: 25,
         paid: true,
         stripeSessionId: String(session.id || ''),
         paidAt: new Date().toISOString()
