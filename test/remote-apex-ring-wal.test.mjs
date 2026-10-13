@@ -40,7 +40,7 @@ class MemoryCAS {
 }
 
 
-test("remote WAL startup replay is serialized against concurrent appends", async () => {
+test("remote WAL replay retries a moving snapshot without blocking concurrent appends", async () => {
   class SnapshotPauseCAS extends MemoryCAS {
     constructor() {
       super();
@@ -67,9 +67,11 @@ test("remote WAL startup replay is serialized against concurrent appends", async
   cas.pauseNextWalSnapshot = true;
   const startup = restarting.init();
   await cas.snapshotTaken;
+  // The append must finish while replay is paused on its stale snapshot.
   const concurrentAppend = writer.append("during-startup", { value: 2 });
+  await concurrentAppend;
   cas.releaseSnapshotResolve();
-  await Promise.all([startup, concurrentAppend]);
+  await startup;
   const verified = new RemoteApexRingWAL({ cas, scope: "wal-startup-race", ringSize: 8 });
   assert.equal(await verified.replay(), 2, "startup must not mistake a concurrent append for a broken hash chain");
 });
