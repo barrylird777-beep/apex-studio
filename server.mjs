@@ -534,24 +534,6 @@ async function buildHealthSnapshot() {
 }
 
 // Railway liveness must not wait on PostgreSQL or a worker health query.
-app.get('/ready', async (_req, res) => {
-  try {
-    if (!apexPureStore.remoteMode) {
-      return res.status(503).json({ ok: false, status: 'not_ready', reason: 'remote durable storage is not enabled' });
-    }
-    const identity = await apexPureStore.get('sovereign_runtime', 'identity');
-    const ready = isSovereignRuntimeReady(identity);
-    return res.status(ready ? 200 : 503).json({
-      ok: ready,
-      status: ready ? 'ready' : 'not_ready',
-      readiness: identity?.readiness || null,
-      checkedAt: new Date().toISOString()
-    });
-  } catch {
-    return res.status(503).json({ ok: false, status: 'not_ready', reason: 'sovereign runtime readiness could not be verified' });
-  }
-});
-
 app.get('/health', (_req, res) => {
   const memory = process.memoryUsage();
   return res.status(200).json({
@@ -567,6 +549,9 @@ app.get('/health', (_req, res) => {
 // and publishes its verified state through the shared durable store.
 app.get('/ready', async (_req, res) => {
   try {
+    if (!apexPureStore.remoteMode) {
+      return res.status(503).json({ ok: false, status: 'not-ready', reason: 'remote durable storage is not enabled' });
+    }
     const identity = await apexPureStore.get('sovereign_runtime', 'identity');
     const ready = isSovereignRuntimeReady(identity);
     return res.status(ready ? 200 : 503).json({
