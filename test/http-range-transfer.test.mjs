@@ -46,7 +46,7 @@ test("range downloader aborts sibling streams and waits for them after a termina
   const payload = crypto.randomBytes(256 * 1024);
   let requests = 0;
   const server = http.createServer((req, res) => {
-    const range = /^bytes=(\\d+)-(\\d+)$/.exec(String(req.headers.range || ""));
+    const range = /^bytes=(\d+)-(\d+)$/.exec(String(req.headers.range || ""));
     if (!range) {
       res.writeHead(200, { "Content-Length": payload.length });
       return res.end(payload);
