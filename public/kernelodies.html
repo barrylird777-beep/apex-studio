@@ -12,8 +12,47 @@ button:hover{filter:brightness(1.12);transform:translateY(-1px)}
 input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--apex-blue);outline-offset:2px}
 a{color:var(--apex-blue)}
 @media(max-width:600px){main{padding:22px 13px 36px}}
+
+/* Kernelodies finishing pass: restrained hi-fi music workstation, designed mobile-first. */
+:root{--kl-cyan:#83e4df;--kl-lime:#d2f58a;--kl-quiet:#8795aa;--kl-surface:#0d1420}
+body{background:radial-gradient(ellipse at 78% 0%,rgba(30,105,113,.19),transparent 38%),#080b10;color:#eef5f6;letter-spacing:.005em}
+.apex-app-nav{background:rgba(7,11,17,.94)!important;backdrop-filter:blur(18px);border-bottom:1px solid rgba(131,228,223,.16)!important}
+.apex-app-nav a[aria-current=page]{color:var(--kl-cyan)!important}
+main{max-width:1080px!important;padding-top:22px!important}
+.kl-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(140px,.8fr);gap:16px;align-items:center;padding:clamp(20px,5vw,42px);margin:18px 0 20px;border:1px solid rgba(131,228,223,.2);border-radius:20px;background:linear-gradient(110deg,rgba(13,27,36,.98),rgba(10,16,26,.88));}
+.kl-hero:after{content:"";position:absolute;z-index:-1;width:230px;height:230px;right:5%;top:50%;transform:translateY(-50%);border-radius:50%;border:1px solid rgba(131,228,223,.18);background:repeating-radial-gradient(circle,rgba(131,228,223,.09) 0 1px,transparent 2px 7px),radial-gradient(circle at 35% 30%,#264c53,#101d29 56%,#080b11 72%);box-shadow:0 0 55px rgba(66,190,181,.12),inset 0 0 28px #05090d}
+.kl-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--kl-cyan);font-weight:700}
+.kl-hero h1{margin:.35em 0;font-size:clamp(35px,7vw,62px);letter-spacing:-.055em}
+.kl-hero p{max-width:490px;color:#a9b8c6;margin:0}
+.kl-live{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#d2f58a}
+.kl-live:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--kl-lime);box-shadow:0 0 10px #d2f58a}
+.kl-quicknav{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 14px;margin-bottom:4px}
+.kl-quicknav a{white-space:nowrap;text-decoration:none;padding:8px 13px;border:1px solid #283746;border-radius:999px;color:#c5d3dc;font-size:13px}
+.kl-quicknav a:first-child{border-color:rgba(131,228,223,.42);color:var(--kl-cyan);background:rgba(131,228,223,.07)}
+.grid{grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.grid>.card{grid-column:span 6;min-width:0;border-radius:16px;padding:clamp(15px,3vw,22px);background:linear-gradient(150deg,rgba(16,26,38,.97),rgba(9,14,22,.98));border-color:#243541;box-shadow:0 12px 34px rgba(0,0,0,.19)}
+#kernelodies-discovery{grid-column:span 7}
+#kernelodies-library{grid-column:span 5}
+.grid>.card:first-child{grid-column:span 7}
+.grid>.card:nth-child(2){grid-column:span 5}
+.card h2{font-size:19px;letter-spacing:-.02em;margin:0 0 12px}
+.card h3{font-size:15px;margin-top:22px}
+label{display:block;color:#b8c7d2;font-size:13px}
+input,textarea,select{background:#080e16!important;border-color:#2c3e4a!important;color:#f2f8fa!important;border-radius:10px!important}
+button{background:linear-gradient(110deg,#1e555b,#21424e)!important;border-color:#3c7479!important;border-radius:10px!important;box-shadow:none!important;transition:background .15s ease,border-color .15s ease!important}
+button:hover{background:linear-gradient(110deg,#276b70,#28525d)!important;transform:none!important}
+button:disabled{opacity:.55}
+#kd-status,#track-storage-status,#status{color:#9eafbd;font-size:12px}
+#kd-results,#kd-saved,#kd-playlists,#tracks{display:grid;gap:8px;margin-top:10px}
+.track{border-radius:12px;border-color:#263944;background:rgba(6,12,19,.58);padding:12px}
+.kl-track-meta{color:var(--kl-cyan);opacity:1!important}
+hr{border:0;border-top:1px solid #263541;margin:22px 0}
+footer{color:#7e8d9e}
+@media(max-width:700px){.kl-hero{grid-template-columns:1fr;min-height:190px}.kl-hero:after{width:128px;height:128px;right:-26px;top:70%;opacity:.7}.kl-hero p{max-width:82%}.grid>.card:first-child,.grid>.card:nth-child(2),#kernelodies-discovery,#kernelodies-library{grid-column:1/-1}.apex-app-nav{gap:8px}.apex-app-nav>a{font-size:12px}.kl-quicknav{margin-right:-2px}.card h2{font-size:18px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
 </style><link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css"><script src="/apex-six-apps.js" defer></script>
-<script src="/apex-ui-controls.js" defer></script></head><body><a class="apex-skip-link" href="#apex-main">Skip to Kernelodies content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" aria-current="page" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="kernelodies" id="apex-main" tabindex="-1"><div>APEX CANONICAL APP</div><h1>Kernelodies</h1><p class="lead">Listen, discover, and build your music library. Start with the public catalog, save discoveries, and organize playlists; track concepts and creation tools remain available below.</p><div class="grid"><section class="card"><h2>Track Forge</h2><label>Content domain<select id="content-domain"><option value="bible">Bible</option><option value="korn">Jesus Freaks · 432 Hz only</option><option value="original">Original</option></select></label><p id="tuning-note">Bible content domain.</p><label>Title<input id="title" value="Apex Theme"></label><label>Prompt<textarea id="prompt" rows="4">cinematic dark-fantasy anime score, sacred atmosphere</textarea></label><button id="add">Create track concept</button><div id="tracks" aria-live="polite"></div><pre id="track-storage-status">Open Phone Control in this tab to connect the durable track library.</pre></section><section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre></section><section class="card" id="kernelodies-discovery">
+<script src="/apex-ui-controls.js" defer></script></head><body><a class="apex-skip-link" href="#apex-main">Skip to Kernelodies content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" aria-current="page" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="kernelodies" id="apex-main" tabindex="-1"><section class="kl-hero" aria-labelledby="kl-title"><div><div class="kl-eyebrow">APEX ANCHOR / THE EARS</div><h1 id="kl-title">Kernelodies</h1><p>Your music, your discoveries, your sound. A focused listening and music-intelligence space built for the phone.</p><p style="margin-top:16px"><span class="kl-live">Personal audio workspace</span></p></div></section><nav class="kl-quicknav" aria-label="Kernelodies sections"><a href="#kernelodies-discovery">Discover</a><a href="#kernelodies-library">My library</a><a href="#tracks">Track Forge</a><a href="#kd-playlists">Playlists</a><a href="#status">System status</a></nav><div class="grid"><section class="card"><h2>Track Forge</h2><label>Content domain<select id="content-domain"><option value="bible">Bible</option><option value="korn">Jesus Freaks · 432 Hz only</option><option value="original">Original</option></select></label><p id="tuning-note">Bible content domain.</p><label>Title<input id="title" value="Apex Theme"></label><label>Prompt<textarea id="prompt" rows="4">cinematic dark-fantasy anime score, sacred atmosphere</textarea></label><button id="add">Create track concept</button><div id="tracks" aria-live="polite"></div><pre id="track-storage-status">Open Phone Control in this tab to connect the durable track library.</pre></section><section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre></section><section class="card" id="kernelodies-discovery">
 <h2>Music Radar · Public Catalog</h2>
 <p>Search tracks and albums, listen to available previews, save discoveries in Kernelodies peer storage, and build local playlists. Spotify account sync is not configured here.</p>
 <div class="kl-controls">
