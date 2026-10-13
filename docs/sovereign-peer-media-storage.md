@@ -1,6 +1,6 @@
 # Sovereign peer media storage wiring
 
-This path is intentionally fail-closed. The HTTP API process sends binary canonical-CBOR requests to the local sovereign daemon over loopback. The daemon owns the authenticated libp2p node and assembles the six app-specific encrypted content-addressed clients.
+This path is intentionally fail-closed. The HTTP API process sends binary canonical-CBOR requests to the local sovereign daemon over loopback. The daemon owns the authenticated libp2p node. Each deployment is bound to one canonical app and loads only that app's encrypted content-addressed client and key.
 
 ## Required deployment configuration
 
