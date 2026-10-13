@@ -1,4 +1,4 @@
-import { sanitizeOutboundPayload } from "../security/sovereign-outbound-gateway.mjs";
+import { sanitizeOutboundPayload, createGuardedFetch } from "../security/sovereign-outbound-gateway.mjs";
 
 const boundedNumber = (value, fallback, min, max) => {
   const parsed = Number(value);
@@ -88,9 +88,17 @@ function enforceFreeAiBudget(provider) {
   if (!FREE_AI_PROVIDERS.has(provider)) throw new Error(`Free mode blocks paid/non-free AI provider: ${provider}`);
 }
 
+const pollinationsFetch = createGuardedFetch(['text.pollinations.ai']);
+const providerFetch = createGuardedFetch([
+  'api.anthropic.com', 'generativelanguage.googleapis.com', 'api.cohere.com',
+  'api.deepseek.com', 'api.mistral.ai', 'dashscope-intl.aliyuncs.com',
+  'api.perplexity.ai', 'api.together.xyz', 'api.fireworks.ai',
+  'api.cerebras.ai', 'api.sambanova.ai', 'api.groq.com', 'openrouter.ai'
+]);
+
 async function pollinations({ model, messages }) {
   const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-  const r = await fetch('https://text.pollinations.ai/', {
+  const r = await pollinationsFetch('https://text.pollinations.ai/', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ messages, model: model || 'openai' })
@@ -103,7 +111,7 @@ async function post(url, headers, body, timeoutMs = 120000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal: controller.signal });
+    const r = await providerFetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal: controller.signal });
     const raw = await r.text();
     let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
     if (!r.ok) throw new Error(`provider HTTP ${r.status}: ${String(data?.error?.message || data?.message || data?.error || raw).slice(0, 1000)}`);
