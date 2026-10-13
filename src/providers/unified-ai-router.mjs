@@ -180,13 +180,13 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
   else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'cohere') result = await cohere({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
-  else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
+  else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'openai') {
     const { generateMax } = await import('./openai-max-router.mjs');
-    result = await generateMax({ prompt, messages, system, model: selectedModel });
+    result = await generateMax({ messages: normalized, model: selectedModel });
   } else if (p.id === 'xai') {
     const { generateGrok } = await import('./grok-router.mjs');
-    result = await generateGrok({ prompt, messages, system, model: selectedModel });
+    result = await generateGrok({ messages: normalized, model: selectedModel });
   } else throw new Error('provider protocol not implemented');
   return { provider: p.id, category: p.category, freeMode: FREE_MODE, ...result };
   } finally { releaseFreeAiSlot(); }
