@@ -7,6 +7,37 @@ import { pipeline } from "node:stream/promises";
 import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
 
+const PEER_MODE_REQUIRED = process.env.APEX_STORAGE_MODE === "peer" || process.env.APEX_PEER_STORAGE_ENABLED === "true";
+const CANONICAL_APPS = new Set(["KernelVision", "XShield", "Kernelodies", "PlanetApeX", "KashKorner", "KoinKob"]);
+let peerMediaStore = null;
+let peerMediaApp = null;
+
+export function configurePeerMediaStorage(store, app) {
+  if (!store || typeof store.saveAsset !== "function" || typeof store.getAsset !== "function" || typeof store.getProject !== "function") {
+    throw new TypeError("Peer media storage requires a configured peer media store");
+  }
+  if (!CANONICAL_APPS.has(app) || !Array.isArray(store.apps) || !store.apps.includes(app)) {
+    throw new TypeError("Peer media storage must be bound to one canonical app namespace");
+  }
+  peerMediaStore = store;
+  peerMediaApp = app;
+  return { app, mode: "peer" };
+}
+
+function requirePeerMediaStore() {
+  if (!peerMediaStore || !peerMediaApp) {
+    const error = new Error("Peer-only storage is required but the durable peer media runtime has not been configured");
+    error.code = "PEER_STORAGE_NOT_CONFIGURED";
+    throw error;
+  }
+  return { store: peerMediaStore, app: peerMediaApp };
+}
+
+function peerProjectUrl(projectId, assetId) {
+  return "/api/peer-media/" + encodeURIComponent(projectId) + "/" + encodeURIComponent(assetId);
+}
+
+
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
   isCI
@@ -41,6 +72,7 @@ function queueManifestWrite(task) {
 }
 
 export async function initStorage() {
+  if (PEER_MODE_REQUIRED) { requirePeerMediaStore(); return; }
   await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
   try {
     await fs.access(PROJECT_FILE);
@@ -87,12 +119,19 @@ export async function saveProjectAssetFromFile(type, sourcePath, extension) {
 }
 
 export async function saveProjectAsset(type, buffer, extension) {
-  await initStorage();
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\./, "");
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  if (PEER_MODE_REQUIRED) {
+    const { store, app } = requirePeerMediaStore();
+    const record = await store.saveAsset(app, "apex-project", assetType, bytes, {
+      contentType: "application/" + ext, metadata: { type: assetType, extension: ext }
+    });
+    return { type: assetType, url: peerProjectUrl("apex-project", assetType), bytes: bytes.length, sha256: record.sha256, updatedAt: record.updatedAt };
+  }
+  await initStorage();
   const filename = `project_${assetType}.${ext}`;
   const filepath = path.join(STORAGE_DIR, filename);
-  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   await fs.writeFile(filepath, bytes, { mode: 0o600 });
 
   return queueManifestWrite(async () => {
@@ -116,7 +155,6 @@ export async function saveProjectAsset(type, buffer, extension) {
 }
 
 export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata = {}) {
-  await initStorage();
   const sceneKey = safePart(sceneId, "sceneId");
   const assetKind = safePart(kind, "asset kind");
   if (!["image", "video", "audio"].includes(assetKind)) throw new TypeError("Unsupported scene asset kind");
@@ -124,8 +162,20 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   if (!["png", "jpg", "jpeg", "webp", "mp4", "wav", "mp3", "m4a", "aac"].includes(ext)) {
     throw new TypeError("Unsupported scene asset extension");
   }
-  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const bytes = Buffer.isBuffer(buffer) ? Buffer.from(buffer) : Buffer.from(buffer);
   if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
+  if (PEER_MODE_REQUIRED) {
+    const { store, app } = requirePeerMediaStore();
+    const projectId = "apex-scenes";
+    const assetId = sceneKey + "-" + assetKind;
+    const record = await store.saveAsset(app, projectId, assetId, bytes, {
+      contentType: assetKind === "image" ? "image/" + ext : assetKind === "video" ? "video/" + ext : "audio/" + ext,
+      metadata: { sceneId: sceneKey, kind: assetKind, extension: ext, durationMs: metadata?.durationMs }
+    });
+    const url = peerProjectUrl(projectId, assetId);
+    return { sceneId: sceneKey, [assetKind]: url, url, bytes: bytes.length, sha256: record.sha256, updatedAt: record.updatedAt };
+  }
+  await initStorage();
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
   const filename = `scene_${sceneKey}_${assetKind}_${crypto.randomUUID()}.${ext}`;
   const filepath = path.join(STORAGE_DIR, filename);
@@ -173,7 +223,37 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   });
 }
 
+export async function getPeerMediaAsset(projectInput, assetInput) {
+  const { store, app } = requirePeerMediaStore();
+  const projectId = safePart(projectInput, "project ID");
+  const assetId = safePart(assetInput, "asset ID");
+  return store.getAsset(app, projectId, assetId);
+}
+
 export async function getProjectState() {
+  if (PEER_MODE_REQUIRED) {
+    const { store, app } = requirePeerMediaStore();
+    const [project, scenes] = await Promise.all([
+      store.getProject(app, "apex-project"), store.getProject(app, "apex-scenes")
+    ]);
+    const exports = project.manifest.assets.map(asset => ({
+      type: asset.id, url: peerProjectUrl("apex-project", asset.id), bytes: asset.bytes,
+      sha256: asset.sha256, updatedAt: asset.updatedAt
+    }));
+    const sceneMap = new Map();
+    for (const asset of scenes.manifest.assets) {
+      const meta = asset.metadata || {};
+      const id = String(meta.sceneId || "");
+      if (!id) continue;
+      let item = sceneMap.get(id);
+      if (!item) { item = { id, durationMs: Number(meta.durationMs) || 4000, createdAt: asset.updatedAt }; sceneMap.set(id, item); }
+      const url = peerProjectUrl("apex-scenes", asset.id);
+      item[meta.kind] = url;
+      item[meta.kind + "Asset"] = { url, bytes: asset.bytes, sha256: asset.sha256, extension: meta.extension, provenance: "peer-verified" };
+      item.updatedAt = Math.max(Number(item.updatedAt) || 0, asset.updatedAt);
+    }
+    return { version: 1, assets: [], exports, scenes: [...sceneMap.values()] };
+  }
   await initStorage();
   return readManifest();
 }
