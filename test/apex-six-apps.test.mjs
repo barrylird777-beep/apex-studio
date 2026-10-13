@@ -172,3 +172,14 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
   assert.equal(rows[0].record.workerCount, 20);
   assert.equal(rows[0].record.recordType, "simulation");
 });
+
+
+test("legacy TeeVee and PayPex surfaces resolve to current canonical owners",()=>{
+  const teevee=getApexApp("teevee");
+  const paypex=getApexApp("paypex");
+  assert.equal(teevee.system,"kernel-vision");
+  assert.match(teevee.role,/24\/7 entertainment programming and broadcast surface owned by KernelVision/);
+  assert.equal(paypex.system,"kash-korner");
+  assert.match(paypex.role,/opportunity, market and monetization intelligence surface owned by KashKorner/);
+  assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
+});
