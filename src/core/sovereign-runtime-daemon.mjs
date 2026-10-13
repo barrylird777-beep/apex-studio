@@ -214,6 +214,7 @@ async function publishRuntimeIdentity(status = 'online') {
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
     status: effectiveStatus,
+    instanceId: process.env.APEX_RUNTIME_INSTANCE_ID || null,
     readiness,
     peerId,
     publicPeerAddress,
