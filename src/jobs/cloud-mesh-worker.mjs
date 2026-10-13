@@ -66,12 +66,12 @@ async function execute(job, lease) {
     if (!completed.accepted) throw new Error("Cloud job completion rejected: " + completed.reason);
     console.log("[APEX CLOUD WORKER] completed", JSON.stringify({ app, jobId: job.jobId, workerId, resultHash: persisted.payloadHash }));
   } catch (error) {
+    await stopLeaseHeartbeat();
     const bytes = Buffer.from(JSON.stringify({ error: String(error?.message || error), at: new Date().toISOString() }));
     let errorHash = null;
     if (!leaseLost && !controller.signal.aborted) {
       try { errorHash = (await coordinator.putPayload({ app, bytes, contentType: "application/json" })).payloadHash; } catch {}
     }
-    await stopLeaseHeartbeat();
     if (leaseLost || controller.signal.aborted) {
       console.error("[APEX CLOUD WORKER] lease lost; leaving job for safe expiry and reclaim", JSON.stringify({ app, jobId: job.jobId, workerId }));
       return;
