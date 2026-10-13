@@ -28,6 +28,10 @@ export function createHttpsOnlyRedirect({ production = false, publicHosts = [] }
   const allowedHosts = new Set(publicHosts.map(host => String(host).trim().toLowerCase()).filter(Boolean));
   return function httpsOnlyRedirect(req, res, next) {
     if (!production) return next();
+    // If the operator delegates TLS enforcement to a trusted edge, no app-level
+    // canonical-host redirects are configured. Do not reject valid edge traffic.
+    if (allowedHosts.size === 0) return next();
+
     const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '')
       .split(',')[0].trim().toLowerCase();
     if (forwardedProto !== 'http') return next();
