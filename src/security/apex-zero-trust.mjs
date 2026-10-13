@@ -41,7 +41,7 @@ function safeAudit(audit, event) {
       reason: event.reason,
       action: event.action,
       resource: event.resource,
-      principalId: event.principalId || null,
+      principalFingerprint: event.principalId ? apexZeroTrustFingerprint(event.principalId) : null,
       requestId: event.requestId || null
     });
   } catch {
