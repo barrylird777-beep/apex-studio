@@ -212,8 +212,23 @@ app.get('/api/search', async (req, res) => {
 });
 
 
+// Public status reveals only coarse health. Detailed worker/job records can contain
+// internal prompts, findings, errors, identifiers, and capacity information.
 app.get('/api/workforce/status', (_req, res) => {
-  res.status(200).json({
+  const workforce = massiveAiWorkforce.status();
+  const crew = aiCrew.status();
+  const fleet = fleetStatus(permanentWorkerFleet);
+  return res.status(200).json({
+    success: true,
+    workforce: { status: permanentWorkerFleet.status || 'unknown', available: true },
+    crew: { status: crew.failed > 0 ? 'degraded' : 'available' },
+    fleet: { status: fleet.status, available: fleet.running > 0 }
+  });
+});
+
+// The owner retains full diagnostic detail behind the existing owner control token.
+app.get('/api/workforce/status/details', requireControlPlaneAuth, (_req, res) => {
+  return res.status(200).json({
     success: true,
     workforce: massiveAiWorkforce.status(),
     crew: aiCrew.status(),
