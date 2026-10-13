@@ -3,152 +3,201 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080b12">
-<meta name="description" content="Bible study, source research, analytics, and the GardenApex living universe.">
-<title>PlanetApeX · APEX ANCHOR</title>
+<meta name="theme-color" content="#e8e3d8">
+<meta name="description" content="PlanetApeX — a living universe for scripture, historical research, and world simulation.">
+<title>PlanetApeX — Atlas of a Living World</title>
+<link rel="stylesheet" href="/apex-six-apps.css">
+<link rel="stylesheet" href="/apex-ui-controls.css">
+<script src="/apex-six-apps.js" defer></script>
+<script src="/apex-ui-controls.js" defer></script>
 <style>
-:root{color-scheme:dark}body{margin:0;background:#080a0f;color:#eef2f7;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1100px;margin:auto;padding:28px 16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{padding:18px;border:1px solid #303640;border-radius:16px;background:#10141b}input,button,select{font:inherit;border-radius:9px;padding:9px 11px;border:1px solid #46505f;background:#171d27;color:#fff;max-width:100%;box-sizing:border-box}input,select{width:100%;margin:5px 0 9px}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}pre{white-space:pre-wrap;word-break:break-word;color:#cbd5e1;max-height:480px;overflow:auto}.row{display:flex;gap:8px;flex-wrap:wrap}a{color:#9cc8ff}.hint{font-size:.88rem;color:#aab6c5}.good{color:#9fe3b1}.bad{color:#ff9b9b}.wide{grid-column:1/-1}
-
-:root{color-scheme:dark;--apex-ink:#f2f6ff;--apex-muted:#aab7cb;--apex-line:#29374b;--apex-blue:#8abaff}
-body{background:radial-gradient(ellipse at 14% 0%,rgba(32,68,120,.34),transparent 42%),radial-gradient(ellipse at 95% 18%,rgba(78,48,126,.24),transparent 36%),#080b12;color:var(--apex-ink)}
-main{max-width:1180px;padding:30px 18px 46px}
-h1{font-size:clamp(32px,5vw,52px);line-height:1.08;letter-spacing:-.035em}
-.card,.panel{background:linear-gradient(145deg,rgba(19,28,44,.96),rgba(10,15,25,.97));border-color:var(--apex-line);box-shadow:0 18px 46px rgba(0,0,0,.2)}
-input,textarea,select,button{border-radius:11px}
-button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4;transition:filter .15s ease,transform .15s ease}
-button:hover{filter:brightness(1.12);transform:translateY(-1px)}
-input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--apex-blue);outline-offset:2px}
-a{color:var(--apex-blue)}
-@media(max-width:600px){main{padding:22px 13px 36px}}
-
-/* PlanetApeX four distinct experiences: analytics, scripture, archive, living-world simulation. */
-.pa-intro{display:grid;gap:8px;margin:18px 0 22px;padding:clamp(18px,4vw,30px);border:1px solid #344a5d;background:linear-gradient(120deg,#142c3a,#101a27 62%,#211c2a);border-radius:16px}
-.pa-intro .kicker,.pa-section-kicker{font-size:10px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:#dfc18a}
-.pa-intro h1{margin:4px 0;font-size:clamp(32px,7vw,58px);letter-spacing:-.05em}
-.pa-intro p{max-width:66ch;color:#bdcbd6;margin:0}
-.pa-experiences{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;margin:18px 0 26px}
-.pa-experience{min-width:0;grid-column:span 6;padding:clamp(15px,2.5vw,22px);border:1px solid;border-radius:13px;overflow:hidden}
-.pa-experience h2{margin:7px 0 9px;font-size:clamp(20px,3vw,27px)}
-.pa-experience p{margin:7px 0;color:inherit;opacity:.82}
-.pa-analytics{background:#f2f5f7;color:#18242e;border-color:#cdd8df}
-.pa-analytics .pa-section-kicker{color:#356f91}
-.pa-bible{background:#f3e8cc;color:#3e3020;border-color:#d6c39b;font-family:Georgia,'Times New Roman',serif}
-.pa-bible .pa-section-kicker{color:#8d6a2b}
-.pa-research{background:#101e2b;color:#e6edf3;border-color:#42566a}
-.pa-research .pa-section-kicker{color:#d6b775}
-.pa-garden{grid-column:1/-1;background:#0b1715;color:#e2f0e7;border-color:#2d5547;padding:0}
-.pa-garden-head{padding:18px 20px 10px;background:linear-gradient(100deg,#122d26,#15241f)}
-.pa-garden-scene{position:relative;min-height:255px;overflow:hidden;padding:18px;background:radial-gradient(ellipse at 50% 0%,#b5d9ad26,transparent 55%),linear-gradient(#172d2b,#10201c 55%,#08110f)}
-.pa-garden-scene:before{content:"";position:absolute;inset:auto -10% -70px;height:190px;background:radial-gradient(ellipse,#436b4d 0%,#243f32 48%,transparent 70%);pointer-events:none}
-.pa-village{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;z-index:1}
-.pa-korn{min-width:0;padding:12px 8px;text-align:center;border:1px solid #4b6e58;border-radius:12px;background:#10231fd9;box-shadow:0 8px 24px #0002}
-.pa-korn .face{font-size:30px;line-height:1.3;display:block}
-.pa-korn strong{display:block;font-size:12px;color:#d8e7bf}
-.pa-korn small{display:block;margin-top:4px;color:#adc6b4;line-height:1.35}
-.pa-garden-foot{padding:12px 18px 18px}
-.pa-garden-feed{max-height:145px;overflow:auto;margin:10px 0 0;padding-left:20px;color:#c0d6c7;font-size:12px}
-.pa-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:15px}
-.pa-metric{padding:10px;border-radius:8px;background:#e4ebef}
-.pa-metric strong{display:block;font-size:23px;color:#1b4d67;font-variant-numeric:tabular-nums}
-.pa-metric small{font-size:10px;color:#536571;text-transform:uppercase;letter-spacing:.08em}
-.pa-scripture{font-size:clamp(18px,3vw,24px);line-height:1.55}
-.pa-citation{font-size:12px;font-family:system-ui,sans-serif;color:#806a46}
-.pa-research-list{display:grid;gap:8px;margin-top:12px}
-.pa-source{padding:10px 12px;border-left:2px solid #d6b775;background:#ffffff08}
-.pa-source strong{display:block;font-size:13px}
-.pa-source small{color:#b8c7d3}
-.pa-analytics-bars{display:grid;gap:9px;margin:14px 0}
-.pa-bar-row{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:center;gap:8px;font-size:12px}
-.pa-bar{height:8px;background:#dce4e9;border-radius:99px;overflow:hidden}
-.pa-bar span{display:block;height:100%;width:var(--w);background:#397b9e;border-radius:99px}
-.pa-experience button{min-height:42px}
-.pa-garden button{background:#1e4032;border-color:#537b60}
-.pa-garden .hint{color:#a9c5b3}
-@media(max-width:620px){.pa-experience{grid-column:1/-1}.pa-village{grid-template-columns:repeat(2,minmax(0,1fr))}.pa-garden-scene{padding:12px}.pa-metrics{gap:5px}.pa-metric{padding:8px}.pa-metric strong{font-size:20px}}
-
+:root{color-scheme:light;--paper:#e9e5dc;--paper-hi:#f5f2eb;--ink:#1d292b;--muted:#697572;--line:#c8c9bd;--forest:#274b43;--forest-2:#3b6658;--brass:#9c7740;--night:#152c30;--white:#fbfaf6;--red:#8b554b}
+*{box-sizing:border-box}
+html{background:var(--paper);scroll-behavior:smooth}
+body{margin:0;min-width:320px;overflow-x:hidden;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body:has(main[data-apex-app="planetapex"]){--apex-bg:var(--paper);--apex-line:var(--line);--apex-accent:var(--forest);background:var(--paper);color:var(--ink)}
+a{color:var(--forest);text-underline-offset:3px}
+a:hover{color:#172f29}
+button,input,select,textarea{font:inherit}
+.apex-skip-link{position:absolute;left:12px;top:-90px;z-index:20;background:var(--night);color:white;padding:10px 14px}
+.apex-skip-link:focus{top:12px}
+.apex-app-nav{position:relative!important;inset:auto!important;z-index:1!important;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;margin:0!important;padding:10px max(14px,calc((100vw - 1240px)/2));border:0;border-bottom:1px solid #c8c9bd;border-radius:0!important;background:#f5f2eb!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;scrollbar-width:none}
+.apex-app-nav::-webkit-scrollbar{display:none}
+.apex-app-brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;margin-right:12px!important;padding:0 14px 0 0!important;border:0!important;border-right:1px solid var(--line)!important;color:var(--ink)!important;text-decoration:none;font-size:11px!important;letter-spacing:.08em;font-weight:850;white-space:nowrap}
+.apex-app-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:50%!important;background:var(--forest)!important;color:#f5f2eb!important;font-family:Georgia,serif;font-size:17px!important}
+.apex-app-nav a:not(.apex-app-brand){flex:0 0 auto;min-height:38px;display:flex;align-items:center;padding:7px 10px;border:1px solid transparent;border-radius:4px!important;color:#5d6b66!important;font-size:11px!important;font-weight:650;text-decoration:none;white-space:nowrap}
+.apex-app-nav a[aria-current=page]{background:#e2e8df!important;border-color:#a8b8aa!important;color:#203d34!important;box-shadow:none!important}
+main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clamp(20px,4vw,48px) clamp(14px,3.5vw,34px) 50px}
+.apex-shell h1,.apex-shell h2,.apex-shell h3{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.035em;text-wrap:balance}
+.apex-shell h1{font-size:clamp(40px,7vw,78px);line-height:.98;margin:12px 0 18px}
+.apex-shell h2{font-size:clamp(23px,3.5vw,34px);line-height:1.12;margin:0 0 12px}
+.apex-shell h3{font-size:20px;line-height:1.2}
+.apex-shell p{margin:0 0 13px}
+.apex-shell .eyebrow,.kicker{font-size:10px;line-height:1.4;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--brass)}
+.apex-shell .lead{max-width:660px;font-size:clamp(16px,2vw,19px);line-height:1.7;color:#4d5b56}
+.apex-shell .hint,.muted{font-size:12px;line-height:1.6;color:var(--muted)}
+.apex-shell .card,.apex-shell .panel{min-width:0;padding:clamp(17px,2.8vw,28px);border:1px solid var(--line);border-radius:5px;background:var(--paper-hi);box-shadow:none;overflow-wrap:anywhere}
+.apex-shell .card:hover,.apex-shell .panel:hover{transform:none;border-color:#a7b1a4}
+.apex-shell button,.apex-shell input,.apex-shell select,.apex-shell textarea{min-width:0;max-width:100%;border:1px solid #b6bcb1;border-radius:3px;background:#fbfaf6;color:var(--ink);padding:11px 12px;box-shadow:none}
+.apex-shell input,.apex-shell select,.apex-shell textarea{display:block;width:100%;margin:6px 0 14px;font-size:16px;min-height:46px}
+.apex-shell label{display:block;font-size:12px;font-weight:750;color:#42534c}
+.apex-shell button{min-height:44px;cursor:pointer;font-size:12px;font-weight:750;background:var(--forest);border-color:var(--forest);color:#fff;transition:none!important}
+.apex-shell button:hover:not(:disabled){background:#1c3932;transform:none;filter:none}
+.apex-shell button:disabled{opacity:.45;cursor:not-allowed}
+.apex-shell :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+.apex-shell .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.apex-shell .row>*{min-width:0;max-width:100%}
+.apex-shell .row button{flex:1 1 135px}
+.apex-shell .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.apex-shell .grid>.card{grid-column:span 6}
+.apex-shell .grid>.wide{grid-column:1/-1}
+.apex-shell pre{max-width:100%;max-height:min(42vh,360px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;border:1px solid #c8c9bd;background:#eeece4;color:#35443f;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+.apex-shell .good{color:#276a4b}.apex-shell .bad{color:#9a3e37}
+.apex-app-footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:34px;padding-top:15px;border-top:1px solid var(--line);font-size:11px;color:#6c7771}
+.pa-masthead{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(200px,.75fr);gap:24px;align-items:end;padding:clamp(24px,5vw,52px) 0 28px;border-bottom:1px solid #bfc4b8}
+.pa-masthead-copy{max-width:720px}
+.pa-masthead .edition{display:flex;gap:10px;align-items:center;font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;color:var(--forest)}
+.pa-masthead .edition:before{content:"";width:26px;height:1px;background:var(--brass)}
+.pa-masthead h1 span{color:var(--forest)}
+.pa-index{justify-self:end;width:100%;max-width:300px;padding:17px 18px;border-left:2px solid var(--brass);background:#deded3}
+.pa-index strong{display:block;font:500 18px Georgia,serif;margin-bottom:8px}
+.pa-index a{display:block;padding:6px 0;border-bottom:1px solid #c5c7bb;color:#40534b;text-decoration:none;font-size:12px}
+.pa-index a:last-child{border-bottom:0}
+.pa-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:34px 0 14px}
+.pa-section-head .number{font:italic 17px Georgia,serif;color:var(--brass)}
+.pa-feature-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.pa-feature{grid-column:span 6;min-width:0;border:1px solid var(--line);background:var(--paper-hi)}
+.pa-feature-head{padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.pa-feature-body{padding:20px}
+.pa-feature-tag{font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;color:var(--brass)}
+.pa-feature h2{margin:8px 0 10px}
+.pa-analytics{background:#e1e7df}
+.pa-analytics .pa-feature-head{border-color:#c3cec2}
+.pa-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0}
+.pa-metric{padding:12px 10px;border-top:2px solid var(--forest);background:#f2f3ec}
+.pa-metric strong{display:block;font:500 clamp(24px,4vw,34px)/1.1 Georgia,serif;color:var(--forest);font-variant-numeric:tabular-nums}
+.pa-metric small{display:block;margin-top:6px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#67746b}
+.pa-bars{display:grid;gap:11px;margin:18px 0}
+.pa-bar-row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;align-items:center;font-size:11px;color:#526158}
+.pa-bar{height:5px;background:#cbd4c8;overflow:hidden}
+.pa-bar span{display:block;height:100%;width:var(--w);background:var(--forest)}
+.pa-scripture{background:#eee5d2;color:#3d3427}
+.pa-scripture .pa-feature-head{border-color:#d6c8ac}
+.pa-scripture .pa-feature-body{font-family:Georgia,"Times New Roman",serif}
+.pa-scripture blockquote{margin:8px 0 10px;padding-left:16px;border-left:2px solid var(--brass);font-size:clamp(22px,3vw,31px);line-height:1.45}
+.pa-scripture .citation{font:11px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#786b54}
+.pa-scripture details{margin-top:18px;border-top:1px solid #d6c8ac;padding-top:12px}
+.pa-scripture summary{cursor:pointer;font:700 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#625039}
+.pa-scripture details p{margin-top:12px;font:14px/1.7 Georgia,serif}
+.pa-research{background:#e4e6e1}
+.pa-research .pa-feature-head{border-color:#c5cbc2}
+.pa-source-list{display:grid;gap:0;margin-top:15px}
+.pa-source{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;padding:12px 0;border-top:1px solid #cbd0c7}
+.pa-source .index{font:italic 15px Georgia,serif;color:var(--brass)}
+.pa-source strong{display:block;font-size:13px;color:#2f423b}
+.pa-source small{display:block;margin-top:3px;font-size:12px;line-height:1.5;color:#65716a}
+.pa-text-link{display:inline-flex;align-items:center;gap:9px;margin-top:14px;font-size:12px;font-weight:800;text-decoration:none}
+.pa-garden{grid-column:1/-1;border-color:#294a40;background:#172b26;color:#edf1e7}
+.pa-garden .pa-feature-head{padding:clamp(20px,4vw,32px);border-color:#38564a;background:#203a32}
+.pa-garden .pa-feature-tag{color:#d0b47a}
+.pa-garden .pa-feature-head h2{font-size:clamp(29px,4vw,43px)}
+.pa-garden .pa-feature-head p{max-width:670px;color:#c3d0c6}
+.pa-garden .pa-feature-body{padding:clamp(16px,3vw,26px)}
+.pa-world-status{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:15px;color:#b9cbbd;font-size:11px}
+.pa-live-dot{display:inline-flex;align-items:center;gap:7px;text-transform:uppercase;letter-spacing:.1em;font-size:9px;font-weight:800}
+.pa-live-dot:before{content:"";width:6px;height:6px;border-radius:50%;background:#a9c49b}
+.pa-village{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.pa-korn{min-width:0;padding:13px 10px;border:1px solid #3b5b4e;background:#1c342d}
+.pa-korn .face{display:grid;place-items:center;width:34px;height:34px;margin-bottom:16px;border:1px solid #658071;border-radius:50%;font:16px Georgia,serif;color:#e1c48a}
+.pa-korn strong{display:block;font:500 18px Georgia,serif;color:#f1f0e5}
+.pa-korn small{display:block;margin-top:5px;font-size:11px;line-height:1.4;color:#b8c9bc}
+.pa-korn .mood{font-size:10px;color:#d1b77e;text-transform:capitalize}
+.pa-garden .hint{color:#b8c9bc}
+.pa-garden button{background:#d8dfd0;color:#1d3a30;border-color:#d8dfd0}
+.pa-garden button:hover:not(:disabled){background:#fff}
+.pa-garden-feed{display:grid;gap:6px;max-height:150px;overflow:auto;margin:17px 0 0;padding:0;list-style:none;color:#c5d3c8;font-size:12px}
+.pa-garden-feed li{padding:8px 10px;border-left:2px solid #718c75;background:#ffffff08}
+.pa-storage{margin-top:36px}
+.pa-storage-intro{max-width:650px;color:var(--muted)}
+.pa-storage .card{background:#f3f0e8}
+.pa-storage .card h2{font-size:23px}
+.pa-storage .card .hint{margin-top:8px}
+.pa-record-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
+.pa-record-links a{font-size:12px;font-weight:750}
+@media(max-width:760px){
+ .apex-app-nav{padding:8px 10px!important;gap:4px}
+ .apex-app-brand{margin-right:5px!important;padding-right:9px!important;font-size:10px!important}
+ .apex-app-nav a:not(.apex-app-brand){padding:7px 9px;font-size:10px!important}
+ main.apex-shell{padding:18px 13px 35px}
+ .pa-masthead{grid-template-columns:1fr;gap:20px;padding:30px 0 23px}
+ .pa-index{justify-self:stretch;max-width:none}
+ .pa-feature{grid-column:1/-1}
+ .pa-village{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .apex-shell .grid{grid-template-columns:minmax(0,1fr);gap:10px}
+ .apex-shell .grid>.card{grid-column:1/-1}
+ .pa-section-head{margin-top:28px}
+}
+@media(max-width:420px){
+ .pa-village{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pa-metrics{gap:5px}
+ .pa-metric{padding:10px 7px}
+ .pa-metric small{font-size:8px;letter-spacing:.04em}
+ .pa-bar-row{grid-template-columns:82px minmax(0,1fr)}
+ .apex-shell .row button{flex-basis:100%}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 </style>
-<link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css"><script src="/apex-six-apps.js" defer></script>
-<script src="/apex-ui-controls.js" defer></script></head>
-<body><a class="apex-skip-link" href="#apex-main">Skip to PlanetApeX content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" aria-current="page" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="planetapex" id="apex-main" tabindex="-1">
-<div>APEX CANONICAL APP</div><h1>PlanetApeX</h1>
-<p>Build your world, then save it to the configured shared peer-storage service. Changes remain in this page until you save them.</p>
-
-<section class="pa-intro" aria-label="PlanetApeX overview">
-  <span class="kicker">PLANETAPEX · THE BRAIN OF APEX</span>
-  <h1>A universe with room to think.</h1>
-  <p>Four distinct spaces: measure the world, study scripture, investigate sources, and observe GardenApex—a simulated civilization whose inhabitants pursue their own goals inside the world.</p>
-</section>
-<section class="pa-experiences" aria-label="PlanetApeX experiences">
-  <article class="pa-experience pa-analytics">
-    <span class="pa-section-kicker">01 / ANALYTICS</span><h2>Signals, not noise.</h2>
-    <p>A clear read on the activity of this session. GardenApex metrics update as its inhabitants act.</p>
-    <div class="pa-metrics">
-      <div class="pa-metric"><strong id="pa-pop">6</strong><small>Inhabitants</small></div>
-      <div class="pa-metric"><strong id="pa-actions">0</strong><small>Life events</small></div>
-      <div class="pa-metric"><strong id="pa-bonds">3</strong><small>Social bonds</small></div>
-    </div>
-    <div class="pa-analytics-bars">
-      <div class="pa-bar-row"><span>Exploration</span><div class="pa-bar"><span id="pa-bar-explore" style="--w:42%"></span></div></div>
-      <div class="pa-bar-row"><span>Community</span><div class="pa-bar"><span id="pa-bar-social" style="--w:68%"></span></div></div>
-      <div class="pa-bar-row"><span>Craft &amp; care</span><div class="pa-bar"><span id="pa-bar-care" style="--w:54%"></span></div></div>
-    </div>
-    <p class="hint">Session telemetry only; no external analytics service is contacted.</p>
-  </article>
-  <article class="pa-experience pa-bible">
-    <span class="pa-section-kicker">02 / BIBLE STUDY</span><h2>A quieter reading room.</h2>
-    <p class="pa-scripture">“And the light shineth in darkness; and the darkness comprehended it not.”</p>
-    <p class="pa-citation">John 1:5 · King James Version</p>
-    <details><summary>Study notes</summary><p>Read the verse in context: John 1:1–5 introduces the Word, life, and light. Consider how the image of light functions across the passage before drawing a personal application.</p></details>
-    <a href="/bible-study-room.html">Enter the Bible Study Room →</a>
-  </article>
-  <article class="pa-experience pa-research">
-    <span class="pa-section-kicker">03 / RESEARCH</span><h2>Follow the evidence.</h2>
-    <p>A research desk for manuscripts, historical context, and source trails. Treat leads as leads until a primary source confirms them.</p>
-    <div class="pa-research-list">
-      <div class="pa-source"><strong>Manuscripts &amp; textual witnesses</strong><small>Compare wording, date, provenance, and catalog records.</small></div>
-      <div class="pa-source"><strong>Archaeology &amp; cultural context</strong><small>Separate excavated evidence from later interpretation.</small></div>
-      <div class="pa-source"><strong>Source verification</strong><small>Track claims back to a catalog, archive, or publication.</small></div>
-    </div>
-    <p><a href="/special-search.html">Open Special Search →</a></p>
-  </article>
-  <article class="pa-experience pa-garden" id="pa-garden">
-    <div class="pa-garden-head"><span class="pa-section-kicker">04 / GARDENAPEX</span><h2 style="margin:6px 0">A world already in progress.</h2><p style="margin:0;color:#bad0c1">The Korns are not waiting for a player command. Each has a current need, a preference, and relationships that shape what they do next.</p></div>
-    <div class="pa-garden-scene"><div class="pa-village" id="pa-village" aria-live="polite">
-      <div class="pa-korn"><span class="face">◉</span><strong>Ori</strong><small>Checking the garden</small></div>
-      <div class="pa-korn"><span class="face">◈</span><strong>Mira</strong><small>Trading fruit</small></div>
-      <div class="pa-korn"><span class="face">●</span><strong>Tavi</strong><small>Exploring the creek</small></div>
-      <div class="pa-korn"><span class="face">◉</span><strong>Nemi</strong><small>Repairing a bridge</small></div>
-      <div class="pa-korn"><span class="face">◈</span><strong>Koro</strong><small>Visiting a friend</small></div>
-      <div class="pa-korn"><span class="face">●</span><strong>Seli</strong><small>Resting near home</small></div>
-    </div></div>
-    <div class="pa-garden-foot"><div class="row"><button id="pa-life-toggle" type="button" aria-pressed="true">Pause world</button><button id="pa-life-step" type="button">Observe next moment</button><button id="pa-life-reset" type="button">New day</button></div><p class="hint" id="pa-life-status" role="status">The village is active. Events continue while this page remains open; this prototype does not claim persistent memory or sentience.</p><ul class="pa-garden-feed" id="pa-life-feed"><li>The day begins; the village stirs.</li></ul></div>
-  </article>
-</section>
-
-<div class="grid">
-<section class="card wide" aria-label="PlanetApeX study and research">
-<h2>Study &amp; Research</h2>
-<p class="hint">Start with the study room, explore the living universe, or search across the existing research surfaces. GardenApex is part of PlanetApeX, not a seventh app.</p>
-<div class="row links"><a href="/bible-study-room.html">Open Bible Study Room →</a><a href="/garden-of-apex.html">Explore GardenApex →</a><a href="/special-search.html">Open Special Search →</a></div>
-</section>
-<section class="card"><h2>World Builder</h2>
-<label>World ID<input id="pid" value="earth" autocomplete="off"></label>
-<label>World name<input id="pname" value="PlanetApeX" autocomplete="off"></label>
-<div class="row"><button id="world">Create world</button><button id="region" disabled>Add region</button><button id="entity" disabled>Add entity</button></div>
-<p class="hint">Save uses the world ID as the durable record key. Use letters, numbers, dot, underscore, colon, or hyphen.</p>
-</section>
-<section class="card"><h2>Durable Storage</h2>
-<label>Control token (not stored beyond this browser tab)<input id="token" type="password" autocomplete="off" placeholder="APEX_SHORTCUT_TOKEN"></label>
-<div class="row"><button id="save" disabled>Save world</button><button id="load">Load by ID</button><button id="list">List saved worlds</button></div>
-<label>Saved worlds<select id="saved"><option value="">Load the list first</option></select></label>
-<div id="storageStatus" class="hint" role="status">Not connected to durable storage yet.</div>
-</section>
-<section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre><button id="refresh">Refresh status</button></section>
-<section class="card"><h2>World State</h2><pre id="worldState">No world created.</pre></section>
-<section class="card wide"><h2>Saved World Records</h2><pre id="records">Choose “List saved worlds” to inspect durable records.</pre></section>
+</head>
+<body>
+<a class="apex-skip-link" href="#apex-main">Skip to PlanetApeX content</a>
+<nav class="apex-app-nav" aria-label="Six canonical apps">
+<a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;letter-spacing:.08em;color:#78857c;margin-top:2px">SIX CANONICAL APPS</small></span></a>
+<a href="/kernel-vision.html" title="Production and media studio">KernelVision</a><a href="/xshield.html" title="Security and privacy">XShield</a><a href="/kernelodies.html" title="Music and discovery">Kernelodies</a><a href="/planet-apex.html" aria-current="page" title="Scripture, research and universe">PlanetApeX</a><a href="/kash-korner.html" title="Financial tools">KashKorner</a><a href="/koin-kob.html" title="Markets and simulations">KoinKob</a>
+</nav>
+<script src="/api-auth-bridge.js"></script>
+<main class="apex-shell" data-apex-app="planetapex" id="apex-main" tabindex="-1">
+<header class="pa-masthead">
+<div class="pa-masthead-copy"><div class="edition">PlanetApeX <span style="color:#a5a89a">/</span> The living atlas</div><h1>Understand the world.<br><span>Explore what lives within it.</span></h1><p class="lead">A private observatory for scripture, historical evidence, world intelligence, and GardenApex—the evolving lives of the Korns.</p></div>
+<aside class="pa-index" aria-label="Explore PlanetApeX"><strong>Explore the atlas</strong><a href="#analytics">01 &nbsp; World intelligence</a><a href="#scripture">02 &nbsp; Bible study</a><a href="#research">03 &nbsp; Historical research</a><a href="#garden">04 &nbsp; GardenApex</a><a href="#world-tools">05 &nbsp; World records</a></aside>
+</header>
+<section id="analytics">
+<div class="pa-section-head"><h2>World intelligence</h2><span class="number">01 / Signals</span></div>
+<div class="pa-feature-grid">
+<article class="pa-feature pa-analytics">
+<div class="pa-feature-head"><span class="pa-feature-tag">Session observatory</span><h2>A living system, in view.</h2><p class="hint">Activity generated by the GardenApex simulation in this open session.</p></div>
+<div class="pa-feature-body"><div class="pa-metrics"><div class="pa-metric"><strong id="pa-pop">6</strong><small>Inhabitants</small></div><div class="pa-metric"><strong id="pa-actions">0</strong><small>Life events</small></div><div class="pa-metric"><strong id="pa-bonds">6</strong><small>Social ties</small></div></div>
+<div class="pa-bars"><div class="pa-bar-row"><span>Discovery</span><div class="pa-bar"><span id="pa-bar-explore" style="--w:42%"></span></div></div><div class="pa-bar-row"><span>Community</span><div class="pa-bar"><span id="pa-bar-social" style="--w:68%"></span></div></div><div class="pa-bar-row"><span>Craft &amp; care</span><div class="pa-bar"><span id="pa-bar-care" style="--w:54%"></span></div></div></div><p class="hint">Session measurements only. No external analytics service is contacted.</p></div>
+</article>
+<article class="pa-feature pa-scripture" id="scripture">
+<div class="pa-feature-head"><span class="pa-feature-tag">Scripture room</span><h2>Read slowly. Look closely.</h2><p class="hint">A quiet starting point for study and reflection.</p></div>
+<div class="pa-feature-body"><blockquote>“And the light shineth in darkness; and the darkness comprehended it not.”</blockquote><p class="citation">JOHN 1:5 · KING JAMES VERSION</p><details><summary>Study notes · John 1:1–5</summary><p>The opening of John connects the Word with life and light. Read the surrounding passage before drawing conclusions, and note how the image of light develops across the text.</p></details><a class="pa-text-link" href="/bible-study-room.html">Enter the Bible Study Room <span aria-hidden="true">↗</span></a></div>
+</article>
+<article class="pa-feature pa-research" id="research">
+<div class="pa-feature-head"><span class="pa-feature-tag">Historical research</span><h2>Claims meet their sources.</h2><p class="hint">Follow the evidence across manuscripts, material culture, and historical records.</p></div>
+<div class="pa-feature-body"><div class="pa-source-list"><div class="pa-source"><span class="index">I.</span><div><strong>Manuscripts &amp; textual witnesses</strong><small>Compare wording, dating, provenance, and catalog records.</small></div></div><div class="pa-source"><span class="index">II.</span><div><strong>Archaeology &amp; cultural context</strong><small>Distinguish excavated evidence from later interpretation.</small></div></div><div class="pa-source"><span class="index">III.</span><div><strong>Source verification</strong><small>Trace claims back to archives, catalogs, and publications.</small></div></div></div><a class="pa-text-link" href="/special-search.html">Open Special Search <span aria-hidden="true">↗</span></a></div>
+</article>
+<article class="pa-feature pa-garden" id="garden">
+<div class="pa-feature-head"><span class="pa-feature-tag">GardenApex · The living universe</span><h2>Life does not wait for a command.</h2><p>Six inhabitants, their own needs, temperaments, routines, and relationships. Observe the village as its day unfolds. This is a running simulation—not a claim of sentience.</p></div>
+<div class="pa-feature-body"><div class="pa-world-status"><span class="pa-live-dot" id="pa-world-indicator">World active</span><span id="pa-life-status" role="status">The village is active. Events run while this page remains open.</span></div>
+<div class="pa-village" id="pa-village" aria-live="polite">
+<div class="pa-korn"><span class="face">O</span><strong>Ori</strong><small>Checking the garden</small></div><div class="pa-korn"><span class="face">M</span><strong>Mira</strong><small>Trading fruit</small></div><div class="pa-korn"><span class="face">T</span><strong>Tavi</strong><small>Exploring the creek</small></div><div class="pa-korn"><span class="face">N</span><strong>Nemi</strong><small>Repairing a bridge</small></div><div class="pa-korn"><span class="face">K</span><strong>Koro</strong><small>Visiting a friend</small></div><div class="pa-korn"><span class="face">S</span><strong>Seli</strong><small>Resting near home</small></div>
+</div><div class="row" style="margin-top:18px"><button id="pa-life-toggle" type="button" aria-pressed="true">Pause world</button><button id="pa-life-step" type="button">Observe next moment</button><button id="pa-life-reset" type="button">Begin a new day</button></div><ul class="pa-garden-feed" id="pa-life-feed"><li>The day begins; the village stirs.</li></ul></div>
+</article>
 </div>
-<p><a href="/">PlanetApeX</a> · <a href="/special-search.html">Special Search</a> · <a href="/kernel-vision.html">KernelVision</a> · <a href="/api/apex/apps">canonical six-app registry</a></p>
-<footer class="apex-app-footer"><span>APEX ANCHOR · PlanetApeX</span><span>Canonical app surface · six-app navigation</span></footer></main>
+</section>
+<section class="pa-storage" id="world-tools">
+<div class="pa-section-head"><h2>World records</h2><span class="number">05 / Builder &amp; archive</span></div>
+<p class="pa-storage-intro">Create and inspect world records using the configured shared storage service. Changes remain in this page until saved. Existing records are protected from accidental overwrite.</p>
+<div class="grid">
+<section class="card"><span class="kicker">01 / Define</span><h2>World builder</h2><label for="pid">World ID</label><input id="pid" value="earth" autocomplete="off"><label for="pname">World name</label><input id="pname" value="PlanetApeX" autocomplete="off"><div class="row"><button id="world" type="button">Create world</button><button id="region" type="button" disabled>Add region</button><button id="entity" type="button" disabled>Add entity</button></div><p class="hint">IDs may contain letters, numbers, dots, underscores, colons, and hyphens.</p></section>
+<section class="card"><span class="kicker">02 / Shared storage</span><h2>Save or recover</h2><label for="token">Control token</label><input id="token" type="password" autocomplete="off" placeholder="Server-configured control token"><p class="hint">Used only for requests in this browser tab. Do not enter your account password.</p><div class="row"><button id="save" type="button" disabled>Save world</button><button id="load" type="button">Load by ID</button><button id="list" type="button">List saved worlds</button></div><label for="saved">Saved worlds</label><select id="saved"><option value="">Load the list first</option></select><div id="storageStatus" class="hint" role="status">Not connected to durable storage yet.</div></section>
+<section class="card"><span class="kicker">03 / Service health</span><h2>Runtime status</h2><pre id="status">Checking service…</pre><button id="refresh" type="button">Refresh status</button></section>
+<section class="card"><span class="kicker">04 / Current record</span><h2>World state</h2><pre id="worldState">No world created.</pre></section>
+<section class="card wide"><span class="kicker">05 / Record index</span><h2>Saved world records</h2><pre id="records">Choose “List saved worlds” to inspect durable records.</pre><div class="pa-record-links"><a href="/garden-of-apex.html">Open GardenApex ↗</a><a href="/api/apex/apps">Canonical six-app registry ↗</a></div></section>
+</div>
+</section>
+<footer class="apex-app-footer"><span>APEX ANCHOR · PlanetApeX</span><span>Scripture · Research · Living universe</span></footer>
+</main>
 <script>
 const $=id=>document.getElementById(id);
 const tokenKey="apexPlanetApexControlToken";
@@ -165,7 +214,7 @@ $("world").onclick=()=>{const id=$("pid").value.trim(),name=$("pname").value.tri
 $("region").onclick=addRegion;$("entity").onclick=addEntity;
 $("save").onclick=async()=>{try{if(!planet)throw Error("Create or load a world first.");if(!validId(planet.id))throw Error("World ID is invalid for durable storage.");if(!loadedExistingRecord){try{await api("/api/mobile/apps/planet-apex/records/"+encodeURIComponent(planet.id));throw Error("A record with this ID already exists. Load it before editing so existing work is not overwritten.");}catch(error){if(!String(error.message).includes("HTTP 404")&&!String(error.message).includes("Record not found"))throw error;}}const data=await api("/api/mobile/apps/planet-apex/records/"+encodeURIComponent(planet.id),{method:"PUT",body:JSON.stringify(planet)});planet=data.record||planet;loadedExistingRecord=true;render();setStorage("Saved durably: "+data.id+" · "+data.storage,true);await listRecords()}catch(e){setStorage("SAVE FAILED: "+e.message,false)}}
 $("load").onclick=async()=>{try{const id=$("pid").value.trim();if(!validId(id))throw Error("Enter a valid world ID.");const data=await api("/api/mobile/apps/planet-apex/records/"+encodeURIComponent(id));planet=data.record||data;loadedExistingRecord=true;$("pid").value=planet.id;$("pname").value=planet.name||"PlanetApeX";render();setStorage("Loaded durable record: "+id+" · "+data.storage,true)}catch(e){setStorage("LOAD FAILED: "+e.message,false)}}
-async function listRecords(){const data=await api("/api/mobile/apps/planet-apex/records");const rows=Array.isArray(data.records)?data.records:[];$("saved").replaceChildren(new Option(rows.length? "Choose a saved world":"No saved worlds", ""));for(const row of rows){const record=row.record||row;const option=new Option((record.name||row.id||"Untitled")+" ("+(row.id||record.id||"?")+")",row.id||record.id);$("saved").add(option)}$("records").textContent=JSON.stringify(rows.map(row=>({id:row.id,name:row.record?.name,regions:row.record?.regions?.length||0,entities:row.record?.entities?.length||0,storage:row.storage})),null,2);setStorage("Found "+rows.length+" durable world record(s).",true)}
+async function listRecords(){const data=await api("/api/mobile/apps/planet-apex/records");const rows=Array.isArray(data.records)?data.records:[];$("saved").replaceChildren(new Option(rows.length?"Choose a saved world":"No saved worlds",""));for(const row of rows){const record=row.record||row;const option=new Option((record.name||row.id||"Untitled")+" ("+(row.id||record.id||"?")+")",row.id||record.id);$("saved").add(option)}$("records").textContent=JSON.stringify(rows.map(row=>({id:row.id,name:row.record?.name,regions:row.record?.regions?.length||0,entities:row.record?.entities?.length||0,storage:row.storage})),null,2);setStorage("Found "+rows.length+" durable world record(s).",true)}
 $("list").onclick=async()=>{try{await listRecords()}catch(e){setStorage("LIST FAILED: "+e.message,false)}}
 $("saved").onchange=()=>{const id=$("saved").value;if(id){$("pid").value=id;$("load").click()}}
 async function refresh(){try{const r=await fetch("/api/apex/apps/planet-apex/status",{headers:{accept:"application/json"},cache:"no-store"});const body=await r.json();if(!r.ok)throw Error("HTTP "+r.status);$("status").textContent=JSON.stringify(body,null,2)}catch(e){$("status").textContent="Runtime unavailable: "+e.message}}
@@ -174,20 +223,19 @@ const storedToken=sessionStorage.getItem(tokenKey);if(storedToken)$("token").val
 render();refresh();
 </script>
 <script>
-/* GardenApex session simulation: agents choose actions from needs, traits, and social ties. */
 (()=> {
  const inhabitants=[
-  {name:"Ori",face:"◉",need:"tend",trait:"careful",friend:"Mira",mood:"focused"},
-  {name:"Mira",face:"◈",need:"trade",trait:"curious",friend:"Ori",mood:"hopeful"},
-  {name:"Tavi",face:"●",need:"explore",trait:"restless",friend:"Seli",mood:"curious"},
-  {name:"Nemi",face:"◉",need:"repair",trait:"patient",friend:"Koro",mood:"steady"},
-  {name:"Koro",face:"◈",need:"visit",trait:"social",friend:"Nemi",mood:"warm"},
-  {name:"Seli",face:"●",need:"rest",trait:"observant",friend:"Tavi",mood:"calm"}
+  {name:"Ori",face:"O",need:"tend",trait:"careful",friend:"Mira",mood:"focused"},
+  {name:"Mira",face:"M",need:"trade",trait:"curious",friend:"Ori",mood:"hopeful"},
+  {name:"Tavi",face:"T",need:"explore",trait:"restless",friend:"Seli",mood:"curious"},
+  {name:"Nemi",face:"N",need:"repair",trait:"patient",friend:"Koro",mood:"steady"},
+  {name:"Koro",face:"K",need:"visit",trait:"social",friend:"Nemi",mood:"warm"},
+  {name:"Seli",face:"S",need:"rest",trait:"observant",friend:"Tavi",mood:"calm"}
  ];
  const acts=[
   ["tend","checks seedlings and waters the terrace","care"],
   ["trade","offers gathered fruit at the market","social"],
-  ["explore","follows a glowing stream beyond the bridge","explore"],
+  ["explore","follows a stream beyond the bridge","explore"],
   ["repair","tightens the woven bridge supports","care"],
   ["visit","stops by a friend's home to share news","social"],
   ["rest","rests beneath the root-lanterns and listens","care"],
@@ -197,50 +245,31 @@ render();refresh();
   ["wander","takes a different path through the village","explore"]
  ];
  let count=0,paused=false,day=1,turn=0;
- const $=id=>document.getElementById(id);
  function act(){
   turn++;
   const k=inhabitants[Math.floor(Math.random()*inhabitants.length)];
-  let choices=acts.filter(a=>a[0]===k.need||Math.random()<.25);
+  const choices=acts.filter(a=>a[0]===k.need||Math.random()<.25);
   const chosen=choices[Math.floor(Math.random()*choices.length)]||acts[turn%acts.length];
   k.mood=["curious","content","thoughtful","hopeful","focused","calm"][Math.floor(Math.random()*6)];
   if(Math.random()<.35)k.need=["tend","trade","explore","repair","visit","rest"][Math.floor(Math.random()*6)];
   count++;
   const card=document.querySelector('[data-korn="'+k.name+'"]');
-  if(card){card.querySelector("small").textContent=chosen[1];card.querySelector(".mood").textContent=k.mood;}
-  const feed=$("pa-life-feed"),li=document.createElement("li");
-  li.textContent="Day "+day+" · "+k.name+" "+chosen[1]+".";
-  feed.prepend(li);while(feed.children.length>8)feed.lastElementChild.remove();
-  $("pa-actions").textContent=count;
-  $("pa-bonds").textContent=inhabitants.filter(x=>x.friend).length;
+  if(card){const detail=card.querySelector(".detail");if(detail)detail.textContent=chosen[1];const mood=card.querySelector(".mood");if(mood)mood.textContent=k.mood}
+  const feed=$("pa-life-feed"),li=document.createElement("li");li.textContent="Day "+day+" · "+k.name+" "+chosen[1]+".";feed.prepend(li);while(feed.children.length>8)feed.lastElementChild.remove();
+  $("pa-actions").textContent=count;$("pa-bonds").textContent=inhabitants.filter(x=>x.friend).length;
   $("pa-bar-explore").style.setProperty("--w",(20+Math.min(70,turn*7%70))+"%");
   $("pa-bar-social").style.setProperty("--w",(25+Math.min(65,turn*11%65))+"%");
   $("pa-bar-care").style.setProperty("--w",(30+Math.min(60,turn*5%60))+"%");
  }
  function render(){
   $("pa-village").replaceChildren();
-  inhabitants.forEach(k=>{
-   const card=document.createElement("div");card.className="pa-korn";card.dataset.korn=k.name;
-   const face=document.createElement("span");face.className="face";face.textContent=k.face;
-   const name=document.createElement("strong");name.textContent=k.name;
-   const detail=document.createElement("small");detail.textContent=k.need+" · ";
-   const mood=document.createElement("small");mood.className="mood";mood.textContent=k.mood;
-   card.append(face,name,detail,mood);$("pa-village").append(card);
-  });
+  inhabitants.forEach(k=>{const card=document.createElement("div");card.className="pa-korn";card.dataset.korn=k.name;const face=document.createElement("span");face.className="face";face.textContent=k.face;const name=document.createElement("strong");name.textContent=k.name;const detail=document.createElement("small");detail.className="detail";detail.textContent=k.need+" · "+k.trait;const mood=document.createElement("small");mood.className="mood";mood.textContent=k.mood;card.append(face,name,detail,mood);$("pa-village").append(card)});
  }
- $("pa-life-toggle").addEventListener("click",()=>{
-  paused=!paused;$("pa-life-toggle").textContent=paused?"Resume world":"Pause world";
-  $("pa-life-toggle").setAttribute("aria-pressed",String(!paused));
-  $("pa-life-status").textContent=paused?"The village is paused.":"The village is active; inhabitants continue choosing actions.";
- });
+ $("pa-life-toggle").addEventListener("click",()=>{paused=!paused;$("pa-life-toggle").textContent=paused?"Resume world":"Pause world";$("pa-life-toggle").setAttribute("aria-pressed",String(!paused));$("pa-life-status").textContent=paused?"The village is paused.":"The village is active. Events run while this page remains open.";$("pa-world-indicator").textContent=paused?"World paused":"World active"});
  $("pa-life-step").addEventListener("click",act);
- $("pa-life-reset").addEventListener("click",()=>{
-  day++;turn=0;count=0;inhabitants.forEach((k,i)=>{k.need=["tend","trade","explore","repair","visit","rest"][i];k.mood="curious"});
-  $("pa-actions").textContent="0";$("pa-life-feed").replaceChildren();
-  const li=document.createElement("li");li.textContent="Day "+day+" begins. Each Korn starts with a different intention.";$("pa-life-feed").append(li);render();
- });
- render();setInterval(()=>{if(!paused)act()},3200);
+ $("pa-life-reset").addEventListener("click",()=>{day++;turn=0;count=0;inhabitants.forEach((k,i)=>{k.need=["tend","trade","explore","repair","visit","rest"][i];k.mood="curious"});$("pa-actions").textContent="0";$("pa-life-feed").replaceChildren();const li=document.createElement("li");li.textContent="Day "+day+" begins. Each Korn starts with a different intention.";$("pa-life-feed").append(li);render()});
+ render();setInterval(()=>{if(!paused)act()},4200);
 })();
 </script>
-
-</body></html>
+</body>
+</html>
