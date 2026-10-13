@@ -11,6 +11,7 @@ import { createTheatreItem, createViewingSession, kernelVisionStatus } from "../
 import { createWorkerAccount, createMarketOrder, clearMarket, settleMarket, createSystemicEvent, runAdversarialRound, buildWorkerEconomy, runWorkerEconomySimulation, koinKobStatus, saveKoinKobRecord, listKoinKobRecords } from "../src/apps/koin-kob.mjs";
 import { recordCashEntry, calculateCashBalance, cashFlowSummary, kashKornerStatus } from "../src/apps/kash-korner.mjs";
 import { createMusicTrack, buildMusicProductionPlan, kernelodiesStatus } from "../src/apps/kernelodies.mjs";
+import { buildPaypexBrief } from "../src/core/paypex-core.mjs";
 
 test("Apex exposes the six locked canonical apps",()=>{
   assert.equal(assertSixAppInvariant(),true);
@@ -275,4 +276,18 @@ test("GardenApex legacy page does not restore obsolete three-system ownership",a
   assert.match(page,/PlanetApeX owns Bible study, research, knowledge, analytics, and the GardenApex living universe/);
   assert.match(page,/KernelVision owns production/);
   assert.doesNotMatch(page,/Apex Studio owns production|KORNKNOB supplies computational/);
+});
+
+test("PayPex opportunity engine now hands off to KashKorner and KernelVision",()=>{
+  const brief=buildPaypexBrief({topic:"Historical lineage test"});
+  assert.equal(brief.system,"kash-korner");
+  assert.equal(brief.handoff,"KernelVision");
+  assert.equal(brief.engine,"PayPex");
+});
+test("PayPex compatibility wrapper reports KernelVision as production owner",async()=>{
+  const { createPayPexBrief }=await import("../src/apps/paypex.mjs");
+  const brief=createPayPexBrief({topic:"Historical lineage test"});
+  assert.equal(brief.app.name,"PayPex");
+  assert.equal(brief.system,"kash-korner");
+  assert.equal(brief.executionOwner,"KernelVision");
 });
