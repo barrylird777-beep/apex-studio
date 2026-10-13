@@ -22,6 +22,13 @@ const segment = value => {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(s) || s.includes("..")) throw new Error("Invalid cloud mesh key segment");
   return s;
 };
+async function bodyBytes(body) {
+  if (!body) throw new Error("Cloud mesh object has an empty body");
+  if (typeof body.transformToByteArray === "function") return Buffer.from(await body.transformToByteArray());
+  const chunks = [];
+  for await (const chunk of body) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
 async function bodyText(body) {
   if (!body) throw new Error("Cloud mesh object has an empty body");
   if (typeof body.transformToString === "function") return body.transformToString();
@@ -98,8 +105,8 @@ export class SovereignCloudCoordinator {
     } catch (e) {
       if (!conflict(e)) throw e;
       const existing = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
-      const prior = await bodyText(existing.Body);
-      if (hash(Buffer.from(prior)) !== digest) throw new Error("Content-addressed payload collision or provider corruption");
+      const prior = await bodyBytes(existing.Body);
+      if (hash(prior) !== digest) throw new Error("Content-addressed payload collision or provider corruption");
       return { app, payloadHash: digest, bytes: body.length, created: false };
     }
   }
