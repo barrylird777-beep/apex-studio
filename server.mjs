@@ -103,7 +103,8 @@ app.use(express.json({
 }));
 
 // Parse signed scoped tokens globally without changing public status-route access.
-const { parseTokenScopes, requireAiInferenceAuth, aiInferenceRateLimit } = createTokenSecurity();
+const { parseTokenScopes, requireAiInferenceAuth, requireTokenOrLegacyAuth, aiInferenceRateLimit, overseerMetricsRateLimit } = createTokenSecurity();
+const requireOverseerMetricsAuth = requireTokenOrLegacyAuth('overseer:metrics:read', requireControlPlaneAuth);
 app.use(parseTokenScopes);
 
 function timingSafeSecret(expected, supplied) {
@@ -1906,6 +1907,22 @@ app.get('/api/workers/permanent', (_req,res)=>res.json({
   supervisor: permanentWorkerSupervisor.status()
 }));
 app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
+app.get('/api/overseer/metrics', overseerMetricsRateLimit, requireOverseerMetricsAuth, async (_req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      metrics: {
+        uptimeSeconds: Math.floor(process.uptime()),
+        overseer: overseerStatus(apexOverseer, permanentWorkerFleet),
+        fleet: fleetStatus(permanentWorkerFleet),
+        queue: await queueStats()
+      },
+      checkedAt: new Date().toISOString()
+    });
+  } catch {
+    return res.status(503).json({ success: false, error: 'Overseer metrics unavailable' });
+  }
+});
 app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.get('/api/network/rogue-ap/status', (_req, res) => {
