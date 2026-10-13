@@ -10,6 +10,7 @@ import { mdns } from '@libp2p/mdns';
 import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
+import { createPeerSecurityGuard } from './sovereign-peer-security.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
@@ -71,6 +72,7 @@ const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').s
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 const streamReaders = new WeakMap();
+const peerSecurity = createPeerSecurityGuard();
 
 function readerFor(stream, { resume = true } = {}) {
   let reader = streamReaders.get(stream);
@@ -281,6 +283,11 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
+      const admission = peerSecurity.admit(remotePeerId, envelope);
+      if (!admission.allowed) {
+        await sendSovereignEnvelope(stream, { accepted: false, error: admission.reason });
+        return;
+      }
       const outcome = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
       const response = outcome && typeof outcome === 'object' && !Array.isArray(outcome)
         ? { ...outcome, peerId: node.peerId.toString() }
@@ -320,6 +327,8 @@ export async function sendToPeer(node, multiaddr, envelope) {
   if (localPeerId && destinationPeerId === localPeerId) {
     throw new Error('outgoing sovereign peer cannot dial itself');
   }
+  const admission = peerSecurity.admit(destinationPeerId, envelope);
+  if (!admission.allowed) throw new Error(admission.reason);
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
   // Retry only transport failures on a fresh stream; never retry peer rejection.
   for (let attempt = 0; attempt < 2; attempt++) {
