@@ -39,6 +39,7 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
 import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { createOwnerSessionCsrfGuard } from './src/security/owner-session-csrf.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -104,19 +105,12 @@ app.use(cors({
   maxAge: 600
 }));
 
-// Defense-in-depth CSRF check for owner-cookie-authenticated mutations.
-// Browser Origin must match the explicit deployment allowlist; token-authenticated clients
-// without an owner session are handled by their existing authorization guards.
-app.use((req, res, next) => {
-  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(req.method || '').toUpperCase())) return next();
-  if (!hasValidOwnerSession(req)) return next();
-  const origin = String(req.get('origin') || '').trim();
-  if (!origin) return next(); // SameSite=Strict remains the baseline for origin-less clients.
-  if (!corsOrigins.includes(origin)) {
-    return res.status(403).json({ success: false, error: 'Origin rejected for owner-session mutation' });
-  }
-  return next();
-});
+// Defense-in-depth CSRF guard for cookie-authenticated owner mutations.
+// Token-authenticated clients continue through their route-specific authorization guards.
+app.use(createOwnerSessionCsrfGuard({
+  allowedOrigins: corsOrigins,
+  hasValidOwnerSession
+}));
 
 const shieldApex = createShieldApex({
   allowedOrigins: String(process.env.APEX_ALLOWED_ORIGINS || "")
