@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
+import { SovereignMeshEngine } from "../src/core/sovereign-mesh-engine.mjs";
 import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
 import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
@@ -42,7 +43,8 @@ test("remote Pure Store writes directly to CAS without an active WAL or local re
     const cas = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
     await store.init();
-    assert.ok(store.wal instanceof ApexRingWAL, "the legacy WAL remains migration-only");
+    assert.equal(store.wal, null, "remote mode must not construct or retain a local WAL");
+    assert.equal(store.localCas, null, "remote mode must not construct or retain a local CAS");
     const durable = await store.put("app_records", "no-wal-proof", { durable: true });
     assert.equal(durable.id, "no-wal-proof");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
@@ -63,6 +65,44 @@ test("remote Pure Store writes directly to CAS without an active WAL or local re
     assert.deepEqual(await reloaded.get("app_records", "no-wal-proof"), durable, "CAS records survive store reinitialization");
     assert.equal((await cas.listRefs("wal")).length, 0);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("production storage refuses a silent local fallback when remote credentials are missing", () => {
+  const priorNodeEnv = process.env.NODE_ENV;
+  const keys = ["APEX_CAS_REMOTE_ENABLED", "APEX_REQUIRE_REMOTE_STORAGE", "APEX_OBJECT_STORAGE_ENDPOINT", "APEX_OBJECT_STORAGE_BUCKET", "APEX_OBJECT_STORAGE_ACCESS_KEY_ID", "APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY"];
+  const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.NODE_ENV = "production";
+    for (const key of keys) delete process.env[key];
+    assert.throws(
+      () => new ApexPureStore({ root: "/tmp/apex-production-must-not-fallback" }),
+      /Remote CAS requires APEX_OBJECT_STORAGE_ENDPOINT, BUCKET, ACCESS_KEY_ID, and SECRET_ACCESS_KEY/
+    );
+  } finally {
+    if (priorNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = priorNodeEnv;
+    for (const key of keys) {
+      if (prior[key] === undefined) delete process.env[key]; else process.env[key] = prior[key];
+    }
+  }
+});
+
+test("production sovereign mesh refuses a silent local persistence fallback", () => {
+  const priorNodeEnv = process.env.NODE_ENV;
+  const keys = ["APEX_CAS_REMOTE_ENABLED", "APEX_REQUIRE_REMOTE_STORAGE", "APEX_OBJECT_STORAGE_ENDPOINT", "APEX_OBJECT_STORAGE_BUCKET", "APEX_OBJECT_STORAGE_ACCESS_KEY_ID", "APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY"];
+  const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.NODE_ENV = "production";
+    for (const key of keys) delete process.env[key];
+    assert.throws(
+      () => new SovereignMeshEngine("/tmp/apex-production-mesh-must-not-fallback"),
+      /Remote CAS requires APEX_OBJECT_STORAGE_ENDPOINT, BUCKET, ACCESS_KEY_ID, and SECRET_ACCESS_KEY/
+    );
+  } finally {
+    if (priorNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = priorNodeEnv;
+    for (const key of keys) {
+      if (prior[key] === undefined) delete process.env[key]; else process.env[key] = prior[key];
+    }
+  }
 });
 
 test("remote WAL does not inherit the legacy local byte-cap holdback", async () => {
@@ -145,31 +185,25 @@ test("remote queue indexes recover from a crash after job persistence", async ()
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("remote migration imports local CAS records without deleting the source", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-migration-"));
+test("remote startup never reads or imports local CAS or WAL data", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-no-local-read-"));
   try {
     const localCas = (await import("../src/core/content-addressed-store.mjs")).ContentAddressedStore;
     const source = await new localCas({ root: path.join(root, ".apex-cas") }).init();
     const sourceRef = await source.writeRef("state", "legacy-key", { collection: "legacy", id: "record-7", record: { id: "record-7", keep: true } });
-    const remote = new MemoryCAS();
-    const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas: remote });
-    await store.init();
-    assert.deepEqual((await remote.readRef("state", store.refKey("legacy", "record-7"))).value.record, { id: "record-7", keep: true });
-    assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true });
-    assert.ok(sourceRef.hash);
-  } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test("remote migration replays a full local WAL without acquiring a local lock", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-readonly-"));
-  try {
     const wal = new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") });
     await wal.append("state.put", { collection: "legacy", id: "wal-record", record: { id: "wal-record", fromWal: true } });
-    wal._acquireLock = async () => { throw new Error("read-only migration must not acquire a local lock"); };
     const remote = new MemoryCAS();
-    const store = new ApexPureStore({ root, wal, cas: remote });
+    const store = new ApexPureStore({ root, cas: remote });
     await store.init();
-    const imported = await remote.readRef("state", store.refKey("legacy", "wal-record"));
-    assert.deepEqual(imported.value.record, { id: "wal-record", fromWal: true });
+    assert.equal(store.localCas, null);
+    assert.equal(store.wal, null);
+    assert.equal(await remote.readRef("state", store.refKey("legacy", "record-7")), null, "remote runtime must not silently import local CAS");
+    assert.equal(await remote.readRef("state", store.refKey("legacy", "wal-record")), null, "remote runtime must not replay a local WAL");
+    const scope = String((process.env.APEX_SERVICE_ID || process.env.HOSTNAME) || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
+    const marker = await remote.readRef("system", "remote-runtime-v1-" + scope);
+    assert.equal(marker.value.localImport, "not-performed");
+    assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true }, "legacy source remains untouched");
+    assert.ok(sourceRef.hash);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

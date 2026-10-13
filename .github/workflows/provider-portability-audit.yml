@@ -1,0 +1,37 @@
+name: APEX Provider Portability Audit
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "package.json"
+      - ".github/workflows/**"
+      - "docs/RAILWAY_EXIT_ARCHITECTURE.md"
+  push:
+    branches: ["main", "infra/railway-exit-free-first"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-portability-audit:
+    name: Scan provider coupling and persistence paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - name: Install declared project dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run read-only portability scan
+        run: npm run audit:provider-portability
+      - name: Test remote content-addressed persistence and migration safety
+        run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-pure-store.test.mjs
+      - name: Test cloud-only mesh coordinator
+        run: node --test test/sovereign-cloud-coordinator.test.mjs
+      - name: Syntax-check cloud-only runtime modules
+        run: node --check src/core/mesh/sovereign-cloud-coordinator.mjs && node --check src/jobs/cloud-mesh-worker.mjs

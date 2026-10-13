@@ -1,0 +1,239 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { SovereignCloudCoordinator } from "../src/core/mesh/sovereign-cloud-coordinator.mjs";
+
+function fakeS3() {
+  const objects = new Map();
+  let version = 0;
+  return {
+    objects,
+    async send(command) {
+      const { input } = command;
+      const name = command.constructor.name;
+      if (name === "PutObjectCommand") {
+        if (input.IfNoneMatch === "*" && objects.has(input.Key)) {
+          const error = new Error("precondition failed"); error.name = "PreconditionFailed"; error.$metadata = { httpStatusCode: 412 }; throw error;
+        }
+        if (input.IfMatch) {
+          const current = objects.get(input.Key);
+          if (!current || current.etag !== input.IfMatch) {
+            const error = new Error("precondition failed"); error.name = "PreconditionFailed"; error.$metadata = { httpStatusCode: 412 }; throw error;
+          }
+        }
+        const etag = '"' + String(++version) + '-test-etag"';
+        objects.set(input.Key, { body: Buffer.isBuffer(input.Body) ? Buffer.from(input.Body) : Buffer.from(String(input.Body)), metadata: input.Metadata || {}, etag });
+        return { ETag: etag };
+      }
+      if (name === "GetObjectCommand" || name === "HeadObjectCommand") {
+        const obj = objects.get(input.Key);
+        if (!obj) { const error = new Error("not found"); error.name = "NoSuchKey"; error.$metadata = { httpStatusCode: 404 }; throw error; }
+        if (name === "HeadObjectCommand") return { Metadata: obj.metadata, ETag: obj.etag };
+        return { Body: { async transformToString() { return obj.body.toString(); }, async transformToByteArray() { return Uint8Array.from(obj.body); }, async *[Symbol.asyncIterator]() { yield obj.body; } }, Metadata: obj.metadata, ETag: obj.etag };
+      }
+      if (name === "ListObjectsV2Command") {
+        const contents = [...objects.keys()].filter(k => k.startsWith(input.Prefix)).slice(0, input.MaxKeys).map(Key => ({ Key }));
+        return { Contents: contents, IsTruncated: false };
+      }
+      if (name === "DeleteObjectCommand") { objects.delete(input.Key); return {}; }
+      throw new Error("Unexpected S3 command: " + name);
+    }
+  };
+}
+function coordinator(client, confirmed = true) {
+  return new SovereignCloudCoordinator({ endpoint: "https://objects.example.invalid", bucket: "apex-test", accessKeyId: "test-access", secretAccessKey: "test-secret", client, conditionalWritesConfirmed: confirmed });
+}
+
+test("cloud-only coordinator fails closed without verified conditional-write capability", () => {
+  assert.throws(() => coordinator(fakeS3(), false), /conditional PUT semantics/);
+});
+
+test("cloud readiness proves remote write/read/delete round trip", async () => {
+  const c = coordinator(fakeS3());
+  const status = await c.health();
+  assert.equal(status.ready, true);
+  assert.equal(status.readAfterWrite, true);
+  assert.equal(status.persistence, "remote-s3-compatible");
+  assert.deepEqual(status.conditionalWrites, { verified: true, ifNoneMatch: true, compareAndSwap: true });
+  assert.equal(c.client.objects.size, 0);
+});
+
+test("peer discovery is scoped to each canonical app and expires stale peers", async () => {
+  const c = coordinator(fakeS3());
+  await c.advertisePeer({ app: "KernelVision", peerId: "peer-one", capabilities: ["render"], expiresInMs: 5000 });
+  await c.advertisePeer({ app: "XShield", peerId: "peer-two", capabilities: ["security"] });
+  const studio = await c.discoverPeers({ app: "KernelVision" });
+  const shield = await c.discoverPeers({ app: "XShield" });
+  assert.deepEqual(studio.peers.map(p => p.peerId), ["peer-one"]);
+  assert.deepEqual(shield.peers.map(p => p.peerId), ["peer-two"]);
+  await assert.rejects(c.discoverPeers({ app: "unknown" }), /Unknown canonical app scope/);
+});
+
+test("job manifests require content hashes and cannot overwrite an existing job ID", async () => {
+  const c = coordinator(fakeS3());
+  await assert.rejects(c.publishJob({ app: "PlanetApeX", jobId: "job-bad", taskType: "research", capability: "search", payloadHash: "not-a-hash" }), /SHA-256/);
+  const payloadHash = "a".repeat(64);
+  const job = await c.publishJob({ app: "PlanetApeX", jobId: "job-one", taskType: "research", capability: "search", payloadHash });
+  assert.equal(job.status, "queued");
+  assert.equal((await c.getJob({ app: "PlanetApeX", jobId: "job-one" })).payloadHash, payloadHash);
+  assert.equal(await c.getJob({ app: "KernelVision", jobId: "job-one" }), null);
+  await assert.rejects(c.publishJob({ app: "PlanetApeX", jobId: "job-one", taskType: "research", capability: "search", payloadHash }), /already exists/);
+});
+
+test("only one worker wins a cloud lease and only its token can finish", async () => {
+  const c = coordinator(fakeS3());
+  const payloadHash = "b".repeat(64);
+  await c.publishJob({ app: "KernelVision", jobId: "render-job", taskType: "render", capability: "ffmpeg", payloadHash });
+  const [first, second] = await Promise.all([
+    c.claimJob({ app: "KernelVision", jobId: "render-job", workerId: "worker-a", leaseMs: 30000 }),
+    c.claimJob({ app: "KernelVision", jobId: "render-job", workerId: "worker-b", leaseMs: 30000 })
+  ]);
+  assert.equal([first, second].filter(result => result.claimed).length, 1);
+  const winner = first.claimed ? first : second;
+  const loser = first.claimed ? second : first;
+  assert.equal(loser.claimed, false);
+  const winnerId = winner.lease.workerId;
+  const wrongId = winnerId === "worker-a" ? "worker-b" : "worker-a";
+  assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: wrongId, leaseToken: winner.lease.token }), { accepted: false, reason: "lease-invalid" });
+  assert.equal((await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: winnerId, leaseToken: winner.lease.token })).accepted, true);
+});
+
+test("binary payloads are content-addressed and verified without text conversion", async () => {
+  const c = coordinator(fakeS3());
+  const bytes = Buffer.from([0, 255, 1, 128, 13, 10, 42]);
+  const stored = await c.putPayload({ app: "KernelVision", bytes, contentType: "application/octet-stream" });
+  assert.equal(stored.payloadHash.length, 64);
+  assert.deepEqual(await c.getPayload({ app: "KernelVision", payloadHash: stored.payloadHash }), bytes);
+  await assert.rejects(c.getPayload({ app: "XShield", payloadHash: stored.payloadHash }), /NoSuchKey|not found/i);
+});
+
+test("completed jobs leave the queue and cannot be claimed again", async () => {
+  const c = coordinator(fakeS3());
+  await c.publishJob({ app: "Kernelodies", jobId: "music-job", taskType: "master", capability: "audio", payloadHash: "d".repeat(64) });
+  const claimed = await c.claimNextJob({ app: "Kernelodies", workerId: "worker-music" });
+  assert.equal(claimed.job.jobId, "music-job");
+  const finished = await c.finishJob({ app: "Kernelodies", jobId: "music-job", workerId: "worker-music", leaseToken: claimed.lease.token, status: "completed" });
+  assert.equal(finished.accepted, true);
+  assert.equal((await c.listQueuedJobs({ app: "Kernelodies" })).count, 0);
+  assert.equal(await c.claimJob({ app: "Kernelodies", jobId: "music-job", workerId: "worker-other" }).then(x => x.claimed), false);
+});
+
+test("active workers can renew a lease before completion", async () => {
+  const c = coordinator(fakeS3());
+  await c.publishJob({ app: "KoinKob", jobId: "long-job", taskType: "compute", capability: "general", payloadHash: "e".repeat(64) });
+  const claim = await c.claimJob({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseMs: 5000 });
+  assert.equal(claim.claimed, true);
+  const renewed = await c.renewJobLease({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseToken: claim.lease.token, leaseMs: 30000 });
+  assert.equal(renewed.renewed, true);
+  const completed = await c.finishJob({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseToken: claim.lease.token });
+  assert.equal(completed.accepted, true);
+});
+
+test("submitJob persists payload before publishing a hash-only job manifest", async () => {
+  const c = coordinator(fakeS3());
+  const payload = { prompt: "render a test clip", source: "integration-test" };
+  const submitted = await c.submitJob({ app: "KernelVision", jobId: "submit-roundtrip", taskType: "render", capability: "ffmpeg", payload });
+  assert.equal(submitted.job.status, "queued");
+  assert.equal(submitted.job.payloadHash, submitted.payload.payloadHash);
+  assert.equal(submitted.payload.bytes, Buffer.byteLength(JSON.stringify(payload)));
+  assert.deepEqual(JSON.parse((await c.getPayload({ app: "KernelVision", payloadHash: submitted.payload.payloadHash })).toString("utf8")), payload);
+  assert.equal(await c.getJob({ app: "XShield", jobId: "submit-roundtrip" }), null);
+});
+
+test("failed manifest publication never overwrites or mutates an existing job", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "PlanetApeX", jobId: "immutable-job", taskType: "research", capability: "search", payload: { version: 1 } });
+  const before = await c.getJob({ app: "PlanetApeX", jobId: "immutable-job" });
+  await assert.rejects(c.submitJob({ app: "PlanetApeX", jobId: "immutable-job", taskType: "research", capability: "search", payload: { version: 2 } }), /already exists/);
+  const after = await c.getJob({ app: "PlanetApeX", jobId: "immutable-job" });
+  assert.equal(after.payloadHash, before.payloadHash);
+  assert.equal(after.status, "queued");
+});
+
+test("capability-aware scheduling leaves unsupported jobs queued", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "KernelVision", jobId: "audio-only", taskType: "master", capability: "audio", payload: { source: "asset" } });
+  const claimed = await c.claimNextJob({ app: "KernelVision", workerId: "video-worker", capabilities: ["ffmpeg"] });
+  assert.equal(claimed, null);
+  assert.equal((await c.getJob({ app: "KernelVision", jobId: "audio-only" })).status, "queued");
+  const audioClaim = await c.claimNextJob({ app: "KernelVision", workerId: "audio-worker", capabilities: ["audio"], taskTypes: ["master"] });
+  assert.equal(audioClaim.job.jobId, "audio-only");
+});
+
+test("completed result is retrievable only through its app-scoped verified hash", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "KashKorner", jobId: "result-job", taskType: "settle", capability: "ledger", payload: { amount: 1 } });
+  const claim = await c.claimJob({ app: "KashKorner", jobId: "result-job", workerId: "ledger-worker" });
+  const result = { accepted: true, receipt: "test-receipt" };
+  const stored = await c.putPayload({ app: "KashKorner", bytes: Buffer.from(JSON.stringify(result)), contentType: "application/json" });
+  await c.finishJob({ app: "KashKorner", jobId: "result-job", workerId: "ledger-worker", leaseToken: claim.lease.token, resultHash: stored.payloadHash });
+  assert.deepEqual((await c.getJobResult({ app: "KashKorner", jobId: "result-job" })).result, result);
+  const duplicateFinish = await c.finishJob({ app: "KashKorner", jobId: "result-job", workerId: "ledger-worker", leaseToken: claim.lease.token, resultHash: stored.payloadHash });
+  assert.equal(duplicateFinish.accepted, false);
+  assert.equal(duplicateFinish.reason, "job-not-queued");
+  assert.equal(await c.getJobResult({ app: "KoinKob", jobId: "result-job" }), null);
+});
+
+test("lease mutation fails closed when provider omits ETags", async () => {
+  const base = fakeS3();
+  const client = {
+    objects: base.objects,
+    async send(command) {
+      const result = await base.send(command);
+      if (command.constructor.name === "GetObjectCommand" && command.input.Key.includes("/leases/")) return { ...result, ETag: "" };
+      return result;
+    }
+  };
+  const c = coordinator(client);
+  await c.submitJob({ app: "KernelVision", jobId: "etag-required", taskType: "render", capability: "ffmpeg", payload: { frame: 1 } });
+  const claim = await c.claimJob({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag" });
+  assert.equal(claim.claimed, true);
+  assert.deepEqual(await c.renewJobLease({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag", leaseToken: claim.lease.token }), { renewed: false, reason: "lease-etag-unavailable" });
+  assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "etag-required", workerId: "worker-etag", leaseToken: claim.lease.token }), { accepted: false, reason: "lease-etag-unavailable" });
+});
+
+test("terminal job rejection does not mutate an otherwise active lease", async () => {
+  const c = coordinator(fakeS3());
+  await c.submitJob({ app: "KernelVision", jobId: "already-terminal", taskType: "render", capability: "ffmpeg", payload: { frame: 1 } });
+  const claim = await c.claimJob({ app: "KernelVision", jobId: "already-terminal", workerId: "worker-active" });
+  const key = "apex-mesh/v1/apps/KernelVision/jobs/already-terminal.json";
+  const stored = c.client.objects.get(key);
+  const job = JSON.parse(stored.body.toString("utf8"));
+  job.status = "completed";
+  stored.body = Buffer.from(JSON.stringify(job));
+  stored.metadata.sha256 = (await import("node:crypto")).createHash("sha256").update(stored.body).digest("hex");
+  const result = await c.finishJob({ app: "KernelVision", jobId: "already-terminal", workerId: "worker-active", leaseToken: claim.lease.token });
+  assert.deepEqual(result, { accepted: false, reason: "job-not-queued" });
+  const lease = JSON.parse(c.client.objects.get("apex-mesh/v1/apps/KernelVision/leases/already-terminal.json").body.toString("utf8"));
+  assert.equal(lease.status, "active");
+});
+
+test("lease is conditionally restored when terminal job commit loses its race", async () => {
+  const base = fakeS3();
+  let injected = false;
+  const client = {
+    objects: base.objects,
+    async send(command) {
+      const result = await base.send(command);
+      if (!injected && command.constructor.name === "PutObjectCommand" && command.input.Key.endsWith("/leases/race-restore.json")) {
+        const lease = JSON.parse(Buffer.from(command.input.Body).toString("utf8"));
+        if (lease.status === "finishing") {
+          injected = true;
+          const key = "apex-mesh/v1/apps/KernelVision/jobs/race-restore.json";
+          const current = base.objects.get(key);
+          const job = JSON.parse(current.body.toString("utf8"));
+          job.raceMarker = "concurrent-update";
+          await base.send({ constructor: { name: "PutObjectCommand" }, input: { Key: key, Body: JSON.stringify(job), IfMatch: current.etag, Metadata: {} } });
+        }
+      }
+      return result;
+    }
+  };
+  const c = coordinator(client);
+  await c.submitJob({ app: "KernelVision", jobId: "race-restore", taskType: "render", capability: "ffmpeg", payload: { frame: 1 } });
+  const claim = await c.claimJob({ app: "KernelVision", jobId: "race-restore", workerId: "worker-race" });
+  const result = await c.finishJob({ app: "KernelVision", jobId: "race-restore", workerId: "worker-race", leaseToken: claim.lease.token });
+  assert.deepEqual(result, { accepted: false, reason: "job-state-race" });
+  const lease = JSON.parse(c.client.objects.get("apex-mesh/v1/apps/KernelVision/leases/race-restore.json").body.toString("utf8"));
+  assert.equal(lease.status, "active");
+  assert.equal(lease.token, claim.lease.token);
+});

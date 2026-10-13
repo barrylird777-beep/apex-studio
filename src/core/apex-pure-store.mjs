@@ -31,7 +31,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true"||String(process.env.NODE_ENV||"").toLowerCase()==="production"||String(process.env.APEX_REQUIRE_REMOTE_STORAGE||"").toLowerCase()==="true";this.legacyWal=this.remoteMode?null:(wal||new ApexRingWAL());this.localCas=this.remoteMode?null:(localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")}));this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=this.remoteMode?null:path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -138,71 +138,30 @@ export class ApexPureStore {
         if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out waiting for "+key);
         await sleep(40+Math.floor(Math.random()*80));continue;
       }
-      try{const lock=await this.cas.writeRef("system",key,{token,leaseUntil:now+90000,owner:process.env.RAILWAY_SERVICE_NAME||"apex"},{expectedHash:current?.hash??null});currentHash=lock.hash;break;}
+      try{const lock=await this.cas.writeRef("system",key,{token,leaseUntil:now+90000,owner:(process.env.APEX_SERVICE_ID||process.env.HOSTNAME)||"apex"},{expectedHash:current?.hash??null});currentHash=lock.hash;break;}
       catch(error){if(error.code!=="CAS_CONFLICT")throw error;if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out acquiring "+key);await sleep(40+Math.floor(Math.random()*80));}
     }
-    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:process.env.RAILWAY_SERVICE_NAME||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed",String(error?.message||error).slice(0,250));});},20000);
+    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:(process.env.APEX_SERVICE_ID||process.env.HOSTNAME)||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed",String(error?.message||error).slice(0,250));});},20000);
     heartbeat.unref?.();
     try{return await operation();}
     finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
   }
   async initializeRemote(){
+    // Remote runtime must never inspect device/container-local CAS refs or legacy WAL.
+    // Existing local records remain untouched; migration, if ever authorized, is a
+    // separate explicit operation with independent integrity/count verification.
     await this.cas.init();
-    const scope=String(process.env.RAILWAY_SERVICE_NAME||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
-    const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
+    const scope=String((process.env.APEX_SERVICE_ID||process.env.HOSTNAME)||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
+    const markerKey="remote-runtime-v1-"+scope;
     await this.withRemoteLock("queue-mutations",async()=>{
-      // Active remote startup reads durable CAS refs directly. Legacy WAL is migration-only.
       if(await this.cas.readRef("system",markerKey))return;
-      await this.withRemoteLock(lockKey,async()=>{
-      if(await this.cas.readRef("system",markerKey))return;
-      for(const namespace of ["state","jobs"]){
-        try{await stat(path.join(this.localCas.refs,namespace));}
-        catch(error){if(error.code==="ENOENT")continue;throw error;}
-        for(const ref of await this.localCas.listRefs(namespace)){
-          const current=await this.cas.readRef(namespace,ref.key);
-          if(current)continue;
-          if(namespace==="state"&&ref.value?.collection!=null&&ref.value?.id!=null&&ref.value?.record!=null){
-            await this.persistState(String(ref.value.collection),String(ref.value.id),ref.value.record);
-          }else if(namespace==="jobs"&&ref.value?.job?.id!=null){
-            await this.persistJob(ref.value.job);
-          }else{
-            await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
-          }
-        }
-      }
-      let legacyExists=false;
-      try{await stat(this.legacyWal.file);legacyExists=true;}catch(error){if(error.code!=="ENOENT")throw error;}
-      if(legacyExists){
-        const pendingState=new Map(),pendingJobs=new Map();
-        const flush=async()=>{
-          const writes=[];
-          for(const item of pendingState.values())writes.push(async()=>{
-            const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
-            if(item.deleted){if(current)await this.persistDelete(item.collection,item.id);}
-            else if(!current)await this.persistState(item.collection,item.id,item.record);
-          });
-          for(const [id,job] of pendingJobs)writes.push(async()=>{
-            const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
-            if(!current)await this.persistJob(job);
-          });
-          await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
-        };
-        await this.legacyWal.replayReadOnly({retainRing:false,onRecord:async record=>{
-          const p=record.payload||{};
-          if(record.type==="state.put"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});}
-          else if(record.type==="state.delete"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,deleted:true});}
-          else if(record.type==="job.enqueue")pendingJobs.set(String(p.id),clone(p.job));
-          else if(record.type==="job.transition"){
-            const id=String(p.id);let job=pendingJobs.get(id);
-            if(!pendingJobs.has(id)){const current=await this.cas.readRef("jobs",this.refKey("job",id));job=current?.value?.job?clone(current.value.job):undefined;}
-            if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
-          }
-          if(pendingState.size+pendingJobs.size>=128)await flush();
-        }});
-        await flush();
-      }
-      await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-content-addressed",service:scope,migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
-      });
+      await this.cas.writeRef("system",markerKey,{
+        version:1,
+        storage:"remote-content-addressed",
+        service:scope,
+        initializedAt:new Date().toISOString(),
+        localImport:"not-performed"
+      },{expectedHash:null});
     });
     return this;
   }
