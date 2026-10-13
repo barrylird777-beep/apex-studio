@@ -10,7 +10,16 @@ export const PRIVACY_DEFAULTS=Object.freeze({
 
 export function createPrivacyPolicy(input={}){
   const envRemote=process.env.APEX_ALLOW_REMOTE_PROVIDERS==="true";
-  return {version:1,...PRIVACY_DEFAULTS,remoteProviders:envRemote,localOnly:!envRemote,...input,updatedAt:new Date().toISOString()};
+  // Caller-supplied options may add descriptive fields, but cannot silently
+  // turn on telemetry, crash reporting, sync, or remote providers.
+  return {
+    version:1,
+    ...input,
+    ...PRIVACY_DEFAULTS,
+    remoteProviders:envRemote,
+    localOnly:!envRemote,
+    updatedAt:new Date().toISOString()
+  };
 }
 
 export function fingerprint(value){
