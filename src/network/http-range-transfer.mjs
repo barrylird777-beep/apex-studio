@@ -56,7 +56,7 @@ export async function downloadHttpAsset(url, destinationPath, { parallelStreams 
         for await (const chunk of response.body || []) { const data = Buffer.from(chunk); await handle.write(data, 0, data.length, offset); offset += data.length; }
         if (offset !== range.end + 1) throw new Error("Range length mismatch");
         return;
-      } catch (e) { last = e; if (attempt < retryLimit) await new Promise(r => setTimeout(r, Math.min(4000, 100 * 2 ** attempt))); }
+      } catch (e) { last = e; if (transferAbort.signal.aborted) throw e; if (attempt < retryLimit) await new Promise(r => setTimeout(r, Math.min(4000, 100 * 2 ** attempt))); }
     }
     throw last;
   };
