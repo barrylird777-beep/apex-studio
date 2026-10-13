@@ -6,7 +6,7 @@ const PROVIDERS = Object.freeze({
   gemini: { hosts: new Set(["generativelanguage.googleapis.com"]), keyEnv: "GEMINI_API_KEY", path: "/v1beta/openai/chat/completions" }
 });
 const SECRET_KEY = /(?:api[_-]?key|secret|token|password|credential|database[_-]?url|stripe|private[_-]?key|authorization)/i;
-const SECRET_VALUE = /(?:sk-[A-Za-z0-9_-]{16,}|AIza[\w-]{25,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s"'<>]+|mysql:\/\/[^\s"'<>]+)/i;
+const SECRET_VALUE = /(?:sk-[A-Za-z0-9_-]{16,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|rk_(?:live|test)_[A-Za-z0-9]{16,}|AIza[\w-]{25,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s"'<>]+|mysql:\/\/[^\s"'<>]+)/i;
 const ID_KEY = /(?:user_?id|email|phone|app_?id|account_?id|customer_?id|device_?id)/i;
 
 export class OutboundPolicyError extends Error {
@@ -127,5 +127,5 @@ export function validateStagedChange({ value, expectedDigest, approved = false, 
 }
 
 export const APEX_CANONICAL_APPS = Object.freeze([
-  "KashKorner", "KernelVision", "Kornelodys", "Korn-BloX", "PlanetOfApex", "Kobs-Of-Kash"
+  "PlanetApeX", "KoBlocks", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"
 ]);
