@@ -272,15 +272,19 @@ test("remote PureStore mutations are WAL-backed and recover deleted CAS projecti
       maxAttempts:5,dedupeKey:"job-dedupe-1"
     });
     assert.equal(enqueueResult.duplicate,true,"retry after WAL commit must recover the original job instead of appending a second one");
+    await store.put("projects","to-delete",{name:"temporary"});
+    await store.delete("projects","to-delete");
     const records = (await store.wal.snapshot()).ring;
     assert.ok(records.some(record=>record.type==="state.put"&&record.payload.id==="project-1"));
     assert.ok(records.some(record=>record.type==="job.put"&&record.payload.job?.id==="job-1"));
-    assert.equal(records.length,2);
+    assert.ok(records.some(record=>record.type==="state.delete"&&record.payload.id==="to-delete"));
+    assert.equal(records.length,4);
 
     const stateKey=store.refKey("projects","project-1");
     const jobKey=store.refKey("job","job-1");
     const dedupeKey=createHash("sha256").update("job-dedupe-1").digest("hex");
     await cas.deleteRef("state",stateKey);
+    await cas.deleteRef("state",store.refKey("projects","to-delete"));
     await cas.deleteRef("jobs",jobKey);
     await cas.deleteRef("queue",jobKey);
     await cas.deleteRef("dedupe",dedupeKey);
@@ -291,6 +295,8 @@ test("remote PureStore mutations are WAL-backed and recover deleted CAS projecti
     });
     await reopened.init();
     assert.deepEqual(await reopened.get("projects","project-1"),project);
+    assert.equal(await reopened.get("projects","to-delete"),null,"WAL tombstone must prevent deleted state from being resurrected");
+    assert.equal((await cas.readRef("state",store.refKey("projects","to-delete")))?.value?.deleted,true);
     await reopened.refreshJobs();
     assert.equal(reopened.jobs().length,1);
     assert.equal(reopened.jobs()[0].id,"job-1");
