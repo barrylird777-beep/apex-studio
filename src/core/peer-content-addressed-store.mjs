@@ -401,7 +401,7 @@ export class PeerContentAddressedStore {
  * The transport must invoke this only after authenticated peer allowlisting.
  */
 export function createPeerObjectStorageHandler({
-  store, peerId, authorizeNamespace, maxObjectBytes = 8 * 1024 * 1024
+  store, peerId, authorizeNamespace, referenceLeaderByNamespace = {}, maxObjectBytes = 8 * 1024 * 1024
 } = {}) {
   if (!store || typeof store.putBytes !== 'function' || typeof store.getBytes !== 'function' ||
       typeof store.readRef !== 'function' || typeof store.writeRef !== 'function') {
@@ -421,6 +421,15 @@ export function createPeerObjectStorageHandler({
     if (!['object.put', 'object.get', 'ref.get', 'ref.cas'].includes(operation)) throw new Error('unsupported peer storage operation');
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
       throw new Error('peer storage namespace access denied');
+    }
+    if (operation === 'ref.get' || operation === 'ref.cas') {
+      const localPeerId = resolvePeerId();
+      const leaderPeerId = String(referenceLeaderByNamespace?.[envelope.namespace] || '');
+      if (!leaderPeerId || localPeerId !== leaderPeerId) {
+        const error = new Error('mutable peer references are restricted to the configured leader peer');
+        error.code = 'REF_LEADER_ONLY';
+        throw error;
+      }
     }
     if (operation === 'ref.get') {
       const key = String(envelope.key || '');
