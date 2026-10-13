@@ -73,7 +73,7 @@ if (peerStorageRequired) {
   const appId = String(process.env.APEX_APP_ID || '').trim();
   if (!appId) throw new Error('APEX_APP_ID must name one canonical app when peer-only storage is enabled');
   const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
-  peerStorageIpcClient = createPeerStorageIpcClient({ token });
+  peerStorageIpcClient = createPeerStorageIpcClient({ token, apps: [appId] });
   configurePeerMediaStorage(peerStorageIpcClient, appId);
 }
 const productionMode = process.env.NODE_ENV === 'production';
