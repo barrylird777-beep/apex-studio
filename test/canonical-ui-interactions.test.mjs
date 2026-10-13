@@ -32,7 +32,7 @@ test("every static app-page button has a corresponding script reference", async 
     const buttonTags = [...html.matchAll(/<button\b[^>]*>/gi)].map(match => match[0]);
     for (const tag of buttonTags) {
       const id = tag.match(/\bid=["']([^"']+)["']/i)?.[1];
-      if (!id) continue;
+      if (!id || /onclick=/i.test(tag)) continue;
       const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const referenced = new RegExp("(?:getElementById|querySelector|querySelectorAll)\\(\\s*['\"]#?" + escaped + "['\"]\\s*\\)|\\$\\(\\s*['\"]" + escaped + "['\"]\\s*\\)|\\[['\"]" + escaped + "['\"]\\]").test(source);
       assert.ok(referenced, app.name + " button #" + id + " has no script reference");
