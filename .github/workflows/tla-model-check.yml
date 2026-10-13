@@ -3,6 +3,7 @@ name: TLA+ Remote WAL Model Check
 on:
   push:
     branches:
+      - main
       - test/tla-remote-wal-model
     paths:
       - "spec/tla/**"
