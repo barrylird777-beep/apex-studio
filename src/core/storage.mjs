@@ -7,6 +7,46 @@ import { pipeline } from "node:stream/promises";
 import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
 
+const PEER_MODE_REQUIRED = process.env.APEX_STORAGE_MODE === "peer" || process.env.APEX_PEER_STORAGE_ENABLED === "true";
+const CANONICAL_APPS = new Set(["KernelVision", "XShield", "Kernelodies", "PlanetApeX", "KashKorner", "KoinKob"]);
+let peerMediaStore = null;
+let peerMediaApp = null;
+
+export function configurePeerMediaStorage(store, app) {
+  if (!store || typeof store.saveAsset !== "function" || typeof store.getAsset !== "function" || typeof store.getProject !== "function") {
+    throw new TypeError("Peer media storage requires a configured peer media store");
+  }
+  if (!CANONICAL_APPS.has(app) || !Array.isArray(store.apps) || !store.apps.includes(app)) {
+    throw new TypeError("Peer media storage must be bound to one canonical app namespace");
+  }
+  peerMediaStore = store;
+  peerMediaApp = app;
+  return { app, mode: "peer" };
+}
+
+function requirePeerMediaStore() {
+  if (!peerMediaStore || !peerMediaApp) {
+    const error = new Error("Peer-only storage is required but the durable peer media runtime has not been configured");
+    error.code = "PEER_STORAGE_NOT_CONFIGURED";
+    throw error;
+  }
+  return { store: peerMediaStore, app: peerMediaApp };
+}
+
+function peerProjectUrl(projectId, assetId) {
+  return "/api/peer-media/" + encodeURIComponent(projectId) + "/" + encodeURIComponent(assetId);
+}
+
+function mediaTypeForExtension(extension) {
+  const ext = String(extension || "").toLowerCase();
+  const types = {
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp",
+    mp4: "video/mp4", wav: "audio/wav", mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac"
+  };
+  return types[ext] || "application/octet-stream";
+}
+
+
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
   isCI
@@ -41,6 +81,7 @@ function queueManifestWrite(task) {
 }
 
 export async function initStorage() {
+  if (PEER_MODE_REQUIRED) { requirePeerMediaStore(); return; }
   await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
   try {
     await fs.access(PROJECT_FILE);
@@ -57,6 +98,7 @@ export async function initStorage() {
 }
 
 export async function saveProjectAssetFromFile(type, sourcePath, extension) {
+  if (PEER_MODE_REQUIRED) throw Object.assign(new Error('Peer-only mode rejects filesystem-sourced project assets; upload bytes directly to peer storage'), { code: 'LOCAL_SOURCE_FORBIDDEN' });
   await initStorage();
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\\./, "");
@@ -87,12 +129,19 @@ export async function saveProjectAssetFromFile(type, sourcePath, extension) {
 }
 
 export async function saveProjectAsset(type, buffer, extension) {
-  await initStorage();
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\./, "");
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  if (PEER_MODE_REQUIRED) {
+    const { store, app } = requirePeerMediaStore();
+    const record = await store.saveAsset(app, "apex-project", assetType, bytes, {
+      contentType: mediaTypeForExtension(ext), metadata: { type: assetType, extension: ext }
+    });
+    return { type: assetType, url: peerProjectUrl("apex-project", assetType), bytes: bytes.length, sha256: record.sha256, updatedAt: record.updatedAt };
+  }
+  await initStorage();
   const filename = `project_${assetType}.${ext}`;
   const filepath = path.join(STORAGE_DIR, filename);
-  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   await fs.writeFile(filepath, bytes, { mode: 0o600 });
 
   return queueManifestWrite(async () => {
@@ -116,7 +165,6 @@ export async function saveProjectAsset(type, buffer, extension) {
 }
 
 export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata = {}) {
-  await initStorage();
   const sceneKey = safePart(sceneId, "sceneId");
   const assetKind = safePart(kind, "asset kind");
   if (!["image", "video", "audio"].includes(assetKind)) throw new TypeError("Unsupported scene asset kind");
@@ -124,8 +172,25 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   if (!["png", "jpg", "jpeg", "webp", "mp4", "wav", "mp3", "m4a", "aac"].includes(ext)) {
     throw new TypeError("Unsupported scene asset extension");
   }
-  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const bytes = Buffer.isBuffer(buffer) ? Buffer.from(buffer) : Buffer.from(buffer);
   if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
+  const requestedDuration = Number(metadata?.durationMs);
+  const durationMs = Number.isFinite(requestedDuration) && requestedDuration >= 1000 && requestedDuration <= 600000
+    ? Math.round(requestedDuration) : undefined;
+  if (PEER_MODE_REQUIRED) {
+    const { store, app } = requirePeerMediaStore();
+    const projectId = "apex-scenes";
+    const assetId = sceneKey + "-" + assetKind;
+    const peerMetadata = { sceneId: sceneKey, kind: assetKind, extension: ext };
+    if (durationMs !== undefined) peerMetadata.durationMs = durationMs;
+    const record = await store.saveAsset(app, projectId, assetId, bytes, {
+      contentType: assetKind === "image" ? "image/" + ext : assetKind === "video" ? "video/" + ext : "audio/" + ext,
+      metadata: peerMetadata
+    });
+    const url = peerProjectUrl(projectId, assetId);
+    return { sceneId: sceneKey, [assetKind]: url, url, bytes: bytes.length, sha256: record.sha256, updatedAt: record.updatedAt };
+  }
+  await initStorage();
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
   const filename = `scene_${sceneKey}_${assetKind}_${crypto.randomUUID()}.${ext}`;
   const filepath = path.join(STORAGE_DIR, filename);
@@ -173,7 +238,37 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   });
 }
 
+export async function getPeerMediaAsset(projectInput, assetInput) {
+  const { store, app } = requirePeerMediaStore();
+  const projectId = safePart(projectInput, "project ID");
+  const assetId = safePart(assetInput, "asset ID");
+  return store.getAsset(app, projectId, assetId);
+}
+
 export async function getProjectState() {
+  if (PEER_MODE_REQUIRED) {
+    const { store, app } = requirePeerMediaStore();
+    const [project, scenes] = await Promise.all([
+      store.getProject(app, "apex-project"), store.getProject(app, "apex-scenes")
+    ]);
+    const exports = project.manifest.assets.map(asset => ({
+      type: asset.id, url: peerProjectUrl("apex-project", asset.id), bytes: asset.bytes,
+      sha256: asset.sha256, updatedAt: asset.updatedAt
+    }));
+    const sceneMap = new Map();
+    for (const asset of scenes.manifest.assets) {
+      const meta = asset.metadata || {};
+      const id = String(meta.sceneId || "");
+      if (!id) continue;
+      let item = sceneMap.get(id);
+      if (!item) { item = { id, durationMs: Number(meta.durationMs) || 4000, createdAt: asset.updatedAt }; sceneMap.set(id, item); }
+      const url = peerProjectUrl("apex-scenes", asset.id);
+      item[meta.kind] = url;
+      item[meta.kind + "Asset"] = { url, bytes: asset.bytes, sha256: asset.sha256, extension: meta.extension, provenance: "peer-verified" };
+      item.updatedAt = Math.max(Number(item.updatedAt) || 0, asset.updatedAt);
+    }
+    return { version: 1, assets: [], exports, scenes: [...sceneMap.values()] };
+  }
   await initStorage();
   return readManifest();
 }
@@ -182,6 +277,7 @@ export { STORAGE_DIR, PROJECT_FILE };
 
 
 export async function downloadUrlAssetToStorage(url, episodeId, assetName, options = {}) {
+  if (PEER_MODE_REQUIRED) throw Object.assign(new Error("Peer-only mode rejects URL-to-filesystem downloads; stream the bytes into peer media storage"), { code: "LOCAL_STORAGE_FORBIDDEN" });
   const { downloadHttpAsset } = await import('../network/http-range-transfer.mjs');
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
@@ -207,6 +303,7 @@ export async function downloadUrlAssetToStorage(url, episodeId, assetName, optio
 }
 
 export async function streamAssetToStorage(readableStream, episodeId, assetName, options = {}) {
+  if (PEER_MODE_REQUIRED) throw Object.assign(new Error("Peer-only mode rejects filesystem stream sinks; stream the bytes into peer media storage"), { code: "LOCAL_STORAGE_FORBIDDEN" });
   if (!readableStream || typeof readableStream.pipe !== 'function') throw new TypeError('readableStream must be a readable stream');
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
