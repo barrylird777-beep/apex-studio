@@ -301,6 +301,18 @@ export class ApexPureStore {
       return clone(effectiveJob);
     }
     const key=this.refKey("job",effectiveJob.id);
+    // Publish the searchable index before committing queued/running state. If a
+    // process dies between these writes, readers revalidate the job record and
+    // discard the stale index; a committed active job cannot be left unindexed.
+    if(effectiveJob.status==="queued"){
+      const value={id:String(effectiveJob.id),runAt:Number(effectiveJob.runAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||"")};
+      const current=await this.cas.readRef("queue",key);
+      if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+    }else if(effectiveJob.status==="running"){
+      const value={id:String(effectiveJob.id),leaseExpiresAt:Number(effectiveJob.leaseExpiresAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||"")};
+      const current=await this.cas.readRef("running",key);
+      if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:current?.hash??null});
+    }
     let persisted=false;
     for(let attempt=0;attempt<8;attempt++){
       const current=await this.cas.readRef("jobs",key);
