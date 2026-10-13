@@ -38,6 +38,7 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
 import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { createApexZeroTrustPolicy } from './src/security/zero-trust-policy.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -62,6 +63,14 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
 app.disable('x-powered-by');
+const configuredApexOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(value => value.trim())
+  .filter(Boolean);
+app.use(createApexZeroTrustPolicy({
+  allowedOrigins: configuredApexOrigins,
+  production: process.env.NODE_ENV === 'production'
+}));
 // Serve same-origin bundled runtime assets before the API CORS gate.
 // Browser module imports use CORS mode even for same-origin URLs; do not reject our own static assets.
 app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor')));
@@ -73,8 +82,8 @@ const corsOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
   .filter(Boolean);
-const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase() === 'true'
-  || process.env.NODE_ENV !== 'production';
+// Never allow a production deployment to override the explicit origin allowlist.
+const allowAllCors = process.env.NODE_ENV !== 'production';
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowAllCors || corsOrigins.includes(origin)) return callback(null, true);
