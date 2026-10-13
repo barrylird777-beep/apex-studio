@@ -27,3 +27,12 @@ test('canonical CBOR rejects truncated data and non-string object keys', () => {
   assert.throws(() => decodeCanonical(Buffer.from([0x5a, 0, 0])), /truncated/);
   assert.throws(() => decodeCanonical(Buffer.from([0xa1, 0x01, 0x02])), /keys must be strings/);
 });
+
+test('canonical CBOR rejects duplicate map keys and non-canonical key order', () => {
+  assert.throws(() => decodeCanonical(Buffer.from([0xa2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02])), /non-canonical/);
+  assert.throws(() => decodeCanonical(Buffer.from([0xa2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02])), /non-canonical/);
+});
+
+test('canonical CBOR rejects overlong integer encodings', () => {
+  assert.throws(() => decodeCanonical(Buffer.from([0x18, 0x01])), /non-canonical/);
+});
