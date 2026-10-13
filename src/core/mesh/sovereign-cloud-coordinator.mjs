@@ -126,6 +126,14 @@ export class SovereignCloudCoordinator {
     if (hash(bytes) !== payloadHash) throw new Error("Cloud payload checksum mismatch");
     return bytes;
   }
+  async submitJob({ app, jobId = randomUUID(), taskType, capability, payload, contentType = "application/json", expiresInMs = 60000 } = {}) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    const bytes = Buffer.isBuffer(payload) ? payload : Buffer.from(typeof payload === "string" ? payload : JSON.stringify(payload));
+    if (!bytes.length) throw new Error("Cloud job payload cannot be empty");
+    const stored = await this.putPayload({ app, bytes, contentType });
+    const job = await this.publishJob({ app, jobId, taskType, capability, payloadHash: stored.payloadHash, expiresInMs });
+    return { job, payload: { app, payloadHash: stored.payloadHash, bytes: stored.bytes, created: stored.created } };
+  }
   async publishJob({ app, jobId = randomUUID(), taskType, payloadHash, capability, expiresInMs = 60000 }) {
     if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
     if (!/^[a-f0-9]{64}$/.test(String(payloadHash || ""))) throw new Error("Job requires a SHA-256 payload hash; payload bytes belong in private content-addressed storage");
@@ -216,6 +224,7 @@ export class SovereignCloudCoordinator {
     if (!["completed", "failed"].includes(status)) throw new Error("Invalid terminal job status");
     const id = segment(jobId);
     const worker = segment(workerId);
+    if (resultHash != null && !/^[a-f0-9]{64}$/.test(String(resultHash))) throw new Error("Result requires a SHA-256 payload hash");
     const leaseKey = this.key("apps", app, "leases", id + ".json");
     const current = await this.read(leaseKey);
     if (!current || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { accepted: false, reason: "lease-invalid" };
