@@ -5,7 +5,9 @@ import { signSovereignVote, verifySovereignQuorum } from "../src/testing/soverei
 import { createPeerSecurityGuard } from "../src/network/sovereign-peer-security.mjs";
 import {
   readSovereignEnvelope,
-  sendToPeer
+  sendToPeer,
+  sendToPeerCbor,
+  sendToPeerAuto
 } from "../src/network/sovereign-peer.mjs";
 
 const streamFor = value => ({
@@ -107,6 +109,50 @@ test("outgoing sovereign transport accepts an explicitly allowlisted peer", asyn
   }
 });
 
+test("sovereign peer auto transport prefers native CBOR v2", async () => {
+  const calls = [];
+  const response = await sendToPeerAuto({}, "address", { type: "test" }, {
+    sendCbor: async () => { calls.push("v2"); return { accepted: true, peerId: "peer-a" }; },
+    sendLegacy: async () => { calls.push("v1"); return { accepted: true, peerId: "peer-a" }; }
+  });
+  assert.equal(response.accepted, true);
+  assert.deepEqual(calls, ["v2"]);
+});
+
+test("sovereign peer auto transport falls back only on protocol negotiation failure", async () => {
+  const calls = [];
+  const response = await sendToPeerAuto({}, "address", { type: "test" }, {
+    sendCbor: async () => { calls.push("v2"); throw Object.assign(new Error("Protocol selection failed: not supported by remote peer"), { code: "ERR_APEX_PROTOCOL_UNSUPPORTED" }); },
+    sendLegacy: async () => { calls.push("v1"); return { accepted: true, peerId: "legacy-peer" }; }
+  });
+  assert.equal(response.peerId, "legacy-peer");
+  assert.deepEqual(calls, ["v2", "v1"]);
+});
+
+test("sovereign peer auto transport does not downgrade on an application-level protocol rejection", async () => {
+  let legacyCalls = 0;
+  await assert.rejects(
+    sendToPeerAuto({}, "address", { type: "test" }, {
+      sendCbor: async () => { throw new Error("unsupported protocol in envelope"); },
+      sendLegacy: async () => { legacyCalls++; return { accepted: true }; }
+    }),
+    /unsupported protocol in envelope/
+  );
+  assert.equal(legacyCalls, 0);
+});
+
+test("sovereign peer auto transport never replays on an ambiguous timeout", async () => {
+  let legacyCalls = 0;
+  await assert.rejects(
+    sendToPeerAuto({}, "address", { type: "test" }, {
+      sendCbor: async () => { throw new Error("sovereign peer CBOR envelope timed out"); },
+      sendLegacy: async () => { legacyCalls++; return { accepted: true }; }
+    }),
+    /timed out/
+  );
+  assert.equal(legacyCalls, 0);
+});
+
 test("two sovereign peers exchange an envelope only when both identities are allowlisted", async () => {
   const fs = await import("node:fs/promises");
   const os = await import("node:os");
@@ -159,6 +205,54 @@ test("two sovereign peers exchange an envelope only when both identities are all
   }
 });
 
+
+test("two sovereign peers exchange a canonical CBOR envelope over protocol v2", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { createSovereignPeer } = await import("../src/network/sovereign-peer.mjs");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-peer-cbor-roundtrip-"));
+  const priorIds = process.env.APEX_ALLOWED_PEER_IDS;
+  const priorPort = process.env.APEX_P2P_PORT;
+  const priorPrivateKey = process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  process.env.APEX_P2P_PORT = "0";
+  let a, b;
+  const received = [];
+  try {
+    a = await createSovereignPeer({
+      keyFile: path.join(dir, "peer-a.key"),
+      onEnvelope: async (envelope, context) => {
+        received.push({ envelope, context });
+        return { accepted: true, replica: { waveId: envelope.waveId, checksum: "cbor-roundtrip" } };
+      }
+    });
+    b = await createSovereignPeer({ keyFile: path.join(dir, "peer-b.key"), onEnvelope: async () => true });
+    process.env.APEX_ALLOWED_PEER_IDS = [a.peerId.toString(), b.peerId.toString()].join(",");
+    await a.start();
+    await b.start();
+    const address = a.getMultiaddrs().map(String).map(value => value.replace("/ip4/0.0.0.0/", "/ip4/127.0.0.1/")).find(value => value.includes("/ip4/127.0.0.1/") && value.endsWith("/p2p/" + a.peerId.toString()));
+    assert.ok(address, "peer A must expose a local test dial address");
+    const envelope = { protocol: "apex.cas.v1", type: "test.payload", waveId: "cbor-roundtrip-1", payload: { appId: "Kernelodies", bytes: Buffer.from([0, 1, 2, 255]) } };
+    const response = await sendToPeerCbor(b, address, envelope);
+    assert.equal(response.accepted, true);
+    assert.deepEqual(response.replica, { waveId: "cbor-roundtrip-1", checksum: "cbor-roundtrip" });
+    assert.equal(received.length, 1);
+    assert.equal(received[0].envelope.waveId, "cbor-roundtrip-1");
+    assert.deepEqual(received[0].envelope.payload.bytes, Buffer.from([0, 1, 2, 255]));
+    assert.equal(received[0].context.remotePeerId, b.peerId.toString());
+  } finally {
+    await b?.stop().catch(() => {});
+    await a?.stop().catch(() => {});
+    if (priorIds === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = priorIds;
+    if (priorPort === undefined) delete process.env.APEX_P2P_PORT;
+    else process.env.APEX_P2P_PORT = priorPort;
+    if (priorPrivateKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = priorPrivateKey;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("outgoing peer ACK reader tolerates a stream closing during resume", async () => {
   const previous = process.env.APEX_ALLOWED_PEER_IDS;
