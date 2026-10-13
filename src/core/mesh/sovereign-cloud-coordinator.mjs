@@ -67,7 +67,7 @@ export class SovereignCloudCoordinator {
       const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
       const body = await bodyText(result.Body);
       if (result.Metadata?.sha256 && result.Metadata.sha256 !== hash(body)) throw new Error("Cloud mesh record checksum mismatch");
-      return { value: JSON.parse(body), etag: String(result.ETag || "").replaceAll('"', "") };
+      return { value: JSON.parse(body), etag: String(result.ETag || "") };
     } catch (e) {
       if (notFound(e)) return null;
       throw e;
