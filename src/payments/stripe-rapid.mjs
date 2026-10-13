@@ -28,8 +28,7 @@ export function decodeRapidCheckoutMetadata(metadata={}){
 export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
-  // Offer lower-cost US bank debit alongside cards; Stripe confirms the actual payment asynchronously.
-  add('payment_method_types[0]','card'); add('payment_method_types[1]','us_bank_account');
+  // Use Stripe Dashboard dynamic payment methods. This lets eligible buyers choose lower-cost US bank debit (ACH) without forcing unsupported payment-method parameters.
   add('payment_method_options[us_bank_account][verification_method]','automatic');
   add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
   if(String(email||'').trim()) add('customer_email',String(email).trim());
