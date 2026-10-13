@@ -13,14 +13,21 @@ function fakeS3() {
         if (input.IfNoneMatch === "*" && objects.has(input.Key)) {
           const error = new Error("precondition failed"); error.name = "PreconditionFailed"; error.$metadata = { httpStatusCode: 412 }; throw error;
         }
-        objects.set(input.Key, { body: Buffer.isBuffer(input.Body) ? input.Body.toString() : String(input.Body), metadata: input.Metadata || {} });
-        return { ETag: '"test-etag"' };
+        if (input.IfMatch) {
+          const current = objects.get(input.Key);
+          if (!current || current.etag !== input.IfMatch) {
+            const error = new Error("precondition failed"); error.name = "PreconditionFailed"; error.$metadata = { httpStatusCode: 412 }; throw error;
+          }
+        }
+        const etag = '"' + String(objects.size + 1) + '-test-etag"';
+        objects.set(input.Key, { body: Buffer.isBuffer(input.Body) ? input.Body.toString() : String(input.Body), metadata: input.Metadata || {}, etag });
+        return { ETag: etag };
       }
       if (name === "GetObjectCommand" || name === "HeadObjectCommand") {
         const obj = objects.get(input.Key);
         if (!obj) { const error = new Error("not found"); error.name = "NoSuchKey"; error.$metadata = { httpStatusCode: 404 }; throw error; }
-        if (name === "HeadObjectCommand") return { Metadata: obj.metadata };
-        return { Body: { async transformToString() { return obj.body; } }, Metadata: obj.metadata, ETag: '"test-etag"' };
+        if (name === "HeadObjectCommand") return { Metadata: obj.metadata, ETag: obj.etag };
+        return { Body: { async transformToString() { return obj.body; } }, Metadata: obj.metadata, ETag: obj.etag };
       }
       if (name === "ListObjectsV2Command") {
         const contents = [...objects.keys()].filter(k => k.startsWith(input.Prefix)).slice(0, input.MaxKeys).map(Key => ({ Key }));
@@ -68,4 +75,22 @@ test("job manifests require content hashes and cannot overwrite an existing job 
   assert.equal((await c.getJob({ app: "PlanetApeX", jobId: "job-one" })).payloadHash, payloadHash);
   assert.equal(await c.getJob({ app: "KernelVision", jobId: "job-one" }), null);
   await assert.rejects(c.publishJob({ app: "PlanetApeX", jobId: "job-one", taskType: "research", capability: "search", payloadHash }), /already exists/);
+});
+
+test("only one worker wins a cloud lease and only its token can finish", async () => {
+  const c = coordinator(fakeS3());
+  const payloadHash = "b".repeat(64);
+  await c.publishJob({ app: "KernelVision", jobId: "render-job", taskType: "render", capability: "ffmpeg", payloadHash });
+  const [first, second] = await Promise.all([
+    c.claimJob({ app: "KernelVision", jobId: "render-job", workerId: "worker-a", leaseMs: 30000 }),
+    c.claimJob({ app: "KernelVision", jobId: "render-job", workerId: "worker-b", leaseMs: 30000 })
+  ]);
+  assert.equal([first, second].filter(result => result.claimed).length, 1);
+  const winner = first.claimed ? first : second;
+  const loser = first.claimed ? second : first;
+  assert.equal(loser.claimed, false);
+  const winnerId = winner.lease.workerId;
+  const wrongId = winnerId === "worker-a" ? "worker-b" : "worker-a";
+  assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: wrongId, leaseToken: winner.lease.token }), { accepted: false, reason: "lease-invalid" });
+  assert.equal((await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: winnerId, leaseToken: winner.lease.token, resultHash: "c".repeat(64) })).accepted, true);
 });
