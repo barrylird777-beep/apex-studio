@@ -212,7 +212,7 @@ app.get('/api/search', async (req, res) => {
 });
 
 
-app.get('/api/workforce/status', (_req, res) => {
+app.get('/api/workforce/status', requireControlPlaneAuth, (_req, res) => {
   res.status(200).json({
     success: true,
     workforce: massiveAiWorkforce.status(),
