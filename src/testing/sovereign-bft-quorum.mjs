@@ -43,7 +43,7 @@ export function verifySovereignQuorum({ height, round = 0, proposalHash, prevHas
   if (!target.proposalHash || !target.prevHash) throw new TypeError("proposalHash and prevHash are required");
 
   const maxFaults = Math.floor((validators.size - 1) / 3);
-  const quorum = 2 * maxFaults + 1;
+  const quorum = validators.size - maxFaults;
   const accepted = [];
   const rejected = [];
   const quarantine = new Set();
@@ -58,9 +58,23 @@ export function verifySovereignQuorum({ height, round = 0, proposalHash, prevHas
     }
 
     const fingerprint = canonical(vote);
+    let signatureValid = false;
+    try {
+      signatureValid = typeof vote.signature === "string" &&
+        verify(null, Buffer.from(canonical(vote)), publicKey, Buffer.from(vote.signature, "base64"));
+    } catch {
+      signatureValid = false;
+    }
+    if (!signatureValid) {
+      rejected.push({ peerId, reason: "invalid-signature" });
+      continue;
+    }
+
     const previous = firstVoteByPeer.get(peerId);
     if (previous && previous !== fingerprint) {
       quarantine.add(peerId);
+      const acceptedIndex = accepted.indexOf(peerId);
+      if (acceptedIndex >= 0) accepted.splice(acceptedIndex, 1);
       rejected.push({ peerId, reason: "equivocation" });
       continue;
     }
@@ -70,22 +84,8 @@ export function verifySovereignQuorum({ height, round = 0, proposalHash, prevHas
     }
     firstVoteByPeer.set(peerId, fingerprint);
 
-    let signatureValid = false;
-    try {
-      signatureValid = typeof vote.signature === "string" &&
-        verify(null, Buffer.from(canonical(vote)), publicKey, Buffer.from(vote.signature, "base64"));
-    } catch {
-      signatureValid = false;
-    }
-    if (!signatureValid) {
-      quarantine.add(peerId);
-      rejected.push({ peerId, reason: "invalid-signature" });
-      continue;
-    }
-
     if (vote.height !== target.height || vote.round !== target.round ||
         vote.proposalHash !== target.proposalHash || vote.prevHash !== target.prevHash) {
-      quarantine.add(peerId);
       rejected.push({ peerId, reason: "conflicting-proposal" });
       continue;
     }
