@@ -1746,7 +1746,7 @@ app.get("/api/music-radar/status", async (_req, res) => {
   res.json(await musicRadarBridge.status());
 });
 
-app.post("/api/music-radar/handoff", requireControlPlaneAuth, async (req, res) => {
+app.post('/api/music-radar/handoff', requireControlPlaneAuth, async (req, res) => {
   try {
     res.json(await musicRadarBridge.handoff(req.body || {}));
   } catch {
