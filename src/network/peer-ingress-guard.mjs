@@ -9,12 +9,7 @@ export function createPeerIngressGuard(options = {}) {
     for (const [peerId, state] of peers) {
       if (state.active === 0 && now - state.windowStart >= config.windowMs) peers.delete(peerId);
     }
-    while (peers.size >= config.maxTrackedPeers) {
-      const removable = [...peers].find(([, state]) => state.active === 0);
-      if (!removable) return false;
-      peers.delete(removable[0]);
-    }
-    return true;
+    return peers.size < config.maxTrackedPeers;
   }
 
   function acquire(peerId) {
