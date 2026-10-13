@@ -89,6 +89,7 @@ export async function initStorage() {
 }
 
 export async function saveProjectAssetFromFile(type, sourcePath, extension) {
+  if (PEER_MODE_REQUIRED) throw Object.assign(new Error('Peer-only mode rejects filesystem-sourced project assets; upload bytes directly to peer storage'), { code: 'LOCAL_SOURCE_FORBIDDEN' });
   await initStorage();
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\\./, "");
