@@ -36,7 +36,7 @@ test("single owner password creates an expiring signed HttpOnly session cookie",
     assert.equal(verifyOwnerSessionToken(token, now + 13 * 60 * 60 * 1000), false);
     assert.equal(verifyOwnerSessionToken(token + "x", now), false);
     const request = { headers: { cookie: "other=value; apex.owner.session=" + token } };
-    assert.equal(hasValidOwnerSession(request), true);
+    assert.equal(hasValidOwnerSession(request, now), true);
     const cookie = ownerSessionSetCookie(token, { production: true });
     assert.match(cookie, /HttpOnly/);
     assert.match(cookie, /SameSite=Strict/);
