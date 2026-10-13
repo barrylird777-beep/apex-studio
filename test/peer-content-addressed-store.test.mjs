@@ -279,3 +279,19 @@ test('peer CAS repair fails closed when no authorized source replica survives', 
     error => error.code === 'OBJECT_UNAVAILABLE'
   );
 });
+
+
+test('single-domain durability policy does not require failure-domain labels', async () => {
+  const mesh = makeMesh();
+  const client = new PeerContentAddressedStore({
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    minFailureDomains: 1,
+    namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7)
+  });
+  const receipt = await client.putObject({ noDomainMapNeeded: true });
+  assert.equal(receipt.replicas.length, 2);
+  assert.deepEqual(await client.getObject(receipt.hash), { noDomainMapNeeded: true });
+});
