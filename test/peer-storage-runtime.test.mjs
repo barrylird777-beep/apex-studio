@@ -100,7 +100,7 @@ test('peer object storage provides encrypted atomic references with compare-and-
   assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
   await assert.rejects(
     client.writeRef('project-1', { title: 'stale overwrite' }, { expectedHash: null }),
-    error => error.code === 'INSUFFICIENT_REPLICAS'
+    error => error.code === 'CAS_CONFLICT'
   );
   assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
   assert.equal(saved.replicas[0], 'storage-peer');
