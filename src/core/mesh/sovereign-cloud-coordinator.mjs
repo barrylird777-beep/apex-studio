@@ -259,7 +259,7 @@ export class SovereignCloudCoordinator {
         // Never overwrite a lease that another peer has since reclaimed.
         if (finishingRead?.etag && finishingRead.value.status === "finishing" && finishingRead.value.token === leaseToken) {
           const restored = { ...finishingRead.value, status: "active", expiresAt: Math.min(finishingRead.value.expiresAt, now() + 5000), restoredAt: now() };
-          await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(restored), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(restored)) }, IfMatch: finishingRead.etag }).catch(restoreError => { if (!conflict(restoreError)) throw restoreError; }));
+          await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(restored), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(restored)) }, IfMatch: finishingRead.etag })).catch(restoreError => { if (!conflict(restoreError)) throw restoreError; });
         }
         return { accepted: false, reason: "job-state-race" };
       }
