@@ -124,3 +124,28 @@ test("high-cost API routes require control-plane auth and public flows remain ex
   assert.match(server, /app\.post\(['"]\/api\/rapid\/orders['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/network\/client-telemetry['"],\s*requirePublicRequestSlot,/);
 });
+
+
+test("control-plane auth creates a short-lived verified principal using server-only capabilities", () => {
+  const now = 1_800_000_000_000;
+  const auth = createControlPlaneAuth({
+    getExpectedToken: () => "correct-secret",
+    getCapabilities: () => "read:network-status, write:project:123",
+    clock: () => now
+  });
+  const req = makeRequest({
+    "x-apex-shortcut-token": "correct-secret",
+    "x-apex-capabilities": "admin:*"
+  });
+  const res = makeResponse();
+  auth(req, res, () => {});
+  assert.deepEqual(req.apexPrincipal, {
+    id: "apex-control-plane-token",
+    authenticated: true,
+    identityVerified: true,
+    active: true,
+    expiresAt: now + 30_000,
+    capabilities: ["read:network-status", "write:project:123"]
+  });
+  assert.equal(req.apexPrincipal.capabilities.includes("admin:*"), false);
+});
