@@ -80,12 +80,7 @@ export class RemoteApexRingWAL {
     if (this.initPromise) return this.initPromise;
     this.initPromise = (async () => {
       await this.cas.init();
-      // Serialize the initial snapshot with all appenders. Without the shared
-      // lock, another instance can advance the head after listRefs() snapshots
-      // records but before replay reads the head, falsely appearing corrupted.
-      await this._lock(async () => {
-        await this.replay({ retainRing: true });
-      });
+      await this.replay({ retainRing: true });
       this.ready = true;
       return this;
     })();
@@ -149,37 +144,50 @@ export class RemoteApexRingWAL {
     return head;
   }
   async _records({ onRecord = async () => {}, retainRing = true, allowHeadLag = false, repairHead = false } = {}) {
-    this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0; this.idempotencyIndex = new Map();
-    const refs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r")).sort((a,b) => String(a.key).localeCompare(String(b.key)));
-    let previous = ZERO, sequence = 0, bytes = 0;
-    const hashAtSequence = new Map([[0, ZERO]]);
-    for (const ref of refs) {
-      const record = ref.value;
-      const { hash, ...body } = record || {};
-      if (!record || !Number.isSafeInteger(record.seq) || record.seq !== sequence + 1 || record.prevHash !== previous || record.hash !== sha(body)) {
-        throw new Error("[REMOTE_WAL_INTEGRITY] Hash chain or sequence failure at record " + (sequence + 1));
+    const maxSnapshotAttempts = 4;
+    for (let attempt = 0; attempt < maxSnapshotAttempts; attempt += 1) {
+      // A remote append can commit between listing WAL refs and reading the
+      // head. Compare the head before and after the listing, then retry rather
+      // than misclassifying a moving, valid log as corrupted.
+      const headBefore = await this.cas.readRef("system", this.headKey);
+      this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0; this.idempotencyIndex = new Map();
+      const refs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r")).sort((a,b) => String(a.key).localeCompare(String(b.key)));
+      let previous = ZERO, sequence = 0, bytes = 0;
+      const hashAtSequence = new Map([[0, ZERO]]);
+      for (const ref of refs) {
+        const record = ref.value;
+        const { hash, ...body } = record || {};
+        if (!record || !Number.isSafeInteger(record.seq) || record.seq !== sequence + 1 || record.prevHash !== previous || record.hash !== sha(body)) {
+          throw new Error("[REMOTE_WAL_INTEGRITY] Hash chain or sequence failure at record " + (sequence + 1));
+        }
+        bytes += Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
+        if (retainRing) this._load(record); else { this.seq = record.seq; this.lastHash = record.hash; this._indexRecord(record); }
+        previous = record.hash; sequence = record.seq; hashAtSequence.set(sequence, previous);
       }
-      bytes += Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
-      if (retainRing) this._load(record); else { this.seq = record.seq; this.lastHash = record.hash; this._indexRecord(record); }
-      previous = record.hash; sequence = record.seq; hashAtSequence.set(sequence, previous);
+      this.offset = bytes;
+      const head = await this.cas.readRef("system", this.headKey);
+      if ((headBefore?.hash ?? null) !== (head?.hash ?? null)) {
+        if (attempt + 1 < maxSnapshotAttempts) continue;
+        throw new Error("[REMOTE_WAL_CONCURRENT] Remote WAL head kept changing during replay.");
+      }
+      const headSeq = head ? Number(head.value?.seq) : 0;
+      const headHash = head ? String(head.value?.lastHash || "") : ZERO;
+      const exact = headSeq === sequence && headHash === previous;
+      const validLag = allowHeadLag && Number.isSafeInteger(headSeq) && headSeq >= 0 && headSeq < sequence && hashAtSequence.get(headSeq) === headHash;
+      const missingHeadWithRecords = allowHeadLag && !head && sequence > 0;
+      if (!exact && !validLag && !missingHeadWithRecords) {
+        if (attempt + 1 < maxSnapshotAttempts) continue;
+        throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL head does not match record chain.");
+      }
+      // A crash can occur after the immutable record is committed but before its
+      // head ref advances. Repair only while the caller holds the remote append lock.
+      if (repairHead && !exact) {
+        await this.cas.writeRef("system", this.headKey, { seq: sequence, lastHash: previous, updatedAt: this.timestamp() }, { expectedHash: head?.hash ?? null });
+      }
+      for (const ref of refs) await onRecord(ref.value);
+      return sequence;
     }
-    this.offset = bytes;
-    const head = await this.cas.readRef("system", this.headKey);
-    const headSeq = head ? Number(head.value?.seq) : 0;
-    const headHash = head ? String(head.value?.lastHash || "") : ZERO;
-    const exact = headSeq === sequence && headHash === previous;
-    const validLag = allowHeadLag && Number.isSafeInteger(headSeq) && headSeq >= 0 && headSeq < sequence && hashAtSequence.get(headSeq) === headHash;
-    const missingHeadWithRecords = allowHeadLag && !head && sequence > 0;
-    if (!exact && !validLag && !missingHeadWithRecords) {
-      throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL head does not match record chain.");
-    }
-    // A crash can occur after the immutable record is committed but before its
-    // head ref advances. Repair only while the caller holds the remote append lock.
-    if (repairHead && !exact) {
-      await this.cas.writeRef("system", this.headKey, { seq: sequence, lastHash: previous, updatedAt: this.timestamp() }, { expectedHash: head?.hash ?? null });
-    }
-    for (const ref of refs) await onRecord(ref.value);
-    return sequence;
+    throw new Error("[REMOTE_WAL_CONCURRENT] Unable to obtain a consistent remote WAL snapshot.");
   }
   async append(type, payload = {}, meta = {}) {
     await this.init();
