@@ -1,5 +1,5 @@
 import test from 'node:test';
-import { isSovereignRuntimeReady, verifyRemoteWalProbe } from '../src/core/runtime-readiness.mjs';
+import { isSovereignRuntimeReady, verifyRemotePersistenceProbe } from '../src/core/runtime-readiness.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -66,7 +66,7 @@ test('legacy foundation quiesce mode serves health without starting PostgreSQL-b
 });
 
 
-test('sovereign readiness requires fresh lease, peer, dispatch, and verified remote WAL', () => {
+test('sovereign readiness requires fresh lease, peer, dispatch, and verified remote CAS', () => {
   const instanceId = 'supervisor-generation-1';
   const identity = {
     status: 'online',
@@ -76,22 +76,21 @@ test('sovereign readiness requires fresh lease, peer, dispatch, and verified rem
     readiness: {
       storageReady: true,
       peerReady: true,
-      remoteWalVerified: true,
+      remotePersistenceVerified: true,
       dispatchReady: true,
-      remoteWalHash: 'a'.repeat(64)
+      remotePersistenceHash: 'a'.repeat(64)
     }
   };
   assert.equal(isSovereignRuntimeReady(identity, 4000, instanceId), true);
   assert.equal(isSovereignRuntimeReady(identity, 5000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000, instanceId), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalVerified: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remotePersistenceVerified: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000, instanceId), false);
 });
 
-test('remote WAL probe requires the exact record to appear in a verified snapshot', () => {
-  const record = { seq: 7, hash: 'b'.repeat(64) };
-  assert.equal(verifyRemoteWalProbe(record, { sequence: 7, ring: [record] }), true);
-  assert.equal(verifyRemoteWalProbe(record, { sequence: 8, ring: [{ seq: 8, hash: 'c'.repeat(64) }] }), false);
-  assert.equal(verifyRemoteWalProbe(record, { sequence: 6, ring: [record] }), false);
-  assert.equal(verifyRemoteWalProbe({ seq: 0, hash: 'b'.repeat(64) }, { sequence: 7, ring: [record] }), false);
+test('remote CAS readiness probe requires matching readback and a valid hash', () => {
+  const probe = { version: 1, nonce: 'nonce-7', peerId: 'peer-a' };
+  assert.equal(verifyRemotePersistenceProbe(probe, { hash: 'b'.repeat(64), value: probe }), true);
+  assert.equal(verifyRemotePersistenceProbe(probe, { hash: 'b'.repeat(64), value: { ...probe, nonce: 'other' } }), false);
+  assert.equal(verifyRemotePersistenceProbe(probe, { hash: 'bad', value: probe }), false);
 });
