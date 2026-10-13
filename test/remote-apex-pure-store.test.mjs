@@ -69,6 +69,14 @@ test("remote Pure-WAL mode persists records and jobs without creating local reco
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("remote WAL does not inherit the legacy local byte-cap holdback", async () => {
+  const cas = new MemoryCAS();
+  const wal = new RemoteApexRingWAL({ cas, scope: "no-cap-test", maxBytes: 1 });
+  const record = await wal.append("proof.over-cap", { durable: true });
+  assert.equal(record.seq, 1);
+  assert.equal((await wal.snapshot()).sequence, 1);
+});
+
 test("remote queue index keeps claim, heartbeat, and completion off full job scans", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-queue-index-"));
   try {
