@@ -220,3 +220,28 @@ test('peer CAS rejects objects that exceed the safe single-envelope limit until 
     error => error.code === 'OBJECT_TOO_LARGE_REQUIRES_CHUNKING' && error.maxObjectBytes === 32 * 1024
   );
 });
+
+
+test('peer CAS stores and reconstructs large binary blobs through encrypted chunks and verified manifests', async () => {
+  const mesh = makeMesh();
+  const client = mesh.client;
+  const source = Buffer.alloc(128 * 1024);
+  for (let i = 0; i < source.length; i++) source[i] = (i * 31 + 17) % 256;
+  const receipt = await client.putBlob(source, { chunkSize: 8 * 1024 });
+  assert.equal(receipt.kind, 'apex.blob-manifest.v1');
+  assert.equal(receipt.totalBytes, source.length);
+  assert.equal(receipt.chunkCount, 16);
+  const recovered = await client.getBlob(receipt.hash);
+  assert.deepEqual(recovered, source);
+});
+
+test('peer CAS detects a missing blob chunk instead of returning partial content', async () => {
+  const mesh = makeMesh();
+  const source = Buffer.alloc(24 * 1024, 91);
+  const receipt = await mesh.client.putBlob(source, { chunkSize: 8 * 1024 });
+  const manifest = await mesh.client.getObject(receipt.hash);
+  const missingHash = manifest.chunks[1].hash;
+  mesh.stores.get('peer-a').objects.delete(missingHash);
+  mesh.stores.get('peer-b').objects.delete(missingHash);
+  await assert.rejects(mesh.client.getBlob(receipt.hash), error => error.code === 'OBJECT_UNAVAILABLE');
+});
