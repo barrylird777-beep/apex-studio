@@ -390,7 +390,7 @@ test("additional peer allowlist extends existing trust without replacing it", as
   process.env.APEX_ALLOWED_PEER_IDS_EXTRA = "remote-storage-peer";
   const fakeStream = {
     async sink() {},
-    source: (async function* () { yield new TextEncoder().encode('{"accepted":true}'); })(),
+    source: (async function* () { yield new TextEncoder().encode('{"accepted":true}\n'); })(),
     async close() {}
   };
   try {
