@@ -69,6 +69,9 @@ test("HTTP guard fails closed, disables caching, and emits a redacted audit deci
   assert.equal(events[0].principalId, undefined);
   assert.equal(events[0].principalFingerprint, null);
   assert.equal(events[0].reason, "identity_not_verified");
+  assert.equal(events[0].requestId, undefined);
+  assert.equal(events[0].requestFingerprint, apexZeroTrustFingerprint("request-1"));
+  assert.equal(JSON.stringify(events).includes("request-1"), false);
 });
 
 test("HTTP guard passes a verified principal with an exact capability", () => {
