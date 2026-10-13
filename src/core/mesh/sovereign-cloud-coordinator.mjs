@@ -231,7 +231,7 @@ export class SovereignCloudCoordinator {
     const jobKey = this.key("apps", app, "jobs", id + ".json");
     const job = await this.read(jobKey);
     if (!job || job.value.status !== "queued") return { accepted: false, reason: "job-not-queued" };
-    const record = { version: 1, app, jobId: id, workerId: worker, status, resultHash: resultHash == null ? null : String(resultHash), finishedAt: now(), leaseToken };
+    const record = { version: 1, app, jobId: id, workerId: worker, status, resultHash: resultHash == null ? null : String(resultHash), finishedAt: now() };
     const terminalJob = { ...job.value, status, resultHash: record.resultHash, finishedAt: record.finishedAt, workerId: worker };
     try {
       await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: jobKey, Body: JSON.stringify(terminalJob), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(terminalJob)) }, IfMatch: job.etag }));
@@ -242,6 +242,14 @@ export class SovereignCloudCoordinator {
     const eventKey = this.key("apps", app, "job-events", id + "/" + randomUUID() + ".json");
     await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: eventKey, Body: JSON.stringify(record), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(record)) }, IfNoneMatch: "*" }));
     return { accepted: true, event: record };
+  }
+  async getJobResult({ app, jobId }) {
+    const job = await this.getJob({ app, jobId });
+    if (!job || !["completed", "failed"].includes(job.status)) return null;
+    if (!job.resultHash) return { app, jobId, status: job.status, result: null, resultHash: null, finishedAt: job.finishedAt };
+    const bytes = await this.getPayload({ app, payloadHash: job.resultHash });
+    const result = JSON.parse(bytes.toString("utf8"));
+    return { app, jobId, status: job.status, result, resultHash: job.resultHash, finishedAt: job.finishedAt, workerId: job.workerId };
   }
   async health() {
     const key = this.key("health", randomUUID() + ".json");
