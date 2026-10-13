@@ -1,3 +1,5 @@
+import { safeOutboundFetch } from "../../security/safe-outbound-fetch.mjs";
+
 export class ClaudeMeshProvider {
   constructor() {
     this.apiKey = process.env.ANTHROPIC_API_KEY || '';
@@ -17,7 +19,7 @@ export class ClaudeMeshProvider {
       messages: [{ role: 'user', content: String(prompt) }]
     };
     if (options.system) body.system = String(options.system);
-    const response = await fetch(this.endpoint, {
+    const response = await safeOutboundFetch(this.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
