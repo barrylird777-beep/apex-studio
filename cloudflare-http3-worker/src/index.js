@@ -11,6 +11,17 @@ const HOP_BY_HOP = new Set([
   "upgrade",
 ]);
 
+function stripHopByHopHeaders(headers) {
+  // RFC 9110: Connection can nominate additional hop-by-hop headers.
+  // Remove those nominated fields before removing Connection itself.
+  const nominated = (headers.get("connection") || "")
+    .split(",")
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean);
+  for (const name of HOP_BY_HOP) headers.delete(name);
+  for (const name of nominated) headers.delete(name);
+}
+
 export default {
   async fetch(request) {
     if (request.method === "CONNECT") {
@@ -20,8 +31,8 @@ export default {
     const incoming = new URL(request.url);
     const upstream = new URL(incoming.pathname + incoming.search, ORIGIN);
     const headers = new Headers(request.headers);
+    stripHopByHopHeaders(headers);
 
-    for (const name of HOP_BY_HOP) headers.delete(name);
     // Never forward a caller-supplied Host header or trust caller-supplied
     // forwarding metadata. fetch() derives Host from the fixed HTTPS origin.
     headers.delete("host");
@@ -49,6 +60,7 @@ export default {
     }
 
     const responseHeaders = new Headers(upstreamResponse.headers);
+    stripHopByHopHeaders(responseHeaders);
     responseHeaders.set("cache-control", "no-store");
     responseHeaders.delete("server");
 

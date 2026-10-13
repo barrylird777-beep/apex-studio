@@ -1,6 +1,11 @@
-name: Deploy optional APEX HTTP/3 edge
+name: Deploy optional APEX multi-protocol edge
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "cloudflare-http3-worker/**"
+      - ".github/workflows/deploy-http3-edge.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,3 +26,70 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cloudflare-http3-worker
           command: deploy
+
+      - name: Verify negotiated HTTP/1.1 and HTTP/2
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://apex-free-http3-edge.tbtristan777.workers.dev/"
+          for protocol in http1.1 http2; do
+            echo "Checking client-to-edge protocol: $protocol"
+            result="$(curl "--$protocol" --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_version} %{http_code}' "$url")"
+            version="${result%% *}"
+            status="${result##* }"
+            echo "Negotiated HTTP version: $version; status: $status"
+            if [[ "$protocol" == "http1.1" && "$version" != "1.1" ]]; then
+              echo "Expected HTTP/1.1 but negotiated HTTP/$version." >&2
+              exit 1
+            fi
+            if [[ "$protocol" == "http2" && "$version" != "2" ]]; then
+              echo "Expected HTTP/2 but negotiated HTTP/$version." >&2
+              exit 1
+            fi
+            if [[ ! "$status" =~ ^[234][0-9][0-9]$ ]]; then
+              echo "$protocol edge check failed." >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify TLS 1.2 and TLS 1.3 handshakes
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="apex-free-http3-edge.tbtristan777.workers.dev"
+          for tls in tls1_2 tls1_3; do
+            echo "Checking TLS handshake: $tls"
+            output="$(openssl s_client -connect "$host:443" -servername "$host" "-$tls" -verify_return_error </dev/null 2>&1)" || {
+              printf '%s\n' "$output"
+              echo "$tls handshake failed." >&2
+              exit 1
+            }
+            printf '%s\n' "$output" | grep -E 'Protocol *:|Cipher *:|Verification:|Verify return code:' || true
+            if ! printf '%s\n' "$output" | grep -Eq 'Verify return code: 0 \(ok\)|Verification: OK'; then
+              echo "$tls certificate verification did not succeed." >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify negotiated HTTP/3 when client supports it
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://apex-free-http3-edge.tbtristan777.workers.dev/"
+          if curl --version | grep -qi 'HTTP3'; then
+            result="$(curl --http3-only --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_version} %{http_code}' "$url")"
+            version="${result%% *}"
+            status="${result##* }"
+            echo "Negotiated HTTP version: $version; status: $status"
+            if [[ "$version" != "3" ]]; then
+              echo "Expected HTTP/3 but negotiated HTTP/$version." >&2
+              exit 1
+            fi
+            if [[ ! "$status" =~ ^[234][0-9][0-9]$ ]]; then
+              echo "HTTP/3 edge check failed." >&2
+              exit 1
+            fi
+            echo "HTTP/3 negotiation verified from this runner."
+          else
+            echo "HTTP/3 NOT VERIFIED: this runner's curl lacks HTTP/3 support. HTTP/1.1 and HTTP/2 checks do not prove HTTP/3."
+          fi
