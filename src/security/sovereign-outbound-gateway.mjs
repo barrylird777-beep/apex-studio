@@ -6,7 +6,7 @@ const PROVIDERS = Object.freeze({
   gemini: { hosts: new Set(["generativelanguage.googleapis.com"]), keyEnv: "GEMINI_API_KEY", path: "/v1beta/openai/chat/completions" }
 });
 const SECRET_KEY = /(?:api[_-]?key|secret|token|password|credential|database[_-]?url|stripe|private[_-]?key|authorization)/i;
-const SECRET_VALUE = /(?:Bearer\\s+[A-Za-z0-9._~+\\/-]{20,}|sk-[A-Za-z0-9_-]{16,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|rk_(?:live|test)_[A-Za-z0-9]{16,}|AIza[\w-]{25,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s"'<>]+|mysql:\/\/[^\s"'<>]+)/i;
+const SECRET_VALUE = /(?:Bearer\s+[A-Za-z0-9._~+\/-]{20,}|sk-[A-Za-z0-9_-]{16,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|rk_(?:live|test)_[A-Za-z0-9]{16,}|AIza[\w-]{25,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s"'<>]+|mysql:\/\/[^\s"'<>]+)/i;
 const ID_KEY = /(?:user_?id|email|phone|app_?id|account_?id|customer_?id|device_?id)/i;
 
 export class OutboundPolicyError extends Error {
@@ -17,18 +17,18 @@ const isPlainObject = value => value !== null && typeof value === "object" && !A
 
 function scrubString(value, sessionMap) {
   const candidates = [value];
-  // Detect common credentials hidden inside bearer headers or base64-encoded text.
-  const bearer = value.match(/\\bBearer\\s+([A-Za-z0-9._~+\\/-]{20,}={0,2})/i);
+  // Inspect bearer-form and base64-wrapped strings before permitting egress.
+  const bearer = value.match(/\bBearer\s+([A-Za-z0-9._~+\/-]{20,}={0,2})/i);
   if (bearer) candidates.push(bearer[1]);
   const encoded = value.match(/[A-Za-z0-9+/]{24,}={0,2}/g) || [];
   for (const token of encoded.slice(0, 20)) {
     try {
       const decoded = Buffer.from(token, "base64").toString("utf8");
-      if (decoded && /^[\\x20-\\x7E\\r\\n\\t]+$/.test(decoded)) candidates.push(decoded);
+      if (decoded && /^[\x20-\x7E\r\n\t]+$/.test(decoded)) candidates.push(decoded);
     } catch {}
   }
-  if (candidates.some(candidate => SECRET_VALUE.test(candidate) ||
-      /(?:^|\\s)(?:Bearer\\s+)?(?:xai-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9_-]{20,}|pypi-[A-Za-z0-9_-]{20,}|ya29\\.[A-Za-z0-9_-]{20,})/i.test(candidate))) {
+  const extendedCredential = /(?:^|\s)(?:Bearer\s+)?(?:xai-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9_-]{20,}|pypi-[A-Za-z0-9_-]{20,}|ya29\.[A-Za-z0-9_-]{20,})/i;
+  if (candidates.some(candidate => SECRET_VALUE.test(candidate) || extendedCredential.test(candidate))) {
     throw new OutboundPolicyError("Payload contains a credential-like value; outbound request blocked.", "SECRET_DETECTED");
   }
   return value;
