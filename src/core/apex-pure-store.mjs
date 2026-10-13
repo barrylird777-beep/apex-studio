@@ -223,6 +223,10 @@ export class ApexPureStore {
       }
       const result=await this.withRemoteLock("job-index-v3-migration-lock",async()=>{
         const marker=await this.cas.readRef("system",markerKey);
+        if(!force&&Number(marker?.value?.version)>=2){
+          this.remoteQueueIndexReady=true;
+          return {ready:true,indexed:0,version:Number(marker.value.version),reconciled:false};
+        }
         let indexed=0;
         const refs=await this.cas.listRefs("jobs");
         const dedupeRecords=new Map();
