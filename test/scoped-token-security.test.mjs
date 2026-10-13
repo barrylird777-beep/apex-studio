@@ -112,7 +112,7 @@ test('AI inference requests are throttled by verified token ID or by client IP w
 });
 
 test('public health routes stay outside AI inference auth and rate limiting', async () => {
-  const server = await readFile(new URL('../../server.mjs', import.meta.url), 'utf8');
+  const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
   assert.match(server, /app\.get\(['"]\/health['"],\s*\(_req, res\)/);
   assert.match(server, /app\.get\(['"]\/api\/health['"],\s*async/);
   for (const route of ['/api/ai/generate-max', '/api/ai/generate-grok', '/api/ai/generate/:provider', '/api/ai/generate', '/api/ai/collaborate']) {
