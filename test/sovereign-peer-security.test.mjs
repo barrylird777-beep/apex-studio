@@ -6,7 +6,8 @@ import { createPeerSecurityGuard } from "../src/network/sovereign-peer-security.
 import {
   readSovereignEnvelope,
   sendToPeer,
-  sendToPeerCbor
+  sendToPeerCbor,
+  sendToPeerAuto
 } from "../src/network/sovereign-peer.mjs";
 
 const streamFor = value => ({
@@ -106,6 +107,38 @@ test("outgoing sovereign transport accepts an explicitly allowlisted peer", asyn
     if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
     else process.env.APEX_ALLOWED_PEER_IDS = previous;
   }
+});
+
+test("sovereign peer auto transport prefers native CBOR v2", async () => {
+  const calls = [];
+  const response = await sendToPeerAuto({}, "address", { type: "test" }, {
+    sendCbor: async () => { calls.push("v2"); return { accepted: true, peerId: "peer-a" }; },
+    sendLegacy: async () => { calls.push("v1"); return { accepted: true, peerId: "peer-a" }; }
+  });
+  assert.equal(response.accepted, true);
+  assert.deepEqual(calls, ["v2"]);
+});
+
+test("sovereign peer auto transport falls back only on protocol negotiation failure", async () => {
+  const calls = [];
+  const response = await sendToPeerAuto({}, "address", { type: "test" }, {
+    sendCbor: async () => { calls.push("v2"); throw new Error("Protocol not supported by remote peer"); },
+    sendLegacy: async () => { calls.push("v1"); return { accepted: true, peerId: "legacy-peer" }; }
+  });
+  assert.equal(response.peerId, "legacy-peer");
+  assert.deepEqual(calls, ["v2", "v1"]);
+});
+
+test("sovereign peer auto transport never replays on an ambiguous timeout", async () => {
+  let legacyCalls = 0;
+  await assert.rejects(
+    sendToPeerAuto({}, "address", { type: "test" }, {
+      sendCbor: async () => { throw new Error("sovereign peer CBOR envelope timed out"); },
+      sendLegacy: async () => { legacyCalls++; return { accepted: true }; }
+    }),
+    /timed out/
+  );
+  assert.equal(legacyCalls, 0);
 });
 
 test("two sovereign peers exchange an envelope only when both identities are allowlisted", async () => {
