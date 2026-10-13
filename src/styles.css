@@ -6,3 +6,22 @@
 .apex-nav button{flex:0 0 auto;border:1px solid #d9dee3;background:#fff;color:#17202a}
 .apex-nav button[aria-current="page"]{background:#17202a;color:#fff;border-color:#17202a}
 @media(min-width:851px){.apex-nav{justify-content:center}}
+
+/* Single-owner sign-in gate */
+.owner-gate{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(900px 500px at 50% 0%,#e7edf3 0%,#f6f7f8 55%,#eef1f4 100%)}
+.owner-card{width:min(440px,100%);padding:32px;background:#fff;border:1px solid #e1e6eb;border-radius:22px;box-shadow:0 22px 80px #17202a12}
+.owner-mark{width:46px;height:46px;display:grid;place-items:center;background:#17202a;color:#fff;border-radius:14px;font-size:22px;font-weight:900;margin-bottom:24px}
+.owner-eyebrow{font-size:10px;letter-spacing:.15em;font-weight:900;color:#7a8490}
+.owner-card h1{font-size:30px;letter-spacing:-.04em;margin:8px 0}
+.owner-muted,.owner-footnote{color:#697480;line-height:1.55}
+.owner-form{display:grid;gap:10px;margin-top:24px}
+.owner-form label{font-size:12px;font-weight:800}
+.owner-form input{width:100%;padding:13px 14px;border:1px solid #d9dee3;border-radius:11px;font:inherit}
+.owner-submit{width:100%;padding:13px;border:0;border-radius:11px;background:#17202a;color:#fff;font-weight:800;cursor:pointer}
+.owner-submit:disabled{opacity:.55;cursor:wait}
+.owner-error{min-height:18px;margin:0;color:#a93232;font-size:12px}
+.owner-footnote{font-size:11px;margin:18px 0 0}
+.owner-notice{margin-top:20px;padding:14px;background:#f6f7f8;border:1px solid #e2e6ea;border-radius:12px;color:#48525d;line-height:1.6;font-size:13px;overflow-wrap:anywhere}
+.owner-notice code{font-size:12px;font-weight:800}
+.apex-nav .owner-signout{margin-left:auto;background:#fff;color:#17202a;border-color:#d9dee3}
+@media(max-width:600px){.owner-card{padding:24px}.owner-card h1{font-size:27px}.apex-nav .owner-signout{margin-left:0}}
