@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
+import { decodeCanonical } from './apex-cbor.mjs';
 import { sendToPeer } from '../network/sovereign-peer.mjs';
 import { createLibp2pPeerStorageTransport } from './peer-storage-libp2p-transport.mjs';
 import { APEX_MEDIA_APPS } from './peer-media-store.mjs';
