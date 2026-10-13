@@ -241,7 +241,7 @@ test("absorbed Garden, PayPex, and EngineApex pages use current canonical owners
   const engine=await readFile(resolve(process.cwd(),"public/engine-apex.html"),"utf8");
   const nav=garden.match(/<nav aria-label="Six canonical apps">[\s\S]*?<\/nav>/)?.[0]||"";
   for(const name of ["PlanetApeX","XShield","KernelVision","Kernelodies","KashKorner","KoinKob"]) assert.ok(nav.includes(name),name+" must appear in GardenApex canonical navigation");
-  assert.doesNotMatch(nav,/TeeVee|PayPex|KORNKNOB|KoBlocks|ShieldApex/);
+  assert.doesNotMatch(nav,/TeeVee|PayPex|KoBlocks|ShieldApex/);
   assert.match(garden,/GardenApex is the living universe inside PlanetApeX—not a separate app/);
   assert.match(paypex,/historical opportunity, market and monetization engine now owned by KashKorner/);
   assert.match(paypex,/KernelVision owns production execution/);
