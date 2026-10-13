@@ -125,15 +125,15 @@ footer{text-align:center;color:#4f4d52;font-size:8px;letter-spacing:.16em;text-t
 <section class="section" id="order">
  <div class="priceBox"><div><h2>Viral Short-Form Video.</h2><p>Hook · visuals · captions · audio · ready-to-post MP4<br>Delivered through your order flow.</p></div><div class="price">$25</div></div>
  <div class="order">
-  <div class="orderHead"><h2>Send it into production.</h2><span>Card or lower-fee bank payment · $25 total</span></div>
+  <div class="orderHead"><h2>Send it into production.</h2><span>Stripe or direct USDC · $25 total</span></div>
   <div class="orderGrid">
    <div class="field"><label for="name">Name / brand</label><input id="name" placeholder="Your name or brand" autocomplete="name"></div>
    <div class="field"><label for="email">Email for your order</label><input id="email" type="email" inputmode="email" placeholder="you@example.com" autocomplete="email"></div>
    <div class="field"><label for="type">What are we making?</label><input id="type" placeholder="Product, story, song…"></div>
    <div class="field"><label for="platform">Platform</label><select id="platform"><option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Facebook</option><option>X</option><option>Other</option></select></div>
-   <button class="primary full" type="button" onclick="startOrder()">START PRODUCTION · $26.10 ALL-IN →</button>
+   <button class="primary full" type="button" onclick="startOrder()">PAY WITH STRIPE · $25 →</button><button class="secondary full" type="button" onclick="startUsdcOrder()">PAY WITH USDC ON POLYGON · $25 →</button>
   </div>
-  <div id="orderStatus" class="status" aria-live="polite"></div>
+  <div id="usdcPayment" class="status" hidden aria-live="polite"></div><div id="orderStatus" class="status" aria-live="polite"></div>
  </div>
 </section>
 
@@ -188,11 +188,45 @@ async function shareProof(){
  try{if(navigator.share){await navigator.share(share);return;}}catch{}
  try{await navigator.clipboard.writeText(location.href);setStatus('previewStatus','Link copied.');}catch{setStatus('previewStatus','Copy this page link and share your proof.');}
 }
+async function startUsdcOrder(){
+ const status=document.getElementById('orderStatus'),panel=document.getElementById('usdcPayment');
+ const data={name:document.getElementById('name').value.trim(),email:document.getElementById('email').value.trim(),type:document.getElementById('type').value.trim(),brief:getBrief(),platform:document.getElementById('platform').value};
+ if(!data.name||!data.email||!data.type||!data.brief){status.textContent='Name, email, type and idea are required.';return;}
+ status.textContent='Preparing a remote-only USDC payment request…';panel.hidden=true;panel.replaceChildren();
+ try{
+  const response=await fetch('/api/rapid/usdc/intent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const body=await response.json();if(!response.ok)throw new Error(body.error||'USDC checkout is unavailable');
+  const title=document.createElement('strong');title.textContent='Send exactly 25 USDC on Polygon mainnet';
+  const details=document.createElement('p');details.textContent='Only send native USDC on Polygon (chain ID 137). Do not send USDC on Ethereum or another network.';
+  const walletLabel=document.createElement('p');walletLabel.textContent='Merchant receiving address:';
+  const wallet=document.createElement('code');wallet.textContent=body.merchantAddress;wallet.style.overflowWrap='anywhere';
+  const tokenLabel=document.createElement('p');tokenLabel.textContent='Verify the token contract is native Polygon USDC:';
+  const token=document.createElement('code');token.textContent=body.tokenContract;token.style.overflowWrap='anywhere';
+  const txLabel=document.createElement('label');txLabel.textContent='Transaction hash';txLabel.htmlFor='usdcTxHash';
+  const tx=document.createElement('input');tx.id='usdcTxHash';tx.placeholder='0x…';tx.autocomplete='off';tx.spellcheck=false;tx.style.width='100%';
+  const verify=document.createElement('button');verify.type='button';verify.className='primary full';verify.textContent='VERIFY USDC PAYMENT →';
+  verify.onclick=()=>verifyUsdcPayment(body.orderId,tx.value,verify);
+  panel.append(title,details,walletLabel,wallet,tokenLabel,token,txLabel,tx,verify);
+  panel.hidden=false;status.textContent='Payment request created. Send the exact amount, then paste the transaction hash here.';
+ }catch(error){status.textContent=error.message||'USDC payment could not be prepared.';}
+}
+async function verifyUsdcPayment(orderId,txHash,button){
+ const status=document.getElementById('orderStatus');
+ if(!/^0x[a-fA-F0-9]{64}$/.test(String(txHash||'').trim())){status.textContent='Paste the full Polygon transaction hash first.';return;}
+ button.disabled=true;status.textContent='Checking the Polygon blockchain and waiting for confirmations…';
+ try{
+  const response=await fetch('/api/rapid/usdc/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId,txHash:String(txHash).trim()})});
+  const body=await response.json();
+  if(response.status===202){status.textContent=body.status==='confirming'?'Transaction found: '+body.confirmations+'/'+body.required+' confirmations. Submit again in a moment.':'Transaction is not confirmed yet. Wait briefly and submit again.';button.disabled=false;return;}
+  if(!response.ok)throw new Error(body.error||'USDC payment could not be verified');
+  status.textContent='USDC payment verified. Apex is starting production…';pollPaidOrder(orderId);
+ }catch(error){status.textContent=error.message||'USDC verification failed.';button.disabled=false;}
+}
 async function startOrder(){
  const status=document.getElementById('orderStatus');
  const data={name:document.getElementById('name').value.trim(),email:document.getElementById('email').value.trim(),type:document.getElementById('type').value.trim(),brief:getBrief(),platform:document.getElementById('platform').value};
  if(!data.name||!data.email||!data.type||!data.brief){status.textContent='Name, email, type and idea are required.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
- status.textContent='Opening secure $25 checkout (bank debit may cost less to process)…';
+ status.textContent='Opening secure Stripe checkout. Eligible bank debit may have lower processing costs…';
  try{
   const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const body=await response.json();if(!response.ok)throw new Error(body.error||'Checkout could not be created');
