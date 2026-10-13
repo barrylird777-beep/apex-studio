@@ -349,3 +349,24 @@ test("peer security guard rejects malformed message identifiers", () => {
   assert.equal(guard.admit("peer-a", { type: "task", nonce: "short" }).reason, "invalid message identifier");
   assert.equal(guard.admit("", { type: "task" }).reason, "invalid peer identity");
 });
+
+
+test("outgoing sovereign transport rejects a mismatched peer identity in an ACK", async () => {
+  const previous = process.env.APEX_ALLOWED_PEER_IDS;
+  process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
+  const fakeStream = {
+    async sink() {},
+    source: (async function* () { yield new TextEncoder().encode('{"accepted":true,"peerId":"attacker-peer"}\\n'); })(),
+    async close() {}
+  };
+  try {
+    await assert.rejects(
+      sendToPeer({ async dialProtocol() { return fakeStream; } },
+        "/ip4/127.0.0.1/tcp/1234/p2p/allowed-peer", { type: "test.identity" }),
+      /response identity mismatch/
+    );
+  } finally {
+    if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = previous;
+  }
+});
