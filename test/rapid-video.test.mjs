@@ -66,5 +66,6 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(page, /id="oracleTab"/);
   assert.match(page, /id="forgeTab"/);
   assert.match(page, /body\.result\.storyboard/);
+  assert.match(server, /api\\/rapid\\/assets\\/:id/);
   assert.doesNotMatch(server, /app\.get\('\/rapid-video\.html', \(_req, res\) => res\.redirect\(308, '\/teevee-buyer\.html'\)\)/);
 });
