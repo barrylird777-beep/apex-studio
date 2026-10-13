@@ -51,8 +51,17 @@ test("range downloader aborts sibling streams and waits for them after a termina
       res.writeHead(200, { "Content-Length": payload.length });
       return res.end(payload);
     }
-    requests++;
     const start = Number(range[1]), end = Math.min(Number(range[2]), payload.length - 1);
+    // The initial capability probe requests exactly byte zero and must succeed.
+    if (start === 0 && end === 0) {
+      res.writeHead(206, {
+        "Content-Range": `bytes 0-0/${payload.length}`,
+        "Content-Length": "1",
+        ETag: '"apex-failure-test"'
+      });
+      return res.end(payload.subarray(0, 1));
+    }
+    requests++;
     if (start === 0) {
       res.writeHead(503, { "Content-Length": "0" });
       return res.end();
