@@ -265,7 +265,40 @@ export class SovereignCloudCoordinator {
     const result = JSON.parse(bytes.toString("utf8"));
     return { app, jobId, status: job.status, result, resultHash: job.resultHash, finishedAt: job.finishedAt, workerId: job.workerId };
   }
+  async verifyConditionalWrites() {
+    const key = this.key("health", "conditional-probe-" + randomUUID() + ".json");
+    const body = JSON.stringify({ nonce: randomUUID(), createdAt: now() });
+    let created = false;
+    try {
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: "application/json", IfNoneMatch: "*" }));
+      created = true;
+      let createRejected = false;
+      try {
+        await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: "application/json", IfNoneMatch: "*" }));
+      } catch (error) {
+        if (conflict(error)) createRejected = true;
+        else throw error;
+      }
+      if (!createRejected) throw new Error("Object provider ignored If-None-Match; exclusive cloud claims are unsafe");
+      const current = await this.read(key);
+      if (!current?.etag) throw new Error("Object provider did not return an ETag required for compare-and-swap");
+      const replacement = JSON.stringify({ nonce: randomUUID(), replacedAt: now() });
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: replacement, ContentType: "application/json", IfMatch: current.etag }));
+      let staleRejected = false;
+      try {
+        await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: "application/json", IfMatch: current.etag }));
+      } catch (error) {
+        if (conflict(error)) staleRejected = true;
+        else throw error;
+      }
+      if (!staleRejected) throw new Error("Object provider ignored stale If-Match; lease fencing is unsafe");
+      return { verified: true, ifNoneMatch: true, compareAndSwap: true };
+    } finally {
+      if (created) await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })).catch(() => {});
+    }
+  }
   async health() {
+    const conditionalWrites = await this.verifyConditionalWrites();
     const key = this.key("health", randomUUID() + ".json");
     const proof = { version: 1, nonce: randomUUID(), timestamp: now() };
     const body = JSON.stringify(proof);
@@ -273,6 +306,6 @@ export class SovereignCloudCoordinator {
     const readback = await this.read(key);
     if (!readback || readback.value.nonce !== proof.nonce) throw new Error("Cloud persistence round-trip failed");
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
-    return { ready: true, persistence: "remote-s3-compatible", readAfterWrite: true, checkedAt: new Date().toISOString() };
+    return { ready: true, persistence: "remote-s3-compatible", readAfterWrite: true, conditionalWrites, checkedAt: new Date().toISOString() };
   }
 }
