@@ -53,6 +53,18 @@ test("control-plane auth accepts a bearer token without exposing it in the URL",
   assert.equal(nextCalled, true);
 });
 
+test("Music Radar handoff delegates to the shared timing-safe control-plane guard", async () => {
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const auth = await readFile(new URL("../src/security/control-plane-auth.mjs", import.meta.url), "utf8");
+  assert.match(server, /app\.post\(["']\/api\/music-radar\/handoff["'],\s*requireControlPlaneAuth,/);
+  assert.match(auth, /crypto\.timingSafeEqual\(left, right\)/);
+  const routeStart = server.indexOf('app.post("/api/music-radar/handoff"');
+  assert.notEqual(routeStart, -1);
+  const routeEnd = server.indexOf("\n});", routeStart);
+  assert.ok(routeEnd > routeStart);
+  assert.doesNotMatch(server.slice(routeStart, routeEnd), /supplied\s*!==\s*expected/);
+});
+
 test("high-cost API routes require control-plane auth and public flows remain explicitly rate-limited", async () => {
   const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   const home = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
