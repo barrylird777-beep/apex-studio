@@ -1198,11 +1198,31 @@ function beginGracefulShutdown(signal) {
     }
     try {
       await rapidInlineLoopPromise;
-      console.log('[apex] background workers drained');
+      console.log('[apex] inline worker loop drained');
     } catch (workerError) {
       process.exitCode = 1;
-      console.error('[apex] background worker drain failed', String(workerError?.message || workerError));
+      console.error('[apex] inline worker drain failed', String(workerError?.message || workerError));
     }
+
+    // Stop every long-lived worker pool explicitly. unref() on the polling
+    // intervals prevents them alone from pinning Node, but active handlers and
+    // their network clients can still hold the event loop open.
+    const workerShutdowns = await Promise.allSettled([
+      meshWorkerSupervisor.stop(),
+      permanentWorkerSupervisor.stop(),
+      infiniteBroadcast.stop()
+    ]);
+    for (const result of workerShutdowns) {
+      if (result.status === 'rejected') {
+        process.exitCode = 1;
+        console.error('[apex] background service shutdown failed', String(result.reason?.message || result.reason));
+      }
+    }
+    console.log('[apex] background services stopped', JSON.stringify({
+      mesh: meshWorkerSupervisor.status(),
+      permanent: permanentWorkerSupervisor.status(),
+      broadcast: infiniteBroadcast.status()
+    }));
     console.log('[apex] HTTP drain complete');
   });
   server.closeIdleConnections?.();
