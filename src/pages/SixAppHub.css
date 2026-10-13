@@ -9,3 +9,7 @@
 @media(max-width:860px){.apex-hub-workspace{grid-template-columns:1fr}.apex-hub-app-list{padding:16px}.apex-hub-detail{padding:20px}.apex-hub-detail-title{margin-top:22px}.apex-hub-bottom{grid-template-columns:1fr}.apex-hub-bottom>div{padding:13px}.apex-hub-header-right{font-size:0;gap:7px}.apex-hub-header-right .apex-hub-count{font-size:10px}.apex-hub-main{padding-top:30px}.apex-hub-workspace{margin-top:30px}}
 @media(max-width:420px){.apex-hub-feature-list{grid-template-columns:1fr}.apex-hub-intro h1{font-size:45px}.apex-hub-app-copy small{max-width:190px}.apex-hub-footer{flex-wrap:wrap}.apex-hub-detail-top{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.apex-hub-app-card{transition:none}}
+
+/* Keyboard focus and neutral status styling: a canonical-app label is not health telemetry. */
+.apex-hub-app-card:focus-visible,.apex-hub-detail-links a:focus-visible,.apex-hub-footer button:focus-visible{outline:3px solid var(--app-accent,#a99aff);outline-offset:3px}
+.apex-hub-live-dot,.apex-hub-profile-state span{background:#a99aff;box-shadow:none}
