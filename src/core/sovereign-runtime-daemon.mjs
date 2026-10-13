@@ -27,6 +27,7 @@ let peerNode;
 let edgeNode;
 let stopping = false;
 let timer;
+let cyclePromise = Promise.resolve();
 let bridge;
 const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
@@ -197,7 +198,10 @@ async function main() {
   }));
 
   timer = setInterval(() => {
-    if (!stopping) runCycle(bridge).catch((error) => console.error('[SOVEREIGN] cycle failed', error));
+    if (stopping) return;
+    cyclePromise = cyclePromise
+      .then(() => stopping ? undefined : runCycle(bridge))
+      .catch((error) => console.error('[SOVEREIGN] cycle failed', error));
   }, reconcileMs);
   timer.unref?.();
 }
@@ -263,17 +267,58 @@ async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   if (timer) clearInterval(timer);
-  console.log(`[SOVEREIGN] draining on ${signal}`);
+  const shutdownEvidence = {
+    signal,
+    finalCycleDrained: false,
+    finalReconcileComplete: false,
+    offlineIdentityCommitted: false,
+    edgeStopped: false,
+    peerStopped: false,
+    remoteWalVerified: runtimeReadiness.remoteWalVerified,
+    remoteWalSequence: runtimeReadiness.remoteWalSequence,
+    remoteWalHash: runtimeReadiness.remoteWalHash
+  };
+  console.log('[SOVEREIGN] draining', JSON.stringify(shutdownEvidence));
+  try {
+    await cyclePromise;
+    shutdownEvidence.finalCycleDrained = true;
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] active cycle drain failed', String(error?.message || error));
+  }
   try {
     if (bridge) await reconcile(bridge);
+    shutdownEvidence.finalReconcileComplete = true;
+    console.log('[SOVEREIGN] final reconcile complete');
   } catch (error) {
-    console.error('[SOVEREIGN] final reconcile failed:', error);
     process.exitCode = 1;
-  } finally {
-    await publishRuntimeIdentity('offline').catch(() => {});
-    await edgeNode?.stop().catch(() => {});
-    await peerNode?.stop().catch(() => {});
+    console.error('[SOVEREIGN] final reconcile failed', String(error?.message || error));
   }
+  try {
+    await publishRuntimeIdentity('offline');
+    shutdownEvidence.offlineIdentityCommitted = true;
+    console.log('[SOVEREIGN] offline identity committed');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] offline identity commit failed', String(error?.message || error));
+  }
+  try {
+    if (edgeNode) await edgeNode.stop();
+    shutdownEvidence.edgeStopped = true;
+    console.log('[SOVEREIGN] edge stopped');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] edge shutdown failed', String(error?.message || error));
+  }
+  try {
+    if (peerNode) await peerNode.stop();
+    shutdownEvidence.peerStopped = true;
+    console.log('[SOVEREIGN] peer stopped');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] peer shutdown failed', String(error?.message || error));
+  }
+  console.log('[SOVEREIGN] shutdown evidence', JSON.stringify(shutdownEvidence));
 }
 
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
