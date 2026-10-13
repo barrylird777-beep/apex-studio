@@ -3490,28 +3490,3 @@ app.get('/api/engine-apex/status', async (_req, res) => {
   }
 });
 
-// SIGTERM: stop accepting new requests immediately, then let in-flight responses drain.
-let shutdownStarted = false;
-function shutdownHttpServer(signal) {
-  if (shutdownStarted) return;
-  shutdownStarted = true;
-  console.log('[apex] graceful shutdown started', JSON.stringify({ signal }));
-  const forceTimer = setTimeout(() => {
-    console.error('[apex] graceful shutdown deadline reached; closing remaining connections');
-    server.closeAllConnections?.();
-    process.exitCode = 1;
-  }, 25000);
-  forceTimer.unref?.();
-  server.close(error => {
-    clearTimeout(forceTimer);
-    if (error) {
-      console.error('[apex] HTTP server close failed', error);
-      process.exitCode = 1;
-    } else {
-      console.log('[apex] HTTP server drained');
-    }
-  });
-  server.closeIdleConnections?.();
-}
-process.once('SIGTERM', () => shutdownHttpServer('SIGTERM'));
-process.once('SIGINT', () => shutdownHttpServer('SIGINT'));
