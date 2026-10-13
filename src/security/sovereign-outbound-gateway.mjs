@@ -16,7 +16,11 @@ const sha = value => createHash("sha256").update(String(value)).digest("hex");
 const isPlainObject = value => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function scrubString(value, sessionMap) {
-  const candidates = [value];
+  const candidates = [value, value.replace(/[\s\u200B-\u200D\uFEFF]+/g, "")];
+  try {
+    const decodedUrl = decodeURIComponent(value);
+    if (decodedUrl !== value) candidates.push(decodedUrl);
+  } catch {}
   // Inspect bearer-form and base64-wrapped strings before permitting egress.
   const bearer = value.match(/\bBearer\s+([A-Za-z0-9._~+\/-]{20,}={0,2})/i);
   if (bearer) candidates.push(bearer[1]);
