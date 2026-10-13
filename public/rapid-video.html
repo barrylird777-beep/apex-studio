@@ -192,7 +192,7 @@ async function startOrder(){
  const status=document.getElementById('orderStatus');
  const data={name:document.getElementById('name').value.trim(),email:document.getElementById('email').value.trim(),type:document.getElementById('type').value.trim(),brief:getBrief(),platform:document.getElementById('platform').value};
  if(!data.name||!data.email||!data.type||!data.brief){status.textContent='Name, email, type and idea are required.';document.getElementById('order').scrollIntoView({behavior:'smooth'});return;}
- status.textContent='Opening secure $25 checkout (bank debit may cost less to process)…';
+ status.textContent='Opening secure $25 checkout. Choose US bank debit first for lower fees; card remains available…';
  try{
   const response=await fetch('/api/rapid/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const body=await response.json();if(!response.ok)throw new Error(body.error||'Checkout could not be created');
