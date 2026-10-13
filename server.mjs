@@ -151,7 +151,7 @@ const streamRelay = new RtmpSessionMultiplexer({
   autoStart: relayAutoStart
 });
 
-app.use('/api/relay', createRelayRouter(streamRelay));
+app.use('/api/relay', createRelayRouter(streamRelay, { requireAuth: requireControlPlaneAuth }));
 
 const researchEngine = new FrictionlessResearchEngine();
 app.use('/api/research', createResearchRouter(researchEngine));
