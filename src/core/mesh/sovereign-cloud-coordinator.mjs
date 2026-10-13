@@ -248,12 +248,21 @@ export class SovereignCloudCoordinator {
       if (conflict(e)) return { accepted: false, reason: "lease-race-lost" };
       throw e;
     }
+    const finishingRead = await this.read(leaseKey);
     const record = { version: 1, app, jobId: id, workerId: worker, status, resultHash: resultHash == null ? null : String(resultHash), finishedAt: now() };
     const terminalJob = { ...job.value, status, resultHash: record.resultHash, finishedAt: record.finishedAt, workerId: worker };
     try {
       await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: jobKey, Body: JSON.stringify(terminalJob), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(terminalJob)) }, IfMatch: job.etag }));
     } catch (e) {
-      if (conflict(e)) return { accepted: false, reason: "job-state-race" };
+      if (conflict(e)) {
+        // Restore the lease only if this exact finishing record is still current.
+        // Never overwrite a lease that another peer has since reclaimed.
+        if (finishingRead?.etag && finishingRead.value.status === "finishing" && finishingRead.value.token === leaseToken) {
+          const restored = { ...finishingRead.value, status: "active", expiresAt: Math.min(finishingRead.value.expiresAt, now() + 5000), restoredAt: now() };
+          await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(restored), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(restored)) }, IfMatch: finishingRead.etag }).catch(restoreError => { if (!conflict(restoreError)) throw restoreError; }));
+        }
+        return { accepted: false, reason: "job-state-race" };
+      }
       throw e;
     }
     const eventKey = this.key("apps", app, "job-events", id + "/" + randomUUID() + ".json");
