@@ -75,12 +75,22 @@ jobs:
           /usr/bin/otool -L "$executable" | grep -F "@rpath/llama.framework/llama"
           /usr/bin/otool -hv "$runtime" | grep -E "ARM64|arm64"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" build/ApexMobile-unsigned.zip
+          # Produce a standard IPA container for a compatible sideloading signer.
+          # This package is intentionally unsigned; it cannot be installed directly.
+          mkdir -p build/ipa/Payload
+          ditto "$app_path" build/ipa/Payload/ApexMobile.app
+          (cd build/ipa && /usr/bin/zip -qry ../ApexMobile-unsigned.ipa Payload)
           test -s build/ApexMobile-unsigned.zip
-          ls -lh "$executable" "$runtime" build/ApexMobile-unsigned.zip
+          test -s build/ApexMobile-unsigned.ipa
+          /usr/bin/unzip -Z1 build/ApexMobile-unsigned.ipa | grep -F "Payload/ApexMobile.app/Info.plist"
+          /usr/bin/unzip -Z1 build/ApexMobile-unsigned.ipa | grep -F "Payload/ApexMobile.app/Frameworks/llama.framework/llama"
+          ls -lh "$executable" "$runtime" build/ApexMobile-unsigned.zip build/ApexMobile-unsigned.ipa
 
       - name: Upload unsigned build
         uses: actions/upload-artifact@v6
         with:
           name: apex-mobile-unsigned
-          path: ios/ApexMobile/build/ApexMobile-unsigned.zip
+          path: |
+            ios/ApexMobile/build/ApexMobile-unsigned.zip
+            ios/ApexMobile/build/ApexMobile-unsigned.ipa
           if-no-files-found: error
