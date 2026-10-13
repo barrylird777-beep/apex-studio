@@ -1,0 +1,44 @@
+name: TLA+ Remote WAL Model Check
+
+on:
+  push:
+    branches:
+      - test/tla-remote-wal-model
+    paths:
+      - "spec/tla/**"
+      - ".github/workflows/tla-model-check.yml"
+  pull_request:
+    paths:
+      - "spec/tla/**"
+      - ".github/workflows/tla-model-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  model-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download pinned TLA+ tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar \
+            --output "$RUNNER_TEMP/tla2tools.jar"
+          echo "e30c956628cf22ffafd00639ff761742c7da0655  $RUNNER_TEMP/tla2tools.jar" | sha1sum --check
+
+      - name: Run TLC safety model
+        working-directory: spec/tla
+        run: java -XX:+UseParallelGC -Xmx2g -jar "$RUNNER_TEMP/tla2tools.jar" -config RemoteWALIdempotency.cfg RemoteWALIdempotency.tla
