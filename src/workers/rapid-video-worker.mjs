@@ -1,13 +1,15 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
 import { RemoteContentAddressedStore } from "../core/remote-content-addressed-store.mjs";
+import { createGuardedFetch } from "../security/sovereign-outbound-gateway.mjs";
 
 const execFileAsync = promisify(execFile);
+const forgeFetch = createGuardedFetch(["gen.pollinations.ai", "api-inference.huggingface.co"]);
 
 const remoteAssetsEnabled = () => String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true";
 let remoteAssetStore;
@@ -21,6 +23,51 @@ function renderOutputDir(kind) {
     ? path.join(tmpdir(), "apex-rapid-video")
     : path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", kind === "preview" ? "previews" : "");
 }
+async function generateForgeBackground(storyboard, brief, orderId) {
+  const provider = String(process.env.APEX_RAPID_IMAGE_PROVIDER || "").trim().toLowerCase();
+  if (!provider) return null;
+  const sceneText = (storyboard || []).map((scene, index) => "Scene " + (index + 1) + ": " + scene.visualPrompt).join("\n");
+  const prompt = [
+    "Create one cinematic vertical 9:16 storyboard background for a short-form video.",
+    "Dark fantasy anime, sharp cel shading, high-contrast cinematic lighting, detailed environments, strong readable silhouettes.",
+    "No words, captions, logos, watermark, or typography.",
+    "Core idea: " + brief,
+    sceneText
+  ].join("\n").slice(0, 7000);
+  let response;
+  if (provider === "pollinations") {
+    const token = String(process.env.POLLINATIONS_API_KEY || "").trim();
+    if (!token) throw new Error("POLLINATIONS_API_KEY is required for Pollinations Forge image generation.");
+    const model = process.env.POLLINATIONS_IMAGE_MODEL || "flux";
+    const url = "https://gen.pollinations.ai/image/" + encodeURIComponent(prompt) + "?" + new URLSearchParams({ model, width: "1080", height: "1920", nologo: "true" });
+    response = await forgeFetch(url, { headers: { Authorization: "Bearer " + token }, signal: AbortSignal.timeout(90000) });
+  } else if (provider === "huggingface") {
+    const token = String(process.env.HF_TOKEN || process.env.HUGGINGFACEHUB_API_TOKEN || "").trim();
+    if (!token) throw new Error("HF_TOKEN is required for Hugging Face Forge image generation.");
+    const configured = String(process.env.APEX_RAPID_HF_IMAGE_MODEL || "black-forest-labs/FLUX.1-dev").trim();
+    const model = /realvisxl/i.test(configured) ? "SG161222/RealVisXL_V4.0" : configured;
+    response = await forgeFetch("https://api-inference.huggingface.co/models/" + encodeURIComponent(model), {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Accept: "image/*" },
+      body: JSON.stringify({ inputs: prompt, options: { wait_for_model: true } }),
+      signal: AbortSignal.timeout(90000)
+    });
+  } else {
+    throw new Error("APEX_RAPID_IMAGE_PROVIDER must be pollinations or huggingface.");
+  }
+  if (!response.ok) throw new Error("Forge image provider returned HTTP " + response.status);
+  const contentType = String(response.headers.get("content-type") || "");
+  if (!contentType.startsWith("image/")) throw new Error("Forge image provider did not return an image.");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > 15 * 1024 * 1024) throw new Error("Forge image size is empty or exceeds 15 MiB.");
+  const directory = renderOutputDir("preview");
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const filename = "rapid_bg_" + String(orderId).replace(/[^A-Za-z0-9_-]/g, "") + (contentType.includes("png") ? ".png" : ".jpg");
+  const output = path.join(directory, filename);
+  await writeFile(output, bytes, { mode: 0o600, flag: "wx" });
+  return output;
+}
+
 async function publishVideoAsset(output, orderId, fallbackUrl) {
   if (!remoteAssetsEnabled()) return { url: fallbackUrl, storage: "filesystem-dev", sha256: null };
   try {
@@ -169,11 +216,10 @@ async function generateOracleStoryboard(brief, platform, hook, provider, model) 
   return fallback;
 }
 
-function commonVideoArgs(output, duration, vf) {
+function commonVideoArgs(output, duration, vf, backgroundImage = null) {
   return [
     "-y",
-    "-f", "lavfi",
-    "-i", `color=c=0x080809:s=1080x1920:r=30:d=${duration}`,
+    ...(backgroundImage ? ["-loop", "1", "-framerate", "30", "-i", backgroundImage] : ["-f", "lavfi", "-i", `color=c=0x080809:s=1080x1920:r=30:d=${duration}`]),
     "-f", "lavfi",
     "-i", `sine=frequency=110:sample_rate=48000:duration=${duration}`,
     "-vf", vf,
@@ -185,6 +231,7 @@ function commonVideoArgs(output, duration, vf) {
     "-c:a", "aac",
     "-b:a", "128k",
     "-movflags", "+faststart",
+    "-t", String(duration),
     output
   ];
 }
@@ -207,8 +254,10 @@ export async function executeRapidVideoPreview(payload = {}) {
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/10':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 10, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
-  try { await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf), { maxBuffer: 1024 * 1024 * 4 }); }
-  catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); throw error; }
+  const backgroundImage = await generateForgeBackground(storyboard, brief, orderId);
+  try { await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf, backgroundImage), { maxBuffer: 1024 * 1024 * 4 }); }
+  catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); if (backgroundImage) await unlink(backgroundImage).catch(() => {}); throw error; }
+  if (backgroundImage) await unlink(backgroundImage).catch(() => {});
   const asset = await publishVideoAsset(output, orderId, "/files/previews/" + encodeURIComponent(filename));
   return {
     ok: true,
@@ -254,8 +303,10 @@ export async function executeRapidVideoOrder(payload = {}) {
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/30':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 30, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
-  try { await execFileAsync("ffmpeg", commonVideoArgs(output, 30, vf), { maxBuffer: 1024 * 1024 * 4 }); }
-  catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); throw error; }
+  const backgroundImage = await generateForgeBackground(storyboard, brief, orderId);
+  try { await execFileAsync("ffmpeg", commonVideoArgs(output, 30, vf, backgroundImage), { maxBuffer: 1024 * 1024 * 4 }); }
+  catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); if (backgroundImage) await unlink(backgroundImage).catch(() => {}); throw error; }
+  if (backgroundImage) await unlink(backgroundImage).catch(() => {});
   const asset = await publishVideoAsset(output, orderId, "/files/" + encodeURIComponent(filename));
 
   return {
