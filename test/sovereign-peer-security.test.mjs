@@ -122,11 +122,23 @@ test("sovereign peer auto transport prefers native CBOR v2", async () => {
 test("sovereign peer auto transport falls back only on protocol negotiation failure", async () => {
   const calls = [];
   const response = await sendToPeerAuto({}, "address", { type: "test" }, {
-    sendCbor: async () => { calls.push("v2"); throw new Error("Protocol not supported by remote peer"); },
+    sendCbor: async () => { calls.push("v2"); throw Object.assign(new Error("Protocol selection failed: not supported by remote peer"), { code: "ERR_APEX_PROTOCOL_UNSUPPORTED" }); },
     sendLegacy: async () => { calls.push("v1"); return { accepted: true, peerId: "legacy-peer" }; }
   });
   assert.equal(response.peerId, "legacy-peer");
   assert.deepEqual(calls, ["v2", "v1"]);
+});
+
+test("sovereign peer auto transport does not downgrade on an application-level protocol rejection", async () => {
+  let legacyCalls = 0;
+  await assert.rejects(
+    sendToPeerAuto({}, "address", { type: "test" }, {
+      sendCbor: async () => { throw new Error("unsupported protocol in envelope"); },
+      sendLegacy: async () => { legacyCalls++; return { accepted: true }; }
+    }),
+    /unsupported protocol in envelope/
+  );
+  assert.equal(legacyCalls, 0);
 });
 
 test("sovereign peer auto transport never replays on an ambiguous timeout", async () => {
