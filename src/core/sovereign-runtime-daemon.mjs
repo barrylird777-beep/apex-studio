@@ -1,5 +1,6 @@
 import os from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { verifyRemoteWalProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
@@ -26,7 +27,10 @@ let peerNode;
 let edgeNode;
 let stopping = false;
 let timer;
+let cyclePromise = Promise.resolve();
+let cycleFailed = false;
 let bridge;
+const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (!envelope || !['durable.accept', 'durable.read', 'edge.heartbeat'].includes(envelope.type)) {
@@ -98,17 +102,63 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   return true;
 }
 
+async function verifyRemoteWalReadiness() {
+  if (!apexPureStore.remoteMode || apexPureStore.wal?.constructor?.name !== 'RemoteApexRingWAL') {
+    runtimeReadiness.remoteWalVerified = false;
+    return false;
+  }
+  const record = await apexPureStore.wal.append('runtime.readiness.probe', {
+    version: 1,
+    nonce: randomUUID(),
+    peerId: peerNode?.peerId?.toString() || null,
+    checkedAt: new Date().toISOString()
+  });
+  const snapshot = await apexPureStore.wal.snapshot();
+  if (!verifyRemoteWalProbe(record, snapshot)) {
+    throw new Error('RemoteApexRingWAL readiness append/readback/hash-chain verification failed');
+  }
+  runtimeReadiness.remoteWalVerified = true;
+  runtimeReadiness.remoteWalSequence = record.seq;
+  runtimeReadiness.remoteWalHash = record.hash;
+  return true;
+}
+
 async function main() {
   const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
-  if (!storageReady) return;
+  if (!storageReady || stopping) return;
+  runtimeReadiness.storageReady = true;
   await engine.ready();
+  if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
+  if (stopping) return;
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
+  if (stopping) {
+    await peerNode.stop().catch(() => {});
+    return;
+  }
   await peerNode.start();
+  if (stopping) {
+    await peerNode.stop().catch(() => {});
+    return;
+  }
+  // node.start() has resolved; verify that libp2p actually bound a listen address.
+  // The current libp2p node API does not expose an isStarted() method.
+  const peerAddresses = peerNode.getMultiaddrs?.() || [];
+  runtimeReadiness.peerReady = peerAddresses.length > 0;
+  if (!runtimeReadiness.peerReady) {
+    throw new Error('libp2p start resolved without any listen address');
+  }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
-  await publishRuntimeIdentity('online');
+  try {
+    await verifyRemoteWalReadiness();
+  } catch (error) {
+    runtimeReadiness.remoteWalVerified = false;
+    console.error('[SOVEREIGN READINESS] remote WAL probe failed; readiness remains closed', String(error?.message || error));
+  }
+  await publishRuntimeIdentity('starting');
+  if (stopping) return;
 
   edgeNode = await createApexEdgeNode({
     peerNode,
@@ -118,6 +168,11 @@ async function main() {
       error: state.error
     }))
   });
+  if (stopping) {
+    await edgeNode?.stop().catch(() => {});
+    await peerNode?.stop().catch(() => {});
+    return;
+  }
 
   bridge = createSovereignDurableBridge({
     engine,
@@ -127,6 +182,7 @@ async function main() {
     peerAddress,
     sendPeer: sendToPeer
   });
+  if (stopping) return;
 
   if (smokeTestWaveId) {
     const existingSmokeRecord = engine.get(smokeTestWaveId);
@@ -143,8 +199,16 @@ async function main() {
     }
   }
 
-  await runCycle(bridge);
-  console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
+  if (stopping) return;
+  cyclePromise = runCycle(bridge);
+  await cyclePromise;
+  if (stopping) return;
+  runtimeReadiness.dispatchReady = true;
+  await publishRuntimeIdentity('online');
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
+  console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
+    status: readinessReady ? 'online' : 'starting',
+    readiness: { ...runtimeReadiness, ready: readinessReady },
     workerId,
     peerId: peerNode.peerId.toString(),
     peerAddress: peerAddress || null,
@@ -155,8 +219,16 @@ async function main() {
     reconcileMs
   }));
 
+  if (stopping) return;
   timer = setInterval(() => {
-    if (!stopping) runCycle(bridge).catch((error) => console.error('[SOVEREIGN] cycle failed', error));
+    if (stopping) return;
+    cyclePromise = cyclePromise
+      .then(() => stopping ? undefined : runCycle(bridge))
+      .catch((error) => {
+        cycleFailed = true;
+        process.exitCode = 1;
+        console.error('[SOVEREIGN] cycle failed', String(error?.message || error));
+      });
   }, reconcileMs);
   timer.unref?.();
 }
@@ -166,19 +238,33 @@ async function publishRuntimeIdentity(status = 'online') {
   const now = Date.now();
   const peerId = peerNode.peerId.toString();
   const publicPeerAddress = buildPublicPeerAddress(peerId);
+  const readiness = {
+    ...runtimeReadiness,
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady
+  };
+  const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
-    status,
+    status: effectiveStatus,
+    instanceId: process.env.APEX_RUNTIME_INSTANCE_ID || null,
+    readiness,
     peerId,
     publicPeerAddress,
     workerId,
     listenAddresses: peerNode.getMultiaddrs().map(String),
     lastSeenAt: new Date(now).toISOString(),
     pendingPeerAcks: engine.snapshot().filter(record => record.status === 'DISPATCHED').length,
-    leaseExpiresAt: status === 'online' ? now + Math.max(30000, reconcileMs * 3) : 0
+    leaseExpiresAt: effectiveStatus === 'online' ? now + Math.max(30000, reconcileMs * 3) : 0
   });
 }
 
 async function runCycle(activeBridge) {
+  if (!runtimeReadiness.remoteWalVerified) {
+    try {
+      await verifyRemoteWalReadiness();
+    } catch (error) {
+      console.error('[SOVEREIGN READINESS] remote WAL retry failed; readiness remains closed', String(error?.message || error));
+    }
+  }
   await publishRuntimeIdentity('online');
   const queued = await drainSovereignAppDispatchQueue({
     store: apexPureStore,
@@ -208,17 +294,60 @@ async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   if (timer) clearInterval(timer);
-  console.log(`[SOVEREIGN] draining on ${signal}`);
+  const shutdownEvidence = {
+    signal,
+    finalCycleSettled: false,
+    activeCycleSucceeded: false,
+    finalReconcileComplete: false,
+    offlineIdentityCommitted: false,
+    edgeStopped: false,
+    peerStopped: false,
+    remoteWalVerified: runtimeReadiness.remoteWalVerified,
+    remoteWalSequence: runtimeReadiness.remoteWalSequence,
+    remoteWalHash: runtimeReadiness.remoteWalHash
+  };
+  console.log('[SOVEREIGN] draining', JSON.stringify(shutdownEvidence));
+  try {
+    await cyclePromise;
+    shutdownEvidence.finalCycleSettled = true;
+    shutdownEvidence.activeCycleSucceeded = !cycleFailed;
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] active cycle drain failed', String(error?.message || error));
+  }
   try {
     if (bridge) await reconcile(bridge);
+    shutdownEvidence.finalReconcileComplete = true;
+    console.log('[SOVEREIGN] final reconcile complete');
   } catch (error) {
-    console.error('[SOVEREIGN] final reconcile failed:', error);
     process.exitCode = 1;
-  } finally {
-    await publishRuntimeIdentity('offline').catch(() => {});
-    await edgeNode?.stop().catch(() => {});
-    await peerNode?.stop().catch(() => {});
+    console.error('[SOVEREIGN] final reconcile failed', String(error?.message || error));
   }
+  try {
+    await publishRuntimeIdentity('offline');
+    shutdownEvidence.offlineIdentityCommitted = true;
+    console.log('[SOVEREIGN] offline identity committed');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] offline identity commit failed', String(error?.message || error));
+  }
+  try {
+    if (edgeNode) await edgeNode.stop();
+    shutdownEvidence.edgeStopped = true;
+    console.log('[SOVEREIGN] edge stopped');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] edge shutdown failed', String(error?.message || error));
+  }
+  try {
+    if (peerNode) await peerNode.stop();
+    shutdownEvidence.peerStopped = true;
+    console.log('[SOVEREIGN] peer stopped');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] peer shutdown failed', String(error?.message || error));
+  }
+  console.log('[SOVEREIGN] shutdown evidence', JSON.stringify(shutdownEvidence));
 }
 
 process.once('SIGTERM', () => void shutdown('SIGTERM'));

@@ -16,6 +16,7 @@ import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { apexPureStore } from './src/core/apex-pure-store.mjs';
+import { isSovereignRuntimeReady } from './src/core/runtime-readiness.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -541,6 +542,41 @@ app.get('/health', (_req, res) => {
     pid: process.pid,
     memory: { rss: memory.rss, heapUsed: memory.heapUsed }
   });
+});
+
+// Readiness is separate from liveness: the sovereign runtime is a separate process
+// and publishes its verified state through the shared durable store.
+app.get('/ready', async (_req, res) => {
+  try {
+    // Deflect immediately once this HTTP process receives SIGTERM/SIGINT.
+    if (shuttingDown) {
+      return res.status(503).json({ ok: false, status: 'not-ready', reason: 'http server is draining' });
+    }
+    if (!apexPureStore.remoteMode) {
+      return res.status(503).json({ ok: false, status: 'not-ready', reason: 'remote durable storage is not enabled' });
+    }
+    const identity = await apexPureStore.get('sovereign_runtime', 'identity');
+    // Recheck after the asynchronous store read so a request already in flight
+    // cannot report 200 if shutdown began while the read was pending.
+    if (shuttingDown) {
+      return res.status(503).json({ ok: false, status: 'not-ready', reason: 'http server is draining' });
+    }
+    const ready = isSovereignRuntimeReady(identity, Date.now(), process.env.APEX_RUNTIME_INSTANCE_ID || '');
+    return res.status(ready ? 200 : 503).json({
+      ok: ready,
+      status: ready ? 'ready' : 'not-ready',
+      runtime: identity?.status || 'unknown',
+      readiness: identity?.readiness || null,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({
+      ok: false,
+      status: 'not-ready',
+      error: 'sovereign runtime readiness unavailable',
+      checkedAt: new Date().toISOString()
+    });
+  }
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -1123,6 +1159,76 @@ server.on('error', (error) => {
   };
   console.error('[apex][listen-error]', error);
 });
+
+let shuttingDown = false;
+let shutdownTimer;
+let resolveShutdownStarted;
+const shutdownStarted = new Promise(resolve => { resolveShutdownStarted = resolve; });
+let rapidInlineLoopPromise = Promise.resolve();
+
+function waitForShutdownOrDelay(ms) {
+  if (shuttingDown) return Promise.resolve();
+  let timer;
+  return Promise.race([
+    new Promise(resolve => {
+      timer = setTimeout(resolve, ms);
+      timer.unref?.();
+    }),
+    shutdownStarted
+  ]).finally(() => clearTimeout(timer));
+}
+
+function beginGracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  resolveShutdownStarted?.();
+  console.log('[apex] graceful shutdown started', JSON.stringify({ signal, drainMs: 20000 }));
+  shutdownTimer = setTimeout(() => {
+    console.error('[apex] HTTP drain deadline reached; closing remaining connections');
+    server.closeAllConnections?.();
+    process.exitCode = 1;
+  }, 20000);
+  shutdownTimer.unref?.();
+  server.close(async error => {
+    clearTimeout(shutdownTimer);
+    if (error) {
+      process.exitCode = 1;
+      console.error('[apex] HTTP drain failed', String(error?.message || error));
+      return;
+    }
+    try {
+      await rapidInlineLoopPromise;
+      console.log('[apex] inline worker loop drained');
+    } catch (workerError) {
+      process.exitCode = 1;
+      console.error('[apex] inline worker drain failed', String(workerError?.message || workerError));
+    }
+
+    // Stop every long-lived worker pool explicitly. unref() on the polling
+    // intervals prevents them alone from pinning Node, but active handlers and
+    // their network clients can still hold the event loop open.
+    const workerShutdowns = await Promise.allSettled([
+      meshWorkerSupervisor.stop(),
+      permanentWorkerSupervisor.stop(),
+      infiniteBroadcast.stop()
+    ]);
+    for (const result of workerShutdowns) {
+      if (result.status === 'rejected') {
+        process.exitCode = 1;
+        console.error('[apex] background service shutdown failed', String(result.reason?.message || result.reason));
+      }
+    }
+    console.log('[apex] background services stopped', JSON.stringify({
+      mesh: meshWorkerSupervisor.status(),
+      permanent: permanentWorkerSupervisor.status(),
+      broadcast: infiniteBroadcast.status()
+    }));
+    console.log('[apex] HTTP drain complete');
+  });
+  server.closeIdleConnections?.();
+}
+process.once('SIGTERM', () => beginGracefulShutdown('SIGTERM'));
+process.once('SIGINT', () => beginGracefulShutdown('SIGINT'));
 
 
 
@@ -3236,26 +3342,34 @@ if (durableWorkerEnabled()) {
     const roles = ['rapid-preview', 'rapid-video'];
     let dbFailureBackoffMs = 1000;
     const maxDbFailureBackoffMs = 30000;
-    while (true) {
+    while (!shuttingDown) {
       try {
         let claimedAny = false;
         for (const role of roles) {
+          if (shuttingDown) break;
           const tasks = await claimNextWorkerTasks(1, 45000, role);
           if (!tasks.length) continue;
           claimedAny = true;
+          // Finish a task already claimed before shutdown, but never claim another after the signal.
           await runInlineRapidTask(tasks[0]);
+          if (shuttingDown) break;
         }
         dbFailureBackoffMs = 1000;
-        if (!claimedAny) await new Promise(resolve => setTimeout(resolve, 1500));
+        if (!claimedAny) await waitForShutdownOrDelay(1500);
       } catch (error) {
+        if (shuttingDown) break;
         console.error('[rapid-inline-worker] poll failed; backing off:', error?.message || error);
         const jitter = Math.floor(Math.random() * Math.max(250, dbFailureBackoffMs * 0.25));
-        await new Promise(resolve => setTimeout(resolve, Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter));
+        await waitForShutdownOrDelay(Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter);
         dbFailureBackoffMs = Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs * 2);
       }
     }
   };
-  void rapidInlineLoop();
+  rapidInlineLoopPromise = rapidInlineLoop();
+  rapidInlineLoopPromise.catch(error => {
+    process.exitCode = 1;
+    console.error('[rapid-inline-worker] loop stopped with error:', error?.message || error);
+  });
 }
 
 
@@ -3432,3 +3546,4 @@ app.get('/api/engine-apex/status', async (_req, res) => {
     return res.status(503).json({ success: false, engine: 'EngineApex', state: 'unavailable', error: 'EngineApex evidence is unavailable', checkedAt: new Date().toISOString() });
   }
 });
+
