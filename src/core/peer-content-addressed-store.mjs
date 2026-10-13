@@ -399,18 +399,25 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['object.put', 'object.get', 'ref.get', 'ref.cas'].includes(operation)) throw new Error('unsupported peer storage operation');
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas'].includes(operation)) throw new Error('unsupported peer storage operation');
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
       throw new Error('peer storage namespace access denied');
+    }
+    const capacityReceipt = {
+      durable: store.durable === true,
+      ownership: store.ownership === 'peer-owned' ? 'peer-owned' : null
+    };
+    if (operation === 'storage.health') {
+      return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, ...capacityReceipt };
     }
     if (operation === 'ref.get') {
       const key = String(envelope.key || '');
       if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(key) || key.includes('..')) throw new Error('invalid peer reference key');
       const current = await store.readRef(envelope.namespace, key);
-      if (!current) return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, hash: null };
+      if (!current) return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, hash: null, ...capacityReceipt };
       const bytes = Buffer.from(current.bytes);
       if (sha256(bytes) !== current.hash) throw new Error('stored peer reference failed hash verification');
-      return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64') };
+      return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...capacityReceipt };
     }
     if (operation === 'ref.cas') {
       const key = String(envelope.key || '');
@@ -424,7 +431,7 @@ export function createPeerObjectStorageHandler({
       if (value?.namespace !== envelope.namespace || value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) throw new Error('peer reference must be a correctly namespaced encrypted envelope');
       const saved = await store.writeRef(envelope.namespace, key, envelope.expectedHash, envelope.hash, bytes);
       if (!saved || saved.hash !== envelope.hash) throw new Error('persistent peer reference did not preserve the requested value');
-      return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, hash: saved.hash };
+      return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, hash: saved.hash, ...capacityReceipt };
     }
     if (operation === 'object.put') {
       if (typeof envelope.bytesBase64 !== 'string' || !/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) {
@@ -447,7 +454,7 @@ export function createPeerObjectStorageHandler({
       }
       const localPeerId = resolvePeerId();
       if (!localPeerId) throw new Error('local peer identity is not ready');
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes, ...capacityReceipt };
     }
     if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
     const bytes = Buffer.from(await store.getBytes(envelope.hash));
@@ -459,6 +466,6 @@ export function createPeerObjectStorageHandler({
     }
     const localPeerId = resolvePeerId();
     if (!localPeerId) throw new Error('local peer identity is not ready');
-    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
+    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64'), ...capacityReceipt };
   };
 }
