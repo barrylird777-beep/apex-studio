@@ -76,6 +76,36 @@ test("remote WAL replay retries a moving snapshot without blocking concurrent ap
   assert.equal(await verified.replay(), 2, "startup must not mistake a concurrent append for a broken hash chain");
 });
 
+test("remote WAL replay returns a consistent prefix while the head keeps advancing", async () => {
+  class ChurningCAS extends MemoryCAS {
+    constructor() { super(); this.onSnapshot = null; }
+    async listRefs(ns) {
+      const snapshot = await super.listRefs(ns);
+      if (ns === "wal" && this.onSnapshot) await this.onSnapshot();
+      return snapshot;
+    }
+  }
+
+  const cas = new ChurningCAS();
+  const writer = new RemoteApexRingWAL({ cas, scope: "wal-continuous-churn", ringSize: 16 });
+  await writer.append("seed", { value: 1 });
+  let remaining = 8;
+  cas.onSnapshot = async () => {
+    if (remaining <= 0) return;
+    const value = 9 - remaining;
+    remaining -= 1;
+    await writer.append("concurrent-write", { value });
+  };
+
+  const restarting = new RemoteApexRingWAL({ cas, scope: "wal-continuous-churn", ringSize: 16 });
+  assert.equal(await restarting.replay(), 1, "replay should return the stable prefix it observed instead of failing under sustained writes");
+  assert.equal(remaining, 7, "replay should not spin through retries while writers keep advancing the head");
+
+  cas.onSnapshot = null;
+  const verified = new RemoteApexRingWAL({ cas, scope: "wal-continuous-churn", ringSize: 16 });
+  assert.equal(await verified.replay(), 2, "the next replay must observe the newer committed head");
+});
+
 test("remote WAL persists and verifies its hash chain across reinitialization without local files", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-"));
   const forbiddenRoot = path.join(parent, "must-not-be-created");
