@@ -40,3 +40,16 @@ These are useful controls. They are **not** proof that every API, app, provider,
 ## Agent rules
 
 All human and AI contributors must follow this gate. No agent may waive it, declare its own work secure, bypass required tests, or resume unrelated feature work while the gate is open. Report blockers plainly; never equate CI green, a bounded model check, or one protected endpoint with whole-system zero trust.
+
+
+## Production environment snapshot (2026-10-13; names only, no secret values read)
+
+Railway's production project inventory shows four services using this repository:
+- `apex-studio`: live API/control plane; variable names include `APEX_SHORTCUT_TOKEN`, `APEX_CONTROL_TOKEN`, `APEX_WORKER_TOKEN`, opportunity-engine tokens, and peer allowlist/bootstrap settings.
+- `apex-workers`: live worker service; variable names include `APEX_WORKER_API_URL`, `APEX_WORKER_TOKEN`, and an opportunity-scan URL/token.
+- `apex-sovereign-peer-2`: live peer service; variable names include peer identity, allowlist/bootstrap, object-storage, and WAL settings.
+- `apex-studio-foundation`: configured as a quiesced legacy service (its start command only logs that the legacy foundation is quiesced); legacy database and Stripe variable names remain present.
+
+What this establishes: the expected *names* for several trust boundaries exist. It does **not** establish that credentials are valid, correctly matched between caller and receiver, uniquely scoped, rotated, or actually used on every connection. The legacy foundation's remaining credentials need a safe retirement review. Do not fetch or print secret values to close these gaps.
+
+The live `apex-studio` deployment is still on a pre-hardening `main` commit, not this branch. Therefore none of the new route protections is yet a production control. Do not merge/deploy until CI and compatibility checks pass; after deployment, verify the exact commit and negative authorization behavior on the live service.
