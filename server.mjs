@@ -56,6 +56,7 @@ import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mj
 import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
 import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
+import { createOwnerSessionToken, hasValidOwnerSession, isOwnerAuthConfigured, ownerSessionClearCookie, ownerSessionSetCookie, verifyOwnerPassword } from './src/security/owner-session-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -106,6 +107,69 @@ app.use(express.json({
   limit: CAPACITY.jsonBody,
   type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
 }));
+
+// Require an owner session for app screens; keep customer purchase pages and APIs available.
+const publicHtmlPages = new Set(['/teevee-buyer.html', '/rapid-video.html', '/paypex.html']);
+const signInPages = new Set(['/', '/index.html']);
+const appRouteAliases = new Set(['/local-ai', '/phone', '/production', '/teevee', '/ko-blocks']);
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path.startsWith('/api/') || req.path.startsWith('/vendor/') ||
+      /\.(?:js|css|map|png|jpe?g|webp|svg|ico|woff2?|ttf|webmanifest|xml|txt)$/i.test(req.path)) return next();
+  if (signInPages.has(req.path) || publicHtmlPages.has(req.path)) return next();
+  const isAppPage = req.path.toLowerCase().endsWith('.html') || appRouteAliases.has(req.path);
+  if (!isAppPage || hasValidOwnerSession(req)) return next();
+  return res.redirect(302, '/');
+});
+
+// One owner identity for the browser experience. No username registration or second authority.
+const ownerSignInAttempts = new Map();
+const OWNER_SIGN_IN_WINDOW_MS = 15 * 60 * 1000;
+const OWNER_SIGN_IN_MAX_ATTEMPTS = 8;
+
+app.get('/api/auth/session', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const authenticated = hasValidOwnerSession(req);
+  res.json({
+    configured: isOwnerAuthConfigured(),
+    authenticated,
+    authority: authenticated ? 'owner' : null
+  });
+});
+
+app.post('/api/auth/sign-in', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!isOwnerAuthConfigured()) {
+    return res.status(503).json({
+      success: false,
+      error: 'Owner sign-in is not configured. Set APEX_OWNER_PASSWORD to a secret with at least 24 characters.'
+    });
+  }
+  const now = Date.now();
+  const clientKey = String(req.ip || req.socket?.remoteAddress || 'unknown');
+  const previous = ownerSignInAttempts.get(clientKey);
+  if (previous && now - previous.startedAt < OWNER_SIGN_IN_WINDOW_MS && previous.count >= OWNER_SIGN_IN_MAX_ATTEMPTS) {
+    res.set('Retry-After', String(Math.ceil((OWNER_SIGN_IN_WINDOW_MS - (now - previous.startedAt)) / 1000)));
+    return res.status(429).json({ success: false, error: 'Too many sign-in attempts. Wait a few minutes and try again.' });
+  }
+  const attempt = previous && now - previous.startedAt < OWNER_SIGN_IN_WINDOW_MS
+    ? previous
+    : { startedAt: now, count: 0 };
+  attempt.count += 1;
+  ownerSignInAttempts.set(clientKey, attempt);
+  if (!verifyOwnerPassword(req.body?.password)) {
+    return res.status(401).json({ success: false, error: 'That owner passphrase did not match.' });
+  }
+  ownerSignInAttempts.delete(clientKey);
+  res.setHeader('Set-Cookie', ownerSessionSetCookie(createOwnerSessionToken(), { production: productionMode }));
+  return res.json({ success: true, authenticated: true, authority: 'owner' });
+});
+
+app.post('/api/auth/sign-out', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.setHeader('Set-Cookie', ownerSessionClearCookie({ production: productionMode }));
+  return res.json({ success: true, authenticated: false });
+});
 
 function timingSafeSecret(expected, supplied) {
   if (!expected || !supplied) return false;

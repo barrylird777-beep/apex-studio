@@ -98,9 +98,38 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
   textarea{min-height:125px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+/* Single-owner access gate */
+#owner-auth-gate{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:22px;background:radial-gradient(850px 500px at 50% 0%,rgba(95,119,154,.28),transparent 65%),rgba(3,5,9,.98);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+#owner-auth-gate[hidden]{display:none}
+.owner-auth-card{width:min(440px,100%);padding:30px;border:1px solid rgba(255,255,255,.13);border-radius:24px;background:linear-gradient(145deg,rgba(24,29,39,.98),rgba(8,11,16,.98));box-shadow:0 28px 90px #0009}
+.owner-auth-mark{width:48px;height:48px;display:grid;place-items:center;border-radius:15px;background:linear-gradient(180deg,#fff,#cfd7e1);color:#080b12;font-weight:1000;font-size:22px;margin-bottom:22px}
+.owner-auth-eyebrow{font-size:10px;letter-spacing:.17em;font-weight:900;color:#aab4c3}
+.owner-auth-card h1{font-size:29px;letter-spacing:-.04em;margin:8px 0}
+.owner-auth-muted{color:var(--muted);line-height:1.6}
+.owner-auth-form{display:grid;gap:10px;margin-top:22px}
+.owner-auth-form label{font-size:11px;font-weight:800;color:#c9d0da}
+.owner-auth-form input{width:100%;padding:13px 14px;border:1px solid var(--line-strong);border-radius:13px;background:rgba(0,0,0,.35);color:var(--text)}
+.owner-auth-form button{width:100%;margin-top:3px}
+.owner-auth-status{min-height:20px;color:var(--bad);font-size:12px;line-height:1.5}
+.owner-auth-note{font-size:11px;line-height:1.6;color:var(--muted)}
+#owner-sign-out{min-height:36px;padding:7px 11px;border-radius:999px;font-size:11px}
+@media(max-width:560px){.owner-auth-card{padding:24px}.owner-auth-card h1{font-size:26px}}
 </style></head>
-<body><script src="/api-auth-bridge.js"></script>
-<header><div class="brand">PlanetApeX <span>/ APEX UNIVERSE</span></div><div id="connection" class="online">● LOCAL</div></header>
+<body><div id="owner-auth-gate" role="dialog" aria-modal="true" aria-labelledby="owner-auth-title">
+<section class="owner-auth-card">
+<div class="owner-auth-mark" aria-hidden="true">A</div>
+<p class="owner-auth-eyebrow">APEX · PRIVATE SYSTEM</p>
+<h1 id="owner-auth-title">One authority. One sign-in.</h1>
+<p class="owner-auth-muted">Private access for the system’s owner.</p>
+<form id="owner-auth-form" class="owner-auth-form" hidden>
+<label for="owner-auth-password">Owner passphrase</label>
+<input id="owner-auth-password" type="password" autocomplete="current-password" minlength="24" required>
+<button class="primary" type="submit">Sign in securely</button>
+</form>
+<p id="owner-auth-status" class="owner-auth-status" role="status" aria-live="polite">Checking sign-in…</p>
+<p class="owner-auth-note">Your passphrase is checked by the server. Sessions expire automatically and are not saved in browser storage.</p>
+</section></div><script src="/api-auth-bridge.js"></script>
+<header><div class="brand">PlanetApeX <span>/ APEX UNIVERSE</span></div><div style="display:flex;align-items:center;gap:10px"><div id="connection" class="online">● LOCAL</div><button id="owner-sign-out" class="ghost" hidden type="button">Sign out</button></div></header><script src="/owner-auth.js"></script>
 <div class="apex-surfaces" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(5,7,11,.86);position:sticky;top:64px;z-index:14">
 <a href="/" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">PlanetApeX</a>
 <a href="/ko-blocks.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);padding:7px 10px;border-radius:999px">KoBlocks</a>
