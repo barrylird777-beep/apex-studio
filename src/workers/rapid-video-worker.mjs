@@ -1,11 +1,43 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
+import { RemoteContentAddressedStore } from "../core/remote-content-addressed-store.mjs";
 
 const execFileAsync = promisify(execFile);
+
+const remoteAssetsEnabled = () => String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true";
+let remoteAssetStore;
+function assetStore() {
+  if (!remoteAssetStore) remoteAssetStore = new RemoteContentAddressedStore();
+  return remoteAssetStore;
+}
+function renderOutputDir(kind) {
+  return remoteAssetsEnabled()
+    ? path.join(tmpdir(), "apex-rapid-video")
+    : path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", kind === "preview" ? "previews" : "");
+}
+async function publishVideoAsset(output, orderId, fallbackUrl) {
+  if (!remoteAssetsEnabled()) return { url: fallbackUrl, storage: "filesystem-dev", sha256: null };
+  try {
+    const bytes = await readFile(output);
+    const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+    await assetStore().writeRef("rapid_video_assets", orderId, {
+      version: 1,
+      sha256,
+      contentType: "video/mp4",
+      sizeBytes: bytes.length,
+      base64: bytes.toString("base64"),
+      generatedAt: new Date().toISOString()
+    });
+    return { url: "/api/rapid/assets/" + encodeURIComponent(orderId), storage: "remote-cas", sha256 };
+  } finally {
+    await unlink(output).catch(() => {});
+  }
+}
 
 function cleanText(value, fallback = "") {
   return String(value ?? fallback)
@@ -162,7 +194,7 @@ export async function executeRapidVideoPreview(payload = {}) {
   const brief = cleanText(payload.brief, "Turn this idea into something people want to watch.");
   const platform = cleanText(payload.platform, "Short-form social");
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
-  const outputDir = path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "previews");
+  const outputDir = renderOutputDir("preview");
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
   const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
   const output = path.join(outputDir, filename);
@@ -174,7 +206,9 @@ export async function executeRapidVideoPreview(payload = {}) {
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/10':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 10, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
-  await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf), { maxBuffer: 1024 * 1024 * 4 });
+  try { await execFileAsync("ffmpeg", commonVideoArgs(output, 10, vf), { maxBuffer: 1024 * 1024 * 4 }); }
+  catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); throw error; }
+  const asset = await publishVideoAsset(output, orderId, "/files/previews/" + encodeURIComponent(filename));
   return {
     ok: true,
     type: "rapid-video-preview",
@@ -191,7 +225,9 @@ export async function executeRapidVideoPreview(payload = {}) {
     storyboard,
     durationSeconds: 10,
     format: "mp4",
-    url: "/files/previews/" + encodeURIComponent(filename),
+    url: asset.url,
+    assetStorage: asset.storage,
+    assetSha256: asset.sha256,
     generatedAt: new Date().toISOString()
   };
 }
@@ -204,7 +240,7 @@ export async function executeRapidVideoOrder(payload = {}) {
   const platform = cleanText(payload.platform, "Other");
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
 
-  const outputDir = process.env.STORAGE_DIR || "/srv/apex/se-x/projects";
+  const outputDir = renderOutputDir("order");
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
 
   const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
@@ -217,7 +253,9 @@ export async function executeRapidVideoOrder(payload = {}) {
   const base = `scale=1080:1920,format=yuv420p,drawbox=x=0:y=0:w=1080:h=1920:color=0x${bg}:t=fill,`;
   const progress = `drawbox=x=70:y=120:w='940*t/30':h=5:color=0x${accent}:t=fill`;
   const vf = base + buildSceneFilters(scenes, 30, [bg, accent, warm]) + "," + progress + ",vignette=PI/5";
-  await execFileAsync("ffmpeg", commonVideoArgs(output, 30, vf), { maxBuffer: 1024 * 1024 * 4 });
+  try { await execFileAsync("ffmpeg", commonVideoArgs(output, 30, vf), { maxBuffer: 1024 * 1024 * 4 }); }
+  catch (error) { if (remoteAssetsEnabled()) await unlink(output).catch(() => {}); throw error; }
+  const asset = await publishVideoAsset(output, orderId, "/files/" + encodeURIComponent(filename));
 
   return {
     ok: true,
@@ -236,7 +274,9 @@ export async function executeRapidVideoOrder(payload = {}) {
     storyboard,
     durationSeconds: 30,
     format: "mp4",
-    url: "/files/" + encodeURIComponent(filename),
+    url: asset.url,
+    assetStorage: asset.storage,
+    assetSha256: asset.sha256,
     generatedAt: new Date().toISOString()
   };
 }
