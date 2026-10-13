@@ -11,8 +11,11 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function memoryStore() {
   const objects = new Map();
+  const refs = new Map();
+  const refKey = (namespace, key) => namespace + '\\0' + key;
   return {
     objects,
+    refs,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (digest(bytes) !== hash) throw new Error('memory peer store hash mismatch');
@@ -22,6 +25,21 @@ function memoryStore() {
     async getBytes(hash) {
       if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
       return Buffer.from(objects.get(hash));
+    },
+    async readRef(namespace, key) {
+      const record = refs.get(refKey(namespace, key));
+      return record ? { hash: record.hash, bytes: Buffer.from(record.bytes) } : null;
+    },
+    async writeRef(namespace, key, expectedHash, hash, input) {
+      const id = refKey(namespace, key);
+      const current = refs.get(id);
+      if ((current?.hash ?? null) !== expectedHash) {
+        throw Object.assign(new Error('reference compare-and-swap mismatch'), { code: 'CAS_MISMATCH' });
+      }
+      const bytes = Buffer.from(input);
+      if (digest(bytes) !== hash) throw new Error('memory peer reference hash mismatch');
+      refs.set(id, { hash, bytes: Buffer.from(bytes) });
+      return { hash };
     }
   };
 }
