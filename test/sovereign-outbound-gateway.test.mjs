@@ -126,7 +126,7 @@ test("production AI egress entry points use the outbound security gateway", asyn
   }
   for (const path of ["routes/bard.mjs", "routes/forge.mjs", "routes/oracle.mjs"]) {
     const source = await readFile(new URL("../" + path, import.meta.url), "utf8");
-    assert.doesNotMatch(source, /await\\s+fetch\\s*\\(/, path + " contains an unguarded direct fetch");
+    assert.doesNotMatch(source, /await\s+fetch\s*\(/, path + " contains an unguarded direct fetch");
   }
 });
 
