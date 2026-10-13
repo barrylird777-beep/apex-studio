@@ -125,14 +125,24 @@ async function verifyRemoteWalReadiness() {
 
 async function main() {
   const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
-  if (!storageReady) return;
+  if (!storageReady || stopping) return;
   runtimeReadiness.storageReady = true;
   await engine.ready();
+  if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
+  if (stopping) return;
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
+  if (stopping) {
+    await peerNode.stop().catch(() => {});
+    return;
+  }
   await peerNode.start();
+  if (stopping) {
+    await peerNode.stop().catch(() => {});
+    return;
+  }
   // node.start() has resolved; verify that libp2p actually bound a listen address.
   // The current libp2p node API does not expose an isStarted() method.
   const peerAddresses = peerNode.getMultiaddrs?.() || [];
@@ -148,6 +158,7 @@ async function main() {
     console.error('[SOVEREIGN READINESS] remote WAL probe failed; readiness remains closed', String(error?.message || error));
   }
   await publishRuntimeIdentity('starting');
+  if (stopping) return;
 
   edgeNode = await createApexEdgeNode({
     peerNode,
@@ -157,6 +168,11 @@ async function main() {
       error: state.error
     }))
   });
+  if (stopping) {
+    await edgeNode?.stop().catch(() => {});
+    await peerNode?.stop().catch(() => {});
+    return;
+  }
 
   bridge = createSovereignDurableBridge({
     engine,
@@ -166,6 +182,7 @@ async function main() {
     peerAddress,
     sendPeer: sendToPeer
   });
+  if (stopping) return;
 
   if (smokeTestWaveId) {
     const existingSmokeRecord = engine.get(smokeTestWaveId);
@@ -182,7 +199,10 @@ async function main() {
     }
   }
 
-  await runCycle(bridge);
+  if (stopping) return;
+  cyclePromise = runCycle(bridge);
+  await cyclePromise;
+  if (stopping) return;
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
   const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
@@ -199,6 +219,7 @@ async function main() {
     reconcileMs
   }));
 
+  if (stopping) return;
   timer = setInterval(() => {
     if (stopping) return;
     cyclePromise = cyclePromise
