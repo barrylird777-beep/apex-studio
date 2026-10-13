@@ -37,7 +37,7 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
       throw new TypeError('minFailureDomains must be between one and replicaCount');
     }
-    if (this.minFailureDomains >= 1) {
+    if (this.minFailureDomains > 1) {
       for (const peerId of this.peers) {
         if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains is positive');
       }
@@ -109,7 +109,7 @@ export class PeerContentAddressedStore {
         if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace) {
           throw new Error('peer returned an invalid or cross-namespace durability receipt');
         }
-        receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
+        receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null) });
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
