@@ -1,6 +1,11 @@
 name: Deploy optional APEX multi-protocol edge
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "cloudflare-http3-worker/**"
+      - ".github/workflows/deploy-http3-edge.yml"
   workflow_dispatch:
 
 permissions:
