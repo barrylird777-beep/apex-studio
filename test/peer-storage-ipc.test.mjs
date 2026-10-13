@@ -9,7 +9,7 @@ test('peer storage IPC uses authenticated binary CBOR for media calls', async ()
   const token = randomBytes(32).toString('base64url');
   const saved = new Map();
   const mediaStore = {
-    apps,
+    apps: ['KernelVision'],
     async saveAsset(app, projectId, assetId, bytes, options) {
       const key = [app, projectId, assetId].join(':');
       const record = { app, projectId, assetId, bytes: bytes.length, contentType: options.contentType };
@@ -25,10 +25,10 @@ test('peer storage IPC uses authenticated binary CBOR for media calls', async ()
   const bridge = createPeerStorageIpcServer({ mediaStore, token, port: 0 });
   const address = await bridge.listen();
   try {
-    const client = createPeerStorageIpcClient({ token, port: address.port });
+    const client = createPeerStorageIpcClient({ token, port: address.port, appId: 'KernelVision' });
     const readiness = await client.waitUntilReady({ timeoutMs: 2000 });
     assert.equal(readiness.ready, true);
-    assert.equal(readiness.apps.length, 6);
+    assert.deepEqual(readiness.apps, ['KernelVision']);
     const bytes = Buffer.from([0, 1, 2, 255, 128, 10]);
     const record = await client.saveAsset('KernelVision', 'project-a', 'asset-a', bytes, { contentType: 'video/mp4', metadata: { title: 'test' } });
     assert.equal(record.bytes, bytes.length);
