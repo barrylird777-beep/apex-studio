@@ -4,15 +4,15 @@
 Review Apex ecosystem changes independently. Find reproducible defects before merge; do not generate noise or certify untested work.
 
 ## Canon
-- Six apps: PlanetApeX, XShield, KernelVision, KoinKob, KashKorner, Kernelodies. KoBlocks is a reusable workflow capability, not a canonical app.
-- GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX, not a separate app.
+- Exactly six canonical apps: PlanetApeX, XShield, KernelVision, KoinKob, KashKorner, Kernelodies. KoBlocks is a reusable workflow capability, not a canonical app.
+- GardenApex is the living Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX. GardenOfApex is historical/absorbed, not a seventh app.
 - Preserve names, app boundaries, data, and historical capabilities.
-- **Pure-WAL / Ring-WAL is the sovereign storage direction. Do not restore PostgreSQL or introduce SQL/SQLite runtime dependencies.** Legacy database code must be checked for active reachability before retirement.
+- Storage target: no WAL, no local disk as the system of record, no PostgreSQL, and no persisted JSON records. Prefer authenticated remote CAS/peer-backed storage with per-app isolation. Existing local/remote WAL and JSON-backed CAS code remains legacy implementation until removed and tested; do not claim the target is complete merely because a readiness probe passes.
 
 ## Review priority
 1. Runtime correctness and production failures.
 2. Authentication, peer identity, allowlists, input validation, and secret handling.
-3. Pure-WAL durability: atomicity, fsync, hash-chain integrity, recovery, corruption resistance, path confinement, and concurrent writers.
+3. Removal of WAL and local-persistence fallbacks; non-JSON persistence; remote durability, integrity, and recovery.
 4. Worker leases, retries, fencing, shutdown, and idempotent external side effects.
 5. Real cross-app handoffs and authenticated peer acknowledgements.
 6. iPhone controls, accessibility, and accurate network status.
