@@ -13,8 +13,10 @@ import { identify } from '@libp2p/identify';
 import { createPeerSecurityGuard } from './sovereign-peer-security.mjs';
 import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
+import { encodeSovereignCborFrame, decodeSovereignCborPayload } from './sovereign-peer-cbor-frame.mjs';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
+const CBOR_PROTOCOL = '/apex/sovereign/2.0.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
@@ -247,6 +249,73 @@ async function sendSovereignEnvelope(stream, envelope) {
   });
 }
 
+
+async function readSovereignCborEnvelope(stream) {
+  const reader = readerFor(stream);
+  const deadline = Date.now() + Math.max(1, Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
+  reader.binaryBuffer ||= Buffer.alloc(0);
+  async function nextChunk() {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error('sovereign peer CBOR envelope timed out');
+    reader.pending ||= reader.iterator.next();
+    let timer;
+    let result;
+    try {
+      result = await Promise.race([
+        reader.pending,
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('sovereign peer CBOR envelope timed out')), remaining); })
+      ]);
+    } finally { clearTimeout(timer); }
+    if (result) reader.pending = null;
+    if (!result || result.done) throw new Error('sovereign peer stream closed before a CBOR envelope arrived');
+    const chunk = result.value;
+    const bytes = typeof chunk?.subarray === 'function' ? chunk.subarray() : chunk;
+    const payload = Buffer.from(bytes);
+    reader.bytesRead += payload.length;
+    if (reader.bytesRead > MAX_ENVELOPE_BYTES + 4) throw new Error('sovereign peer CBOR envelope exceeds size limit');
+    reader.binaryBuffer = Buffer.concat([reader.binaryBuffer, payload]);
+  }
+  while (reader.binaryBuffer.length < 4) await nextChunk();
+  const length = reader.binaryBuffer.readUInt32BE(0);
+  if (length < 1 || length > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer CBOR frame length is invalid');
+  while (reader.binaryBuffer.length < length + 4) await nextChunk();
+  const payload = reader.binaryBuffer.subarray(4, length + 4);
+  reader.binaryBuffer = reader.binaryBuffer.subarray(length + 4);
+  const envelope = decodeSovereignCborPayload(payload, { maxBytes: MAX_ENVELOPE_BYTES });
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new Error('sovereign peer CBOR envelope must be a map');
+  }
+  return envelope;
+}
+
+async function sendSovereignCborEnvelope(stream, envelope) {
+  const frame = encodeSovereignCborFrame(envelope, { maxBytes: MAX_ENVELOPE_BYTES });
+  if (typeof stream?.send !== 'function') {
+    if (typeof stream?.sink === 'function') return stream.sink([frame]);
+    throw new TypeError('unsupported sovereign peer stream write interface');
+  }
+  const timeoutMs = Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000);
+  const accepted = stream.send(frame);
+  if (typeof stream.onDrain === 'function') {
+    await stream.onDrain({ signal: AbortSignal.timeout(timeoutMs) });
+    return;
+  }
+  if (accepted !== false) return;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => cleanup(new Error('sovereign peer CBOR stream write timed out')), timeoutMs);
+    const cleanup = error => {
+      clearTimeout(timer);
+      stream.removeEventListener?.('drain', onDrain);
+      stream.removeEventListener?.('close', onClose);
+      if (error) reject(error); else resolve();
+    };
+    const onDrain = () => cleanup();
+    const onClose = () => cleanup(new Error('sovereign peer CBOR stream closed while backpressured'));
+    stream.addEventListener('drain', onDrain, { once: true });
+    stream.addEventListener('close', onClose, { once: true });
+  });
+}
+
 export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE } = {}) {
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const ingressGuard = createPeerIngressGuard({
@@ -333,6 +402,55 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
       try { await stream.close?.(); } catch {}
     }
   });
+  node.handle(CBOR_PROTOCOL, async (streamOrContext, maybeConnection) => {
+    const contextForm = streamOrContext && typeof streamOrContext === 'object' && 'stream' in streamOrContext;
+    const stream = contextForm ? streamOrContext.stream : streamOrContext;
+    const connection = contextForm ? streamOrContext.connection : maybeConnection;
+    if (!stream || typeof stream !== 'object') throw new TypeError('libp2p handler did not provide a stream');
+    // Attach the message listener immediately. EventTarget does not replay
+    // messages emitted before a listener is registered, so pausing first can
+    // lose the first envelope during fast cross-region handshakes.
+    readerFor(stream);
+    let ingressPermit;
+    try {
+      const remotePeerId = connection?.remotePeer?.toString?.() || '';
+      console.info('[SOVEREIGN PEER] inbound stream opened', JSON.stringify({ remotePeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null }));
+      if (!isAllowedPeer(remotePeerId)) {
+        await sendSovereignCborEnvelope(stream, { accepted: false, error: 'peer is not allowlisted' });
+        return;
+      }
+      ingressPermit = ingressGuard.acquire(remotePeerId);
+      if (!ingressPermit.ok) {
+        console.warn('[SOVEREIGN PEER] inbound request throttled', JSON.stringify({ remotePeerId, reason: ingressPermit.reason }));
+        await sendSovereignCborEnvelope(stream, { accepted: false, error: 'peer request limit reached' });
+        return;
+      }
+      const envelope = await readSovereignCborEnvelope(stream);
+      const admission = peerSecurity.admit(remotePeerId, envelope);
+      if (!admission.allowed) {
+        await sendSovereignCborEnvelope(stream, { accepted: false, error: admission.reason });
+        return;
+      }
+      const outcome = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
+      const response = outcome && typeof outcome === 'object' && !Array.isArray(outcome)
+        ? { ...outcome, peerId: node.peerId.toString() }
+        : { accepted: Boolean(outcome), peerId: node.peerId.toString() };
+      await sendSovereignCborEnvelope(stream, response);
+    } catch (error) {
+      console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+        remotePeerId: connection?.remotePeer?.toString?.() || ''
+      }));
+      await sendSovereignCborEnvelope(stream, { accepted: false, error: 'peer request rejected' }).catch(() => {});
+    } finally {
+      // A libp2p v3 handler returning with its stream still open can cause the
+      // muxer to reset the stream instead of completing the request/ACK exchange.
+      // Close only after the response writer has drained; callers already have
+      // the complete length-prefixed CBOR response before this graceful close.
+      ingressPermit?.release();
+      try { await stream.close?.(); } catch {}
+    }
+  });
   return node;
 }
 
@@ -394,7 +512,80 @@ export async function sendToPeer(node, multiaddr, envelope) {
   }
   throw new Error('sovereign peer send failed after transport retry');
 }
-export { PROTOCOL };
+export async function sendToPeerCbor(node, multiaddr, envelope) {
+  const address = String(multiaddr || '');
+  const match = address.match(/\/p2p\/([^/]+)$/);
+  const destinationPeerId = match?.[1] || '';
+  if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) {
+    throw new Error('outgoing sovereign peer is not allowlisted');
+  }
+  const localPeerId = node?.peerId?.toString?.() || '';
+  if (localPeerId && destinationPeerId === localPeerId) {
+    throw new Error('outgoing sovereign peer cannot dial itself');
+  }
+  const admission = outboundPeerSecurity.admit(destinationPeerId, envelope);
+  if (!admission.allowed) throw new Error(admission.reason);
+  const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
+  // Retry only transport failures on a fresh stream; never retry peer rejection.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let stream;
+    try {
+      console.info('[HEARTBEAT_DIAL_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, attempt: attempt + 1 }));
+      stream = await node.dialProtocol(target, CBOR_PROTOCOL, {
+        signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
+      });
+      console.info('[HEARTBEAT_DIAL_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      console.info('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      // Attach the reader before writing so event-based streams cannot lose a fast ACK,
+      // but do not await the response until the complete envelope has drained.
+      // This preserves incoming bytes that arrive during the write without racing read/write.
+      readerFor(stream);
+      console.info('[HEARTBEAT_WRITE_START]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      await sendSovereignCborEnvelope(stream, envelope);
+      console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
+      const response = await readSovereignCborEnvelope(stream);
+      if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
+      if (response.peerId !== destinationPeerId) throw new Error('sovereign peer response identity mismatch');
+      console.log('[SOVEREIGN PEER] outbound acknowledged', JSON.stringify({ destinationPeerId, remotePeerId: response.peerId || null, attempt: attempt + 1 }));
+      return response;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[SOVEREIGN PEER] outbound stream failed', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1, error: message }));
+      const transportFailure = /stream (?:has been reset|is closed|closed)|Cannot write to a stream that is closed|timed out|connection reset|ECONNRESET|EPIPE/i.test(message);
+      if (!transportFailure || attempt === 1) throw error;
+      console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ destinationPeerId, attempt: attempt + 1, error: message }));
+    } finally {
+      console.info('[HEARTBEAT_CLOSE_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1 }));
+      try { await stream?.close?.(); } catch (closeError) {
+        console.warn('[HEARTBEAT_CLOSE_FAILED]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, error: closeError instanceof Error ? closeError.message : String(closeError), attempt: attempt + 1 }));
+      }
+    }
+  }
+  throw new Error('sovereign peer CBOR send failed after transport retry');
+}
+
+/**
+ * Prefer the binary CBOR peer protocol. Fall back only when negotiation says
+ * the remote peer does not implement v2; never replay a request after a timeout,
+ * rejection, or ambiguous delivery failure.
+ */
+export async function sendToPeerAuto(node, multiaddr, envelope, {
+  sendCbor = sendToPeerCbor,
+  sendLegacy = sendToPeer
+} = {}) {
+  try {
+    return await sendCbor(node, multiaddr, envelope);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const protocolUnavailable = /protocol.*(?:not supported|unsupported|not found|no handler|not registered|selection failed)|no protocol handler/i.test(message);
+    if (!protocolUnavailable) throw error;
+    console.warn('[SOVEREIGN PEER] remote lacks CBOR v2; using authenticated v1 compatibility protocol');
+    return sendLegacy(node, multiaddr, envelope);
+  }
+}
+
+export { PROTOCOL, CBOR_PROTOCOL };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const node = await startSovereignPeer({
