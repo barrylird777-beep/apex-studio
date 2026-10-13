@@ -212,11 +212,21 @@ export class ApexPureStore {
     if(this.remoteQueueIndexPromise&&!force)return this.remoteQueueIndexPromise;
     this.remoteQueueIndexPromise=(async()=>{
       const markerKey="job-index-v3";
-      // Reconcile the queue indexes from durable job records on each process's
-      // first queue use. A prior marker cannot prove the previous process did
-      // not crash between writing a job and updating its queue index.
+      // The current writer maintains queue/running indexes before committing
+      // the corresponding job state, so ordinary process startup does not need
+      // to serialize a full jobs-namespace scan. Explicit force=true remains
+      // available for repairing legacy index gaps.
+      const existingMarker=await this.cas.readRef("system",markerKey);
+      if(!force&&Number(existingMarker?.value?.version)>=2){
+        this.remoteQueueIndexReady=true;
+        return {ready:true,indexed:0,version:Number(existingMarker.value.version),reconciled:false};
+      }
       const result=await this.withRemoteLock("job-index-v3-migration-lock",async()=>{
         const marker=await this.cas.readRef("system",markerKey);
+        if(!force&&Number(marker?.value?.version)>=2){
+          this.remoteQueueIndexReady=true;
+          return {ready:true,indexed:0,version:Number(marker.value.version),reconciled:false};
+        }
         let indexed=0;
         const refs=await this.cas.listRefs("jobs");
         const dedupeRecords=new Map();
@@ -295,6 +305,18 @@ export class ApexPureStore {
       return clone(effectiveJob);
     }
     const key=this.refKey("job",effectiveJob.id);
+    // Publish the searchable index before committing queued/running state. If a
+    // process dies between these writes, readers revalidate the job record and
+    // discard the stale index; a committed active job cannot be left unindexed.
+    if(effectiveJob.status==="queued"){
+      const value={id:String(effectiveJob.id),runAt:Number(effectiveJob.runAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||"")};
+      const current=await this.cas.readRef("queue",key);
+      if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+    }else if(effectiveJob.status==="running"){
+      const value={id:String(effectiveJob.id),leaseExpiresAt:Number(effectiveJob.leaseExpiresAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||"")};
+      const current=await this.cas.readRef("running",key);
+      if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:current?.hash??null});
+    }
     let persisted=false;
     for(let attempt=0;attempt<8;attempt++){
       const current=await this.cas.readRef("jobs",key);
@@ -510,12 +532,15 @@ export class ApexPureStore {
   jobs(){return [...this.jobsState.values()].map(clone);}
   async claim({workerId="local",limit=1,leaseMs=45000,role=null,onlyId=null}={}){
     if(this.remoteMode)await this.ensureRemoteQueueIndex();
+    // Listing the remote queue can require many object-store reads. Do it before
+    // acquiring the global mutation lease; each candidate is revalidated under
+    // the lease below, so a stale snapshot cannot claim a job twice.
+    const indexedQueueRefs=this.remoteMode?await this.cas.listRefs("queue"):null;
     const run=()=>this.withMutationLock(async()=>{
       const now=Date.now(),out=[];
       let candidates;
       if(this.remoteMode){
-        const indexed=await this.cas.listRefs("queue");
-        candidates=indexed.map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value})).filter(item=>
+        candidates=indexedQueueRefs.map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value})).filter(item=>
           item.index&&Number(item.index.runAt||0)<=now&&
           (onlyId==null||String(item.index.id)===String(onlyId))&&
           (role?item.index.role===role:item.index.role!=="sovereign-runtime")
@@ -534,6 +559,8 @@ export class ApexPureStore {
             await this.cas.deleteRef("queue",candidate.indexKey,{expectedHash:candidate.indexHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")throw error;});
             continue;
           }
+          const currentRole=String(current.payload?._apex_worker?.role||"");
+          if(role?currentRole!==role:currentRole==="sovereign-runtime")continue;
           this.jobsState.set(String(current.id),clone(current));
         }else{
           current=this.jobsState.get(String(candidate.id));
@@ -570,11 +597,13 @@ export class ApexPureStore {
     });
   }
   async recoverExpired(limit=25){
+    // The running-index scan is also remote I/O. Snapshot it outside the global
+    // mutation lease, then re-read each job under the lease before changing it.
+    const runningIndexRefs=this.remoteMode?await this.cas.listRefs("running"):null;
     return this.withMutationLock(async()=>{
       let candidates;
       if(this.remoteMode){
-        const refs=await this.cas.listRefs("running");
-        candidates=refs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
+        candidates=runningIndexRefs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
       }else{
         await this.refreshJobs();
         candidates=[...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<Date.now()).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(job=>({index:job}));
