@@ -155,8 +155,6 @@ async function main() {
     });
     const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
     peerStorageIpc = createPeerStorageIpcServer({ mediaStore: peerStorageAssembly.mediaStore, token });
-    const address = await peerStorageIpc.listen();
-    console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({ enabled: true, host: address.address, port: address.port, protocol: 'binary-cbor-loopback', auth: 'shared-secret', apps: peerStorageAssembly.mediaStore.apps }));
   } else {
     peerStorageRuntime = await initializePeerObjectStorage({ enabled: false, peerId: () => peerNode?.peerId?.toString?.() || '' });
   }
@@ -180,6 +178,10 @@ async function main() {
     throw new Error('libp2p start resolved without any listen address');
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+  if (peerStorageIpc) {
+    const address = await peerStorageIpc.listen();
+    console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({ enabled: true, host: address.address, port: address.port, protocol: 'binary-cbor-loopback', auth: 'shared-secret', apps: peerStorageAssembly.mediaStore.apps }));
+  }
   try {
     await verifyRemoteWalReadiness();
   } catch (error) {
