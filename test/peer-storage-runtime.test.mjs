@@ -6,8 +6,9 @@ import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mj
 
 function binaryMemoryStore() {
   const objects = new Map();
+  const refs = new Map();
   return {
-    objects,
+    objects, refs,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('hash mismatch');
@@ -17,6 +18,19 @@ function binaryMemoryStore() {
     async getBytes(hash) {
       if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
       return Buffer.from(objects.get(hash));
+    },
+    async readRef(namespace, key) {
+      const value = refs.get(namespace + ':' + key);
+      return value ? { hash: value.hash, bytes: Buffer.from(value.bytes) } : null;
+    },
+    async writeRef(namespace, key, expectedHash, hash, input) {
+      const id = namespace + ':' + key;
+      const current = refs.get(id);
+      if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('CAS mismatch'), { code: 'CAS_CONFLICT' });
+      const bytes = Buffer.from(input);
+      if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('reference hash mismatch');
+      refs.set(id, { hash, bytes });
+      return { hash };
     }
   };
 }
@@ -69,4 +83,25 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     runtime.handle({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'PlanetApeX', hash: receipt.hash }, { remotePeerId: 'unlisted-peer' }),
     /namespace access denied/
   );
+});
+
+
+test('peer object storage provides encrypted atomic references with compare-and-swap', async () => {
+  const store = binaryMemoryStore();
+  const runtime = await initializePeerObjectStorage({
+    enabled: true, store, namespaceAcl: 'PlanetApeX=writer-peer', peerId: () => 'storage-peer'
+  });
+  const client = new PeerContentAddressedStore({
+    transport: { request: async (_peerId, envelope) => runtime.handle(envelope, { remotePeerId: 'writer-peer' }) },
+    peers: ['storage-peer'], replicaCount: 1, namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 19)
+  });
+  assert.equal(await client.readRef('project-1'), null);
+  const saved = await client.writeRef('project-1', { title: 'private project' }, { expectedHash: null });
+  assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
+  await assert.rejects(
+    client.writeRef('project-1', { title: 'stale overwrite' }, { expectedHash: null }),
+    error => error.code === 'INSUFFICIENT_REPLICAS'
+  );
+  assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
+  assert.equal(saved.replicas[0], 'storage-peer');
 });
