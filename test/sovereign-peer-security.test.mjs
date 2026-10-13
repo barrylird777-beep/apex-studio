@@ -65,6 +65,22 @@ test("outgoing sovereign transport refuses a peer outside the allowlist", async 
   }
 });
 
+test("outgoing sovereign transport refuses to dial its own peer identity", async () => {
+  const previous = process.env.APEX_ALLOWED_PEER_IDS;
+  process.env.APEX_ALLOWED_PEER_IDS = "self-peer";
+  let dialed = false;
+  try {
+    await assert.rejects(sendToPeer({
+      peerId: { toString: () => "self-peer" },
+      async dialProtocol() { dialed = true; throw new Error("should not dial itself"); }
+    }, "/ip4/127.0.0.1/tcp/1234/p2p/self-peer", { type: "test" }), /cannot dial itself/);
+    assert.equal(dialed, false);
+  } finally {
+    if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = previous;
+  }
+});
+
 test("outgoing sovereign transport accepts an explicitly allowlisted peer", async () => {
   const previous = process.env.APEX_ALLOWED_PEER_IDS;
   process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";

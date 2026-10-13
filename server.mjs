@@ -212,7 +212,7 @@ app.get('/api/search', async (req, res) => {
 });
 
 
-app.get('/api/workforce/status', (_req, res) => {
+app.get('/api/workforce/status', requireControlPlaneAuth, (_req, res) => {
   res.status(200).json({
     success: true,
     workforce: massiveAiWorkforce.status(),
@@ -1746,7 +1746,7 @@ app.get("/api/music-radar/status", async (_req, res) => {
   res.json(await musicRadarBridge.status());
 });
 
-app.post("/api/music-radar/handoff", requireControlPlaneAuth, async (req, res) => {
+app.post('/api/music-radar/handoff', requireControlPlaneAuth, async (req, res) => {
   try {
     res.json(await musicRadarBridge.handoff(req.body || {}));
   } catch {

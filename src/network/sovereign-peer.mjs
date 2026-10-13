@@ -316,6 +316,10 @@ export async function sendToPeer(node, multiaddr, envelope) {
   if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) {
     throw new Error('outgoing sovereign peer is not allowlisted');
   }
+  const localPeerId = node?.peerId?.toString?.() || '';
+  if (localPeerId && destinationPeerId === localPeerId) {
+    throw new Error('outgoing sovereign peer cannot dial itself');
+  }
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
   // Retry only transport failures on a fresh stream; never retry peer rejection.
   for (let attempt = 0; attempt < 2; attempt++) {
