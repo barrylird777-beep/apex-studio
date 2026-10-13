@@ -86,8 +86,7 @@ const apps: ApexApp[] = [
 export default function SixAppHub() {
   const [activeKey, setActiveKey] = useState<AppKey>("kernelvision");
   const [query, setQuery] = useState("");
-  const [showAll, setShowAll] = useState(true);
-  const active = apps.find((app) => app.key === activeKey) ?? apps[0];
+  const active = visibleApps.find((app) => app.key === activeKey) ?? visibleApps[0] ?? apps.find((app) => app.key === activeKey) ?? apps[0];
   const visibleApps = useMemo(() => {
     const q = query.trim().toLowerCase();
     return apps.filter((app) => !q || [app.name, app.role, app.tagline, app.description, ...app.features].join(" ").toLowerCase().includes(q));
@@ -101,7 +100,7 @@ export default function SixAppHub() {
           <div className="apex-hub-mark"><Sparkles size={20} aria-hidden="true" /></div>
           <div><span className="apex-hub-eyebrow">APEX ANCHOR</span><strong>Six-app command deck</strong></div>
         </div>
-        <div className="apex-hub-header-right"><span className="apex-hub-live-dot" /> Canonical app set <span className="apex-hub-count">06</span></div>
+        <div className="apex-hub-header-right"><span className="apex-hub-live-dot" aria-hidden="true" /> Six canonical apps <span className="apex-hub-count">06</span></div>
       </header>
 
       <main className="apex-hub-main">
@@ -123,7 +122,7 @@ export default function SixAppHub() {
               {visibleApps.map((app, index) => {
                 const Icon = app.icon;
                 const selected = app.key === activeKey;
-                return <button type="button" key={app.key} className={`apex-hub-app-card ${selected ? "is-selected" : ""} accent-${app.accent}`} onClick={() => { setActiveKey(app.key); setShowAll(false); }} aria-pressed={selected}>
+                return <button type="button" key={app.key} className={`apex-hub-app-card ${selected ? "is-selected" : ""} accent-${app.accent}`} onClick={() => setActiveKey(app.key)} aria-pressed={selected}>
                   <span className="apex-hub-app-icon"><Icon size={21} strokeWidth={1.8} /></span>
                   <span className="apex-hub-app-copy"><span className="apex-hub-app-role">{app.role}</span><strong>{app.name}</strong><small>{app.tagline}</small></span>
                   <span className="apex-hub-app-index">0{index + 1}</span>
@@ -153,7 +152,7 @@ export default function SixAppHub() {
           <div><div className="apex-hub-bottom-icon"><AudioLines size={19} /></div><span><strong>Kernelodies</strong><small>Listening, discovery, and music culture.</small></span></div>
           <div><div className="apex-hub-bottom-icon"><CircleDollarSign size={19} /></div><span><strong>KashKorner</strong><small>Financial tools and data opportunities.</small></span></div>
         </section>
-        <footer className="apex-hub-footer"><span>APEX ANCHOR / SIX CANONICAL APPS</span><button type="button" onClick={() => { setActiveKey("kernelvision"); setQuery(""); setShowAll(true); }}>Reset app selector</button><span>Built for small screens first</span></footer>
+        <footer className="apex-hub-footer"><span>APEX ANCHOR / SIX CANONICAL APPS</span><button type="button" onClick={() => { setActiveKey("kernelvision"); setQuery(""); }}>Reset app selector</button><span>Built for small screens first</span></footer>
       </main>
     </div>
   );
