@@ -69,3 +69,14 @@ test("development HTTP requests are not redirected", () => {
   createHttpsOnlyRedirect({ production: false })({ headers: { "x-forwarded-proto": "http" } }, {}, () => { continued = true; });
   assert.equal(continued, true);
 });
+
+
+test("production remains provider-neutral when canonical HTTPS hosts are not configured", () => {
+  let continued = false;
+  createHttpsOnlyRedirect({ production: true })(
+    { headers: { "x-forwarded-proto": "http", host: "apex.example" }, originalUrl: "/health" },
+    {},
+    () => { continued = true; }
+  );
+  assert.equal(continued, true);
+});

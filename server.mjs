@@ -39,6 +39,7 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
 import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { createOwnerSessionCsrfGuard } from './src/security/owner-session-csrf.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -70,11 +71,11 @@ const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase()
 
 app.disable('x-powered-by');
 app.use(createApexSecurityHeaders({ production: productionMode }));
-// Railway terminates public TLS at its edge. Reject public cleartext HTTP by redirecting
-// only the configured canonical host; leave internal health checks without forwarded-proto alone.
+// Public TLS may terminate at an operator-controlled edge. Configure canonical hosts explicitly
+// when Apex itself should redirect them; never bake a hosting provider's hostname into the app.
 app.use(createHttpsOnlyRedirect({
   production: productionMode,
-  publicHosts: String(process.env.APEX_HTTPS_PUBLIC_HOSTS || 'apex-studio-production.up.railway.app')
+  publicHosts: String(process.env.APEX_HTTPS_PUBLIC_HOSTS || '')
     .split(',')
     .map(value => value.trim().toLowerCase())
     .filter(Boolean)
@@ -102,6 +103,13 @@ app.use(cors({
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id', 'X-Apex-Worker-Token'],
   maxAge: 600
+}));
+
+// Defense-in-depth CSRF guard for cookie-authenticated owner mutations.
+// Token-authenticated clients continue through their route-specific authorization guards.
+app.use(createOwnerSessionCsrfGuard({
+  allowedOrigins: corsOrigins,
+  hasValidOwnerSession
 }));
 
 const shieldApex = createShieldApex({

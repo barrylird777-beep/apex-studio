@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 const store = new RemoteContentAddressedStore();
 const namespace = "system";
-const serviceScope = String(process.env.RAILWAY_SERVICE_NAME || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
+const serviceScope = String(process.env.APEX_SERVICE_SCOPE || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
 const key = "provider-capability-probe-" + serviceScope;
 const value = { probe: "apex-remote-cas-v1", version: 1 };
 let ref = await store.readRef(namespace, key);

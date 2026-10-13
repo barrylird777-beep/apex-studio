@@ -178,7 +178,7 @@ if (!workerOnly) {
 
   const remoteWorkerApiUrl = String(process.env.APEX_WORKER_API_URL || "").trim().replace(/\/+$/, "");
   const remoteWorkerToken = String(process.env.APEX_WORKER_TOKEN || "");
-  const remoteWorkerId = String(process.env.APEX_WORKER_ID || process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "apex-worker").slice(0, 255);
+  const remoteWorkerId = String(process.env.APEX_WORKER_ID || process.env.HOSTNAME || "apex-worker").slice(0, 255);
   if (remoteWorkerApiUrl && !remoteWorkerToken) throw new Error("APEX_WORKER_API_URL requires APEX_WORKER_TOKEN");
   const recoveryBatchSize = Math.max(1, Math.min(25, Number(process.env.APEX_WORKER_RECOVERY_BATCH_SIZE || 25)));
   const recoveryIntervalMs = Math.max(5000, Number(process.env.APEX_WORKER_RECOVERY_INTERVAL_MS || 15000));

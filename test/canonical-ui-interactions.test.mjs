@@ -97,22 +97,22 @@ test("shared controls drawer and display settings are attached to all six apps",
   for (const app of Object.values(APEX_APPS)) {
     const file = app.entry === "/" ? "index.html" : app.entry.slice(1);
     const html = await readPublic(file);
-    assert.match(html, /apex-ui-controls\\.css/, app.name + " must load shared controls styling");
-    assert.match(html, /apex-ui-controls\\.js/, app.name + " must load shared controls behavior");
+    assert.match(html, /apex-ui-controls\.css/, app.name + " must load shared controls styling");
+    assert.match(html, /apex-ui-controls\.js/, app.name + " must load shared controls behavior");
   }
-  assert.match(controls, /addToggle\\("Higher contrast", "apex-ui-high-contrast"/);
-  assert.match(controls, /addToggle\\("Compact spacing", "apex-ui-compact"/);
-  assert.match(controls, /event\\.key === "Escape"/);
-  assert.match(controls, /event\\.shiftKey/);
-  assert.match(controls, /priorFocus\\.focus\\(\\)/);
-  assert.match(styles, /body\\.apex-ui-high-contrast/);
-  assert.match(styles, /body\\.apex-ui-compact/);
+  assert.match(controls, /addToggle\("Higher contrast", "apex-ui-high-contrast"/);
+  assert.match(controls, /addToggle\("Compact spacing", "apex-ui-compact"/);
+  assert.match(controls, /event\.key === "Escape"/);
+  assert.match(controls, /event\.shiftKey/);
+  assert.match(controls, /priorFocus\.focus\(\)/);
+  assert.match(styles, /body\.apex-ui-high-contrast/);
+  assert.match(styles, /body\.apex-ui-compact/);
 });
 
 test("XShield failure states remain unavailable and are announced accessibly", async () => {
   const page = await readPublic("xshield.html");
-  assert.match(page, /networkResponse\\.ok&&network\\.enabled===true/);
-  assert.match(page, /networkResponse\\.ok&&network\\.enabled===false/);
+  assert.match(page, /networkResponse\.ok&&network\.enabled===true/);
+  assert.match(page, /networkResponse\.ok&&network\.enabled===false/);
   assert.ok(page.includes("id=\"appState\" class=\"metric\" role=\"status\" aria-live=\"polite\""));
   assert.ok(page.includes("id=\"networkState\" class=\"metric\" role=\"status\" aria-live=\"polite\""));
   assert.ok(page.includes("document.getElementById('networkState').textContent='UNAVAILABLE'"));
@@ -120,11 +120,12 @@ test("XShield failure states remain unavailable and are announced accessibly", a
 
 test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async () => {
   const hub = await readSource("src/pages/SixAppHub.tsx");
-  assert.match(hub, /const active = visibleApps\\.find/);
-  assert.match(hub, /useEffect\\(\\(\\) => \\{/);
-  assert.match(hub, /setActiveKey\\(visibleApps\\[0\\]\\.key\\)/);
+  assert.match(hub, /const active = visibleApps\.find/);
+  assert.match(hub, /useEffect\(\(\) => \{/);
+  assert.match(hub, /setActiveKey\(visibleApps\[0\]\.key\)/);
   const planet = await readPublic("planet-apex.html");
-  assert.match(planet, /aria-label="PlanetApeX study and research"/);
+  assert.match(planet, /<main class="apex-shell" data-apex-app="planetapex"/);
+  assert.match(planet, /Explore the planet\. Observe independent lives, changing communities, places, and discoveries inside GardenApex\./);
   assert.ok(planet.includes('href="/bible-study-room.html"'));
   assert.ok(planet.includes('href="/garden-of-apex.html"'));
   assert.ok(planet.includes('href="/special-search.html"'));
@@ -139,8 +140,8 @@ test("XShield tabs switch panels and support keyboard navigation", async () => {
   assert.ok(page.includes('id="xshield-tab-diagnostics"'));
   assert.ok(page.includes('id="xshield-panel-overview"'));
   assert.ok(page.includes('id="xshield-panel-diagnostics"'));
-  assert.match(page, /function selectXShieldTab\\(which\\)/);
-  assert.match(page, /tabOverview\\.addEventListener\\('click'/);
-  assert.match(page, /tabDiagnostics\\.addEventListener\\('click'/);
-  assert.match(page, /event\\.key==='ArrowRight'\\|\\|event\\.key==='ArrowLeft'/);
+  assert.match(page, /function selectXShieldTab\(which\)/);
+  assert.match(page, /tabOverview\.addEventListener\('click'/);
+  assert.match(page, /tabDiagnostics\.addEventListener\('click'/);
+  assert.match(page, /event\.key==='ArrowRight'\|\|event\.key==='ArrowLeft'/);
 });
