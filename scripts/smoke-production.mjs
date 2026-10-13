@@ -60,7 +60,7 @@ try {
     throw new Error(`liveness endpoint did not report status=alive; last response: ${health?.body || 'no response'}\n${output}`);
   }
 
-  const detailedHealth = await getJson('/api/health');
+  const detailedHealth = await getJson('/api/health', { 'x-apex-shortcut-token': 'apex-smoke-token' });
   if (detailedHealth.status !== 200 || detailedHealth.json?.status !== 'ok') {
     throw new Error(`detailed health endpoint did not report status=ok; last response: ${detailedHealth.body}`);
   }
