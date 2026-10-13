@@ -71,3 +71,22 @@ test("main dashboard tabs resolve to real views and network settings refresh is 
   assert.match(html, /async function loadNetwork\\(\\)/);
   assert.match(html, /api\\(["']\\/api\\/network\\/status["']\\)/);
 });
+
+test("React dashboards and utility pages wire every button to an action or form", async () => {
+  const pages = [
+    "src/App.tsx",
+    "src/pages/SixAppHub.tsx",
+    "src/pages/ProjectDashboard.tsx",
+    "src/pages/NetworkDashboard.tsx",
+    "src/pages/LocalAI.tsx",
+    "src/pages/SceneList.tsx",
+    "src/pages/CharacterDatabase.tsx",
+    "src/pages/ScriptureBreakdown.tsx"
+  ];
+  for (const path of pages) {
+    const source = await readSource(path);
+    const tags = [...source.matchAll(/<(?:Button|button)\\b[^>]*>/g)].map(match => match[0]);
+    const unwired = tags.filter(tag => !/onClick\\s*=|onclick\\s*=|type\\s*=\\s*["']submit["']|disabled\\s*(?:=|\\s|>)/i.test(tag));
+    assert.deepEqual(unwired, [], path + " contains a button without an action, form submit, or intentional disabled state");
+  }
+});
