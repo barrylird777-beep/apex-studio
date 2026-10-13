@@ -212,7 +212,7 @@ app.get('/api/search', async (req, res) => {
 });
 
 
-app.get('/api/workforce/status', (_req, res) => {
+app.get('/api/workforce/status', requireControlPlaneAuth, (_req, res) => {
   res.status(200).json({
     success: true,
     workforce: massiveAiWorkforce.status(),
@@ -1701,7 +1701,7 @@ app.use('/api/studio/audio', requireControlPlaneAuth, createAudioStationRouter()
 app.use('/api/kernelodies/library', createKernelodiesLibraryRouter({ storageDir: STORAGE_DIR, authorize: createKernelodiesLibraryAuth() }));
 app.use('/api/kernelodies/discovery', createKernelodiesDiscoveryRouter({ authorize: requireControlPlaneAuth }));
 
-app.get('/api/studio/omni/events', async (req, res) => {
+app.get('/api/studio/omni/events', requireControlPlaneAuth, async (req, res) => {
   const { omniEventsHandler } = await import('./src/api/omni-events.mjs');
   return omniEventsHandler(req, res);
 });
@@ -1896,14 +1896,14 @@ app.get('/api/rapid/orders/:id', async (req, res) => {
   }
 });
 
-app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
-app.get('/api/workers/permanent', (_req,res)=>res.json({
+app.get('/api/capacity', requireControlPlaneAuth, (_req,res)=>res.json(capacitySnapshot()));
+app.get('/api/workers/permanent', requireControlPlaneAuth, (_req,res)=>res.json({
   success:true,
   ...fleetStatus(permanentWorkerFleet),
   supervisor: permanentWorkerSupervisor.status()
 }));
-app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
-app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
+app.get('/api/workers/overseer', requireControlPlaneAuth, (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
+app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.get('/api/network/rogue-ap/status', (_req, res) => {
   return res.json({ success: true, detector: rogueApDetector.status() });
@@ -3181,11 +3181,11 @@ app.post('/api/mesh/jobs', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/mesh/workers', (_req, res) => {
+app.get('/api/mesh/workers', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, ...meshWorkerSupervisor.status() });
 });
 
-app.get('/api/crew/status', (_req, res) => {
+app.get('/api/crew/status', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, crew: aiCrew.status(), fleet: fleetStatus(permanentWorkerFleet), overseer: overseerStatus(apexOverseer, permanentWorkerFleet) });
 });
 
@@ -3211,7 +3211,7 @@ app.post('/api/crew/burst', requireControlPlaneAuth, (req, res) => {
   }
 });
 
-app.get('/api/mesh/status', (_req, res) => {
+app.get('/api/mesh/status', requireControlPlaneAuth, (_req, res) => {
   res.json({
     success: true,
     zeroCostMode: !ALLOW_METERED_PROVIDERS,
