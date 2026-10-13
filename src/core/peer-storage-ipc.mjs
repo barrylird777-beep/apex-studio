@@ -47,6 +47,9 @@ export function createPeerStorageIpcServer({ mediaStore, token, port = Number(pr
       const p = envelope.payload;
       let result;
       switch (envelope.operation) {
+        case 'health':
+          result = { ready: true, apps: mediaStore.apps };
+          break;
         case 'saveAsset':
           if (!Buffer.isBuffer(p.bytes)) throw Object.assign(new Error('asset bytes must use binary CBOR'), { status: 400 });
           result = await mediaStore.saveAsset(p.app, p.projectId, p.assetId, p.bytes, {
@@ -121,6 +124,23 @@ export function createPeerStorageIpcClient({
   }
   return Object.freeze({
     apps: Object.freeze(['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob']),
+    async waitUntilReady({ timeoutMs = 30000 } = {}) {
+      const deadline = Date.now() + Math.max(1, Number(timeoutMs));
+      let delayMs = 100;
+      let lastError;
+      while (Date.now() < deadline) {
+        try {
+          const result = await call('health', {});
+          if (result?.ready === true && Array.isArray(result.apps) && this.apps.every(app => result.apps.includes(app))) return result;
+          throw new Error('peer storage daemon readiness response is incomplete');
+        } catch (error) {
+          lastError = error;
+          await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, Math.max(1, deadline - Date.now()))));
+          delayMs = Math.min(1000, delayMs * 2);
+        }
+      }
+      throw Object.assign(new Error('peer storage daemon did not become ready before startup deadline: ' + String(lastError?.message || lastError || 'no response')), { code: 'PEER_STORAGE_BRIDGE_NOT_READY' });
+    },
     saveAsset: (app, projectId, assetId, bytes, options = {}) => call('saveAsset', {
       app, projectId, assetId, bytes: Buffer.from(bytes), contentType: options.contentType || 'application/octet-stream', metadata: options.metadata ?? {}
     }),
