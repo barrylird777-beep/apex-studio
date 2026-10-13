@@ -188,7 +188,7 @@ export function createPolygonUsdcRouter({ store, durableWorkerEnabled, enqueueWo
       });
       await store.put('rapid_usdc_transactions', txKey, {
         recordType: 'rapid-usdc-transaction', txHash: txKey, orderId,
-        amountBaseUnits: amount.toString(), blockNumber: Number(block),
+        amountBaseUnits: amount.toString(), blockNumber: Number(block), status: 'verified',
         confirmations, chainId: POLYGON_CHAIN_ID, tokenContract: cfg.contract,
         verifiedAt: new Date().toISOString()
       });
