@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, AudioLines, BookOpen, Blocks, CircleDollarSign, Eye, Globe2, LayoutGrid, LockKeyhole, Music2, Search, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
 import "./SixAppHub.css";
 
@@ -91,6 +91,9 @@ export default function SixAppHub() {
     return apps.filter((app) => !q || [app.name, app.role, app.tagline, app.description, ...app.features].join(" ").toLowerCase().includes(q));
   }, [query]);
   const active = visibleApps.find((app) => app.key === activeKey) ?? visibleApps[0] ?? apps.find((app) => app.key === activeKey) ?? apps[0];
+  useEffect(() => {
+    if (visibleApps.length > 0 && !visibleApps.some((app) => app.key === activeKey)) setActiveKey(visibleApps[0].key);
+  }, [visibleApps, activeKey]);
   const ActiveIcon = active.icon;
 
   return (
