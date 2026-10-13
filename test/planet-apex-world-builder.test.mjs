@@ -30,9 +30,12 @@ test("PlanetApeX record IDs match the durable fabric's safe key format", async (
 test("PlanetApeX canonical interface excludes the rejected Kornworld redesign and preserves core destinations", async () => {
   const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
   assert.match(html, /<title>PlanetApeX — Universe, Scripture & Research<\/title>/);
-  assert.doesNotMatch(html, /class="kw-command"/);
-  assert.doesNotMatch(html, /kw-earth-photo/);
-  assert.doesNotMatch(html, /jpegPIA18033\.jpg/);
+  assert.doesNotMatch(html, /kornworld|kw-command|kw-earth-photo|jpegPIA18033\.jpg/i);
+  assert.match(html, /Study the text\./);
+  assert.match(html, /Trace the evidence\./);
+  assert.match(html, /GardenApeX/);
+  assert.match(html, /class="pa-quick-index"/);
+  assert.doesNotMatch(html, /kw-bottom-nav/);
   assert.match(html, /id="analytics"/);
   assert.match(html, /id="scripture"/);
   assert.match(html, /id="research"/);
