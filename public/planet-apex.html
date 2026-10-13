@@ -198,6 +198,64 @@ a{color:#a6d5cf}a:hover{color:#f1d89a}
 @media(max-width:760px){.pa-masthead{grid-template-columns:1fr}.pa-terrain{max-height:none}.pa-hero-actions a{flex:1 1 auto;justify-content:center}.pa-map-bottom{font-size:8px}.pa-masthead{padding-top:22px}}
 @media(prefers-reduced-motion:reduce){.pa-map-points circle{filter:none}}
 
+
+/* GardenApex is the destination, not a dashboard tile. */
+:root{--ga-night:#0b1113;--ga-text:#e6e6d9;--ga-dim:#a6b3ae;--ga-line:#2c403d;--ga-gold:#e5c58a}
+html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:#344642 #0b1113}
+html::-webkit-scrollbar{width:4px}html::-webkit-scrollbar-track{background:#0b1113}html::-webkit-scrollbar-thumb{background:#344642;border-radius:8px}
+main.apex-shell{width:min(1500px,100%);max-width:1500px;padding:18px clamp(12px,2.5vw,32px) 50px}
+.ga-world-opening{display:block;border:0;padding:0;margin:0;background:transparent}
+.ga-world-heading{display:flex;justify-content:space-between;align-items:end;gap:22px;padding:clamp(14px,2.2vw,27px) 2px 18px}
+.ga-overline{display:flex;align-items:center;gap:9px;color:#b5c8c1;font-size:9px;letter-spacing:.2em;font-weight:800}
+.ga-signal{width:6px;height:6px;border-radius:50%;background:#c9d7a4;box-shadow:0 0 12px #c9d7a477}
+.ga-separator{color:#657873}
+.ga-world-heading h1{margin:13px 0 8px;font-size:clamp(32px,5.2vw,59px);line-height:.94;letter-spacing:-.06em;font-weight:520;color:#f0eee3}
+.ga-world-heading h1 em{font-style:normal;color:#a9c5b5}
+.ga-world-heading p{max-width:430px;margin:0;color:#a7b4af;font-size:13px;line-height:1.55}
+.ga-world-clock{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto;padding:0 2px 5px;color:#d5ddd5}
+.ga-clock-label,.ga-world-clock small{font-size:8px;letter-spacing:.16em;color:#8fa29a}
+.ga-world-clock strong{font-size:26px;letter-spacing:-.05em;font-weight:450;font-variant-numeric:tabular-nums}
+.ga-world-canvas{position:relative;isolation:isolate;overflow:hidden;min-height:420px;height:clamp(420px,61vw,670px);max-height:70vh;background:#233d3f;border:1px solid #415753;box-shadow:0 22px 70px #0005}
+.ga-landscape{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(1.24) contrast(1.07)}
+.ga-scene-vignette{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,#0a1917b8 0%,transparent 48%,transparent 72%,#0b191b30 100%),linear-gradient(0deg,#091411c9 0%,transparent 32%,#101d2422 100%)}
+.ga-scene-label{position:absolute;left:clamp(17px,3vw,38px);top:clamp(20px,4vw,45px);display:flex;flex-direction:column;gap:6px;color:#f1eee0;text-shadow:0 2px 14px #08110f88}
+.ga-scene-label span,.ga-scene-label small{font-size:9px;letter-spacing:.18em;color:#c2d0c5}
+.ga-scene-label strong{font-size:clamp(22px,3.3vw,39px);font-weight:450;letter-spacing:-.045em}
+.ga-scene-label small{font-size:10px;letter-spacing:.05em}
+.ga-scene-coordinates{position:absolute;right:clamp(15px,2.8vw,34px);top:clamp(20px,4vw,43px);text-align:right;font-size:10px;letter-spacing:.1em;color:#e1e4d6;line-height:1.8;text-shadow:0 1px 8px #06120f}
+.ga-scene-coordinates span{font-size:8px;color:#b6c5bb;letter-spacing:.18em}
+.ga-enter-world{position:absolute;left:clamp(17px,3vw,38px);bottom:clamp(32px,5vw,57px);display:flex;align-items:center;gap:13px;min-width:min(300px,calc(100% - 34px));padding:14px 16px;border:1px solid #d4d8c46b;background:#101d1bd9;color:#f0f0e3;text-decoration:none;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:background .2s,border-color .2s}
+.ga-enter-world:hover{background:#203631ed;border-color:#d8d6b9;color:#fff}
+.ga-enter-icon{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d4d8c45c;color:#e4cb94;font-size:20px}
+.ga-enter-world b,.ga-enter-world small{display:block}.ga-enter-world b{font-size:13px;font-weight:650;letter-spacing:.01em}.ga-enter-world small{margin-top:4px;font-size:10px;color:#b3c3b9}.ga-enter-arrow{margin-left:auto;font-size:20px;color:#e4cb94}
+.ga-scene-caption{position:absolute;right:clamp(15px,2.8vw,34px);bottom:20px;color:#c6d0c7;font-size:8px;letter-spacing:.17em;text-shadow:0 1px 7px #07120f}
+.ga-scene-caption span{padding:0 5px;color:#e3c88d}
+.ga-world-underbar{display:flex;align-items:center;gap:clamp(12px,3vw,34px);min-height:45px;padding:10px 2px;border-bottom:1px solid #2d403c;color:#94a69d;font-size:8px;letter-spacing:.15em}
+.ga-world-underbar span:first-child{display:flex;align-items:center;gap:8px}.ga-world-underbar i{width:5px;height:5px;border-radius:50%;background:#b8d09c}
+.ga-world-underbar b{margin-left:5px;color:#dfe4d7;font-weight:650}.ga-world-underbar a{margin-left:auto;color:#d7c18f;text-decoration:none;white-space:nowrap}
+#analytics .pa-section-head{margin-top:34px}
+.pa-masthead:not(.ga-world-opening){display:none}
+@media(min-width:1000px){.ga-world-heading{padding-top:10px}.ga-world-canvas{height:min(64vh,680px)}}
+@media(max-width:600px){
+ main.apex-shell{padding:8px 9px 32px}
+ .ga-world-heading{align-items:start;padding:16px 3px 13px;gap:10px}
+ .ga-world-heading h1{font-size:39px;margin:10px 0 7px}
+ .ga-world-heading p{max-width:285px;font-size:12px}
+ .ga-overline{font-size:8px;letter-spacing:.13em;gap:6px}
+ .ga-world-clock{padding-top:2px}.ga-clock-label{font-size:7px;letter-spacing:.1em}.ga-world-clock strong{font-size:22px}.ga-world-clock small{font-size:7px;letter-spacing:.08em;text-align:right}
+ .ga-world-canvas{height:62svh;min-height:430px;max-height:620px}
+ .ga-landscape{width:100%;height:100%;object-fit:cover}
+ .ga-scene-label{top:17px;left:14px}.ga-scene-label strong{font-size:24px}.ga-scene-label span{font-size:8px}.ga-scene-label small{font-size:9px}
+ .ga-scene-coordinates{top:18px;right:12px;font-size:8px}.ga-scene-coordinates span{font-size:7px}
+ .ga-enter-world{left:13px;bottom:39px;min-width:0;width:calc(100% - 26px);padding:11px 12px;gap:10px}
+ .ga-enter-icon{width:31px;height:31px}.ga-enter-world b{font-size:12px}.ga-enter-world small{font-size:9px}
+ .ga-scene-caption{left:14px;right:auto;bottom:14px;font-size:7px;letter-spacing:.11em}
+ .ga-world-underbar{gap:12px;flex-wrap:wrap;font-size:7px;letter-spacing:.1em;padding:10px 2px}
+ .ga-world-underbar span:nth-child(2){display:none}
+ .ga-world-underbar a{font-size:7px}
+}
+@media(prefers-reduced-motion:reduce){.ga-enter-world{transition:none}}
+
 </style>
 </head>
 <body>
@@ -208,9 +266,58 @@ a{color:#a6d5cf}a:hover{color:#f1d89a}
 </nav>
 <script src="/api-auth-bridge.js"></script>
 <main class="apex-shell" data-apex-app="planetapex" id="apex-main" tabindex="-1">
-<header class="pa-masthead">
-<div class="pa-masthead-copy"><div class="edition">PLANETAPEX <span style="color:#667b84">/</span> WORLD SIMULATION</div><h1>A world that<br><span>keeps living.</span></h1><p class="lead">Explore the planet. Observe independent lives, changing communities, places, and discoveries inside GardenApex.</p><div class="pa-hero-actions"><a href="#garden">Enter GardenApex <span aria-hidden="true">↗</span></a><a href="#world-tools">World controls</a></div><div class="pa-system-line"><span class="pa-live-dot">SIMULATION CONSOLE</span><span>PLANETARY SYSTEM · PRIVATE SESSION</span></div></div>
-<aside class="pa-map-stage" aria-label="GardenApex world overview"><div class="pa-map-top"><span>GARDENAPEX / REGION 01</span><span>WORLD VIEW</span></div><svg class="pa-terrain" viewBox="0 0 620 390" role="img" aria-label="Topographic view of a fictional world with river, forest, settlement, and exploration points"><defs><linearGradient id="terrainBase" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#294a45"/><stop offset=".52" stop-color="#1d3537"/><stop offset="1" stop-color="#18262f"/></linearGradient><linearGradient id="riverGlow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8dc5c1"/><stop offset="1" stop-color="#497f88"/></linearGradient></defs><rect width="620" height="390" fill="url(#terrainBase)"/><g class="pa-contours" fill="none" stroke="#9bb9a5" stroke-width="1"><path d="M-30 60C80 8 130 34 180 80S290 126 360 58 505 6 655 65"/><path d="M-30 78C80 26 130 52 180 98S290 144 360 76 505 24 655 83"/><path d="M-30 96C80 44 130 70 180 116S290 162 360 94 505 42 655 101"/><path d="M-30 114C80 62 130 88 180 134S290 180 360 112 505 60 655 119"/><path d="M-20 235C55 175 110 185 160 220S270 295 335 250 460 175 650 238"/><path d="M-20 253C55 193 110 203 160 238S270 313 335 268 460 193 650 256"/><path d="M-20 271C55 211 110 221 160 256S270 331 335 286 460 211 650 274"/><path d="M-20 289C55 229 110 239 160 274S270 349 335 304 460 229 650 292"/><path d="M80 -20C125 55 90 110 130 150S220 190 200 260 165 340 205 420"/><path d="M98 -20C143 55 108 110 148 150S238 190 218 260 183 340 223 420"/><path d="M440 -20C395 50 450 110 410 160S370 235 430 270 485 335 455 420"/><path d="M458 -20C413 50 468 110 428 160S388 235 448 270 503 335 473 420"/></g><path d="M310 -10C280 55 335 88 302 137S250 202 288 243 340 310 300 400" fill="none" stroke="#10272d" stroke-width="25" opacity=".55"/><path d="M310 -10C280 55 335 88 302 137S250 202 288 243 340 310 300 400" fill="none" stroke="url(#riverGlow)" stroke-width="10"/><path d="M310 -10C280 55 335 88 302 137S250 202 288 243 340 310 300 400" fill="none" stroke="#b5d6ce" stroke-width="1.5" opacity=".8"/><g fill="#8ea98d" opacity=".42"><path d="M25 145l24-38 26 24 16-31 31 42-15 32-42-5z"/><path d="M400 45l30-22 27 29 27-13 22 31-34 23-29-17-22 10z"/><path d="M455 294l27-35 24 17 19-25 37 31-16 33-40-7-24 19z"/><path d="M70 310l24-34 23 17 16-14 28 33-30 25-27-7z"/></g><g class="pa-map-points"><circle cx="246" cy="178" r="25" fill="#d7bc7a" opacity=".13"/><circle cx="246" cy="178" r="12" fill="#d7bc7a" opacity=".22"/><circle cx="246" cy="178" r="4.5" fill="#f1d89a"/><path d="M246 165V143H174" fill="none" stroke="#f1d89a" stroke-width="1"/><text x="168" y="138" text-anchor="end">ROOTLIGHT VILLAGE</text><circle cx="412" cy="119" r="4" fill="#9bd1ca"/><path d="M412 119l27-25h64" fill="none" stroke="#9bd1ca"/><text x="509" y="89">NORTH RIDGE</text><circle cx="145" cy="248" r="4" fill="#9bd1ca"/><path d="M145 248l-24 24H65" fill="none" stroke="#9bd1ca"/><text x="64" y="288">LOWER CREEK</text></g><g fill="#e1e8dd" font-family="Arial,sans-serif" font-size="9" letter-spacing="2"><text x="22" y="28">N</text><path d="M27 35v16m-5-5 5-11 5 11" stroke="#e1e8dd" fill="none"/><text x="22" y="366">FIELD MAP · NOT TO SCALE</text></g></svg><div class="pa-map-bottom"><span><i></i> TERRAIN SCAN READY</span><span>3 AREAS MAPPED</span><span>6 INHABITANTS</span></div></aside>
+<header class="ga-world-opening" aria-label="GardenApex world entrance">
+  <div class="ga-world-heading">
+    <div><div class="ga-overline"><span class="ga-signal"></span> PLANETAPEX WORLD ENGINE <span class="ga-separator">/</span> GARDENAPEX</div><h1>Somewhere<br><em>alive.</em></h1><p>A world with its own weather, places, and people. Come in and see what the day has brought.</p></div>
+    <div class="ga-world-clock"><span class="ga-clock-label">LOCAL WORLD TIME</span><strong id="ga-world-time">06:42</strong><small>FIRST LIGHT · DAY 01</small></div>
+  </div>
+  <div class="ga-world-canvas" id="garden-world" aria-label="Illustrated landscape of GardenApex, a river valley village at dawn">
+    <svg class="ga-landscape" viewBox="0 0 1200 760" role="img" aria-labelledby="ga-scene-title ga-scene-desc" preserveAspectRatio="xMidYMid slice">
+      <title id="ga-scene-title">The GardenApex valley at first light</title><desc id="ga-scene-desc">A vast mountain valley opens around a winding river, evergreen forests, terraced fields, and a small village with warm lights in its windows.</desc>
+      <defs>
+        <linearGradient id="ga-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#17384a"/><stop offset=".34" stop-color="#4e8290"/><stop offset=".67" stop-color="#b9c99e"/><stop offset="1" stop-color="#e8d7a4"/></linearGradient>
+        <radialGradient id="ga-sun"><stop offset="0" stop-color="#fff2c7" stop-opacity=".95"/><stop offset=".24" stop-color="#f5d5a0" stop-opacity=".42"/><stop offset="1" stop-color="#f5d5a0" stop-opacity="0"/></radialGradient>
+        <linearGradient id="ga-far-mountain" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#86a79b"/><stop offset="1" stop-color="#426f62"/></linearGradient>
+        <linearGradient id="ga-mid-mountain" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#36765a"/><stop offset="1" stop-color="#174734"/></linearGradient>
+        <linearGradient id="ga-hills" x1="0" y1="0" x2=".2" y2="1"><stop stop-color="#4f8b45"/><stop offset=".45" stop-color="#28643b"/><stop offset="1" stop-color="#102e25"/></linearGradient>
+        <linearGradient id="ga-river" x1="0" y1="0" x2="1" y2=".1"><stop stop-color="#d1e4c0"/><stop offset=".28" stop-color="#83c7bd"/><stop offset=".68" stop-color="#398f99"/><stop offset="1" stop-color="#205c6a"/></linearGradient>
+        <linearGradient id="ga-foreground" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#285d3b"/><stop offset=".5" stop-color="#17432e"/><stop offset="1" stop-color="#071d18"/></linearGradient>
+        <filter id="ga-soft"><feGaussianBlur stdDeviation="24"/></filter><filter id="ga-grain"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .12"/></feComponentTransfer></filter>
+        <g id="ga-pine"><path d="M0 0L-20 38H-9L-27 64H-10L-35 96H35L10 64H27L9 38H20Z" fill="#102c29"/><path d="M0 12L-12 39H-4L-19 65H-4L-24 91H0Z" fill="#2c5142" opacity=".7"/><path d="M0 0V106" stroke="#172a24" stroke-width="4"/></g>
+        <g id="ga-house"><path d="M-29 2L0 -20L31 2V30H-29Z" fill="#b9a17c"/><path d="M-35 3L0 -26L36 3L30 6L0 -16L-29 7Z" fill="#283a38"/><path d="M-25 5H25V28H-25Z" fill="#6c6452"/><rect x="-16" y="9" width="9" height="12" fill="#f5cf83"/><rect x="8" y="9" width="9" height="12" fill="#e7bd74"/><rect x="-3" y="12" width="8" height="16" fill="#293b35"/><path d="M-30 29H31" stroke="#1c2d28" stroke-width="3"/></g>
+      </defs>
+      <rect width="1200" height="760" fill="url(#ga-sky)"/>
+      <circle cx="790" cy="240" r="190" fill="url(#ga-sun)"/>
+      <circle cx="790" cy="240" r="43" fill="#f4dcb0" opacity=".72"/>
+      <g fill="#f3e1c2" opacity=".18"><path d="M0 245Q130 208 245 242T520 231T810 226T1200 242V265H0Z"/><path d="M0 288Q170 252 360 278T720 271T1200 280V298H0Z"/></g>
+      <path d="M0 398L98 304L161 339L273 180L338 257L415 213L520 330L615 244L695 310L805 168L872 254L956 200L1060 326L1137 280L1200 316V520H0Z" fill="url(#ga-far-mountain)"/>
+      <path d="M222 225L273 180L308 220L286 211L273 198L253 222Z M754 236L805 168L847 225L820 207L805 187L788 215Z M928 231L956 200L987 233L965 220L956 211L945 225Z" fill="#d8d8c5" opacity=".76"/>
+      <path d="M0 437L102 356L190 395L286 298L360 358L450 286L548 377L648 318L738 380L846 284L927 351L1035 304L1120 366L1200 338V570H0Z" fill="url(#ga-mid-mountain)"/>
+      <path d="M0 485Q132 393 255 446T494 431T738 442T970 410T1200 438V620H0Z" fill="#35584b"/>
+      <path d="M0 505Q154 434 284 478T534 456T768 480T1016 451T1200 478V660H0Z" fill="url(#ga-hills)"/>
+      <path d="M570 380C540 432 605 468 568 510S500 566 554 607S654 654 618 760H880C844 692 778 657 803 608S865 534 819 487S741 440 769 389Z" fill="#243d39" opacity=".8"/>
+      <path d="M604 385C572 434 632 465 595 512S531 565 580 606S677 659 650 760H822C794 691 739 654 763 611S819 536 778 491S708 444 734 388Z" fill="url(#ga-river)" opacity=".95"/>
+      <path d="M664 398C638 442 683 466 654 510S596 565 635 607S716 658 696 760" fill="none" stroke="#e1d9bc" stroke-width="3" opacity=".45"/>
+      <path d="M610 426Q642 447 619 477T590 529T626 580T672 634" fill="none" stroke="#e2e0c8" stroke-width="2" opacity=".26"/>
+      <g fill="none" stroke="#a1ad76" stroke-width="2" opacity=".58"><path d="M0 532Q142 481 270 524T492 518"/><path d="M0 548Q142 497 270 540T492 534"/><path d="M0 565Q142 514 270 557T492 551"/><path d="M842 510Q960 467 1200 506"/><path d="M850 528Q968 485 1200 524"/><path d="M861 547Q978 504 1200 543"/></g>
+      <g opacity=".95"><use href="#ga-house" x="460" y="467" transform="translate(460 467) scale(.8) translate(-460 -467)"/><use href="#ga-house" x="510" y="485" transform="translate(510 485) scale(.62) translate(-510 -485)"/><use href="#ga-house" x="428" y="493" transform="translate(428 493) scale(.55) translate(-428 -493)"/><use href="#ga-house" x="488" y="510" transform="translate(488 510) scale(.5) translate(-488 -510)"/></g>
+      <g opacity=".95"><use href="#ga-pine" transform="translate(82 482) scale(1.65)"/><use href="#ga-pine" transform="translate(145 518) scale(1.35)"/><use href="#ga-pine" transform="translate(215 500) scale(1.1)"/><use href="#ga-pine" transform="translate(1050 480) scale(1.7)"/><use href="#ga-pine" transform="translate(1110 510) scale(1.35)"/><use href="#ga-pine" transform="translate(1000 526) scale(1.1)"/><use href="#ga-pine" transform="translate(330 552) scale(1.2)"/><use href="#ga-pine" transform="translate(902 552) scale(1.25)"/></g>
+      <g fill="#f0ca7e" opacity=".9"><circle cx="448" cy="478" r="3"/><circle cx="510" cy="493" r="2.5"/><circle cx="428" cy="500" r="2.5"/><circle cx="488" cy="515" r="2"/></g>
+      <path d="M0 595Q95 552 200 600T385 614L475 760H0Z" fill="url(#ga-foreground)"/>
+      <path d="M1200 578Q1090 547 1000 604T830 630L780 760H1200Z" fill="url(#ga-foreground)"/>
+      <g opacity=".95"><use href="#ga-pine" transform="translate(36 550) scale(2.25)"/><use href="#ga-pine" transform="translate(176 580) scale(1.8)"/><use href="#ga-pine" transform="translate(290 610) scale(1.55)"/><use href="#ga-pine" transform="translate(1160 545) scale(2.3)"/><use href="#ga-pine" transform="translate(1040 580) scale(1.8)"/><use href="#ga-pine" transform="translate(940 612) scale(1.5)"/></g>
+      <rect width="1200" height="760" filter="url(#ga-grain)" opacity=".24" style="mix-blend-mode:soft-light;pointer-events:none"/><g fill="#e9d5aa" font-family="Arial,sans-serif" font-size="11" letter-spacing="2"><text x="58" y="70">NORTHERN RANGE</text><path d="M58 82H160" stroke="#e9d5aa" opacity=".65"/><text x="860" y="365">THE OLD RIDGE</text><path d="M860 377H970" stroke="#e9d5aa" opacity=".65"/></g>
+      <g><circle cx="480" cy="482" r="27" fill="none" stroke="#f3d18d" stroke-width="1" opacity=".65"/><circle cx="480" cy="482" r="4" fill="#f3d18d"/><path d="M480 455V430H360" stroke="#f3d18d" fill="none"/><text x="352" y="424" fill="#fff0cd" font-size="12" letter-spacing="2" text-anchor="end">ROOTLIGHT VILLAGE</text></g>
+      <rect width="1200" height="760" fill="url(#ga-foreground)" opacity=".08"/>
+      <path d="M0 0H1200V760H0Z" fill="none" stroke="#d7d6bd" stroke-opacity=".12" stroke-width="2"/>
+    </svg>
+    <div class="ga-scene-vignette"></div>
+    <div class="ga-scene-label"><span>YOUR WORLD</span><strong>Rootlight Valley</strong><small>Temperate highlands · River basin</small></div>
+    <div class="ga-scene-coordinates">41° 08′ N &nbsp; / &nbsp; 18° 42′ E<br><span>WORLD 001 · REGION 01</span></div>
+    <a class="ga-enter-world" href="#garden"><span class="ga-enter-icon">↘</span><span><b>Enter GardenApex</b><small>Step into the living world</small></span><span class="ga-enter-arrow">→</span></a>
+    <div class="ga-scene-caption">FIRST LIGHT OVER ROOTLIGHT <span>·</span> A WORLD IN PROGRESS</div>
+  </div>
+  <div class="ga-world-underbar"><span><i></i> WORLD SIMULATION</span><span>RIVER BASIN <b>01</b></span><span>KNOWN INHABITANTS <b>06</b></span><a href="#garden">LIVING COMMUNITY ↓</a></div>
 </header>
 <section id="analytics">
 <div class="pa-section-head"><h2>World intelligence</h2><span class="number">01 / Signals</span></div>

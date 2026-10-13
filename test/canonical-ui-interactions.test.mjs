@@ -100,8 +100,8 @@ test("shared controls drawer and display settings are attached to all six apps",
     assert.match(html, /apex-ui-controls\\.css/, app.name + " must load shared controls styling");
     assert.match(html, /apex-ui-controls\\.js/, app.name + " must load shared controls behavior");
   }
-  assert.match(controls, /addToggle\\("Higher contrast", "apex-ui-high-contrast"/);
-  assert.match(controls, /addToggle\\("Compact spacing", "apex-ui-compact"/);
+  assert.match(controls, /addToggle\("Higher contrast", "apex-ui-high-contrast"/);
+  assert.match(controls, /addToggle\("Compact spacing", "apex-ui-compact"/);
   assert.match(controls, /event\\.key === "Escape"/);
   assert.match(controls, /event\\.shiftKey/);
   assert.match(controls, /priorFocus\\.focus\\(\\)/);
@@ -121,7 +121,7 @@ test("XShield failure states remain unavailable and are announced accessibly", a
 test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async () => {
   const hub = await readSource("src/pages/SixAppHub.tsx");
   assert.match(hub, /const active = visibleApps\\.find/);
-  assert.match(hub, /useEffect\\(\\(\\) => \\{/);
+  assert.match(hub, /useEffect\(\(\) => \{/);
   assert.match(hub, /setActiveKey\\(visibleApps\\[0\\]\\.key\\)/);
   const planet = await readPublic("planet-apex.html");
   assert.match(planet, /aria-label="PlanetApeX study and research"/);
