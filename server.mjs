@@ -70,11 +70,11 @@ const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase()
 
 app.disable('x-powered-by');
 app.use(createApexSecurityHeaders({ production: productionMode }));
-// Railway terminates public TLS at its edge. Reject public cleartext HTTP by redirecting
-// only the configured canonical host; leave internal health checks without forwarded-proto alone.
+// Public TLS may terminate at an operator-controlled edge. Configure canonical hosts explicitly
+// when Apex itself should redirect them; never bake a hosting provider's hostname into the app.
 app.use(createHttpsOnlyRedirect({
   production: productionMode,
-  publicHosts: String(process.env.APEX_HTTPS_PUBLIC_HOSTS || 'apex-studio-production.up.railway.app')
+  publicHosts: String(process.env.APEX_HTTPS_PUBLIC_HOSTS || '')
     .split(',')
     .map(value => value.trim().toLowerCase())
     .filter(Boolean)
