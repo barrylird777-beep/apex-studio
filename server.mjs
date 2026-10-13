@@ -56,7 +56,7 @@ import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } fro
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
-import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
+import { createApexSecurityHeaders, createHttpsOnlyRedirect, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
 import { normalizeAutonomousAiPayload } from './src/security/ai-trust-boundary.mjs';
 import { createGuardedFetch, sanitizeOutboundPayload } from './src/security/sovereign-outbound-gateway.mjs';
 import { createOwnerSessionToken, hasValidOwnerSession, isOwnerAuthConfigured, ownerSessionClearCookie, ownerSessionSetCookie, verifyOwnerPassword } from './src/security/owner-session-auth.mjs';
@@ -70,6 +70,15 @@ const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase()
 
 app.disable('x-powered-by');
 app.use(createApexSecurityHeaders({ production: productionMode }));
+// Railway terminates public TLS at its edge. Reject public cleartext HTTP by redirecting
+// only the configured canonical host; leave internal health checks without forwarded-proto alone.
+app.use(createHttpsOnlyRedirect({
+  production: productionMode,
+  publicHosts: String(process.env.APEX_HTTPS_PUBLIC_HOSTS || 'apex-studio-production.up.railway.app')
+    .split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)
+}));
 // Serve same-origin bundled runtime assets before the API CORS gate.
 // Browser module imports use CORS mode even for same-origin URLs; do not reject our own static assets.
 app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor')));
