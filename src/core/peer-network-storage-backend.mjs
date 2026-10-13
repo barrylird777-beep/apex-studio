@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import path from 'node:path';
 import { decodeCanonical } from './apex-cbor.mjs';
 import { createLibp2pPeerStorageTransport } from './peer-storage-libp2p-transport.mjs';
 import { APEX_MEDIA_APPS } from './peer-media-store.mjs';
