@@ -26,7 +26,7 @@ export class PeerContentAddressedStore {
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
-      throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB for a single envelope; use putBlob for larger binary content');
+      throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
     if (!Number.isSafeInteger(this.replicaCount) || this.replicaCount < 1) {
       throw new TypeError('replicaCount must be a positive integer');
@@ -37,9 +37,9 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
       throw new TypeError('minFailureDomains must be between one and replicaCount');
     }
-    if (this.minFailureDomains > 1) {
+    if (this.minFailureDomains >= 1) {
       for (const peerId of this.peers) {
-        if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains > 1');
+        if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains is positive');
       }
       if (new Set(this.peers.map(peerId => this.failureDomainsByPeerId[peerId])).size < this.minFailureDomains) {
         throw new Error('insufficient configured failure domains for requested durability policy');
@@ -111,12 +111,12 @@ export class PeerContentAddressedStore {
         }
         receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && (this.minFailureDomains === 1 || domains.size >= this.minFailureDomains)) break;
+        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    const verifiedFailureDomains = this.minFailureDomains === 1 ? 1 : new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
+    const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
     if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
       const error = new Error('peer object write did not satisfy required replica count and independent failure-domain policy');
       error.code = 'INSUFFICIENT_REPLICAS';
