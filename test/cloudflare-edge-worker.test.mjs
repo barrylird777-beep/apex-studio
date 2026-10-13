@@ -27,7 +27,7 @@ test("edge proxy strips Connection-nominated headers in both directions", async 
       "x-forwarded-proto": "http",
       forwarded: "host=attacker.invalid"
     });
-    const request = new Request("https://apex-free-http3-edge.tbtristan777.workers.dev/start", { headers });
+    const request = { method: "GET", url: "https://apex-free-http3-edge.tbtristan777.workers.dev/start", headers };
     const response = await worker.fetch(request);
 
     assert.equal(upstreamRequest.url, "https://apex-studio-production.up.railway.app/start");
