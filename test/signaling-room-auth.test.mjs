@@ -20,7 +20,7 @@ test("rejects expired, forged, long-lived and wrong-room tokens",()=>{
 });
 test("middleware fails closed when secret is absent and fences rooms",()=>{
  const middleware=createSignalingRoomAuth({secret,issuer:"apex",audience:"signaling"});
- const token=signSignalingJwt({sub:"p",room:"a",iat:now,exp:now+300,iss:"apex",aud:"signaling"},secret);
+ const current=Math.floor(Date.now()/1000);const token=signSignalingJwt({sub:"p",room:"a",iat:current,exp:current+300,iss:"apex",aud:"signaling"},secret);
  const res={status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
  let called=false;middleware({get:()=> "Bearer "+token,params:{room:"a"}},res,()=>{called=true;});
  assert.equal(called,true);
