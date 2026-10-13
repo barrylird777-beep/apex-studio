@@ -12,7 +12,7 @@ Exactly six canonical apps: PlanetApeX, XShield, KernelVision, KoinKob, KashKorn
 - Durable tasks must be idempotent, lease-safe, retry-safe, recoverable after restart, and confined to the correct app namespace.
 
 ## Verification
-- Prefer focused `node --test` regression tests, then `npm test`, build checks, security checks, and the production smoke/release audit when relevant.
+- Prefer focused `node --test` regression tests, then `npm test`, build checks, security checks, and production smoke/release audit when relevant.
 - Validate the real runtime path, not just helper functions. Use real output artifacts and restart recovery checks where relevant.
 - Peer delivery is not complete until the receiving peer acknowledges it. Do not infer phone connectivity from server health.
 - Never claim multi-path, failover, or worldwide peer connectivity without end-to-end evidence.
