@@ -19,7 +19,8 @@ function BrowserPeerTest(){
   const [transferRate,setTransferRate]=useState("Not measured");
   const [transferStatus,setTransferStatus]=useState("No transfer run");
   const [checksumStatus,setChecksumStatus]=useState("Not verified");
-  const incomingTransfers=useRef(new Map<string,{chunks:Map<number,string>;totalChunks:number;expectedSha256:string;payloadBytes:number}>());
+  const [bufferedAmount,setBufferedAmount]=useState(0);
+  const incomingTransfers=useRef(new Map<string,{chunks:Map<number,Uint8Array>;totalChunks:number;expectedSha256:string;payloadBytes:number}>());
   const [note,setNote]=useState("Opt-in test only. No application traffic is routed over this channel.");
   const attachChannel=(dc:RTCDataChannel)=>{
     channel.current=dc;
@@ -27,23 +28,24 @@ function BrowserPeerTest(){
     dc.onclose=()=>setChannelState("Closed");
     dc.onerror=()=>setNote("Data channel error. Check network policy and repeat the handshake.");
     dc.onmessage=async(event)=>{
-      const size=typeof event.data==="string"?new Blob([event.data]).size:event.data?.byteLength||0;
-      if(typeof event.data!=="string"){setReceived(n=>n+size);return;}
+      if(typeof event.data!=="string"){setNote("Unexpected binary message ignored; test frames use validated metadata.");return;}
+      const size=new Blob([event.data]).size;
       try{
         const packet=JSON.parse(event.data);
         if(packet?.type!=="apex-webrtc-benchmark"||typeof packet.transferId!=="string"||typeof packet.payload!=="string")return;
-        const isNewTransfer=!incomingTransfers.current.has(packet.transferId);
-        const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,string>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
-        setReceived(n=>isNewTransfer&&packet.index===0?size:n+size);
+        const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,Uint8Array>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
         if(!Number.isInteger(packet.index)||!Number.isInteger(packet.totalChunks)||packet.totalChunks<1||packet.totalChunks>128||packet.index<0||packet.index>=packet.totalChunks||transfer.totalChunks!==packet.totalChunks||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
-        if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,packet.payload);transfer.payloadBytes+=new Blob([packet.payload]).size;}
+        const bytes=Uint8Array.from(atob(packet.payload),ch=>ch.charCodeAt(0));
+        if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,bytes);transfer.payloadBytes+=bytes.byteLength;setReceived(n=>n+bytes.byteLength);}
         incomingTransfers.current.set(packet.transferId,transfer);
         if(transfer.chunks.size!==transfer.totalChunks)return;
-        const payload=Array.from({length:transfer.totalChunks},(_,i)=>transfer.chunks.get(i)??"").join("");
-        const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload));
+        const payload=new Uint8Array(transfer.payloadBytes);let offset=0;
+        for(let i=0;i<transfer.totalChunks;i++){const part=transfer.chunks.get(i);if(!part){setChecksumStatus("FAIL — missing chunk");return;}payload.set(part,offset);offset+=part.byteLength;}
+        const digest=await crypto.subtle.digest("SHA-256",payload);
         const actualSha256=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
         setChecksumStatus(actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
-      }catch{setReceived(n=>n+size);setChecksumStatus("Could not validate received payload");}
+        incomingTransfers.current.delete(packet.transferId);
+      }catch{setChecksumStatus("Could not validate received payload");}
     };
   };
   const createPeer=()=>{
@@ -117,37 +119,43 @@ function BrowserPeerTest(){
     const totalBytes=1024*1024;
     const chunkBytes=32*1024;
     const totalChunks=totalBytes/chunkBytes;
-    const payload="x".repeat(totalBytes);
+    const payload=new Uint8Array(totalBytes);
+    for(let i=0;i<totalBytes;i++)payload[i]=i%251;
     const transferId=crypto.randomUUID();
     const started=performance.now();
     let sentBytes=0;
     setChecksumStatus("Waiting for receiver checksum…");
     try{
-      const expectedSha256=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload))),b=>b.toString(16).padStart(2,"0")).join("");
-      dc.bufferedAmountLowThreshold=128*1024;
+      const expectedSha256=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",payload)),b=>b.toString(16).padStart(2,"0")).join("");
+      setNote("Sender baseline payload: "+payload.byteLength.toLocaleString()+" bytes; SHA-256 "+expectedSha256);
+      dc.bufferedAmountLowThreshold=65536;
       const waitForBufferLow=()=>new Promise<void>((resolve,reject)=>{
         let settled=false;
         const cleanup=()=>{window.clearTimeout(timeout);dc.removeEventListener("bufferedamountlow",onLow);};
         const timeout=window.setTimeout(()=>{if(settled)return;settled=true;cleanup();reject(new Error("Timed out waiting for WebRTC send-buffer backpressure."));},10000);
-        const onLow=()=>{if(settled||dc.bufferedAmount>dc.bufferedAmountLowThreshold)return;settled=true;cleanup();resolve();};
+        const onLow=()=>{setBufferedAmount(dc.bufferedAmount);if(settled||dc.bufferedAmount>dc.bufferedAmountLowThreshold)return;settled=true;cleanup();resolve();};
         dc.addEventListener("bufferedamountlow",onLow);
         // Recheck after listener registration to avoid missing a threshold crossing.
         onLow();
       });
       for(let offset=0;offset<totalBytes;offset+=chunkBytes){
-        const packet=JSON.stringify({type:"apex-webrtc-benchmark",transferId,index:offset/chunkBytes,totalChunks,expectedSha256,payload:payload.slice(offset,offset+chunkBytes)});
+        const part=payload.subarray(offset,Math.min(offset+chunkBytes,totalBytes));
+        let binary="";for(let i=0;i<part.length;i++)binary+=String.fromCharCode(part[i]);
+        const encoded=btoa(binary);
+        const packet=JSON.stringify({type:"apex-webrtc-benchmark",transferId,index:offset/chunkBytes,totalChunks,expectedSha256,payload:encoded});
         if(dc.bufferedAmount>256*1024)await waitForBufferLow();
         if(dc.readyState!=="open")throw new Error("WebRTC data channel closed during transfer.");
         dc.send(packet);
         const packetBytes=new Blob([packet]).size;
-        sentBytes+=packetBytes;
-        setSent(n=>n+packetBytes);
+        sentBytes+=part.byteLength;
+        setSent(n=>n+part.byteLength);
+        setBufferedAmount(dc.bufferedAmount);
       }
       if(dc.bufferedAmount>dc.bufferedAmountLowThreshold)await waitForBufferLow();
       const seconds=Math.max((performance.now()-started)/1000,0.001);
-      setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s to low-water mark");
-      setTransferStatus("Sent 1 MiB payload in "+totalChunks+" chunks; waiting for receiver SHA-256 verification.");
-      setNote("Transfer finished sending through the WebRTC data channel. This measures browser-to-browser test traffic, not verified savings for application traffic or Railway egress.");
+      setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s payload submitted");
+      setTransferStatus("Submitted "+sentBytes.toLocaleString()+" payload bytes in "+totalChunks+" chunks; waiting for receiver SHA-256 verification.");
+      setNote("Sender payload SHA-256: "+expectedSha256+". Send-buffer queued bytes are shown separately; sender submission alone does not prove remote delivery or Railway egress savings.");
     }catch(e){
       setTransferStatus("Transfer incomplete");
       setNote(e instanceof Error?e.message:"WebRTC transfer failed.");
@@ -161,7 +169,7 @@ function BrowserPeerTest(){
     <label className="mt-4 block text-sm font-medium" htmlFor="apex-webrtc-signal">Offer / answer JSON</label>
     <textarea id="apex-webrtc-signal" value={signal} onChange={e=>setSignal(e.target.value)} rows={5} autoCapitalize="off" spellCheck={false} className="mt-2 w-full rounded-lg border bg-background p-3 font-mono text-xs" placeholder="Generate an offer here, or paste the other browser's offer/answer." />
     <div className="mt-3 flex flex-wrap gap-2"><Button onClick={makeOffer} disabled={busy}>Create offer</Button><Button onClick={makeAnswer} disabled={busy}>Create answer from pasted offer</Button><Button onClick={applyAnswer} disabled={busy}>Apply pasted answer</Button><Button onClick={sendProbe} disabled={channelState!=="Open"||busy}>Send 16 KiB probe</Button><Button onClick={runTransfer} disabled={channelState!=="Open"||busy}>Transfer 1 MiB test</Button><Button onClick={close}>Disconnect</Button><Button onClick={async()=>{try{await navigator.clipboard.writeText(signal);setNote("Signaling JSON copied.");}catch{setNote("Clipboard unavailable. Select and copy the JSON manually.");}}} disabled={!signal}>Copy JSON</Button></div>
-    <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Bytes sent from this browser</div><b>{sent.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Bytes received by this browser</div><b>{received.toLocaleString()}</b></div></div>
+    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Payload bytes submitted</div><b>{sent.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Payload bytes received</div><b>{received.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Current send queue</div><b>{bufferedAmount.toLocaleString()} bytes</b><div className="text-xs text-muted-foreground">Threshold: 65,536 bytes</div></div></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Test transfer</div><b>{transferStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><b>{checksumStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Send rate (browser queue drain)</div><b>{transferRate}</b></div></div><p role="status" className="mt-3 text-sm text-muted-foreground">{note}</p>
     <p className="mt-2 text-xs text-muted-foreground">Security note: WebRTC encrypts data channels at the transport layer. This test does not establish libp2p peer identity, Noise authentication, mesh membership, or a production relay fallback. Never paste signaling JSON from an untrusted party.</p>
   </CardContent></Card>;
