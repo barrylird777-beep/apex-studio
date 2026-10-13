@@ -170,7 +170,14 @@ export class ApexPureStore {
         catch(error){if(error.code==="ENOENT")continue;throw error;}
         for(const ref of await this.localCas.listRefs(namespace)){
           const current=await this.cas.readRef(namespace,ref.key);
-          if(!current)await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
+          if(current)continue;
+          if(namespace==="state"&&ref.value?.collection!=null&&ref.value?.id!=null&&ref.value?.record!=null){
+            await this.persistState(String(ref.value.collection),String(ref.value.id),ref.value.record);
+          }else if(namespace==="jobs"&&ref.value?.job?.id!=null){
+            await this.persistJob(ref.value.job);
+          }else{
+            await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
+          }
         }
       }
       let legacyExists=false;
@@ -181,12 +188,12 @@ export class ApexPureStore {
           const writes=[];
           for(const item of pendingState.values())writes.push(async()=>{
             const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
-            if(item.deleted){if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});}
-            else if(!current)await this.cas.writeRef("state",key,{collection:item.collection,id:item.id,record:clone(item.record)},{expectedHash:null});
+            if(item.deleted){if(current)await this.persistDelete(item.collection,item.id);}
+            else if(!current)await this.persistState(item.collection,item.id,item.record);
           });
           for(const [id,job] of pendingJobs)writes.push(async()=>{
             const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
-            if(!current)await this.cas.writeRef("jobs",key,{id,job:clone(job)},{expectedHash:null});
+            if(!current)await this.persistJob(job);
           });
           await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
         };
