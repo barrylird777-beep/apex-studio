@@ -29,3 +29,5 @@ jobs:
         run: npm run audit:provider-portability
       - name: Test remote content-addressed persistence and migration safety
         run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-pure-store.test.mjs
+      - name: Test cloud-only mesh coordinator
+        run: node --test test/sovereign-cloud-coordinator.test.mjs
