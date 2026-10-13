@@ -161,7 +161,8 @@ test("remote startup never reads or imports local CAS or WAL data", async () => 
     assert.equal(store.wal, null);
     assert.equal(await remote.readRef("state", store.refKey("legacy", "record-7")), null, "remote runtime must not silently import local CAS");
     assert.equal(await remote.readRef("state", store.refKey("legacy", "wal-record")), null, "remote runtime must not replay a local WAL");
-    const marker = await remote.readRef("system", "remote-runtime-v1-apex");
+    const scope = String((process.env.APEX_SERVICE_ID || process.env.HOSTNAME) || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
+    const marker = await remote.readRef("system", "remote-runtime-v1-" + scope);
     assert.equal(marker.value.localImport, "not-performed");
     assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true }, "legacy source remains untouched");
     assert.ok(sourceRef.hash);
