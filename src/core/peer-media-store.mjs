@@ -27,24 +27,22 @@ function assertKey(input, label) {
  * backend: immutable blobs alone cannot safely define the current project
  * state. That backend is injected and must never silently fall back to disk.
  */
-export function createPeerMediaStore({ peerStores, refs, maxManifestRetries = 8 } = {}) {
+export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}) {
   if (!peerStores || typeof peerStores !== 'object') throw new TypeError('per-app peerStores are required');
-  if (!refs || typeof refs.readRef !== 'function' || typeof refs.writeRef !== 'function') {
-    throw new TypeError('an atomic durable refs backend with readRef/writeRef is required');
-  }
   if (!Number.isSafeInteger(maxManifestRetries) || maxManifestRetries < 1 || maxManifestRetries > 32) {
     throw new TypeError('maxManifestRetries must be between 1 and 32');
   }
   for (const app of APEX_MEDIA_APPS) {
     const store = peerStores[app];
-    if (!store || typeof store.putBlob !== 'function' || typeof store.getBlob !== 'function') {
-      throw new TypeError('missing peer blob store for canonical app ' + app);
+    if (!store || typeof store.putBlob !== 'function' || typeof store.getBlob !== 'function' ||
+        typeof store.readRef !== 'function' || typeof store.writeRef !== 'function') {
+      throw new TypeError('missing peer blob/reference store for canonical app ' + app);
     }
     if (store.namespace !== app) throw new TypeError('peer blob store namespace mismatch for ' + app);
   }
 
   async function readManifest(app, projectId) {
-    const result = await refs.readRef('project-' + app, projectId);
+    const result = await peerStores[app].readRef('project-' + projectId);
     if (result == null) return {
       manifest: { version: 1, app, projectId, assets: [], updatedAt: 0 },
       hash: null
@@ -63,10 +61,10 @@ export function createPeerMediaStore({ peerStores, refs, maxManifestRetries = 8 
       const next = mutate(clone(current.manifest));
       next.updatedAt = Date.now();
       try {
-        const saved = await refs.writeRef('project-' + app, projectId, next, { expectedHash: current.hash });
+        const saved = await peerStores[app].writeRef('project-' + projectId, next, { expectedHash: current.hash });
         return { manifest: next, refHash: saved?.hash ?? saved?.etag ?? null };
       } catch (error) {
-        if (error?.code !== 'CAS_MISMATCH' && error?.code !== 'CONFLICT' && error?.status !== 409) throw error;
+        if (error?.code !== 'CAS_MISMATCH' && error?.code !== 'CAS_CONFLICT' && error?.code !== 'CONFLICT' && error?.status !== 409) throw error;
       }
     }
     throw Object.assign(new Error('project manifest changed too often to commit safely'), { code: 'MANIFEST_CONTENTION' });
