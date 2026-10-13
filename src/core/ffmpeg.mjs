@@ -80,7 +80,7 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
     } else {
       command.videoCodec(decision?.encoder?.codec || preset.videoCodec).outputOptions([
         '-preset', preset.encodePreset || PROD_SETTINGS.video.preset, '-crf', String(PROD_SETTINGS.video.crf),
-        '-r', String(preset.fps), '-vf', PROD_SETTINGS.video.colorGrade,
+        '-r', String(preset.fps), '-vf', preset.requires120Fps ? `scale=${preset.width}:${preset.height}:flags=lanczos,fps=${preset.fps},${PROD_SETTINGS.video.colorGrade}` : PROD_SETTINGS.video.colorGrade,
         '-pix_fmt', 'yuv420p', '-profile:v', preset.profile, '-level', preset.level,
         '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-movflags', '+faststart'
       ]);
@@ -91,7 +91,8 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
 }
 
 export const OUTPUT_PRESETS = Object.freeze({
-  master: { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast' },
+  '4k120': { width: 3840, height: 2160, fps: 120, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '6.2', encodePreset: 'fast', crf: 20, maxrate: '35M', bufsize: '70M', requires120Fps: true },
+  master: { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast', crf: 18 },
   '4k': { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast' },
   'youtube-4k': { width: 3840, height: 2160, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '5.2', encodePreset: 'fast' },
   'youtube-1080p': { width: 1920, height: 1080, fps: 24, videoCodec: 'libx264', audioCodec: 'aac', profile: 'high', level: '4.2', encodePreset: 'fast' },
@@ -109,7 +110,7 @@ export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output 
   valid.forEach(clip => args.push('-i', path.resolve(clip.videoUri)));
   valid.forEach(clip => args.push('-i', path.resolve(clip.audioUri)));
 
-  const videoFilters = valid.map((_, i) => '[' + i + ':v]scale=' + preset.width + ':' + preset.height + ':force_original_aspect_ratio=decrease,pad=' + preset.width + ':' + preset.height + ':(ow-iw)/2:(oh-ih)/2,setsar=1,eq=contrast=1.15:brightness=-0.02:saturation=1.2[v' + i + ']').join(';');
+  const videoFilters = valid.map((_, i) => '[' + i + ':v]scale=' + preset.width + ':' + preset.height + ':force_original_aspect_ratio=decrease,pad=' + preset.width + ':' + preset.height + ':(ow-iw)/2:(oh-ih)/2,setsar=1' + (preset.requires120Fps ? ',fps=' + preset.fps : '') + ',eq=contrast=1.15:brightness=-0.02:saturation=1.2[v' + i + ']').join(';');
   const audioFilters = valid.map((_, i) => '[' + (valid.length + i) + ':a]aresample=48000,loudnorm=I=-16:LRA=11:TP=-1.5[a' + i + ']').join(';');
   const videoConcat = valid.map((_, i) => '[v' + i + ']').join('') + 'concat=n=' + valid.length + ':v=1:a=0[v]';
   const audioConcat = valid.map((_, i) => '[a' + i + ']').join('') + 'concat=n=' + valid.length + ':v=0:a=1[a]';
@@ -117,8 +118,9 @@ export function buildTimelineFfmpegPlan({ clips = [], format = 'master', output 
 
   const outputArgs = ['-filter_complex', filters, '-map', '[v]', '-map', '[a]', '-c:v', preset.videoCodec, '-c:a', 'aac',
     '-ar', String(PROD_SETTINGS.audio.frequency), '-ac', String(PROD_SETTINGS.audio.channels), '-b:a', PROD_SETTINGS.audio.bitrate,
-    '-pix_fmt', 'yuv420p', '-crf', String(PROD_SETTINGS.video.crf), '-preset', preset.encodePreset || PROD_SETTINGS.video.preset,
-    '-profile:v', preset.profile, '-level', preset.level, '-r', String(preset.fps), '-movflags', '+faststart', output];
+    '-pix_fmt', 'yuv420p', '-crf', String(preset.crf ?? PROD_SETTINGS.video.crf), '-preset', preset.encodePreset || PROD_SETTINGS.video.preset,
+    '-profile:v', preset.profile, '-level', preset.level, '-r', String(preset.fps),
+    ...(preset.maxrate ? ['-maxrate', preset.maxrate] : []), ...(preset.bufsize ? ['-bufsize', preset.bufsize] : []), '-movflags', '+faststart', output];
 
   return { command: 'ffmpeg', args: args.concat(outputArgs), preset, inputCount: valid.length * 2, ready: true };
 }
@@ -132,7 +134,7 @@ export function buildFfmpegPlan({ media = [], audio = [], format = 'master', out
   const args = ['-y'];
   for (const item of video) args.push('-i', path.resolve(item.uri));
   for (const item of audioInputs) args.push('-i', path.resolve(item.uri));
-  const videoFilters = video.map((_, index) => `[${index}:v]scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v${index}]`);
+  const videoFilters = video.map((_, index) => `[${index}:v]scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2,setsar=1${preset.requires120Fps ? `,fps=${preset.fps}` : ''}[v${index}]`);
   const chain = video.map((_, index) => `[v${index}]`).join('') + `concat=n=${video.length}:v=1:a=0[v]`;
   const filters = [...videoFilters, chain];
   const out = ['-filter_complex', filters.join(';'), '-map', '[v]'];
@@ -143,7 +145,7 @@ export function buildFfmpegPlan({ media = [], audio = [], format = 'master', out
     filters.push(...audioFilters, audioChain);
     out.unshift('-filter_complex', filters.join(';'), '-map', '[v]', '-map', '[a]', '-c:a', preset.audioCodec, '-shortest');
   } else out.push('-an');
-  out.push('-r', String(preset.fps), '-c:v', preset.videoCodec, '-profile:v', preset.profile, '-level', preset.level, '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output);
+  out.push('-r', String(preset.fps), '-c:v', preset.videoCodec, '-profile:v', preset.profile, '-level', preset.level, '-pix_fmt', 'yuv420p', ...(preset.crf ? ['-crf', String(preset.crf)] : []), ...(preset.maxrate ? ['-maxrate', preset.maxrate] : []), ...(preset.bufsize ? ['-bufsize', preset.bufsize] : []), '-movflags', '+faststart', output);
   return { command: 'ffmpeg', args: [...args, ...out], preset, inputCount: video.length + audioInputs.length, ready: true };
 }
 
