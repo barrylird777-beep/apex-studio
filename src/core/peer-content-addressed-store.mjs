@@ -405,7 +405,8 @@ export function createPeerObjectStorageHandler({
     }
     const capacityReceipt = {
       durable: store.durable === true,
-      ownership: store.ownership === 'peer-owned' ? 'peer-owned' : null
+      ownership: store.ownership === 'peer-owned' ? 'peer-owned' : null,
+      recoveryVerified: store.recoveryVerified === true
     };
     if (operation === 'storage.health') {
       return { accepted: true, peerId: resolvePeerId(), namespace: envelope.namespace, ...capacityReceipt };
