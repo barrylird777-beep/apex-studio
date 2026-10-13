@@ -40,7 +40,7 @@ async function rpc(method, params = []) {
   });
   if (!response.ok) throw new Error('Polygon RPC unavailable');
   const payload = await response.json();
-  if (payload.error || payload.result == null) throw new Error('Polygon RPC did not return a valid result');
+  if (payload.error || !Object.prototype.hasOwnProperty.call(payload, 'result')) throw new Error('Polygon RPC did not return a valid result');
   return payload.result;
 }
 
