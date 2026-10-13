@@ -116,7 +116,7 @@ test('peer storage assembly fails closed when no durable peer-owned backend is c
 });
 
 test('peer storage health exposes durable ownership only from a declared peer-owned backend', async () => {
-  const durableStore = Object.assign(binaryMemoryStore(), { durable: true, ownership: 'peer-owned' });
+  const durableStore = Object.assign(binaryMemoryStore(), { durable: true, ownership: 'peer-owned', recoveryVerified: true });
   const runtime = await initializePeerObjectStorage({
     enabled: true, store: durableStore, namespaceAcl: 'KernelVision=writer-peer',
     peerId: () => 'storage-peer'
@@ -126,6 +126,7 @@ test('peer storage health exposes durable ownership only from a declared peer-ow
   }, { remotePeerId: 'writer-peer' });
   assert.equal(healthy.durable, true);
   assert.equal(healthy.ownership, 'peer-owned');
+  assert.equal(healthy.recoveryVerified, true);
   assert.equal(healthy.peerId, 'storage-peer');
   await assert.rejects(runtime.handle({
     protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
