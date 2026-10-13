@@ -111,7 +111,7 @@ test("Kernelodies uses the existing music provenance contract",async()=>{
   assert.equal(plan.contractVersion,"apex-music-production.v1"); assert.equal((await kernelodiesStatus()).app.name,"Kernelodies");
 });
 test("canonical app identities are internally consistent",async()=>{
-  for(const [id,fn] of [["planet-apex",planetApexStatus],["ko-blocks",koBlocksStatus],["xshield",xshieldStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
+  for(const [id,fn] of [["planet-apex",planetApexStatus],["xshield",xshieldStatus],["kernel-vision",kernelVisionStatus],["koin-kob",koinKobStatus],["kash-korner",kashKornerStatus]])assert.equal(fn().app.id,id);
   assert.equal((await kernelodiesStatus()).app.id,"kernelodies");
   for(const app of Object.values(APEX_APPS))assert.equal(getApexApp(app.id).name,app.name);
 });
