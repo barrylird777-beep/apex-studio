@@ -23,7 +23,7 @@ function safeEqual(leftValue, rightValue) {
 
 function requestToken(req) {
   const authorization = String(req.get?.('authorization') || '');
-  const bearer = /^Bearer\\s+([^\\s]+)$/i.exec(authorization)?.[1] || '';
+  const bearer = /^Bearer\s+([^\s]+)$/i.exec(authorization)?.[1] || '';
   return bearer
     || req.get?.('x-apex-control-token')
     || req.get?.('x-apex-shortcut-token')
