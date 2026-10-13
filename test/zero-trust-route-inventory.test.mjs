@@ -29,7 +29,7 @@ function routeDeclarations(source) {
   for (let index = 0; index < lines.length; index += 1) {
     const match = lines[index].match(/^\s*app\.(get|post|put|patch|delete|all)\((.*)$/);
     if (!match) continue;
-    const block = lines.slice(index, Math.min(index + 8, lines.length)).join("\n");
+    const block = lines.slice(index, Math.min(index + 8, lines.length)).join("\n").split("=>", 1)[0];
     const pathMatch = match[2].match(/^\s*(?:\[\s*)?['"]([^'"]+)['"]/);
     if (!pathMatch) continue; // Dynamic/nonliteral paths need a separate manual review.
     const routePath = pathMatch[1];
