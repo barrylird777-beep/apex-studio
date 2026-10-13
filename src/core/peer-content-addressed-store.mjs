@@ -316,7 +316,7 @@ export class PeerContentAddressedStore {
         if (response.hash !== hash || response.namespace !== this.namespace) throw new Error('peer returned an invalid reference durability receipt');
         receipts.push({ peerId, hash, failureDomain: this.failureDomainsByPeerId[peerId] || null });
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
       }
     }
     if (receipts.length < this.replicaCount) {
