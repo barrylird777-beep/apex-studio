@@ -47,3 +47,8 @@ test('capacity-aware render concurrency scales CPU-only work', async () => {
   assert.equal(getRenderConcurrency({ cpuCount: 8, gpuAvailable: true, configured: 16 }), 16);
   assert.equal(chooseRenderPath({ probe: { video: { width:3840,height:2160,fps:24,codec:'h264',pixFmt:'yuv420p' } } }).mode, 'copy');
 });
+
+test('4k120 mastering preset is defined with requested bounds', async () => {
+  const { OUTPUT_PRESETS } = await import('../src/core/ffmpeg.mjs');
+  assert.deepEqual({ width: OUTPUT_PRESETS['4k120'].width, height: OUTPUT_PRESETS['4k120'].height, fps: OUTPUT_PRESETS['4k120'].fps, crf: OUTPUT_PRESETS['4k120'].crf, maxrate: OUTPUT_PRESETS['4k120'].maxrate, bufsize: OUTPUT_PRESETS['4k120'].bufsize }, { width: 3840, height: 2160, fps: 120, crf: 20, maxrate: '35M', bufsize: '70M' });
+});
