@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import express from 'express';
 import { createStripeRouter } from '../src/routes/stripe.mjs';
-import { buildRapidCheckoutMetadata } from '../src/payments/stripe-rapid.mjs';
+import { buildRapidCheckoutMetadata, buildRapidCheckoutParams } from '../src/payments/stripe-rapid.mjs';
 
 const WEBHOOK_SECRET = 'whsec_apex_test_only';
 
@@ -145,4 +145,24 @@ test('Stripe paid checkout webhook fails closed when the durable queue is unavai
     if (previousSecret === undefined) delete process.env.STRIPE_WEBHOOK_SECRET;
     else process.env.STRIPE_WEBHOOK_SECRET = previousSecret;
   }
+});
+
+
+test('Rapid Video checkout leaves payment methods to Stripe dynamic configuration and keeps the $25 price', () => {
+  const params = buildRapidCheckoutParams({
+    orderId: 'low-fee-order',
+    name: 'Buyer',
+    type: 'Product launch',
+    brief: 'Short launch video',
+    platform: 'TikTok',
+    email: 'buyer@example.com',
+    successUrl: 'https://example.com/success',
+    cancelUrl: 'https://example.com/cancel'
+  });
+  assert.equal(params.get('mode'), 'payment');
+  assert.equal(params.get('line_items[0][price_data][currency]'), 'usd');
+  assert.equal(params.get('line_items[0][price_data][unit_amount]'), '2500');
+  assert.equal(params.get('line_items[0][quantity]'), '1');
+  assert.equal(params.has('payment_method_types[0]'), false);
+  assert.equal(params.has('payment_method_types[1]'), false);
 });

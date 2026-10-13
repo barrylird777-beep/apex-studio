@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {buildRapidCheckoutMetadata,decodeRapidCheckoutMetadata,verifyRapidStripeSignature} from '../src/payments/stripe-rapid.mjs';
+import {buildRapidCheckoutMetadata,buildRapidCheckoutParams,decodeRapidCheckoutMetadata,verifyRapidStripeSignature} from '../src/payments/stripe-rapid.mjs';
 
 test('Rapid checkout metadata round-trips full brief',()=>{
   const brief='Line one\nLine two — cinematic hook. '.repeat(140);
@@ -15,6 +15,19 @@ test('Rapid checkout metadata round-trips full brief',()=>{
   assert.equal(decoded.platform,'TikTok');
   assert.equal(decoded.email,'buyer@example.com');
   assert.equal(decoded.brief,brief);
+});
+
+
+test('Rapid checkout delegates payment-method selection to Stripe dynamic settings at the advertised $25 price',()=>{
+  const params=buildRapidCheckoutParams({
+    orderId:'order-ach-test',name:'Apex',type:'Product ad',brief:'Test order',
+    platform:'Other',email:'buyer@example.com',
+    successUrl:'https://example.com/paid',cancelUrl:'https://example.com/canceled'
+  });
+  assert.equal(params.has('payment_method_types[0]'),false);
+  assert.equal(params.has('payment_method_types[1]'),false);
+  assert.equal(params.get('line_items[0][price_data][unit_amount]'),'2500');
+  assert.equal(params.get('mode'),'payment');
 });
 
 test('Rapid Stripe signature verifies and rejects tampering',()=>{
