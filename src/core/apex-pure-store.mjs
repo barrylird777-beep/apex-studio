@@ -279,7 +279,7 @@ export class ApexPureStore {
   }
   async loadStateReferences(){
     this.state.clear();
-    for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null)this.state.set(this.key(v.collection,v.id),clone(v.record));}
+    for(const ref of await this.cas.listRefs("state")){const v=ref.value;if(v?.collection&&v?.id!=null&&!v.deleted)this.state.set(this.key(v.collection,v.id),clone(v.record));}
   }
   async loadJobReferences(){
     this.jobsState.clear();
@@ -465,24 +465,36 @@ export class ApexPureStore {
   }
   async put(collection,id,record){
     await this.init();
-    const target=this.remoteMode?null:await this.checkedFile(collection,id,{createDir:true});
-    const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
-    await this.persistState(collection,id,value);
-    this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
-    if(!this.remoteMode)await this.atomic(target,value);
-    return clone(value);
+    const run=async()=>{
+      const target=this.remoteMode?null:await this.checkedFile(collection,id,{createDir:true});
+      const value={...clone(record),id:String(id),updatedAt:new Date().toISOString()};
+      await this.persistState(collection,id,value);
+      this.apply({type:"state.put",payload:{collection:String(collection),id:String(id),record:value}});
+      if(!this.remoteMode)await this.atomic(target,value);
+      return clone(value);
+    };
+    return this.remoteMode?this.withMutationLock(run):run();
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
-  async get(collection,id){await this.init();const key=this.key(collection,id);const ref=await this.cas.readRef("state",this.refKey(collection,id));const v=ref?.value;if(v?.collection&&v?.id!=null){this.state.set(key,clone(v.record));return clone(v.record);}this.state.delete(key);return null;}
+  async get(collection,id){await this.init();const key=this.key(collection,id);const ref=await this.cas.readRef("state",this.refKey(collection,id));const v=ref?.value;if(v?.collection&&v?.id!=null&&!v.deleted){this.state.set(key,clone(v.record));return clone(v.record);}this.state.delete(key);return null;}
   async list(collection){await this.refreshState();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
     await this.init();
-    const target=this.remoteMode?null:await this.checkedFile(collection,id);
-    await this.cas.deleteRef("state",this.refKey(collection,id));
-    this.state.delete(this.key(collection,id));
-    if(!this.remoteMode){const { unlink }=await import("node:fs/promises");try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}}
-    return true;
+    const run=async()=>{
+      const target=this.remoteMode?null:await this.checkedFile(collection,id);
+      if(this.remoteMode){
+        await this.persistDelete(collection,id);
+        this.state.delete(this.key(collection,id));
+        return true;
+      }
+      await this.cas.deleteRef("state",this.refKey(collection,id));
+      this.state.delete(this.key(collection,id));
+      const { unlink }=await import("node:fs/promises");
+      try{await unlink(target);await syncDirectory(path.dirname(target));}catch(e){if(e.code!=="ENOENT")throw e;}
+      return true;
+    };
+    return this.remoteMode?this.withMutationLock(run):run();
   }
   async enqueue({id=randomUUID(),type,payload={},runAt=Date.now(),maxAttempts=5,dedupeKey=null,priority=0}={}){
     if(!type)throw new Error("job type required");
