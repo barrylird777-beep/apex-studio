@@ -125,7 +125,7 @@ test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async 
   assert.match(hub, /setActiveKey\(visibleApps\[0\]\.key\)/);
   const planet = await readPublic("planet-apex.html");
   assert.match(planet, /<main class="apex-shell" data-apex-app="planetapex"/);
-  assert.match(planet, /Explore the planet\. Observe independent lives, changing communities, places, and discoveries inside GardenApex\./);
+  assert.match(planet, /GardenApeX—the living universe/);
   assert.ok(planet.includes('href="/bible-study-room.html"'));
   assert.ok(planet.includes('href="/garden-of-apex.html"'));
   assert.ok(planet.includes('href="/special-search.html"'));
