@@ -6,6 +6,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
 import { ApexRingWAL } from "../src/core/apex-ring-wal.mjs";
+import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
