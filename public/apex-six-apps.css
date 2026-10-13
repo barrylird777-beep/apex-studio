@@ -173,3 +173,5 @@ body{min-width:320px;padding-bottom:env(safe-area-inset-bottom)}
   html{scroll-behavior:auto}
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+/* PlanetApeX root dashboard uses the root route rather than a data-apex-app shell. */
+body:has(.apex-app-nav a[aria-current="page"][href="/"]){--apex-accent:#80c6ff}
