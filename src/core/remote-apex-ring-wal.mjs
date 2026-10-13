@@ -184,7 +184,9 @@ export class RemoteApexRingWAL {
       const requestMeta = { ...(meta || {}) };
       delete requestMeta.idempotencyKey;
       delete requestMeta.requestHash;
-      const requestHash = sha({ type: String(type), payload, meta: requestMeta });
+      const idempotencyPayload = requestMeta.idempotencyPayload;
+      delete requestMeta.idempotencyPayload;
+      const requestHash = sha({ type: String(type), payload: idempotencyPayload === undefined ? payload : idempotencyPayload, meta: requestMeta });
       if (idempotencyKey) {
         const existingSequence = this.idempotencyIndex.get(idempotencyKey);
         if (existingSequence != null) {
@@ -199,7 +201,7 @@ export class RemoteApexRingWAL {
           return existing;
         }
       }
-      const recordMeta = idempotencyKey ? { ...(meta || {}), idempotencyKey, requestHash } : meta;
+      const recordMeta = idempotencyKey ? { ...requestMeta, idempotencyKey, requestHash } : meta;
       const record = { version: 1, id: this.tokenFactory(), seq: this.seq + 1, ts: this.timestamp(), type: String(type), payload, meta: recordMeta, prevHash: this.lastHash };
       record.hash = sha(record);
       // Remote WAL is append-only and is not blocked by the legacy local-WAL byte cap.
