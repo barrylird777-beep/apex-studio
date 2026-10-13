@@ -8,10 +8,16 @@ const MAX_TRACKED_PEERS = 10_000;
 const MAX_REPLAY_ENTRIES = 20_000;
 const REPLAY_TTL_MS = 10 * 60_000;
 
+function positiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(max, Math.max(1, Math.floor(parsed)));
+}
+
 export function createPeerSecurityGuard({
   now = () => Date.now(),
-  windowMs = Number(process.env.APEX_PEER_RATE_WINDOW_MS || DEFAULT_WINDOW_MS),
-  limit = Number(process.env.APEX_PEER_RATE_LIMIT || DEFAULT_LIMIT),
+  windowMs = positiveInteger(process.env.APEX_PEER_RATE_WINDOW_MS, DEFAULT_WINDOW_MS, 3_600_000),
+  limit = positiveInteger(process.env.APEX_PEER_RATE_LIMIT, DEFAULT_LIMIT, 100_000),
   replayTtlMs = REPLAY_TTL_MS
 } = {}) {
   const windows = new Map();
