@@ -1312,7 +1312,7 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     const metadata = decodeRapidCheckoutMetadata(session.metadata || {});
     const amount = Number(session.amount_total);
     const paid = session.payment_status === 'paid';
-    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2610 || String(session.currency || '').toLowerCase() !== 'usd') {
+    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
     if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
@@ -1928,7 +1928,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
       success: true,
       orderId,
       status: 'payment_required',
-      price: 26.10,
+      price: 25.00,
       checkoutUrl: checkout.url,
       statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
