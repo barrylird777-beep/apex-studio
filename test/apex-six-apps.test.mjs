@@ -256,3 +256,16 @@ test("legacy EngineApex and ShieldApex capabilities resolve to canonical owners"
   assert.equal(getApexApp("ko-blocks").name,"KoBlocks");
   assert.equal(listApexApps().length,6);
 });
+
+test("legacy Music Radar bridge follows Kernelodies-to-KernelVision production ownership",async()=>{
+  const page=await readFile(resolve(process.cwd(),"public/korn-knob.html"),"utf8");
+  assert.match(page,/Music Radar is a Kernelodies discovery and integration surface, not a separate production authority/);
+  assert.match(page,/KernelVision owns final audiovisual production/);
+  assert.match(page,/KernelVision URL/);
+});
+test("ShieldApex status reports XShield as the canonical owner",async()=>{
+  const server=await readFile(resolve(process.cwd(),"server.mjs"),"utf8");
+  const page=await readFile(resolve(process.cwd(),"public/shield-apex.html"),"utf8");
+  assert.match(server,/app\.get\('\/api\/shield-apex\/status'[\s\S]*?system: 'xshield'[\s\S]*?ownerApp: 'XShield'/);
+  assert.match(page,/ShieldApex is a historical security-boundary implementation now owned by XShield/);
+});
