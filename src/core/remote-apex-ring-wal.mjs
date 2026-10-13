@@ -19,7 +19,7 @@ export class RemoteApexRingWAL {
     this.lockKey = "wal-lock-" + this.scope;
     this.file = "remote://cas/wal/" + this.scope;
     this.seq = 0; this.lastHash = ZERO; this.ring = new Array(ringSize);
-    this.head = 0; this.count = 0; this.offset = 0; this.lastExternalRecords = []; this.ready = false;
+    this.head = 0; this.count = 0; this.offset = 0; this.lastExternalRecords = []; this.ready = false; this.initPromise = null;
   }
   _load(record) {
     this.seq = Number(record.seq); this.lastHash = String(record.hash);
@@ -57,7 +57,60 @@ export class RemoteApexRingWAL {
       if (lockHash) await this.cas.deleteRef("system", this.lockKey, { expectedHash: lockHash }).catch(() => {});
     }
   }
-  async init() { if (this.ready) return this; await this.cas.init(); await this.replay({ retainRing: true }); this.ready = true; return this; }
+  async init() {
+    if (this.ready) return this;
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = (async () => {
+      await this.cas.init();
+      await this.replay({ retainRing: true });
+      this.ready = true;
+      return this;
+    })();
+    try { return await this.initPromise; }
+    catch (error) { this.initPromise = null; throw error; }
+  }
+  async _prepareAppendHead() {
+    let head = await this.cas.readRef("system", this.headKey);
+    if (!head) {
+      const first = await this.cas.readRef("wal", this.scope + "-" + keyFor(1));
+      if (first) {
+        await this._records({ retainRing: true, allowHeadLag: true, repairHead: true });
+        head = await this.cas.readRef("system", this.headKey);
+      } else {
+        if (this.seq > 0) throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL head and first record disappeared.");
+        this.seq = 0; this.lastHash = ZERO;
+        return null;
+      }
+    }
+    const validHead = value => value && Number.isSafeInteger(Number(value.seq)) &&
+      Number(value.seq) >= 1 && /^[a-f0-9]{64}$/.test(String(value.lastHash || ""));
+    if (!validHead(head?.value)) throw new Error("[REMOTE_WAL_INTEGRITY] Invalid remote WAL head.");
+    let sequence = Number(head.value.seq);
+    let lastHash = String(head.value.lastHash);
+    let last = await this.cas.readRef("wal", this.scope + "-" + keyFor(sequence));
+    const validLast = row => {
+      if (!row?.value) return false;
+      const { hash, ...body } = row.value;
+      return row.value.seq === sequence && row.value.hash === lastHash && hash === sha(body);
+    };
+    const next = await this.cas.readRef("wal", this.scope + "-" + keyFor(sequence + 1));
+    if (!validLast(last) || next) {
+      await this._records({ retainRing: true, allowHeadLag: true, repairHead: true });
+      head = await this.cas.readRef("system", this.headKey);
+      if (!head || !validHead(head.value)) throw new Error("[REMOTE_WAL_INTEGRITY] Unable to recover remote WAL head.");
+      sequence = Number(head.value.seq);
+      lastHash = String(head.value.lastHash);
+      last = await this.cas.readRef("wal", this.scope + "-" + keyFor(sequence));
+      if (!last || last.value?.seq !== sequence || last.value?.hash !== lastHash) {
+        throw new Error("[REMOTE_WAL_INTEGRITY] Recovered remote WAL head does not match its final record.");
+      }
+      const stillNext = await this.cas.readRef("wal", this.scope + "-" + keyFor(sequence + 1));
+      if (stillNext) throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL contains an unexpected record after its head.");
+    }
+    this.seq = sequence;
+    this.lastHash = lastHash;
+    return head;
+  }
   async _records({ onRecord = async () => {}, retainRing = true, allowHeadLag = false, repairHead = false } = {}) {
     this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0;
     const refs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r")).sort((a,b) => String(a.key).localeCompare(String(b.key)));
@@ -91,9 +144,9 @@ export class RemoteApexRingWAL {
     return sequence;
   }
   async append(type, payload = {}, meta = {}) {
-    await this.cas.init();
+    await this.init();
     return this._lock(async () => {
-      await this._records({ retainRing: true, allowHeadLag: true, repairHead: true });
+      const currentHead = await this._prepareAppendHead();
       const record = { version: 1, id: randomUUID(), seq: this.seq + 1, ts: new Date().toISOString(), type: String(type), payload, meta, prevHash: this.lastHash };
       record.hash = sha(record);
       // Remote WAL is append-only and is not blocked by the legacy local-WAL byte cap.
@@ -101,7 +154,6 @@ export class RemoteApexRingWAL {
       const incoming = Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
       const recordKey = this.scope + "-" + keyFor(record.seq);
       await this.cas.writeRef("wal", recordKey, record, { expectedHash: null });
-      const currentHead = await this.cas.readRef("system", this.headKey);
       await this.cas.writeRef("system", this.headKey, { seq: record.seq, lastHash: record.hash, updatedAt: record.ts }, { expectedHash: currentHead?.hash ?? null });
       this._load(record); this.offset += incoming;
       Object.defineProperty(record, "externalRecords", { value: this.lastExternalRecords.slice(), enumerable: false });
