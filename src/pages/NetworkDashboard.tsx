@@ -21,6 +21,9 @@ function BrowserPeerTest(){
   const [checksumStatus,setChecksumStatus]=useState("Not verified");
   const [senderSha256,setSenderSha256]=useState("");
   const [receiverSha256,setReceiverSha256]=useState("");
+  const [proofToken,setProofToken]=useState("");
+  const [persistStatus,setPersistStatus]=useState("Not requested");
+  const verifiedPayload=useRef<{transferId:string;payload:Uint8Array;sha256:string}|null>(null);
   const [bufferedAmount,setBufferedAmount]=useState(0);
   const incomingTransfers=useRef(new Map<string,{chunks:Map<number,Uint8Array>;totalChunks:number;expectedSha256:string;payloadBytes:number}>());
   const [note,setNote]=useState("Opt-in test only. No application traffic is routed over this channel.");
@@ -45,7 +48,15 @@ function BrowserPeerTest(){
         const digest=await crypto.subtle.digest("SHA-256",payload);
         const actualSha256=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
         setReceiverSha256(actualSha256);
-        setChecksumStatus(actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
+        const checksumPassed=actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024;
+        setChecksumStatus(checksumPassed?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
+        if(checksumPassed){
+          verifiedPayload.current={transferId:packet.transferId,payload,sha256:actualSha256};
+          setPersistStatus("Checksum passed. Remote storage has not been requested yet.");
+        }else{
+          verifiedPayload.current=null;
+          setPersistStatus("Blocked because the receiver checksum did not pass.");
+        }
         incomingTransfers.current.delete(packet.transferId);
       }catch{setChecksumStatus("Could not validate received payload");}
     };
@@ -118,6 +129,7 @@ function BrowserPeerTest(){
     const dc=channel.current;
     if(!dc||dc.readyState!=="open"){setNote("Connect both browsers before running a transfer.");return;}
     setBusy(true);setTransferStatus("Sending test payload…");setTransferRate("Measuring…");setSent(0);
+    verifiedPayload.current=null;setPersistStatus("Not requested");
     const totalBytes=1024*1024;
     const chunkBytes=32*1024;
     const totalChunks=totalBytes/chunkBytes;
@@ -163,6 +175,30 @@ function BrowserPeerTest(){
       setNote(e instanceof Error?e.message:"WebRTC transfer failed.");
     }finally{setBusy(false);}
   };
+  const persistVerifiedPayload=async()=>{
+    const proof=verifiedPayload.current;
+    if(!proof){setPersistStatus("Blocked — no checksum-verified payload is ready.");return;}
+    if(!proofToken.trim()){setPersistStatus("Enter the control token on this page to authorize remote persistence.");return;}
+    setBusy(true);setPersistStatus("Uploading verified payload to remote storage…");
+    try{
+      const response=await fetch("/api/network/webrtc-proof/persist",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/octet-stream",
+          "Authorization":"Bearer "+proofToken.trim(),
+          "X-Apex-Transfer-Id":proof.transferId,
+          "X-Apex-Expected-Sha256":proof.sha256
+        },
+        body:proof.payload
+      });
+      const result=await response.json().catch(()=>({success:false,error:"Server returned an unreadable response."}));
+      if(!response.ok||!result.success||!result.persisted)throw new Error(result.error||("Remote persistence failed (HTTP "+response.status+")."));
+      setPersistStatus("PASS — remote CAS readback and WAL verified. WAL sequence "+result.walSequence+".");
+      setNote("Remote proof saved. Payload SHA-256 "+result.payloadSha256+"; CAS record "+result.remoteCasRecordHash+"; WAL hash "+result.walHash+". This does not reroute normal app traffic.");
+      setProofToken("");
+    }catch(e){setPersistStatus("Not verified — "+(e instanceof Error?e.message:"remote persistence failed"));}
+    finally{setBusy(false);}
+  };
   const close=()=>{pc.current?.close();pc.current=null;channel.current=null;setConnection("Closed");setChannelState("Closed");setPathType("Not measured");setNote("Peer connection closed. No background connection remains.");};
   useEffect(()=>{const id=window.setInterval(()=>setBufferedAmount(channel.current?.bufferedAmount??0),150);return()=>{window.clearInterval(id);pc.current?.close();};},[]);
   return <Card className="mt-6"><CardHeader><CardTitle>Browser-to-browser WebRTC proof</CardTitle></CardHeader><CardContent>
@@ -172,7 +208,14 @@ function BrowserPeerTest(){
     <textarea id="apex-webrtc-signal" value={signal} onChange={e=>setSignal(e.target.value)} rows={5} autoCapitalize="off" spellCheck={false} className="mt-2 w-full rounded-lg border bg-background p-3 font-mono text-xs" placeholder="Generate an offer here, or paste the other browser's offer/answer." />
     <div className="mt-3 flex flex-wrap gap-2"><Button onClick={makeOffer} disabled={busy}>Create offer</Button><Button onClick={makeAnswer} disabled={busy}>Create answer from pasted offer</Button><Button onClick={applyAnswer} disabled={busy}>Apply pasted answer</Button><Button onClick={sendProbe} disabled={channelState!=="Open"||busy}>Send 16 KiB probe</Button><Button onClick={runTransfer} disabled={channelState!=="Open"||busy}>Transfer 1 MiB test</Button><Button onClick={close}>Disconnect</Button><Button onClick={async()=>{try{await navigator.clipboard.writeText(signal);setNote("Signaling JSON copied.");}catch{setNote("Clipboard unavailable. Select and copy the JSON manually.");}}} disabled={!signal}>Copy JSON</Button></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Payload bytes submitted</div><b>{sent.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Payload bytes received</div><b>{received.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Current send queue</div><b>{bufferedAmount.toLocaleString()} bytes</b><div className="text-xs text-muted-foreground">Threshold: 65,536 bytes</div></div></div>
-    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Test transfer</div><b>{transferStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><b>{checksumStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Send rate (payload submission)</div><b>{transferRate}</b></div></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Sender SHA-256</div><code className="block break-all text-xs">{senderSha256||"Not generated"}</code></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><code className="block break-all text-xs">{receiverSha256||"Waiting for receiver"}</code></div></div><p role="status" className="mt-3 text-sm text-muted-foreground">{note}</p>
+    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Test transfer</div><b>{transferStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><b>{checksumStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Send rate (payload submission)</div><b>{transferRate}</b></div></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Sender SHA-256</div><code className="block break-all text-xs">{senderSha256||"Not generated"}</code></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><code className="block break-all text-xs">{receiverSha256||"Waiting for receiver"}</code></div></div><div className="mt-4 rounded-lg border p-3">
+      <div className="font-medium">Optional remote-storage proof</div>
+      <p className="mt-1 text-sm text-muted-foreground">Only available after the receiver SHA-256 passes. This sends the 1 MiB test payload to remote storage and records a remote WAL receipt. It is a separate, explicit upload.</p>
+      <label className="mt-3 block text-sm font-medium" htmlFor="apex-webrtc-proof-token">Control token (used only for this request)</label>
+      <input id="apex-webrtc-proof-token" type="password" autoComplete="off" value={proofToken} onChange={e=>setProofToken(e.target.value)} className="mt-2 w-full rounded-lg border bg-background p-3 text-sm" placeholder="Enter token here; do not send it in chat" />
+      <div className="mt-3 flex flex-wrap items-center gap-3"><Button onClick={persistVerifiedPayload} disabled={checksumStatus!=="PASS — 1 MiB SHA-256 matches"||!proofToken.trim()||busy}>Persist verified payload to remote CAS + WAL</Button><span className="text-sm text-muted-foreground">{persistStatus}</span></div>
+    </div>
+    <p role="status" className="mt-3 text-sm text-muted-foreground">{note}</p>
     <p className="mt-2 text-xs text-muted-foreground">Security note: WebRTC encrypts data channels at the transport layer. This test does not establish libp2p peer identity, Noise authentication, mesh membership, or a production relay fallback. Never paste signaling JSON from an untrusted party.</p>
   </CardContent></Card>;
 }
