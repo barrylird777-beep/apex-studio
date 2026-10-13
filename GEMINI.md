@@ -4,7 +4,7 @@
 Review Apex ecosystem changes independently. Find reproducible defects before merge; do not generate noise or certify untested work.
 
 ## Canon
-- Six apps: PlanetApeX, KoBlocks, KernelVision, KoinKob, KashKorner, Kernelodies.
+- Six apps: PlanetApeX, XShield, KernelVision, KoinKob, KashKorner, Kernelodies. KoBlocks is a reusable workflow capability, not a canonical app.
 - GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX, not a separate app.
 - Preserve names, app boundaries, data, and historical capabilities.
 - **Pure-WAL / Ring-WAL is the sovereign storage direction. Do not restore PostgreSQL or introduce SQL/SQLite runtime dependencies.** Legacy database code must be checked for active reachability before retirement.
