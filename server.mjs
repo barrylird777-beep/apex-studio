@@ -1323,6 +1323,7 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     // Commit the payment receipt to the configured Pure-WAL before dispatching work.
     // The session ID is the stable payment identity across webhook retries and event types.
     await apexPureStore.init();
+    if (!apexPureStore.remoteMode) return res.status(503).json({ received: false, error: 'Payment receipts require remote-only durable storage' });
     const wal = apexPureStore.wal;
     const paymentKey = 'payment.verified:stripe:' + paymentIntentId;
     const payment = {
@@ -1371,12 +1372,32 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
       traceId: metadata.orderId
     });
 
-    // Cross-app authorization event: publish only for the first durable payment record.
-    if (!wasRecorded) {
-      const payload = { ...payment, product: 'rapid-video-order', source: 'verified-stripe-webhook' };
-      publishCanonicalHandoff({ from: 'kernel-vision', to: 'kash-korner', payload, correlationId: metadata.orderId });
-      publishCanonicalHandoff({ from: 'kash-korner', to: 'kernel-vision', payload: { ...payload, fulfillmentAuthorized: true }, correlationId: metadata.orderId });
-    }
+    // Persist both sides of the cross-app handoff in remote CAS. Re-check on every
+    // webhook retry so a crash after the payment receipt cannot strand the handoff.
+    const handoffRows = (await apexPureStore.list('apex_canonical_handoffs')).map(row => row?.record || row);
+    const ensurePaymentHandoff = async (from, to, handoffPayload) => {
+      const exists = handoffRows.some(row =>
+        row?.correlationId === metadata.orderId &&
+        row?.from === from &&
+        row?.to === to &&
+        row?.payload?.transactionId === paymentIntentId
+      );
+      if (exists) return;
+      const eventHandoff = publishCanonicalHandoff({
+        from, to, payload: handoffPayload, correlationId: metadata.orderId
+      });
+      const durableHandoff = {
+        ...eventHandoff,
+        durable: true,
+        storage: 'remote-content-addressed-store',
+        paymentIntentId
+      };
+      await apexPureStore.put('apex_canonical_handoffs', eventHandoff.id, durableHandoff);
+      handoffRows.push(durableHandoff);
+    };
+    const handoffPayload = { ...payment, product: 'rapid-video-order', source: 'verified-stripe-webhook' };
+    await ensurePaymentHandoff('kernel-vision', 'kash-korner', handoffPayload);
+    await ensurePaymentHandoff('kash-korner', 'kernel-vision', { ...handoffPayload, fulfillmentAuthorized: true });
     return res.json({ received: true, queued: true, duplicate: Boolean(queued.duplicate || wasRecorded), orderId: metadata.orderId });
   } catch (error) {
     console.error('[rapid-stripe-webhook]', error);
