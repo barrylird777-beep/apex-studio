@@ -548,6 +548,10 @@ app.get('/health', (_req, res) => {
 // and publishes its verified state through the shared durable store.
 app.get('/ready', async (_req, res) => {
   try {
+    // Deflect immediately once this HTTP process receives SIGTERM/SIGINT.
+    if (shuttingDown) {
+      return res.status(503).json({ ok: false, status: 'not-ready', reason: 'http server is draining' });
+    }
     if (!apexPureStore.remoteMode) {
       return res.status(503).json({ ok: false, status: 'not-ready', reason: 'remote durable storage is not enabled' });
     }
