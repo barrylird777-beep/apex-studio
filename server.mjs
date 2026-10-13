@@ -57,6 +57,7 @@ import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
 import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
 import { normalizeAutonomousAiPayload } from './src/security/ai-trust-boundary.mjs';
+import { createGuardedFetch, sanitizeOutboundPayload } from './src/security/sovereign-outbound-gateway.mjs';
 import { createOwnerSessionToken, hasValidOwnerSession, isOwnerAuthConfigured, ownerSessionClearCookie, ownerSessionSetCookie, verifyOwnerPassword } from './src/security/owner-session-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2095,12 +2096,36 @@ app.use('/files', express.static(STORAGE_DIR, {
 
 // Bounded retry for transient upstream gateway failures. Provider routing below
 // still escalates to the next eligible swarm node when the final response fails.
+const outboundProviderHosts = [
+  'api.groq.com', 'openrouter.ai', 'api.cohere.com', 'api.cloudflare.com',
+  'api.anthropic.com', 'generativelanguage.googleapis.com', 'text.pollinations.ai',
+  'gen.pollinations.ai', 'api-inference.huggingface.co', 'router.huggingface.co',
+  'api.openai.com', 'api.mistral.ai', 'api.cerebras.ai', 'api.aimlapi.com',
+  'api.sambanova.ai', 'integrate.api.nvidia.com', 'api.perplexity.ai',
+  'api.together.xyz', 'api.fireworks.ai'
+];
+const guardedProviderFetch = createGuardedFetch(outboundProviderHosts);
 async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
-  return fetchWithRetry(url, options, {
-    timeoutMs,
-    maxRetries: 3,
-    baseDelayMs: 500,
-    maxDelayMs: 4000
+  const target = new URL(url);
+  let fetchImpl = guardedProviderFetch;
+  const ollamaBase = String(process.env.OLLAMA_BASE_URL || '').trim();
+  if (ollamaBase) {
+    const local = new URL(ollamaBase);
+    if (target.origin === local.origin && target.pathname.startsWith('/api/')) {
+      fetchImpl = (input, init = {}) => globalThis.fetch(input, { ...init, redirect: 'error' });
+    }
+  }
+  const guardedOptions = { ...options, redirect: 'error' };
+  if (typeof guardedOptions.body === 'string') {
+    try {
+      guardedOptions.body = JSON.stringify(sanitizeOutboundPayload(JSON.parse(guardedOptions.body)));
+    } catch (error) {
+      if (['SECRET_DETECTED', 'SECRET_FIELD_DETECTED', 'BYPASS_SECRET_BLOCK'].includes(error?.code)) throw error;
+      guardedOptions.body = sanitizeOutboundPayload({ payload: guardedOptions.body }).payload;
+    }
+  }
+  return fetchWithRetry(target.href, guardedOptions, {
+    timeoutMs, maxRetries: 3, baseDelayMs: 500, maxDelayMs: 4000, fetchImpl
   });
 }
 
@@ -2444,7 +2469,8 @@ async function callClaude(prompt, system) {
 }
 
 async function callPollinationsText(prompt, system) {
-  const fullPrompt = encodeURIComponent(`${system}\n\nTask: ${prompt}`);
+  const safe = sanitizeOutboundPayload({ prompt: String(prompt), system: String(system || DEFAULT_SYSTEM) });
+  const fullPrompt = encodeURIComponent(`${safe.system}\n\nTask: ${safe.prompt}`);
   const model = encodeURIComponent(process.env.POLLINATIONS_TEXT_MODEL || 'mistral');
   
   // Dual-endpoint attempt for Pollinations text
@@ -2851,7 +2877,8 @@ function buildPollinationsMediaRequest(kind, prompt, params = {}) {
   if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks metered media generation; no charge path is permitted');
   const key = pollinationsMediaKey();
   if (!key) throw new Error('POLLINATIONS_API_KEY is not configured');
-  const encoded = encodeURIComponent(String(prompt || '').trim());
+  const safePrompt = sanitizeOutboundPayload({ prompt: String(prompt || '').trim() }).prompt;
+  const encoded = encodeURIComponent(safePrompt);
   const base = kind === 'video'
     ? 'https://gen.pollinations.ai/video/'
     : 'https://gen.pollinations.ai/image/';
