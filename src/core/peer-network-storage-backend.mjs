@@ -78,6 +78,7 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
     async readRef(namespace, key) {
       if (namespace !== app) throw new Error('peer-network backend rejected a cross-app reference read');
       const result = await request({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace, key });
+      if (result.durable !== true || result.ownership !== 'peer-owned') throw new Error('upstream reference response lost its durable peer-owned capacity receipt');
       if (result.hash == null) return null;
       const bytes = Buffer.from(String(result.bytesBase64 || ''), 'base64');
       if (bytes.toString('base64') !== result.bytesBase64 || sha256(bytes) !== result.hash ||
