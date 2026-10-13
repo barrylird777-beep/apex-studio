@@ -15,7 +15,7 @@ test("EngineApex requires a topic for a production brief", () => {
 test("EngineApex is owned by Apex Studio and hands off to the Studio production surface", () => {
   const brief = buildEngineBrief({ topic: "Psalm 23", handoff: "TeeVee" });
   assert.equal(brief.engine, "EngineApex");
-  assert.equal(brief.system, "apex-studio");
+  assert.equal(brief.system, "kash-korner");
   assert.equal(brief.handoff, "TeeVee");
   assert.equal(brief.evidenceRequired, true);
 });
