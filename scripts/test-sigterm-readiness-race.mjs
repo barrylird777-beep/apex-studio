@@ -75,7 +75,9 @@ try {
   }
 
   const exited = await Promise.race([
-    new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal }))),
+    child.exitCode !== null
+      ? Promise.resolve({ code: child.exitCode, signal: null })
+      : new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal }))),
     sleep(26000).then(() => null)
   ]);
   assert.ok(exited, `child exceeded supervisor drain window\n${output}`);
