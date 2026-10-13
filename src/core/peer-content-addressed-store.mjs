@@ -162,7 +162,7 @@ export class PeerContentAddressedStore {
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
           throw new Error('repair source failed object hash or namespace verification');
         }
-        const envelope = deserialize(bytes);
+        const envelope = decodeCanonical(bytes);
         this.decrypt(envelope);
         sourceBytes = bytes;
         sourcePeerId = peerId;
@@ -289,7 +289,7 @@ export class PeerContentAddressedStore {
         if (sha256(bytes) !== hash || response.hash !== hash || response.namespace !== this.namespace) {
           throw new Error('peer returned content that failed SHA-256 or namespace verification');
         }
-        return this.decrypt(deserialize(bytes));
+        return this.decrypt(decodeCanonical(bytes));
       } catch (error) {
         failures.push(error instanceof Error ? error.message : String(error));
       }
@@ -337,7 +337,7 @@ export function createPeerObjectStorageHandler({
       }
       if (sha256(bytes) !== envelope.hash) throw new Error('peer object write hash mismatch');
       let value;
-      try { value = deserialize(bytes); }
+      try { value = decodeCanonical(bytes); }
       catch { throw new Error('peer object payload is not a valid binary-serialized envelope'); }
       if (value?.namespace !== envelope.namespace || value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
         throw new Error('peer object must be a correctly namespaced encrypted envelope');
@@ -353,7 +353,7 @@ export function createPeerObjectStorageHandler({
     if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
     const bytes = Buffer.from(await store.getBytes(envelope.hash));
     let value;
-    try { value = deserialize(bytes); } catch { throw new Error('persistent peer object is not a valid binary envelope'); }
+    try { value = decodeCanonical(bytes); } catch { throw new Error('persistent peer object is not a valid binary envelope'); }
     if (sha256(bytes) !== envelope.hash || value?.namespace !== envelope.namespace ||
         value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
       throw new Error('persistent peer object failed integrity or namespace verification');
