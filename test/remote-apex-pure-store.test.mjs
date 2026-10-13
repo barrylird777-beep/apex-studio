@@ -53,7 +53,9 @@ test("remote Pure-WAL mode persists records and jobs without creating local reco
     await reloaded.init();
     assert.deepEqual(await reloaded.get("app_records", "no-wal-proof"), durable);
     assert.ok(reloaded.wal instanceof RemoteApexRingWAL, "restart must retain remote WAL mode");
-    assert.equal((await reloaded.wal.snapshot()).sequence, 1, "remote WAL records must survive reinitialization");
+    const recoveredWal = await reloaded.wal.snapshot();
+    assert.equal(recoveredWal.sequence, 2, "manual and state-mutation WAL records must survive reinitialization");
+    assert.equal(recoveredWal.ring[1]?.type, "state.put", "state mutation is recorded in remote WAL");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
     const saved = await store.put("app_records", "record-1", { title: "durable remotely" });
     assert.equal(saved.id, "record-1");
@@ -136,7 +138,7 @@ test("remote migration imports local CAS records without deleting the source", a
     const remote = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas: remote });
     await store.init();
-    assert.deepEqual((await remote.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true });
+    assert.deepEqual((await remote.readRef("state", store.refKey("legacy", "record-7"))).value.record, { id: "record-7", keep: true });
     assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true });
     assert.ok(sourceRef.hash);
   } finally { await rm(root, { recursive: true, force: true }); }
