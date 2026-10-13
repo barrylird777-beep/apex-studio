@@ -28,14 +28,13 @@ function BrowserPeerTest(){
     dc.onerror=()=>setNote("Data channel error. Check network policy and repeat the handshake.");
     dc.onmessage=async(event)=>{
       const size=typeof event.data==="string"?new Blob([event.data]).size:event.data?.byteLength||0;
-      setReceived(n=>n+size);
-      if(typeof event.data!=="string")return;
+      if(typeof event.data!=="string"){setReceived(n=>n+size);return;}
       try{
         const packet=JSON.parse(event.data);
         if(packet?.type!=="apex-webrtc-benchmark"||typeof packet.transferId!=="string"||typeof packet.payload!=="string")return;
         const isNewTransfer=!incomingTransfers.current.has(packet.transferId);
         const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,string>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
-        if(isNewTransfer&&packet.index===0)setReceived(0);
+        setReceived(n=>isNewTransfer&&packet.index===0?size:n+size);
         if(!Number.isInteger(packet.index)||!Number.isInteger(packet.totalChunks)||packet.totalChunks<1||packet.totalChunks>128||packet.index<0||packet.index>=packet.totalChunks||transfer.totalChunks!==packet.totalChunks||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
         if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,packet.payload);transfer.payloadBytes+=new Blob([packet.payload]).size;}
         incomingTransfers.current.set(packet.transferId,transfer);
@@ -44,7 +43,7 @@ function BrowserPeerTest(){
         const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload));
         const actualSha256=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
         setChecksumStatus(actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
-      }catch{setChecksumStatus("Could not validate received payload");}
+      }catch{setReceived(n=>n+size);setChecksumStatus("Could not validate received payload");}
     };
   };
   const createPeer=()=>{
