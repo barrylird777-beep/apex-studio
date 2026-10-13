@@ -12,10 +12,10 @@ test("EngineApex requires a topic for a production brief", () => {
   assert.throws(() => buildEngineBrief({}), /topic is required/);
 });
 
-test("EngineApex is a KashKorner capability and hands off to KernelVision", () => {
-  const brief = buildEngineBrief({ topic: "Psalm 23" });
+test("EngineApex is owned by Apex Studio and hands off to the Studio production surface", () => {
+  const brief = buildEngineBrief({ topic: "Psalm 23", handoff: "TeeVee" });
   assert.equal(brief.engine, "EngineApex");
   assert.equal(brief.system, "kash-korner");
-  assert.equal(brief.handoff, "KernelVision");
+  assert.equal(brief.handoff, "TeeVee");
   assert.equal(brief.evidenceRequired, true);
 });

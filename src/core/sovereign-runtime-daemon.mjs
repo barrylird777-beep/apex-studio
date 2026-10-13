@@ -14,6 +14,8 @@ import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
+import { createPeerStorageAssembly } from './peer-storage-assembly.mjs';
+import { createPeerStorageIpcServer } from './peer-storage-ipc.mjs';
 
 const storageMigration = await migrateSovereignStorage();
 console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
@@ -32,6 +34,8 @@ let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
+let peerStorageIpc = null;
+let peerStorageAssembly = null;
 const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
@@ -132,16 +136,12 @@ async function main() {
   runtimeReadiness.storageReady = true;
   await engine.ready();
   if (stopping) return;
-  peerStorageRuntime = await initializePeerObjectStorage({
-    peerId: () => peerNode?.peerId?.toString?.() || ''
-  });
-  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
   if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
   if (stopping) return;
 
-  peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
+  peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope, onBinaryEnvelope: acceptPeerEnvelope });
   if (stopping) {
     await peerNode.stop().catch(() => {});
     return;
@@ -159,6 +159,24 @@ async function main() {
     throw new Error('libp2p start resolved without any listen address');
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+  const peerStorageEnabled = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
+    String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
+  if (peerStorageEnabled) {
+    peerStorageAssembly = await createPeerStorageAssembly({ peerNode });
+    peerStorageRuntime = await initializePeerObjectStorage({
+      enabled: true,
+      store: peerStorageAssembly.backend,
+      namespaceAcl: process.env.APEX_PEER_NAMESPACE_ACL || '',
+      peerId: () => peerNode?.peerId?.toString?.() || ''
+    });
+    const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
+    peerStorageIpc = createPeerStorageIpcServer({ mediaStore: peerStorageAssembly.mediaStore, token });
+    const address = await peerStorageIpc.listen();
+    console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({ enabled: true, host: address.address, port: address.port, protocol: 'binary-cbor-loopback', auth: 'shared-secret', apps: peerStorageAssembly.mediaStore.apps }));
+  } else {
+    peerStorageRuntime = await initializePeerObjectStorage({ enabled: false, peerId: () => peerNode?.peerId?.toString?.() || '' });
+  }
+  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
   try {
     await verifyRemotePersistenceReadiness();
   } catch (error) {
@@ -339,6 +357,7 @@ async function shutdown(signal) {
     console.error('[SOVEREIGN] offline identity commit failed', String(error?.message || error));
   }
   try {
+    if (peerStorageIpc) await peerStorageIpc.close();
     if (edgeNode) await edgeNode.stop();
     shutdownEvidence.edgeStopped = true;
     console.log('[SOVEREIGN] edge stopped');

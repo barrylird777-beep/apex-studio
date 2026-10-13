@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mjs';
+import { createPeerStorageAssembly } from '../src/core/peer-storage-assembly.mjs';
 
 function binaryMemoryStore() {
   const objects = new Map();
+  const refs = new Map();
   return {
-    objects,
+    objects, refs,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('hash mismatch');
@@ -17,6 +19,19 @@ function binaryMemoryStore() {
     async getBytes(hash) {
       if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
       return Buffer.from(objects.get(hash));
+    },
+    async readRef(namespace, key) {
+      const value = refs.get(namespace + ':' + key);
+      return value ? { hash: value.hash, bytes: Buffer.from(value.bytes) } : null;
+    },
+    async writeRef(namespace, key, expectedHash, hash, input) {
+      const id = namespace + ':' + key;
+      const current = refs.get(id);
+      if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('CAS mismatch'), { code: 'CAS_CONFLICT' });
+      const bytes = Buffer.from(input);
+      if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('reference hash mismatch');
+      refs.set(id, { hash, bytes });
+      return { hash };
     }
   };
 }
@@ -69,4 +84,63 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     runtime.handle({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'PlanetApeX', hash: receipt.hash }, { remotePeerId: 'unlisted-peer' }),
     /namespace access denied/
   );
+});
+
+
+test('peer object storage provides encrypted atomic references with compare-and-swap', async () => {
+  const store = binaryMemoryStore();
+  const runtime = await initializePeerObjectStorage({
+    enabled: true, store, namespaceAcl: 'PlanetApeX=writer-peer', peerId: () => 'storage-peer'
+  });
+  const client = new PeerContentAddressedStore({
+    transport: { request: async (_peerId, envelope) => runtime.handle(envelope, { remotePeerId: 'writer-peer' }) },
+    peers: ['storage-peer'], replicaCount: 1, namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 19)
+  });
+  assert.equal(await client.readRef('project-1'), null);
+  const saved = await client.writeRef('project-1', { title: 'private project' }, { expectedHash: null });
+  assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
+  await assert.rejects(
+    client.writeRef('project-1', { title: 'stale overwrite' }, { expectedHash: null }),
+    error => error.code === 'CAS_CONFLICT'
+  );
+  assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
+  assert.equal(saved.replicas[0], 'storage-peer');
+});
+
+test('peer storage assembly fails closed when no durable peer-owned backend is configured', async () => {
+  const peerNode = { dialProtocol() {}, peerId: { toString: () => 'local-peer' } };
+  await assert.rejects(
+    createPeerStorageAssembly({ peerNode, env: { APEX_APP_ID: 'KernelVision' } }),
+    /APEX_PEER_STORAGE_BACKEND_MODULE/
+  );
+});
+
+test('peer storage health exposes durable ownership only from a declared peer-owned backend', async () => {
+  const durableStore = Object.assign(binaryMemoryStore(), { durable: true, ownership: 'peer-owned', recoveryVerified: true });
+  const runtime = await initializePeerObjectStorage({
+    enabled: true, store: durableStore, namespaceAcl: 'KernelVision=writer-peer',
+    peerId: () => 'storage-peer'
+  });
+  const healthy = await runtime.handle({
+    protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
+  }, { remotePeerId: 'writer-peer' });
+  assert.equal(healthy.durable, true);
+  assert.equal(healthy.ownership, 'peer-owned');
+  assert.equal(healthy.recoveryVerified, true);
+  assert.equal(healthy.peerId, 'storage-peer');
+  await assert.rejects(runtime.handle({
+    protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
+  }, { remotePeerId: 'unlisted-peer' }), /namespace access denied/);
+});
+
+test('peer storage health does not advertise an ephemeral backend as durable', async () => {
+  const runtime = await initializePeerObjectStorage({
+    enabled: true, store: binaryMemoryStore(), namespaceAcl: 'KernelVision=writer-peer',
+    peerId: () => 'storage-peer'
+  });
+  const result = await runtime.handle({
+    protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
+  }, { remotePeerId: 'writer-peer' });
+  assert.equal(result.durable, false);
+  assert.equal(result.ownership, null);
 });

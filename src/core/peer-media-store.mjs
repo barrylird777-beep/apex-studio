@@ -8,9 +8,9 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const clone = value => value == null ? value : structuredClone(value);
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
-function assertApp(input) {
+function assertApp(input, allowedApps = APEX_MEDIA_APPS) {
   const app = String(input || '');
-  if (!APP_SET.has(app)) throw new TypeError('Unknown canonical Apex app namespace');
+  if (!APP_SET.has(app) || !allowedApps.includes(app)) throw new TypeError('Unknown or unconfigured canonical Apex app namespace');
   return app;
 }
 function assertKey(input, label) {
@@ -27,12 +27,16 @@ function assertKey(input, label) {
  * backend: immutable blobs alone cannot safely define the current project
  * state. That backend is injected and must never silently fall back to disk.
  */
-export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}) {
+export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxManifestRetries = 8 } = {}) {
   if (!peerStores || typeof peerStores !== 'object') throw new TypeError('per-app peerStores are required');
   if (!Number.isSafeInteger(maxManifestRetries) || maxManifestRetries < 1 || maxManifestRetries > 32) {
     throw new TypeError('maxManifestRetries must be between 1 and 32');
   }
-  for (const app of APEX_MEDIA_APPS) {
+  if (!Array.isArray(apps) || !apps.length || apps.some(app => !APP_SET.has(app)) || new Set(apps).size !== apps.length) {
+    throw new TypeError('apps must be a non-empty unique subset of canonical Apex apps');
+  }
+  const allowedApps = Object.freeze([...apps]);
+  for (const app of allowedApps) {
     const store = peerStores[app];
     if (!store || typeof store.putBlob !== 'function' || typeof store.getBlob !== 'function' ||
         typeof store.readRef !== 'function' || typeof store.writeRef !== 'function') {
@@ -71,9 +75,9 @@ export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}
   }
 
   return Object.freeze({
-    apps: APEX_MEDIA_APPS,
+    apps: allowedApps,
     async saveAsset(appInput, projectInput, assetInput, input, { contentType = 'application/octet-stream', metadata = {} } = {}) {
-      const app = assertApp(appInput);
+      const app = assertApp(appInput, allowedApps);
       const projectId = assertKey(projectInput, 'project ID');
       const assetId = assertKey(assetInput, 'asset ID');
       const bytes = Buffer.isBuffer(input) ? Buffer.from(input) : Buffer.from(input ?? []);
@@ -99,7 +103,7 @@ export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}
       return { ...record, refHash: updated.refHash };
     },
     async getAsset(appInput, projectInput, assetInput) {
-      const app = assertApp(appInput);
+      const app = assertApp(appInput, allowedApps);
       const projectId = assertKey(projectInput, 'project ID');
       const assetId = assertKey(assetInput, 'asset ID');
       const { manifest } = await readManifest(app, projectId);
@@ -118,7 +122,7 @@ export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}
       return { record: clone(record), bytes };
     },
     async getProject(appInput, projectInput) {
-      const app = assertApp(appInput);
+      const app = assertApp(appInput, allowedApps);
       const projectId = assertKey(projectInput, 'project ID');
       const { manifest, hash } = await readManifest(app, projectId);
       return { manifest, hash };

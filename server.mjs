@@ -10,7 +10,8 @@ import { buildTimelineFfmpegPlan, OUTPUT_PRESETS } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
+import { initStorage, configurePeerMediaStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset, getPeerMediaAsset } from './src/services/projectManager.mjs';
+import { createPeerStorageIpcClient } from './src/core/peer-storage-ipc.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
@@ -65,6 +66,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+const peerStorageRequired = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
+  String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
+let peerStorageIpcClient = null;
+if (peerStorageRequired) {
+  const appId = String(process.env.APEX_APP_ID || '').trim();
+  if (!['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob'].includes(appId)) {
+    throw new Error('APEX_APP_ID must name one canonical app when peer-only storage is enabled');
+  }
+  const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
+  peerStorageIpcClient = createPeerStorageIpcClient({ token, apps: [appId] });
+  configurePeerMediaStorage(peerStorageIpcClient, appId);
+}
 const productionMode = process.env.NODE_ENV === 'production';
 const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase() === 'true';
 
@@ -1021,6 +1034,22 @@ const scheduleErrorResponse = (res, error) => res.status(Number(error?.status) |
   ...(error?.code ? { code: error.code } : {})
 });
 
+app.get('/api/peer-media/:projectId/:assetId', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const asset = await getPeerMediaAsset(req.params.projectId, req.params.assetId);
+    if (!asset) return res.status(404).json({ success: false, error: 'Peer media asset not found' });
+    res.setHeader('Content-Type', asset.record.contentType || 'application/octet-stream');
+    res.setHeader('Content-Length', String(asset.bytes.length));
+    res.setHeader('ETag', '"' + asset.record.sha256 + '"');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-SHA256', asset.record.sha256);
+    return res.status(200).send(asset.bytes);
+  } catch (error) {
+    const status = error?.code === 'OBJECT_UNAVAILABLE' || error?.code === 'PEER_STORAGE_NOT_CONFIGURED' ? 503 : 500;
+    return res.status(status).json({ success: false, error: error?.message || 'Peer media retrieval failed', code: error?.code || 'PEER_MEDIA_READ_FAILED' });
+  }
+});
+
 app.get('/api/projects', requireControlPlaneAuth, async (_req, res) => {
   try { return res.json(await kernelVisionSchedule.listProjects()); }
   catch (error) { return scheduleErrorResponse(res, error); }
@@ -1241,6 +1270,11 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
     return res.status(400).json({ success: false, error: String(error?.message || error) });
   }
 });
+
+if (peerStorageRequired) {
+  await peerStorageIpcClient.waitUntilReady({ timeoutMs: Number(process.env.APEX_PEER_STORAGE_STARTUP_TIMEOUT_MS || 30000) });
+  console.log('[apex] peer storage daemon handshake verified');
+}
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
@@ -2140,16 +2174,22 @@ app.get('/korn-knob', async (_req, res) => {
 });
 // Serve the canonical Rapid Video Oracle-to-Forge production surface directly.
 app.use(express.static(path.join(__dirname, 'public')));
-// Persistent SE-X assets are served through a dedicated static mount. The
-// storage module validates all filenames before they are written, while
-// Express prevents traversal outside STORAGE_DIR when serving them.
-app.use('/files', express.static(STORAGE_DIR, {
-  fallthrough: false,
-  dotfiles: 'deny',
-  index: false,
-  redirect: false,
-  maxAge: '1h'
-}));
+// Never serve user media from local disk in peer-only mode. Existing /files
+// URLs fail closed until their owning media workflow is migrated to peer storage.
+if (peerStorageRequired) {
+  app.use('/files', (_req, res) => res.status(503).json({
+    success: false, error: 'Local media serving is disabled in peer-only mode',
+    code: 'LOCAL_STORAGE_FORBIDDEN'
+  }));
+} else {
+  app.use('/files', express.static(STORAGE_DIR, {
+    fallthrough: false,
+    dotfiles: 'deny',
+    index: false,
+    redirect: false,
+    maxAge: '1h'
+  }));
+}
 
 // Bounded retry for transient upstream gateway failures. Provider routing below
 // still escalates to the next eligible swarm node when the final response fails.
@@ -3058,6 +3098,7 @@ app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
 
 function storagePathFromFileUrl(value) {
   const raw = String(value || '').trim();
+  if (peerStorageRequired) throw Object.assign(new Error('Local media paths are forbidden in peer-only mode'), { code: 'LOCAL_STORAGE_FORBIDDEN' });
   if (!raw.startsWith('/files/')) throw new Error('Asset is not a persistent /files/ resource');
   const name = decodeURIComponent(raw.slice('/files/'.length));
   if (!/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') throw new Error('Invalid persisted asset path');

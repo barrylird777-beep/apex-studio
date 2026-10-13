@@ -1,11 +1,11 @@
-import { sendToPeer } from '../network/sovereign-peer.mjs';
+import { sendPeerStorageEnvelope } from '../network/sovereign-peer.mjs';
 
 /**
  * Adapts the existing authenticated libp2p request/ACK path to peer CAS.
  * Addresses must be explicitly provisioned and end with the exact peer ID.
  * This does not discover peers or weaken the sovereign-peer allowlist.
  */
-export function createLibp2pPeerStorageTransport({ node, addressesByPeerId, send = sendToPeer } = {}) {
+export function createLibp2pPeerStorageTransport({ node, addressesByPeerId, send = sendPeerStorageEnvelope } = {}) {
   if (!node || typeof node.dialProtocol !== 'function') {
     throw new TypeError('an active libp2p node is required');
   }

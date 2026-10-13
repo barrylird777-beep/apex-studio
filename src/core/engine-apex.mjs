@@ -86,11 +86,12 @@ export async function getEngineSnapshot() {
       status: "proposed"
     })),
     separation: {
-      KashKorner: "cash/ledger, financial state, opportunity and monetization intelligence",
-      KernelVision: "production, mastering, QC, delivery and the 24/7 entertainment network",
-      PlanetApeX: "knowledge and research source where applicable",
-      Kernelodies: "music/audio and music-specific AI/media capabilities",
-      XShield: "security, privacy and network protection"
+      KashKorner: "financial, crypto/data and monetization intelligence",
+      KernelVision: "production, mastering, quality control and media delivery",
+      Kernelodies: "music, listening, discovery and audio capabilities",
+      PlanetApeX: "universe, Bible study, research and analytics",
+      XShield: "security, privacy and tracker blocking",
+      KoinKob: "canonical app integration and exchange capabilities"
     },
     generatedAt: new Date().toISOString()
   };
