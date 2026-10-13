@@ -67,8 +67,11 @@ test('legacy foundation quiesce mode serves health without starting PostgreSQL-b
 
 
 test('sovereign readiness requires fresh lease, peer, dispatch, and verified remote WAL', () => {
+  const instanceId = 'supervisor-generation-1';
   const identity = {
     status: 'online',
+    instanceId,
+    lastSeenAt: new Date(3000).toISOString(),
     leaseExpiresAt: 5000,
     readiness: {
       storageReady: true,
@@ -78,11 +81,11 @@ test('sovereign readiness requires fresh lease, peer, dispatch, and verified rem
       remoteWalHash: 'a'.repeat(64)
     }
   };
-  assert.equal(isSovereignRuntimeReady(identity, 4000), true);
-  assert.equal(isSovereignRuntimeReady(identity, 5000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalVerified: false } }, 4000), false);
-  assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000), false);
+  assert.equal(isSovereignRuntimeReady(identity, 4000, instanceId), true);
+  assert.equal(isSovereignRuntimeReady(identity, 5000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remoteWalVerified: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000, instanceId), false);
 });
 
 test('remote WAL probe requires the exact record to appear in a verified snapshot', () => {
