@@ -30,7 +30,7 @@ test("single owner password creates an expiring signed HttpOnly session cookie",
     assert.equal(isOwnerAuthConfigured(), true);
     assert.equal(verifyOwnerPassword("wrong"), false);
     assert.equal(verifyOwnerPassword(process.env.APEX_OWNER_PASSWORD), true);
-    const now = 1_800_000_000_000;
+    const now = Date.now();
     const token = createOwnerSessionToken(now);
     assert.equal(verifyOwnerSessionToken(token, now), true);
     assert.equal(verifyOwnerSessionToken(token, now + 13 * 60 * 60 * 1000), false);
