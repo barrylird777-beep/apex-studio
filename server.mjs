@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 import crypto from 'node:crypto';
 
 import { access, readFile, unlink, realpath, stat } from 'node:fs/promises';
-import { buildTimelineFfmpegPlan } from './src/core/ffmpeg.mjs';
+import { buildTimelineFfmpegPlan, OUTPUT_PRESETS } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
@@ -3023,6 +3023,9 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
 
   try {
     const format = String(req.body?.format || 'master');
+    if (!Object.hasOwn(OUTPUT_PRESETS, format)) {
+      return res.status(400).json({ success: false, error: 'Unsupported mastering format', supportedFormats: Object.keys(OUTPUT_PRESETS) });
+    }
     const requestedIds = Array.isArray(req.body?.sceneIds) ? req.body.sceneIds.map(String) : [];
     const state = await getProjectState();
     const scenes = Array.isArray(state.scenes) ? state.scenes : [];
@@ -3095,9 +3098,10 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
     });
 
     await masterSoundtrack(timelineAudioItems, bgmPath, masteredAudioPath);
-    await masterFinalVideo(stitchedVideoPath, masteredAudioPath, finalExportPath);
+    await masterFinalVideo(stitchedVideoPath, masteredAudioPath, finalExportPath, format);
 
     const buffer = await readFile(finalExportPath);
+    const assetSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
     const saved = await saveProjectAsset('master', buffer, 'mp4');
 
     return res.json({
@@ -3106,10 +3110,14 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
       format,
       sceneCount: selected.length,
       bytes: saved.bytes,
+      assetSha256,
       generatedAt: saved.updatedAt,
       mastering: {
-        audio: '320k AAC / 48kHz / stereo / loudnorm',
-        video: 'H.264 CRF 17 / veryslow / 24fps / cinematic grade'
+        audio: 'AAC 320k / 48kHz / stereo / EBU R128 loudnorm',
+        video: `H.264 ${OUTPUT_PRESETS[format].width}x${OUTPUT_PRESETS[format].height} / ${OUTPUT_PRESETS[format].fps}fps / CRF ${OUTPUT_PRESETS[format].crf ?? 18} / cinematic grade`,
+        maxrate: OUTPUT_PRESETS[format].maxrate || null,
+        bufsize: OUTPUT_PRESETS[format].bufsize || null,
+        sha256: assetSha256
       }
     });
   } catch (error) {
