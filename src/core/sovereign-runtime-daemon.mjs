@@ -28,6 +28,7 @@ let edgeNode;
 let stopping = false;
 let timer;
 let cyclePromise = Promise.resolve();
+let cycleFailed = false;
 let bridge;
 const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
@@ -202,7 +203,11 @@ async function main() {
     if (stopping) return;
     cyclePromise = cyclePromise
       .then(() => stopping ? undefined : runCycle(bridge))
-      .catch((error) => console.error('[SOVEREIGN] cycle failed', error));
+      .catch((error) => {
+        cycleFailed = true;
+        process.exitCode = 1;
+        console.error('[SOVEREIGN] cycle failed', String(error?.message || error));
+      });
   }, reconcileMs);
   timer.unref?.();
 }
@@ -270,7 +275,8 @@ async function shutdown(signal) {
   if (timer) clearInterval(timer);
   const shutdownEvidence = {
     signal,
-    finalCycleDrained: false,
+    finalCycleSettled: false,
+    activeCycleSucceeded: false,
     finalReconcileComplete: false,
     offlineIdentityCommitted: false,
     edgeStopped: false,
@@ -282,7 +288,8 @@ async function shutdown(signal) {
   console.log('[SOVEREIGN] draining', JSON.stringify(shutdownEvidence));
   try {
     await cyclePromise;
-    shutdownEvidence.finalCycleDrained = true;
+    shutdownEvidence.finalCycleSettled = true;
+    shutdownEvidence.activeCycleSucceeded = !cycleFailed;
   } catch (error) {
     process.exitCode = 1;
     console.error('[SOVEREIGN] active cycle drain failed', String(error?.message || error));
