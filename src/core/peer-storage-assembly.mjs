@@ -79,6 +79,10 @@ export async function createPeerStorageAssembly({ peerNode, env = process.env } 
       throw new Error(keyName + ' must be a canonical base64-encoded 32-byte AES-256 key');
     }
     const targets = parsePeerTargets(env[peersName], app);
+    const localPeerId = peerNode.peerId.toString();
+    if (targets.some(target => target.peerId === localPeerId)) {
+      throw new Error(peersName + ' must not include this deployment\'s own peer identity; self-replication does not provide independent durability');
+    }
     if (targets.length < replicaCount) throw new Error(peersName + ' has fewer peers than the configured replica count');
     const addressesByPeerId = Object.fromEntries(targets.map(target => [target.peerId, target.address]));
     const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
