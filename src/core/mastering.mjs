@@ -91,18 +91,44 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
     '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-movflags', '+faststart'
   ];
 
-  return new Promise((resolve, reject) => {
+  const encode = (codec, options, allowCpuFallback) => new Promise((resolve, reject) => {
     ffmpeg()
       .input(stitchedVideoPath)
       .input(masteredAudioPath)
-      .videoCodec(videoCodec)
+      .videoCodec(codec)
       .audioCodec('aac')
       .audioBitrate(PROD_SETTINGS.audio.bitrate)
       .audioFrequency(PROD_SETTINGS.audio.frequency)
       .audioChannels(PROD_SETTINGS.audio.channels)
-      .outputOptions(outputOptions)
+      .outputOptions(options)
       .save(outputPath)
       .on('end', () => resolve(outputPath))
-      .on('error', reject);
+      .on('error', async (error) => {
+        if (!allowCpuFallback) return reject(error);
+        try {
+          await fs.unlink(outputPath);
+        } catch (cleanupError) {
+          if (cleanupError?.code !== 'ENOENT') return reject(error);
+        }
+        const cpuOptions = [
+          '-preset', preset.encodePreset || PROD_SETTINGS.video.preset,
+          '-crf', String(preset.crf ?? PROD_SETTINGS.video.crf),
+          '-r', String(preset.fps),
+          '-vf', videoFilter,
+          '-pix_fmt', 'yuv420p',
+          '-profile:v', preset.profile || 'high',
+          '-level', preset.level || '5.2',
+          ...(preset.maxrate ? ['-maxrate', preset.maxrate] : []),
+          ...(preset.bufsize ? ['-bufsize', preset.bufsize] : []),
+          '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-movflags', '+faststart'
+        ];
+        try {
+          resolve(await encode('libx264', cpuOptions, false));
+        } catch (fallbackError) {
+          reject(new AggregateError([error, fallbackError], 'Hardware video encoding failed and CPU fallback also failed'));
+        }
+      });
   });
+
+  return encode(videoCodec, outputOptions, useNvenc);
 }
