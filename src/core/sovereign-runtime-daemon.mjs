@@ -102,7 +102,8 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
 
 async function verifyRemoteWalReadiness() {
   if (!apexPureStore.remoteMode || apexPureStore.wal?.constructor?.name !== 'RemoteApexRingWAL') {
-    throw new Error('RemoteApexRingWAL is required before sovereign readiness can be granted');
+    runtimeReadiness.remoteWalVerified = false;
+    return false;
   }
   const record = await apexPureStore.wal.append('runtime.readiness.probe', {
     version: 1,
@@ -117,6 +118,7 @@ async function verifyRemoteWalReadiness() {
   runtimeReadiness.remoteWalVerified = true;
   runtimeReadiness.remoteWalSequence = record.seq;
   runtimeReadiness.remoteWalHash = record.hash;
+  return true;
 }
 
 async function main() {
@@ -131,7 +133,12 @@ async function main() {
   await peerNode.start();
   runtimeReadiness.peerReady = true;
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
-  await verifyRemoteWalReadiness();
+  try {
+    await verifyRemoteWalReadiness();
+  } catch (error) {
+    runtimeReadiness.remoteWalVerified = false;
+    console.error('[SOVEREIGN READINESS] remote WAL probe failed; readiness remains closed', String(error?.message || error));
+  }
   await publishRuntimeIdentity('starting');
 
   edgeNode = await createApexEdgeNode({
@@ -211,6 +218,13 @@ async function publishRuntimeIdentity(status = 'online') {
 }
 
 async function runCycle(activeBridge) {
+  if (!runtimeReadiness.remoteWalVerified) {
+    try {
+      await verifyRemoteWalReadiness();
+    } catch (error) {
+      console.error('[SOVEREIGN READINESS] remote WAL retry failed; readiness remains closed', String(error?.message || error));
+    }
+  }
   await publishRuntimeIdentity('online');
   const queued = await drainSovereignAppDispatchQueue({
     store: apexPureStore,
