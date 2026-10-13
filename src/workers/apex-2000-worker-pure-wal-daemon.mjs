@@ -11,6 +11,7 @@ const maxInFlight = Math.max(1, Math.min(APEX_WORKER_COUNT, Number(process.env.A
 const runnerId = process.env.APEX_WORKER_ID || `pure-wal-${os.hostname()}-${process.pid}`;
 const handlerModulePath = process.env.APEX_JOB_HANDLER_MODULE || "";
 let stopping = false;
+let nextRecoveryAt = 0;
 
 function resolveHandler(module) {
   const handler = module?.handlers?.["apex.worker.assigned-task"]
@@ -46,7 +47,10 @@ async function main() {
   }));
 
   while (!stopping) {
-    await apexPureStore.recoverExpired();
+    if (Date.now() >= nextRecoveryAt) {
+      nextRecoveryAt = Date.now() + 15000;
+      await apexPureStore.recoverExpired(25);
+    }
     const batch = await dispatcher.runQueued({
       workerId: runnerId,
       limit: maxInFlight,
