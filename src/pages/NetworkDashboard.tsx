@@ -23,6 +23,8 @@ function BrowserPeerTest(){
   const [receiverSha256,setReceiverSha256]=useState("");
   const [bufferedAmount,setBufferedAmount]=useState(0);
   const incomingTransfers=useRef(new Map<string,{chunks:Map<number,Uint8Array>;totalChunks:number;expectedSha256:string;payloadBytes:number}>());
+  const senderDigest=useRef("");
+  const activeTransferId=useRef("");
   const [note,setNote]=useState("Opt-in test only. No application traffic is routed over this channel.");
   const attachChannel=(dc:RTCDataChannel)=>{
     channel.current=dc;
@@ -33,6 +35,16 @@ function BrowserPeerTest(){
       if(typeof event.data!=="string"){setNote("Unexpected binary message ignored; test frames use validated metadata.");return;}
       try{
         const packet=JSON.parse(event.data);
+        if(packet?.type==="apex-webrtc-ack"&&typeof packet.transferId==="string"&&Number.isInteger(packet.payloadBytes)&&typeof packet.sha256==="string"){
+          if(packet.transferId===activeTransferId.current){
+            setReceived(packet.payloadBytes);
+            setReceiverSha256(packet.sha256);
+            const verified=packet.payloadBytes===1024*1024&&packet.sha256===senderDigest.current;
+            setChecksumStatus(verified?"PASS — receiver confirms 1 MiB SHA-256 match":"FAIL — receiver acknowledgement mismatch");
+            setTransferStatus(verified?"Receiver confirmed 1,048,576 bytes and matching SHA-256.":"Receiver acknowledgement did not match sender payload.");
+          }
+          return;
+        }
         if(packet?.type!=="apex-webrtc-benchmark"||typeof packet.transferId!=="string"||typeof packet.payload!=="string")return;
         const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,Uint8Array>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
         if(!Number.isInteger(packet.index)||!Number.isInteger(packet.totalChunks)||packet.totalChunks<1||packet.totalChunks>128||packet.index<0||packet.index>=packet.totalChunks||transfer.totalChunks!==packet.totalChunks||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
@@ -45,7 +57,12 @@ function BrowserPeerTest(){
         const digest=await crypto.subtle.digest("SHA-256",payload);
         const actualSha256=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
         setReceiverSha256(actualSha256);
-        setChecksumStatus(actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
+        const verified=actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024;
+        setChecksumStatus(verified?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
+        // Send the receiver's independently computed result back to the sender.
+        if(channel.current?.readyState==="open"){
+          channel.current.send(JSON.stringify({type:"apex-webrtc-ack",transferId:packet.transferId,payloadBytes:transfer.payloadBytes,sha256:actualSha256,verified}));
+        }
         incomingTransfers.current.delete(packet.transferId);
       }catch{setChecksumStatus("Could not validate received payload");}
     };
@@ -129,7 +146,9 @@ function BrowserPeerTest(){
     setChecksumStatus("Waiting for receiver checksum…");
     try{
       const expectedSha256=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",payload)),b=>b.toString(16).padStart(2,"0")).join("");
-      setSenderSha256(expectedSha256);setReceiverSha256("");
+      senderDigest.current=expectedSha256;
+      activeTransferId.current=transferId;
+      setSenderSha256(expectedSha256);setReceiverSha256("");setReceived(0);
       setNote("Sender baseline payload: "+payload.byteLength.toLocaleString()+" bytes; SHA-256 "+expectedSha256);
       dc.bufferedAmountLowThreshold=65536;
       const waitForBufferLow=()=>new Promise<void>((resolve,reject)=>{
