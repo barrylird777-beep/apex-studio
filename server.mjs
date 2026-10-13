@@ -50,6 +50,7 @@ import { createResearchRouter } from './src/api/research-routes.mjs';
 import { searchAnything } from './src/core/apex-web-search.mjs';
 import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
+import { createPolygonUsdcRouter } from './src/routes/usdc-polygon.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
@@ -1865,6 +1866,8 @@ app.use('/api/mobile', createMobileControlPlane({
     };
   }
 }));
+
+app.use('/api/rapid/usdc', createPolygonUsdcRouter({ store: apexPureStore, durableWorkerEnabled, enqueueWorkerTask, getWorkerTask }));
 
 app.post('/api/rapid/preview', requirePublicRequestSlot, async (req, res) => {
   try {
