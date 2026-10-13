@@ -329,7 +329,7 @@ export class PeerContentAddressedStore {
           key: refKey, expectedHash, hash, bytesBase64: bytes.toString('base64')
         });
         if (response.hash !== hash || response.namespace !== this.namespace) throw new Error('peer returned an invalid reference durability receipt');
-        receipts.push({ peerId, hash, failureDomain: this.failureDomainsByPeerId[peerId] || null });
+        receipts.push({ peerId, hash, failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null) });
       } catch (error) {
         failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
       }
