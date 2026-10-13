@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
+import { ApexPureStore } from "../src/core/apex-pure-store.mjs";
 import { createRingWal } from "../src/core/apex-ring-wal.mjs";
 import { DeterministicSimulator } from "../src/testing/deterministic-simulator.mjs";
 
@@ -242,4 +243,51 @@ test("remote WAL idempotency survives cross-instance appends and rejects key reu
     {code:"IDEMPOTENCY_CONFLICT"}
   );
   assert.equal((await cas.listRefs("wal")).filter(row=>row.key.startsWith("wal-idempotency-r")).length,2);
+});
+
+
+test("remote PureStore mutations are WAL-backed and recover deleted CAS projections without local writes", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(),"apex-remote-store-wal-authority-"));
+  const root = path.join(parent,"projects");
+  const legacyWal = new (await import("../src/core/apex-ring-wal.mjs")).ApexRingWAL({file:path.join(parent,"legacy","ring.wal.jsonl")});
+  const cas = new MemoryCAS();
+  const scope = "pure-store-wal-authority-test";
+  try {
+    const store = new ApexPureStore({root,wal:legacyWal,cas,remoteWal:new RemoteApexRingWAL({cas,scope})});
+    await store.init();
+    const project = await store.put("projects","project-1",{name:"WAL-backed project"});
+    await store.enqueue({
+      id:"job-1",type:"example.run",
+      payload:{_apex_worker:{role:"chaos-claim"}},
+      dedupeKey:"job-dedupe-1"
+    });
+    const records = (await store.wal.snapshot()).ring;
+    assert.ok(records.some(record=>record.type==="state.put"&&record.payload.id==="project-1"));
+    assert.ok(records.some(record=>record.type==="job.put"&&record.payload.job?.id==="job-1"));
+    assert.equal(records.length,2);
+
+    const stateKey=store.refKey("projects","project-1");
+    const jobKey=store.refKey("job","job-1");
+    const dedupeKey=createHash("sha256").update("job-dedupe-1").digest("hex");
+    await cas.deleteRef("state",stateKey);
+    await cas.deleteRef("jobs",jobKey);
+    await cas.deleteRef("queue",jobKey);
+    await cas.deleteRef("dedupe",dedupeKey);
+
+    const reopened = new ApexPureStore({
+      root,wal:legacyWal,cas,
+      remoteWal:new RemoteApexRingWAL({cas,scope})
+    });
+    await reopened.init();
+    assert.deepEqual(await reopened.get("projects","project-1"),project);
+    await reopened.refreshJobs();
+    assert.equal(reopened.jobs().length,1);
+    assert.equal(reopened.jobs()[0].id,"job-1");
+    assert.ok(await cas.readRef("queue",jobKey),"recovery rebuilds the queue index");
+    assert.ok(await cas.readRef("dedupe",dedupeKey),"recovery rebuilds the idempotency index");
+    await assert.rejects(access(root),{code:"ENOENT"},"remote mode must not create the local projects directory");
+    await assert.rejects(access(legacyWal.file),{code:"ENOENT"},"remote mode must not write the legacy local WAL");
+  } finally {
+    await rm(parent,{recursive:true,force:true});
+  }
 });
