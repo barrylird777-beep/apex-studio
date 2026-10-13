@@ -1,8 +1,8 @@
 ---------------- MODULE RemoteWALIdempotency ----------------
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
-\\* Bounded safety model: the CAS append is abstracted as one atomic action.
-\\* This model does not represent a provider implementation or Byzantine consensus.
+\* Bounded safety model: the CAS append is abstracted as one atomic action.
+\* This model does not represent a provider implementation or Byzantine consensus.
 
 CONSTANTS Ops, Nodes, Keys, MaxSeq
 ASSUME /\ Ops # {}
