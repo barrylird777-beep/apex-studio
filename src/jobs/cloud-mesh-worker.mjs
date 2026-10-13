@@ -21,7 +21,7 @@ function moduleUrl(specifier) {
 async function execute(job, lease) {
   let renewing = false;
   const leaseHeartbeat = setInterval(async () => {
-    if (renewing || stopping) return;
+    if (renewing) return;
     renewing = true;
     try {
       const result = await coordinator.renewJobLease({ app, jobId: job.jobId, workerId, leaseToken: lease.token, leaseMs });
