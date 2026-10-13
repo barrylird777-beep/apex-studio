@@ -1,15 +1,21 @@
-const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_MESSAGES || 50)));
-const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
+const boundedNumber = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+};
+const MAX_MESSAGES = boundedNumber(process.env.APEX_AI_MAX_MESSAGES, 20, 1, 50);
+const MAX_CHARS = boundedNumber(process.env.APEX_AI_MAX_PROMPT_CHARS, 30000, 1000, 50000);
+const MAX_TOTAL_MESSAGE_CHARS = MAX_CHARS;
+const MAX_SYSTEM_CHARS = 10000;
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_AI_PROVIDERS = new Set(['openrouter']);
 if (String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED ?? '').toLowerCase() === 'true') {
   FREE_AI_PROVIDERS.add('google');
 }
-const FREE_AI_MAX_CONCURRENCY = Math.max(1, Number(process.env.APEX_FREE_AI_MAX_CONCURRENCY || 64));
+const FREE_AI_MAX_CONCURRENCY = boundedNumber(process.env.APEX_FREE_AI_MAX_CONCURRENCY, 8, 1, 16);
 let freeAiInFlight = 0;
 const freeAiWaiters = [];
 async function acquireFreeAiSlot() {
-  if (!FREE_MODE || freeAiInFlight < FREE_AI_MAX_CONCURRENCY) { freeAiInFlight += 1; return; }
+  if (freeAiInFlight < FREE_AI_MAX_CONCURRENCY) { freeAiInFlight += 1; return; }
   await new Promise(resolve => freeAiWaiters.push(resolve));
   freeAiInFlight += 1;
 }
@@ -42,20 +48,31 @@ function providerOf(id) {
   return p;
 }
 
-function messagesOf({ prompt, messages, system }) {
+export function messagesOf({ prompt, messages, system }) {
   if (Array.isArray(messages) && messages.length) {
     if (messages.length > MAX_MESSAGES) throw new Error(`Too many messages; maximum is ${MAX_MESSAGES}`);
-    return messages.map(m => {
+    let totalChars = 0;
+    const normalized = messages.map(m => {
       const role = String(m?.role || '');
-      const content = String(m?.content || '').trim();
-      if (!['system','developer','user','assistant','tool'].includes(role) || !content || content.length > MAX_CHARS) throw new Error('invalid message');
+      const content = typeof m?.content === 'string' ? m.content.trim() : '';
+      // Callers may provide conversation turns, but cannot impersonate trusted instructions or tool output.
+      if (!['user', 'assistant'].includes(role) || !content || content.length > MAX_CHARS) {
+        throw new Error('invalid message role or content');
+      }
+      totalChars += content.length;
+      if (totalChars > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
       return { role, content };
     });
+    const trustedSystem = String(system || '').trim();
+    if (trustedSystem.length > MAX_SYSTEM_CHARS) throw new Error('system instruction exceeds configured maximum');
+    return [...(trustedSystem ? [{ role: 'system', content: trustedSystem }] : []), ...normalized];
   }
   const text = String(prompt || '').trim();
   if (!text) throw new Error('prompt is required');
   if (text.length > MAX_CHARS) throw new Error('prompt exceeds configured maximum');
-  return [{ role: 'system', content: String(system || '').trim() }, { role: 'user', content: text }].filter(x => x.content);
+  const trustedSystem = String(system || '').trim();
+  if (trustedSystem.length > MAX_SYSTEM_CHARS) throw new Error('system instruction exceeds configured maximum');
+  return [{ role: 'system', content: trustedSystem }, { role: 'user', content: text }].filter(x => x.content);
 }
 
 function enforceFreeAiBudget(provider) {
