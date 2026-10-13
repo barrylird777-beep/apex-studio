@@ -17,7 +17,7 @@ ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex and related 
 
 ## Integration and sovereignty
 
-- Keep all six apps distinct, with separate identities and isolated data namespaces. Shared transport does not grant cross-app data access.
+- Keep all six apps distinct, with separate identities and isolated data namespaces. Shared transport does not grant cross-app data access. Shared transport does not grant cross-app data access.
 - Shared handoffs must be authenticated, validated, durable and idempotent. A queued handoff is not proof of peer delivery; only verified peer acknowledgements count.
 - Use content-addressed durable storage for active writes. **Do not restore WAL writes, PostgreSQL, or SQL/SQLite runtime dependencies.** Legacy WAL files are read-only migration/rollback evidence; current production is not complete until active write paths are removed and the queue/storage/recovery tests pass.
 - Keep path confinement, symlink checks, atomic writes, fsync, hash-chain verification, fail-closed peer authorization and independent inspection.
