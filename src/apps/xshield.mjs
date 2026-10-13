@@ -19,6 +19,7 @@ export function xshieldStatus() {
     contentFilter: contentFilterStatus(),
     safariRules: buildSafariContentBlockerRules().length,
     filtering: true,
+    canonical: true,
     firstPartyPolicy: "always-allow",
     checkedAt: new Date().toISOString()
   };

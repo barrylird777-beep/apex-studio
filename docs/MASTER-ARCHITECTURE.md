@@ -5,7 +5,7 @@
 ## Six canonical apps
 
 1. **PlanetApeX — brain:** Bible study, research, knowledge, AI, world/universe analytics, and interactive experiences. **GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX**, not a seventh app. Answers must distinguish KNOWN, OBSERVED, INFERRED, and UNKNOWN.
-2. **KoBlocks — workflow blocks:** reusable execution blocks, graph composition, validation, and cross-app workflow orchestration.
+2. **XShield — shield:** security and privacy, ad/tracker blocking, DNS protection, content filtering and protected connectivity. KoBlocks remains a reusable workflow capability, not a separate app.
 3. **KernelVision — eyes:** creative production and delivery: direction, scripts, scenes, images, video, animation, VFX, editing, mixing/mastering, rendering, QC, publishing, Special Search, and social/manager analytics. KernelVision Theatre and Kornmax are experiences inside this app.
 4. **KoinKob — autonomous economy:** worker accounts, asset markets, market clearing and settlement, systemic events, adversarial rounds, and the 2,000-worker simulation.
 5. **KashKorner — cash/connectivity:** cash flow, ledger and financial state, monetization, and connectivity coordination; carry forward relevant EngineApex/Apexus capabilities without creating extra app identities.

@@ -95,7 +95,7 @@ test("provider request sends only sanitized payload and falls back locally on pr
 
 test("staged changes require an approved canonical app and matching digest", () => {
   assert.deepEqual(APEX_CANONICAL_APPS, [
-    "PlanetApeX", "KoBlocks", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"
+    "PlanetApeX", "XShield", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"
   ]);
   const value = { action: "publish", version: 1 };
   const expectedDigest = hashStagedChange(value);

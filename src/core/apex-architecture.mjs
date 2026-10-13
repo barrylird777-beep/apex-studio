@@ -2,7 +2,7 @@
  * Legacy capability-ownership contracts retained for compatibility.
  *
  * The canonical product registry is src/apps/apex-six-apps.mjs:
- * PlanetApeX, KoBlocks, KernelVision, KoinKob, KashKorner, Kernelodies.
+ * PlanetApeX, XShield, KernelVision, KoinKob, KashKorner, Kernelodies. KoBlocks remains a reusable workflow capability, not a canonical app.
  * GardenOfApex is embedded in PlanetApeX; old subsystem identifiers below
  * are not additional canonical apps.
  *

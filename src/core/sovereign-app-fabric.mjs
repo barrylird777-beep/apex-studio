@@ -4,6 +4,7 @@ import { apexPureStore } from "./apex-pure-store.mjs";
 
 const APP_LIST=Object.values(APEX_APPS).map(({id,name,role,entry})=>({id,name,role,entry}));
 const APP_IDS=new Set(APP_LIST.map(app=>app.id));
+const CAPABILITY_NAMESPACES=Object.freeze({"ko-blocks":"capability-ko-blocks"});
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 
@@ -73,6 +74,32 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
     const app=assertApp(appId);
     return (await store.list(`app-${app}`)).map(record=>({appId:app,id:record.id,record,durable:true,storage:"content-addressed"}));
   }
+  async function putCapability(capabilityId,recordId,record){
+    await init();
+    const capability=String(capabilityId||"");
+    const namespace=CAPABILITY_NAMESPACES[capability];
+    if(!namespace)throw Object.assign(new Error("Unknown Apex capability namespace."),{status:404});
+    const id=assertId(recordId);
+    if(!record||typeof record!=="object"||Array.isArray(record))throw Object.assign(new Error("Record must be a JSON object."),{status:400});
+    const saved=await store.put(namespace,id,{...clone(record),capabilityId:capability,id});
+    return {capabilityId:capability,id,record:saved,durable:true,storage:"content-addressed"};
+  }
+  async function getCapability(capabilityId,recordId){
+    await init();
+    const capability=String(capabilityId||"");
+    const namespace=CAPABILITY_NAMESPACES[capability];
+    if(!namespace)throw Object.assign(new Error("Unknown Apex capability namespace."),{status:404});
+    const id=assertId(recordId);
+    const record=await store.get(namespace,id);
+    return record?{capabilityId:capability,id,record,durable:true,storage:"content-addressed"}:null;
+  }
+  async function listCapability(capabilityId){
+    await init();
+    const capability=String(capabilityId||"");
+    const namespace=CAPABILITY_NAMESPACES[capability];
+    if(!namespace)throw Object.assign(new Error("Unknown Apex capability namespace."),{status:404});
+    return (await store.list(namespace)).map(record=>({capabilityId:capability,id:record.id,record,durable:true,storage:"content-addressed"}));
+  }
   async function dispatch(payload){
     await init();
     if(!payload||typeof payload!=="object"||Array.isArray(payload))throw Object.assign(new Error("Dispatch payload must be an object."),{status:400});
@@ -89,6 +116,6 @@ export function createSovereignAppFabric({store=apexPureStore}={}){
     const peerAck=await store.get("sovereign_peer_acks",waveId);
     return {accepted:true,durable:true,queued:["queued","running"].includes(status),duplicate:Boolean(result.duplicate),peerPending:!peerAck,peerAcknowledged:Boolean(peerAck),appId:app,waveId,jobId:String(result.id),status};
   }
-  return {init,status,put,get,list,dispatch,apps:()=>APP_LIST.map(clone)};
+  return {init,status,put,get,list,putCapability,getCapability,listCapability,dispatch,apps:()=>APP_LIST.map(clone)};
 }
 export const sovereignAppFabric=createSovereignAppFabric();

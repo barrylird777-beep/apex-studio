@@ -13,7 +13,7 @@ main{max-width:1180px;padding:30px 18px 46px}
 button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4}
 </style>
 </head>
-<body><main>
+<body><script src="/api-auth-bridge.js"></script><main>
 <header class="top"><div class="eyebrow">Apex application surface</div><h1>XShield</h1><p class="muted">Ad blocking, tracker blocking and network filtering.</p><div class="links"><a href="/">ApexStudio</a><a href="/shield-apex.html">ShieldApex security surface</a><a href="/api/network/adblock/profile">Mobile profile</a></div></header>
 <section class="grid">
 <article class="card"><div class="eyebrow">Application</div><div id="appState" class="metric">Loading…</div><p id="appDetail" class="muted">Reading XShield's operational contract.</p></article>
@@ -31,7 +31,9 @@ async function load(){
   document.getElementById('networkState').textContent=network.enabled===false?'DEGRADED':'ACTIVE';
   document.getElementById('networkState').className='metric '+(network.enabled===false?'bad':'good');
   document.getElementById('networkDetail').textContent='Safari rules: '+(app.safariRules??'n/a');
-  document.getElementById('output').textContent=JSON.stringify({app,network},null,2);
+  const lastStatusAt=new Date().toISOString();
+  sessionStorage.setItem('apex.xshield.lastStatusAt',lastStatusAt);
+  document.getElementById('output').textContent=JSON.stringify({app,network,session:{lastStatusAt}},null,2);
  }catch(error){
   document.getElementById('appState').textContent='UNAVAILABLE';
   document.getElementById('appDetail').textContent=error.message||String(error);

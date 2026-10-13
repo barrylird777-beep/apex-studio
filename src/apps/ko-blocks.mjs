@@ -86,13 +86,13 @@ export function koBlocksStatus() {
     role: APP.role,
     capabilities: ["block registry", "composition", "graph validation", "reusable components", "acyclic execution graphs", "ad/tracker filtering", "DNS protection"],
     networkProtection: xshieldStatus(),
-    canonical: true,
+    canonical: false,
     checkedAt: new Date().toISOString()
   };
 }
 
 
 // Shared durable records for this app; inject a test/local fabric when needed.
-export const saveKoBlocksRecord = (id, record, fabric = sovereignAppFabric) => fabric.put(APP.id, id, record);
-export const getKoBlocksRecord = (id, fabric = sovereignAppFabric) => fabric.get(APP.id, id);
-export const listKoBlocksRecords = (fabric = sovereignAppFabric) => fabric.list(APP.id);
+export const saveKoBlocksRecord = (id, record, fabric = sovereignAppFabric) => fabric.putCapability("ko-blocks", id, record);
+export const getKoBlocksRecord = (id, fabric = sovereignAppFabric) => fabric.getCapability("ko-blocks", id);
+export const listKoBlocksRecords = (fabric = sovereignAppFabric) => fabric.listCapability("ko-blocks");

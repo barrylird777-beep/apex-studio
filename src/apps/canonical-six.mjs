@@ -1,6 +1,6 @@
 import { assertApexApp, listApexApps } from "./apex-six-apps.mjs";
 import { planetApexStatus } from "./planet-apex.mjs";
-import { koBlocksStatus } from "./ko-blocks.mjs";
+import { xshieldStatus } from "./xshield.mjs";
 import { kernelVisionStatus } from "./kernel-vision.mjs";
 import { koinKobStatus } from "./koin-kob.mjs";
 import { kashKornerStatus } from "./kash-korner.mjs";
@@ -8,7 +8,7 @@ import { kernelodiesStatus } from "./kernelodies.mjs";
 
 const statusFns=Object.freeze({
   "planet-apex":planetApexStatus,
-  "ko-blocks":koBlocksStatus,
+  "xshield":xshieldStatus,
   "kernel-vision":kernelVisionStatus,
   "koin-kob":koinKobStatus,
   "kash-korner":kashKornerStatus,

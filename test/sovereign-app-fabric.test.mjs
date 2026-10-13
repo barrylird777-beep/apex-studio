@@ -11,6 +11,7 @@ import { createSovereignAppFabric } from '../src/core/sovereign-app-fabric.mjs';
 import { drainSovereignAppDispatchQueue } from '../src/core/sovereign-app-dispatch-queue.mjs';
 import { savePlanetApexRecord, getPlanetApexRecord } from '../src/apps/planet-apex.mjs';
 import { saveKoBlocksRecord, getKoBlocksRecord } from '../src/apps/ko-blocks.mjs';
+import { saveXShieldRecord, getXShieldRecord } from '../src/apps/xshield.mjs';
 import { saveKernelVisionRecord, getKernelVisionRecord } from '../src/apps/kernel-vision.mjs';
 import { saveKoinKobRecord, getKoinKobRecord } from '../src/apps/koin-kob.mjs';
 import { saveKashKornerRecord, getKashKornerRecord } from '../src/apps/kash-korner.mjs';
@@ -43,6 +44,20 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
     assert.equal(status.canonicalAppCount,6);
     assert.equal(new Set((await fabric.list('planet-apex')).map(x=>x.id)).size,1);
     await assert.rejects(fabric.put('unknown-app','x',{value:1}),/Unknown canonical Apex app/);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
+
+test('KoBlocks reusable capability records have an isolated non-app namespace', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-capability-namespace-'));
+  try {
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const fabric=createSovereignAppFabric({store});
+    const saved=await saveKoBlocksRecord('workflow-1',{kind:'reusable-workflow',proof:'isolated'},fabric);
+    assert.equal(saved.capabilityId,'ko-blocks');
+    assert.equal((await getKoBlocksRecord('workflow-1',fabric)).record.proof,'isolated');
+    assert.equal(await getXShieldRecord('workflow-1',fabric),null);
+    assert.equal(fabric.apps().some(app=>app.id==='ko-blocks'),false);
+    await assert.rejects(fabric.put('ko-blocks','wrong-namespace',{value:1}),/Unknown canonical Apex app/);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
