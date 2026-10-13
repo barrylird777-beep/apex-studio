@@ -39,9 +39,13 @@ async function load(){
   sessionStorage.setItem('apex.xshield.lastStatusAt',lastStatusAt);
   document.getElementById('output').textContent=JSON.stringify({app,network,session:{lastStatusAt}},null,2);
  }catch(error){
+  const message=error.message||String(error);
   document.getElementById('appState').textContent='UNAVAILABLE';
-  document.getElementById('appDetail').textContent=error.message||String(error);
-  document.getElementById('output').textContent=error.message||String(error);
+  document.getElementById('appDetail').textContent=message;
+  document.getElementById('networkState').textContent='UNAVAILABLE';
+  document.getElementById('networkState').className='metric bad';
+  document.getElementById('networkDetail').textContent=message;
+  document.getElementById('output').textContent=message;
  }
 }
 load();setInterval(load,30000);
