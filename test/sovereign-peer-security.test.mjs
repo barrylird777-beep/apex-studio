@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { signSovereignVote, verifySovereignQuorum } from "../src/testing/sovereign-bft-quorum.mjs";
+import { createPeerSecurityGuard } from "../src/network/sovereign-peer-security.mjs";
 import {
   readSovereignEnvelope,
   sendToPeer
@@ -327,4 +328,24 @@ test("BFT quorum rejects forged votes and quarantines authenticated equivocation
   assert.equal(equivocation.valid,false,"an equivocating validator is removed from the accepted quorum");
   assert.ok(equivocation.quarantine.includes("peer-c"));
   assert.ok(equivocation.rejected.some(item=>item.reason==="equivocation"));
+});
+
+
+test("peer security guard rejects replayed message IDs and throttles noisy peers", () => {
+  let now = 1000;
+  const guard = createPeerSecurityGuard({ now: () => now, windowMs: 60_000, limit: 2, replayTtlMs: 10_000 });
+  const first = { type: "replica.write", messageId: "message-0001" };
+  assert.equal(guard.admit("peer-a", first).allowed, true);
+  assert.equal(guard.admit("peer-a", first).reason, "replayed message rejected");
+  assert.equal(guard.admit("peer-a", { type: "heartbeat" }).allowed, true);
+  assert.equal(guard.admit("peer-a", { type: "heartbeat-2" }).reason, "peer rate limit exceeded");
+  assert.equal(guard.admit("peer-b", { type: "heartbeat" }).allowed, true);
+  now += 10_001;
+  assert.equal(guard.admit("peer-a", first).allowed, true);
+});
+
+test("peer security guard rejects malformed message identifiers", () => {
+  const guard = createPeerSecurityGuard();
+  assert.equal(guard.admit("peer-a", { type: "task", nonce: "short" }).reason, "invalid message identifier");
+  assert.equal(guard.admit("", { type: "task" }).reason, "invalid peer identity");
 });
