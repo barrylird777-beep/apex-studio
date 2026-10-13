@@ -95,13 +95,18 @@ export function createPeerStorageIpcServer({ mediaStore, token, port = Number(pr
 }
 
 /** Client-side media-store facade. It carries binary CBOR over loopback, never JSON. */
+const CANONICAL_APPS = Object.freeze(['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob']);
+
 export function createPeerStorageIpcClient({
   token,
+  appId = process.env.APEX_APP_ID,
   port = Number(process.env.APEX_PEER_STORAGE_BRIDGE_PORT || 18743),
   host = '127.0.0.1',
   fetchImpl = globalThis.fetch
 } = {}) {
   if (host !== '127.0.0.1' && host !== '::1') throw new Error('peer storage IPC client must target loopback only');
+  const app = String(appId || '').trim();
+  if (!CANONICAL_APPS.includes(app)) throw new Error('peer storage IPC client requires exactly one canonical APEX_APP_ID');
   if (typeof token !== 'string' || Buffer.byteLength(token) < 32) throw new Error('peer storage IPC requires a random secret of at least 32 bytes');
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
   async function call(operation, payload) {
@@ -123,7 +128,7 @@ export function createPeerStorageIpcClient({
     return envelope.result;
   }
   return Object.freeze({
-    apps: Object.freeze(['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob']),
+    apps: Object.freeze([app]),
     async waitUntilReady({ timeoutMs = 30000 } = {}) {
       const deadline = Date.now() + Math.max(1, Number(timeoutMs));
       let delayMs = 100;
@@ -131,7 +136,7 @@ export function createPeerStorageIpcClient({
       while (Date.now() < deadline) {
         try {
           const result = await call('health', {});
-          if (result?.ready === true && Array.isArray(result.apps) && this.apps.every(app => result.apps.includes(app))) return result;
+          if (result?.ready === true && Array.isArray(result.apps) && this.apps.length === result.apps.length && this.apps.every(app => result.apps.includes(app))) return result;
           throw new Error('peer storage daemon readiness response is incomplete');
         } catch (error) {
           lastError = error;
