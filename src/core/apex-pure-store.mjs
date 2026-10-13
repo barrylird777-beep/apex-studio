@@ -607,15 +607,15 @@ export class ApexPureStore {
       this.jobsState.set(String(persisted.id),clone(persisted));return true;
     });
   }
-  async recoverExpired(limit=500){
+  async recoverExpired(limit=25){
     return this.withMutationLock(async()=>{
       let candidates;
       if(this.remoteMode){
         const refs=await this.cas.listRefs("running");
-        candidates=refs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,limit).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
+        candidates=refs.filter(ref=>Number(ref.value?.leaseExpiresAt||0)<Date.now()).sort((a,b)=>Number(a.value?.leaseExpiresAt||0)-Number(b.value?.leaseExpiresAt||0)).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(ref=>({indexKey:ref.key,indexHash:ref.hash,index:ref.value}));
       }else{
         await this.refreshJobs();
-        candidates=[...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<Date.now()).slice(0,limit).map(job=>({index:job}));
+        candidates=[...this.jobsState.values()].filter(x=>x.status==="running"&&x.leaseExpiresAt<Date.now()).slice(0,Math.max(1,Math.min(25,Number(limit)||25))).map(job=>({index:job}));
       }
       let n=0;const now=Date.now();
       for(const candidate of candidates){
