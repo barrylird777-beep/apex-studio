@@ -139,3 +139,5 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
 .apex-shell[data-apex-app="kernelodies"] #kernelodies-discovery{order:-1;grid-column:1/-1}
 .apex-shell[data-apex-app="kernelodies"] #kernelodies-discovery>p{max-width:760px;color:var(--apex-muted)}
 .apex-shell[data-apex-app="planetapex"] .card[aria-label="PlanetApeX study and research"]{grid-column:1/-1}
+
+.apex-shell .status-warn{color:#ffd38b}
