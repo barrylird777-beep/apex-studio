@@ -27,14 +27,20 @@ test("PlanetApeX record IDs match the durable fabric's safe key format", async (
 });
 
 
-test("PlanetApeX map supports accessible location inspection and GardenApeX handoff", async () => {
+test("PlanetApeX observatory redesign preserves core destinations and world controls", async () => {
   const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
-  assert.match(html, /id="pa-map-inspector"/);
-  assert.match(html, /id="pa-map-location-name"/);
-  assert.match(html, /rootlight:\\{name:/);
-  assert.match(html, /setAttribute\("role","button"\)/);
-  assert.match(html, /setAttribute\("tabindex","0"\)/);
-  assert.match(html, /North Ridge/);
-  assert.match(html, /Lower Creek/);
-  assert.match(html, /pa-map-open-world/);
+  assert.match(html, /px-command-hero/);
+  assert.match(html, /px-globe-scene/);
+  assert.match(html, /id="pa-world-enter"/);
+  assert.match(html, /id="analytics"/);
+  assert.match(html, /id="scripture"/);
+  assert.match(html, /id="research"/);
+  assert.match(html, /id="garden"/);
+  assert.match(html, /id="world-tools"/);
+  assert.match(html, /id="pa-life-toggle"/);
+  assert.match(html, /id="pa-life-step"/);
+  assert.match(html, /id="pa-life-reset"/);
+  assert.match(html, /id="save"/);
+  assert.match(html, /id="load"/);
+  assert.match(html, /id="list"/);
 });
