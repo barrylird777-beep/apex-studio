@@ -73,3 +73,44 @@ test('concurrent project updates retry CAS conflicts without losing assets', asy
   const project = await media.getProject('KashKorner', 'project-race');
   assert.deepEqual(project.manifest.assets.map(asset => asset.id).sort(), ['asset-a', 'asset-b']);
 });
+
+
+test('storage facade routes project and scene media to peer storage in peer-only mode', async () => {
+  const previousMode = process.env.APEX_STORAGE_MODE;
+  const previousEnabled = process.env.APEX_PEER_STORAGE_ENABLED;
+  process.env.APEX_STORAGE_MODE = 'peer';
+  delete process.env.APEX_PEER_STORAGE_ENABLED;
+  try {
+    const { media } = setup();
+    const storage = await import('../src/core/storage.mjs?peer-only-integration-test');
+    storage.configurePeerMediaStorage(media, 'KernelVision');
+    await storage.initStorage();
+    const savedProject = await storage.saveProjectAsset('poster', Buffer.from('poster-bytes'), 'png');
+    assert.equal(savedProject.url, '/api/peer-media/apex-project/poster');
+    const savedScene = await storage.saveSceneAsset('scene-1', 'image', Buffer.from('scene-image'), 'png', { durationMs: 5000 });
+    assert.equal(savedScene.url, '/api/peer-media/apex-scenes/scene-1-image');
+    const loaded = await storage.getPeerMediaAsset('apex-scenes', 'scene-1-image');
+    assert.equal(loaded.bytes.toString(), 'scene-image');
+    const state = await storage.getProjectState();
+    assert.equal(state.exports[0].type, 'poster');
+    assert.equal(state.scenes[0].id, 'scene-1');
+    assert.equal(state.scenes[0].durationMs, 5000);
+  } finally {
+    if (previousMode === undefined) delete process.env.APEX_STORAGE_MODE; else process.env.APEX_STORAGE_MODE = previousMode;
+    if (previousEnabled === undefined) delete process.env.APEX_PEER_STORAGE_ENABLED; else process.env.APEX_PEER_STORAGE_ENABLED = previousEnabled;
+  }
+});
+
+test('peer-only storage refuses to initialize without a configured peer runtime', async () => {
+  const previousMode = process.env.APEX_STORAGE_MODE;
+  const previousEnabled = process.env.APEX_PEER_STORAGE_ENABLED;
+  process.env.APEX_STORAGE_MODE = 'peer';
+  delete process.env.APEX_PEER_STORAGE_ENABLED;
+  try {
+    const storage = await import('../src/core/storage.mjs?peer-only-unconfigured-test');
+    await assert.rejects(storage.initStorage(), error => error.code === 'PEER_STORAGE_NOT_CONFIGURED');
+  } finally {
+    if (previousMode === undefined) delete process.env.APEX_STORAGE_MODE; else process.env.APEX_STORAGE_MODE = previousMode;
+    if (previousEnabled === undefined) delete process.env.APEX_PEER_STORAGE_ENABLED; else process.env.APEX_PEER_STORAGE_ENABLED = previousEnabled;
+  }
+});
