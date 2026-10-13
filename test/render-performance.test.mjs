@@ -52,3 +52,18 @@ test('4k120 mastering preset is defined with requested bounds', async () => {
   const { OUTPUT_PRESETS } = await import('../src/core/ffmpeg.mjs');
   assert.deepEqual({ width: OUTPUT_PRESETS['4k120'].width, height: OUTPUT_PRESETS['4k120'].height, fps: OUTPUT_PRESETS['4k120'].fps, crf: OUTPUT_PRESETS['4k120'].crf, maxrate: OUTPUT_PRESETS['4k120'].maxrate, bufsize: OUTPUT_PRESETS['4k120'].bufsize }, { width: 3840, height: 2160, fps: 120, crf: 20, maxrate: '35M', bufsize: '70M' });
 });
+
+test('4k120 FFmpeg plans apply 120fps and VBV bounds', async () => {
+  const { OUTPUT_PRESETS, buildTimelineFfmpegPlan } = await import('../src/core/ffmpeg.mjs');
+  assert.equal(OUTPUT_PRESETS['4k120'].width, 3840);
+  assert.equal(OUTPUT_PRESETS['4k120'].height, 2160);
+  assert.equal(OUTPUT_PRESETS['4k120'].fps, 120);
+  assert.equal(OUTPUT_PRESETS['4k120'].maxrate, '35M');
+  assert.equal(OUTPUT_PRESETS['4k120'].bufsize, '70M');
+  const plan = buildTimelineFfmpegPlan({ format: '4k120', clips: [{ videoUri: './scene.mp4', audioUri: './scene.wav' }] });
+  assert.equal(plan.ready, true);
+  assert.ok(plan.args.includes('120'));
+  assert.ok(plan.args.includes('35M'));
+  assert.ok(plan.args.includes('70M'));
+  assert.ok(plan.args.some(value => String(value).includes('fps=120')));
+});
