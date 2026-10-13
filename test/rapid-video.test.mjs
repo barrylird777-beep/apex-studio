@@ -18,15 +18,14 @@ test('Rapid checkout metadata round-trips full brief',()=>{
 });
 
 
-test('Rapid checkout offers lower-fee ACH while retaining card payments at the advertised $25 price',()=>{
+test('Rapid checkout delegates payment-method selection to Stripe dynamic settings at the advertised $25 price',()=>{
   const params=buildRapidCheckoutParams({
     orderId:'order-ach-test',name:'Apex',type:'Product ad',brief:'Test order',
     platform:'Other',email:'buyer@example.com',
     successUrl:'https://example.com/paid',cancelUrl:'https://example.com/canceled'
   });
-  assert.equal(params.get('payment_method_types[0]'),'card');
-  assert.equal(params.get('payment_method_types[1]'),'us_bank_account');
-  assert.equal(params.get('payment_method_options[us_bank_account][verification_method]'),'automatic');
+  assert.equal(params.has('payment_method_types[0]'),false);
+  assert.equal(params.has('payment_method_types[1]'),false);
   assert.equal(params.get('line_items[0][price_data][unit_amount]'),'2500');
   assert.equal(params.get('mode'),'payment');
 });
