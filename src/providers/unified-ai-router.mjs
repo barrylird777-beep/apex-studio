@@ -9,7 +9,7 @@ const MAX_CHARS = boundedNumber(process.env.APEX_AI_MAX_PROMPT_CHARS, 30000, 100
 const MAX_TOTAL_MESSAGE_CHARS = MAX_CHARS;
 const MAX_SYSTEM_CHARS = 10000;
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
-const FREE_AI_PROVIDERS = new Set(['openrouter', 'pollinations']);
+const FREE_AI_PROVIDERS = new Set(['openrouter', 'pollinations', 'groq']);
 if (String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED ?? '').toLowerCase() === 'true') {
   FREE_AI_PROVIDERS.add('google');
 }
