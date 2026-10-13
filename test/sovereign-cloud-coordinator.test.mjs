@@ -92,7 +92,7 @@ test("only one worker wins a cloud lease and only its token can finish", async (
   const winnerId = winner.lease.workerId;
   const wrongId = winnerId === "worker-a" ? "worker-b" : "worker-a";
   assert.deepEqual(await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: wrongId, leaseToken: winner.lease.token }), { accepted: false, reason: "lease-invalid" });
-  assert.equal((await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: winnerId, leaseToken: winner.lease.token, resultHash: "c".repeat(64) })).accepted, true);
+  assert.equal((await c.finishJob({ app: "KernelVision", jobId: "render-job", workerId: winnerId, leaseToken: winner.lease.token })).accepted, true);
 });
 
 test("binary payloads are content-addressed and verified without text conversion", async () => {
