@@ -56,6 +56,7 @@ import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mj
 import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
 import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
+import { createTokenSecurity, createSecurityAudit, aiGenerateSchema, aiCollaborateSchema, validateRequest, isolateUntrustedInput, sanitizeUntrustedText, stableFingerprint } from './src/security/zero-trust-ai.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -106,6 +107,40 @@ app.use(express.json({
   limit: CAPACITY.jsonBody,
   type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
 }));
+
+// Parse signed, short-lived capabilities at the receiving service. Existing
+// control-plane auth remains the compatibility path during staged rollout.
+const tokenSecurity = createTokenSecurity();
+const { parseTokenScopes, requireAiInferenceAuth, requireOverseerMetricsAuth, aiInferenceRateLimit, overseerMetricsRateLimit } = tokenSecurity;
+const securityAudit = createSecurityAudit();
+app.use(parseTokenScopes);
+
+function auditAiResponse(action) {
+  return (req, res, next) => {
+    const sendJson = res.json.bind(res);
+    res.json = function auditedJson(payload) {
+      const outputFingerprint = stableFingerprint(JSON.stringify(payload ?? null));
+      securityAudit({ event: 'ai.response', action, allowed: Number(res.statusCode || 200) < 400, requestFingerprint: outputFingerprint, detail: 'response_fingerprint_only' }).catch(() => {});
+      return sendJson(payload);
+    };
+    return next();
+  };
+}
+function sanitizeContext(value, depth = 0) {
+  if (depth > 8) throw new RangeError('context nesting exceeds limit');
+  if (typeof value === 'string') return isolateUntrustedInput(sanitizeUntrustedText(value, 8000), 8000);
+  if (Array.isArray(value)) {
+    if (value.length > 100) throw new RangeError('context array exceeds limit');
+    return value.map(item => sanitizeContext(item, depth + 1));
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value);
+    if (entries.length > 100) throw new RangeError('context object exceeds limit');
+    return Object.fromEntries(entries.map(([key, item]) => [sanitizeUntrustedText(key, 160), sanitizeContext(item, depth + 1)]));
+  }
+  if (value === null || ['number', 'boolean'].includes(typeof value)) return value;
+  throw new TypeError('unsupported context value');
+}
 
 function timingSafeSecret(expected, supplied) {
   if (!expected || !supplied) return false;
@@ -1907,6 +1942,16 @@ app.get('/api/workers/permanent', requireControlPlaneAuth, (_req,res)=>res.json(
   supervisor: permanentWorkerSupervisor.status()
 }));
 app.get('/api/workers/overseer', requireControlPlaneAuth, (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
+app.get('/api/overseer/metrics',
+  requireOverseerMetricsAuth(requireControlPlaneAuth),
+  overseerMetricsRateLimit,
+  async (_req, res) => {
+    try {
+      return res.set('Cache-Control', 'no-store').json({ success: true, overseer: overseerStatus(apexOverseer, permanentWorkerFleet), queue: await queueStats(), generatedAt: new Date().toISOString() });
+    } catch {
+      return res.status(503).set('Cache-Control', 'no-store').json({ success: false, error: 'Metrics temporarily unavailable' });
+    }
+  });
 app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
 app.get('/api/network/rogue-ap/status', requireControlPlaneAuth, (_req, res) => {
@@ -3116,49 +3161,57 @@ app.post('/api/ai/generate/:provider', requireControlPlaneAuth, async (req, res)
   }
 });
 
-app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
-  const prompt = String(req.body?.prompt || '').trim();
-  if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
-  const requested = String(req.body?.provider || '').trim();
-  const system = String(req.body?.system || DEFAULT_SYSTEM);
-  try {
-    if (requested === 'gemini') {
-      const text = await geminiMeshProvider.generate(prompt, { system });
-      return res.json({ success: true, provider: 'gemini', model: geminiMeshProvider.model, text });
+app.post('/api/ai/generate',
+  requireAiInferenceAuth(requireControlPlaneAuth),
+  aiInferenceRateLimit,
+  validateRequest(aiGenerateSchema, 'ai.generate', securityAudit),
+  auditAiResponse('ai.generate'),
+  async (req, res) => {
+    const body = req.validatedBody;
+    const rawPrompt = body.prompt || body.messages.map(m => m.role + ': ' + m.content).join('\\n');
+    const prompt = isolateUntrustedInput(rawPrompt);
+    const callerContext = body.system ? '\\n\\nAdditional caller context (untrusted):\\n' + isolateUntrustedInput(body.system, 10_000) : '';
+    const requested = String(body.provider || '').trim();
+    const system = DEFAULT_SYSTEM;
+    try {
+      if (requested === 'gemini') {
+        const output = await geminiMeshProvider.generate(prompt + callerContext, { system });
+        return res.json({ success: true, provider: 'gemini', model: geminiMeshProvider.model, text: output });
+      }
+      if (requested === 'claude') {
+        const model = String(body.model || claudeMeshProvider.model);
+        const output = await claudeMeshProvider.generate(prompt + callerContext, { system, model });
+        return res.json({ success: true, provider: 'claude', model, text: output });
+      }
+      const result = await executeInference(prompt + callerContext, system);
+      return res.json({ success: true, ...result });
+    } catch {
+      return res.status(502).json({ success: false, error: 'AI generation failed', provider: requested || 'mesh' });
     }
-    if (requested === 'claude') {
-      const model = String(req.body?.model || claudeMeshProvider.model);
-      const text = await claudeMeshProvider.generate(prompt, { system, model });
-      return res.json({ success: true, provider: 'claude', model, text });
+  });
+
+app.post('/api/ai/collaborate',
+  requireAiInferenceAuth(requireControlPlaneAuth),
+  aiInferenceRateLimit,
+  validateRequest(aiCollaborateSchema, 'ai.collaborate', securityAudit),
+  auditAiResponse('ai.collaborate'),
+  async (req, res) => {
+    const body = req.validatedBody;
+    const task = isolateUntrustedInput(body.task || body.prompt);
+    const callerContext = body.system ? { callerContext: isolateUntrustedInput(body.system, 10_000) } : {};
+    const requestedProviders = body.providers?.length ? body.providers : ['gemini', 'claude'];
+    try {
+      const result = await multiAiCoordinator.run({
+        task,
+        providers: requestedProviders,
+        system: DEFAULT_SYSTEM,
+        context: { ...sanitizeContext(body.context || {}), ...callerContext }
+      });
+      return res.status(result.ok ? 200 : 503).json({ success: result.ok, ...result });
+    } catch {
+      return res.status(502).json({ success: false, error: 'AI collaboration failed' });
     }
-    const result = await executeInference(prompt, system);
-    return res.json({ success: true, ...result });
-  } catch (error) {
-    return res.status(502).json({ success: false, error: error.message, provider: requested || 'mesh' });
-  }
-});
-
-app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
-  const task = String(req.body?.task || req.body?.prompt || '').trim();
-  if (!task) return res.status(400).json({ success: false, error: 'task is required' });
-
-  const requestedProviders = Array.isArray(req.body?.providers) && req.body.providers.length
-    ? req.body.providers
-    : ['gemini', 'claude'];
-
-  try {
-    const result = await multiAiCoordinator.run({
-      task,
-      providers: requestedProviders,
-      system: String(req.body?.system || DEFAULT_SYSTEM),
-      context: req.body?.context && typeof req.body.context === 'object' ? req.body.context : {}
-    });
-
-    return res.status(result.ok ? 200 : 503).json({ success: result.ok, ...result });
-  } catch (error) {
-    return res.status(502).json({ success: false, error: error.message });
-  }
-});
+  });
 
 app.get('/api/ai/status', requireControlPlaneAuth, (_req, res) => res.json({
   success: true,
