@@ -35,7 +35,27 @@ function routeDeclarations(source) {
   return routes;
 }
 
-test("every direct API route is guarded or explicitly approved as public", async () => {
+
+test("mounted API routers enforce receiver-side authorization", async () => {
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const teevee = await readFile(new URL("../src/api/teevee-production-api.mjs", import.meta.url), "utf8");
+  const research = await readFile(new URL("../src/api/research-routes.mjs", import.meta.url), "utf8");
+  const library = await readFile(new URL("../src/api/kernelodies-library.mjs", import.meta.url), "utf8");
+  const discovery = await readFile(new URL("../src/api/kernelodies-discovery.mjs", import.meta.url), "utf8");
+  const phone = await readFile(new URL("../src/api/phone-control-plane.mjs", import.meta.url), "utf8");
+  const mobile = await readFile(new URL("../src/api/mobile-control-plane.mjs", import.meta.url), "utf8");
+
+  assert.match(server, /app\\.use\\(['"]\\/api\\/relay['"],\\s*requireControlPlaneAuth,/);
+  assert.match(server, /app\\.use\\(['"]\\/api\\/studio\\/audio['"],\\s*requireControlPlaneAuth,/);
+  assert.match(server, /createTeeVeeProductionRouter\\(\\{[^}]*requireAuth:\\s*requireControlPlaneAuth/s);
+  assert.match(teevee, /router\\.use\\(requireAuth\\s*\\|\\|/);
+  assert.match(research, /router\\.(get|post)\\([^\\n]*requireResearchAuth/);
+  assert.match(library, /router\\.use\\(authorize\\)/);
+  assert.match(discovery, /router\\.use\\(authorize\\)/);
+  assert.match(phone, /router\\.use\\(requirePhoneAuth\\)/);
+  assert.match(mobile, /router\\.use\\(requireShortcutAuth\\)/);
+});
+\ntest("every direct API route is guarded or explicitly approved as public", async () => {
   const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   const routes = routeDeclarations(server);
   assert.ok(routes.length > 0, "route inventory must not be empty");
