@@ -16,6 +16,7 @@ function assetStore() {
   return remoteAssetStore;
 }
 function renderOutputDir(kind) {
+  if (process.env.NODE_ENV === "production" && !remoteAssetsEnabled()) throw new Error("Sovereign video rendering requires remote CAS; local durable output is disabled.");
   return remoteAssetsEnabled()
     ? path.join(tmpdir(), "apex-rapid-video")
     : path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", kind === "preview" ? "previews" : "");
@@ -119,7 +120,7 @@ function hookScore(value) {
 
 async function generateHook(brief, platform, provider, model) {
   const primaryProvider = provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter";
-  const primaryModel = model || process.env.APEX_RAPID_AI_MODEL || undefined;
+  const primaryModel = model || process.env.APEX_ORACLE_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined;
   const requests = [
     { provider: primaryProvider, model: primaryModel, angle: "curiosity gap" },
     ...(process.env.APEX_RAPID_ENABLE_POLLINATIONS === "true" ? [{ provider: "pollinations", model: process.env.POLLINATIONS_MODEL || "openai", angle: "bold contrast" }] : []),
@@ -153,7 +154,7 @@ async function generateOracleStoryboard(brief, platform, hook, provider, model) 
   try {
     const result = await generateUnifiedAi({
       provider: provider || process.env.APEX_RAPID_AI_PROVIDER || "openrouter",
-      model: model || process.env.APEX_RAPID_AI_MODEL || undefined,
+      model: model || process.env.APEX_ORACLE_MODEL || process.env.APEX_RAPID_AI_MODEL || undefined,
       system: "You are Oracle, a storyboard writer. Return valid JSON only with a scenes array of exactly 4 objects. Each object has string fields title, dialogue, visualPrompt. Keep dialogue faithful to the brief. Every visualPrompt must specify dark cinematic anime, cel shading, high-contrast cinematic lighting, and vertical 9:16 framing. No markdown.",
       prompt: "Create a production storyboard. Platform: " + platform + "\nChosen opening hook: " + hook + "\nBrief: " + brief,
       temperature: 0.65,
