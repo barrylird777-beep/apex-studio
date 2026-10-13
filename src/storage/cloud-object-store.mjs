@@ -74,7 +74,7 @@ export function cloudStorageStatus(prefix = 'apex-business') {
   const config = storageConfig(prefix);
   return {
     configured: Boolean(config.endpoint && config.bucket && config.accessKeyId && config.secretAccessKey),
-    provider: 'railway-s3-compatible',
+    provider: 's3-compatible',
     bucket: config.bucket || null,
     region: config.region || null,
     endpoint: config.endpoint || null,
