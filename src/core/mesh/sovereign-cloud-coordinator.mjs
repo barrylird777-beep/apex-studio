@@ -195,6 +195,22 @@ export class SovereignCloudCoordinator {
       }
     }
   }
+  async renewJobLease({ app, jobId, workerId, leaseToken, leaseMs = 30000 }) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    const id = segment(jobId);
+    const worker = segment(workerId);
+    const key = this.key("apps", app, "leases", id + ".json");
+    const current = await this.read(key);
+    if (!current || current.value.app !== app || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { renewed: false, reason: "lease-invalid" };
+    const renewed = { ...current.value, renewedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
+    try {
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: JSON.stringify(renewed), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(renewed)) }, IfMatch: current.etag }));
+      return { renewed: true, expiresAt: renewed.expiresAt };
+    } catch (e) {
+      if (conflict(e)) return { renewed: false, reason: "lease-race-lost" };
+      throw e;
+    }
+  }
   async finishJob({ app, jobId, workerId, leaseToken, resultHash = null, status = "completed" }) {
     if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
     if (!["completed", "failed"].includes(status)) throw new Error("Invalid terminal job status");
