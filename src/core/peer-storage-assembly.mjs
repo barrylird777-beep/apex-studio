@@ -38,9 +38,9 @@ function validateBackend(backend) {
 }
 
 /**
- * Assemble the daemon's peer-owned capacity backend and all six outbound app
- * namespaces. This function deliberately refuses implicit storage, peers, keys,
- * or replica policy. Secrets are supplied by the deployment environment.
+ * Assemble one app-isolated outbound media client and this peer's inbound
+ * capacity backend. Each deployment handles exactly one canonical app namespace.
+ * Storage, peers, keys, and replica policy must be explicitly provisioned.
  */
 export async function createPeerStorageAssembly({ peerNode, env = process.env } = {}) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('active libp2p peer node is required');
