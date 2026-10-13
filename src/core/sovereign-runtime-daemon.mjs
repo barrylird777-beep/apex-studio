@@ -4,7 +4,7 @@ import { verifyRemotePersistenceProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
-import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
+import { createSovereignPeer, sendToPeerAuto as sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
