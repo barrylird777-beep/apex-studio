@@ -3,6 +3,8 @@ import https from 'node:https';
 import dns from 'node:dns';
 
 const STRIPE_API='https://api.stripe.com/v1';
+export const RAPID_VIDEO_PRICE_CENTS = 2500;
+export const RAPID_VIDEO_PRICE_USD = RAPID_VIDEO_PRICE_CENTS / 100;
 
 function requireSecret(){
   const key=String(process.env.STRIPE_SECRET_KEY||'').trim();
@@ -33,7 +35,7 @@ export async function createRapidCheckout({orderId,name,type,brief,platform,emai
   add('payment_method_options[us_bank_account][verification_method]','automatic');
   add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
   if(String(email||'').trim()) add('customer_email',String(email).trim());
-  add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
+  add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]',RAPID_VIDEO_PRICE_CENTS);
   add('line_items[0][price_data][product_data][name]','KornKash Video');
   add('line_items[0][price_data][product_data][description]','One finished short-form video production. $25 total; US bank debit may have lower processing costs than cards.'); add('line_items[0][quantity]','1');
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);

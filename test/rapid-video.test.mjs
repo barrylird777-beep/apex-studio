@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {buildRapidCheckoutMetadata,decodeRapidCheckoutMetadata,verifyRapidStripeSignature} from '../src/payments/stripe-rapid.mjs';
+import {buildRapidCheckoutMetadata,decodeRapidCheckoutMetadata,verifyRapidStripeSignature,RAPID_VIDEO_PRICE_CENTS,RAPID_VIDEO_PRICE_USD} from '../src/payments/stripe-rapid.mjs';
+
+test('Rapid Video price stays at $25 total',()=>{ assert.equal(RAPID_VIDEO_PRICE_CENTS,2500); assert.equal(RAPID_VIDEO_PRICE_USD,25); });
 
 test('Rapid checkout metadata round-trips full brief',()=>{
   const brief='Line one\nLine two — cinematic hook. '.repeat(140);
