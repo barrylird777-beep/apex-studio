@@ -109,3 +109,67 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
   .apex-shell .card,.apex-shell .panel,.apex-app-index .card{transition:none}
   .apex-app-index .card:hover{transform:none}
 }
+
+/* Phone-first interaction pass: safe areas, reliable touch targets, and usable drawers. */
+html{scroll-padding-top:76px;scroll-padding-bottom:24px}
+body{min-width:320px;padding-bottom:env(safe-area-inset-bottom)}
+.apex-app-nav{scroll-padding-inline:12px;scrollbar-width:none}
+.apex-app-nav::-webkit-scrollbar{display:none}
+.apex-app-nav a[aria-current="page"]{color:var(--apex-ink);background:color-mix(in srgb,var(--apex-accent) 15%,#0a1220);border-color:color-mix(in srgb,var(--apex-accent) 65%,var(--apex-line));box-shadow:inset 0 -2px 0 var(--apex-accent)}
+.apex-shell :is(button,a,input,select,textarea,summary){touch-action:manipulation}
+.apex-shell :is(button,a,.launch){min-height:44px}
+.apex-shell :is(input,select,textarea){font-size:16px}
+.apex-shell :is(button,a):focus-visible,.apex-app-nav summary:focus-visible{outline:3px solid var(--apex-accent);outline-offset:3px}
+.apex-shell :is(.row,.links){display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.apex-shell .row>*{min-width:0;max-width:100%}
+.apex-shell :is(.panel,.card,.result,pre){overflow-wrap:anywhere;word-break:normal}
+.apex-shell :is(pre,.result){white-space:pre-wrap;overflow-x:auto;max-height:min(48vh,440px);overscroll-behavior:contain}
+.apex-shell table{width:100%;border-collapse:collapse}
+.apex-shell :is(th,td){padding:10px 12px;text-align:left;border-bottom:1px solid var(--apex-line);vertical-align:top}
+.apex-shell .table-wrap{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.apex-shell details{border:1px solid var(--apex-line);border-radius:14px;background:rgba(9,15,25,.7);min-width:0}
+.apex-shell details>summary{cursor:pointer;min-height:44px;padding:12px 14px;font-weight:750;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}
+.apex-shell details>summary::-webkit-details-marker{display:none}
+.apex-shell details>summary::after{content:"＋";color:var(--apex-accent);font-size:18px}
+.apex-shell details[open]>summary::after{content:"−"}
+.apex-shell details>*:not(summary){margin-inline:14px}
+.apex-shell details>*:last-child{margin-bottom:14px}
+.apex-shell :is([role=tablist],.tabs){display:flex;gap:6px;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;padding:4px;scrollbar-width:none}
+.apex-shell :is([role=tablist],.tabs)::-webkit-scrollbar{display:none}
+.apex-shell :is([role=tab],.tab){flex:0 0 auto;min-height:44px;white-space:nowrap}
+.apex-shell :is([role=tabpanel],.tab-panel){min-width:0;scroll-margin-top:84px}
+.apex-shell :is(dialog,[role=dialog]){max-width:min(94vw,640px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;border:1px solid var(--apex-line);border-radius:20px;background:#0a1220;color:var(--apex-ink);padding:clamp(16px,4vw,24px);box-shadow:0 24px 90px #000a}
+.apex-shell dialog::backdrop{background:rgba(1,4,10,.74);backdrop-filter:blur(5px)}
+.apex-shell :disabled{cursor:not-allowed}
+.apex-shell :is(.good,.status-ok){color:#8fe2b4}
+.apex-shell :is(.bad,.status-warn){color:#ffaaaa}
+.apex-app-index .card{display:flex;flex-direction:column;gap:12px}
+.apex-app-index .launch{align-self:flex-start;margin-top:auto;text-decoration:none;color:var(--apex-ink)}
+@media(max-width:760px){
+  html{scroll-padding-top:66px}
+  .apex-app-nav{top:0;padding-top:max(8px,env(safe-area-inset-top));gap:4px}
+  main.apex-shell{padding:12px 12px calc(28px + env(safe-area-inset-bottom))}
+  .apex-shell h1{font-size:clamp(32px,9vw,46px);line-height:1.02}
+  .apex-shell .lead{font-size:15px}
+  .apex-shell .card,.apex-shell .panel{padding:16px;border-radius:16px}
+  .apex-shell .row{align-items:stretch}
+  .apex-shell .row button{flex:1 1 140px}
+  .apex-shell :is(button,.launch){min-height:46px}
+  .apex-shell :is(input,select,textarea){min-height:46px}
+  .apex-shell :is(.grid,.summary){gap:10px}
+  .apex-shell .table-wrap table{min-width:520px}
+  .apex-app-index .card{padding:16px}
+  .apex-app-index .launch{width:100%;align-self:stretch}
+}
+@media(max-width:380px){
+  .apex-app-nav .apex-app-brand{flex:0 0 auto}
+  .apex-app-nav a:not(.apex-app-brand){padding-inline:9px}
+  .apex-shell .row button{flex-basis:100%}
+}
+@media(hover:none){
+  .apex-shell .card:hover,.apex-shell .panel:hover,.apex-app-index .card:hover{transform:none}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
