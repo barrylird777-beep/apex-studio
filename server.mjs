@@ -1238,7 +1238,7 @@ process.once('SIGINT', () => beginGracefulShutdown('SIGINT'));
 
 
 
-app.post('/api/rapid/stripe/webhook', requireControlPlaneAuth, express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
+app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
   try {
     const event = verifyRapidStripeSignature(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
     if (!['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)) return res.json({ received: true, ignored: true });
