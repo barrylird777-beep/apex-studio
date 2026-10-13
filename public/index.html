@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080b12"><meta name="description" content="PlanetApeX — the brain of the six-app Apex universe: Bible study, research, knowledge, AI and interactive experiences.">
-<link rel="manifest" href="/manifest.webmanifest"><title>PlanetApeX — Apex Universe</title>
+<link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/apex-six-apps.css"><title>PlanetApeX — Apex Universe</title>
 <style>
 :root{
   --bg:#05070b;--panel:rgba(18,22,30,.62);--panel2:rgba(13,17,24,.72);
@@ -115,7 +115,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 #owner-sign-out{min-height:36px;padding:7px 11px;border-radius:999px;font-size:11px}
 @media(max-width:560px){.owner-auth-card{padding:24px}.owner-auth-card h1{font-size:26px}}
 </style></head>
-<body><div id="owner-auth-gate" role="dialog" aria-modal="true" aria-labelledby="owner-auth-title">
+<body><a class="apex-skip-link" href="#main-content">Skip to PlanetApeX content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/" aria-label="Apex app home"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/" aria-current="page" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><div id="owner-auth-gate" role="dialog" aria-modal="true" aria-labelledby="owner-auth-title">
 <section class="owner-auth-card">
 <div class="owner-auth-mark" aria-hidden="true">A</div>
 <p class="owner-auth-eyebrow">APEX · PRIVATE SYSTEM</p>
@@ -159,7 +159,7 @@ textarea{min-height:110px;resize:vertical}.form .inline{display:grid;grid-templa
 <button data-view="scenes" onclick="view('scenes')">Scenes</button><button data-view="oracle" onclick="view('oracle')">Oracle</button><button data-view="forge" onclick="view('forge')">Forge</button><button data-view="media" onclick="view('media')">AI Media</button><button data-view="audio" onclick="view('audio')">Audio</button><button data-view="vision" onclick="view('vision')">Vision Editor</button><button data-view="audio-station" onclick="view('audio-station')">Music + Audio</button><button data-view="audio" onclick="view('audio')">Audio Lab</button><button data-view="omni" onclick="view('omni')">OMNI Studio</button>
 <button data-view="timeline" onclick="view('timeline')">Timeline</button><button data-view="production" onclick="view('production')">Production</button><button data-view="network" onclick="view('network')">Network</button><button data-view="storyboard" onclick="view('storyboard')">Storyboard</button><button data-view="visuals" onclick="view('visuals')">Visual Bible</button><button onclick="location.href='/production.html'">Production Desk</button><button data-view="bible" onclick="view('bible')">Bible Library</button><button data-view="retention" onclick="view('retention')">Retention Hook</button>
 </nav></aside>
-<main>
+<main id="main-content">
 <section class="top"><div><div class="eyebrow">Creative command center</div><h1 id="title">Bible Story Video Studio</h1><p id="subtitle">Scripture → story → scenes → shots → audio → timeline → render.</p></div><div class="actions"><button class="ghost" onclick="sync()">Sync</button><button class="primary" onclick="view('stories');focusForm()">New story</button></div></section>
 
 <section id="network" class="view hidden">
