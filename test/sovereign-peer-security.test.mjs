@@ -4,7 +4,8 @@ import { generateKeyPairSync } from "node:crypto";
 import { signSovereignVote, verifySovereignQuorum } from "../src/testing/sovereign-bft-quorum.mjs";
 import {
   readSovereignEnvelope,
-  sendToPeer
+  sendToPeer,
+  sendPeerStorageEnvelope
 } from "../src/network/sovereign-peer.mjs";
 
 const streamFor = value => ({
@@ -327,4 +328,56 @@ test("BFT quorum rejects forged votes and quarantines authenticated equivocation
   assert.equal(equivocation.valid,false,"an equivocating validator is removed from the accepted quorum");
   assert.ok(equivocation.quarantine.includes("peer-c"));
   assert.ok(equivocation.rejected.some(item=>item.reason==="equivocation"));
+});
+
+
+test("two sovereign peers exchange peer-storage envelopes over binary canonical CBOR", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { createSovereignPeer } = await import("../src/network/sovereign-peer.mjs");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-peer-cas-roundtrip-"));
+  const priorIds = process.env.APEX_ALLOWED_PEER_IDS;
+  const priorPort = process.env.APEX_P2P_PORT;
+  const priorPrivateKey = process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+  process.env.APEX_P2P_PORT = "0";
+  let a, b;
+  try {
+    a = await createSovereignPeer({
+      keyFile: path.join(dir, "peer-a.key"),
+      onBinaryEnvelope: async (envelope, context) => ({
+        accepted: envelope?.protocol === "apex.cas.v1" && context.remotePeerId === b.peerId.toString(),
+        namespace: envelope.namespace,
+        operation: envelope.operation,
+        durable: true,
+        ownership: "peer-owned"
+      })
+    });
+    b = await createSovereignPeer({ keyFile: path.join(dir, "peer-b.key"), onBinaryEnvelope: async () => true });
+    process.env.APEX_ALLOWED_PEER_IDS = [a.peerId.toString(), b.peerId.toString()].join(",");
+    await a.start();
+    await b.start();
+    const address = a.getMultiaddrs().map(String).map(value => value.replace("/ip4/0.0.0.0/", "/ip4/127.0.0.1/"))
+      .find(value => value.includes("/ip4/127.0.0.1/") && value.endsWith("/p2p/" + a.peerId.toString()));
+    assert.ok(address, "peer A must expose a local test dial address");
+    const response = await sendPeerStorageEnvelope(b, address, {
+      protocol: "apex.cas.v1", operation: "storage.health", namespace: "KernelVision"
+    });
+    assert.equal(response.accepted, true);
+    assert.equal(response.peerId, a.peerId.toString());
+    assert.equal(response.namespace, "KernelVision");
+    assert.equal(response.durable, true);
+    assert.equal(response.ownership, "peer-owned");
+  } finally {
+    await b?.stop().catch(() => {});
+    await a?.stop().catch(() => {});
+    if (priorIds === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
+    else process.env.APEX_ALLOWED_PEER_IDS = priorIds;
+    if (priorPort === undefined) delete process.env.APEX_P2P_PORT;
+    else process.env.APEX_P2P_PORT = priorPort;
+    if (priorPrivateKey === undefined) delete process.env.APEX_PEER_PRIVATE_KEY_BASE64;
+    else process.env.APEX_PEER_PRIVATE_KEY_BASE64 = priorPrivateKey;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
