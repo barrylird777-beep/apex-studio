@@ -19,8 +19,8 @@ button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4}
 <body><a class="apex-skip-link" href="#apex-main">Skip to XShield content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" aria-current="page" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="xshield" id="apex-main" tabindex="-1">
 <header class="top"><div class="eyebrow">Apex application surface</div><h1>XShield</h1><p class="muted">Ad blocking, tracker blocking and network filtering.</p><div class="links"><a href="/">ApexStudio</a><a href="/shield-apex.html">ShieldApex security surface</a><a href="/api/network/adblock/profile">Mobile profile</a></div></header>
 <section class="grid">
-<article class="card"><div class="eyebrow">Application</div><div id="appState" class="metric">Loading…</div><p id="appDetail" class="muted">Reading XShield's operational contract.</p></article>
-<article class="card"><div class="eyebrow">Network filter</div><div id="networkState" class="metric">Loading…</div><p id="networkDetail" class="muted">Reading the active filtering subsystem.</p></article>
+<article class="card"><div class="eyebrow">Application</div><div id="appState" class="metric" role="status" aria-live="polite">Loading…</div><p id="appDetail" class="muted">Reading XShield's operational contract.</p></article>
+<article class="card"><div class="eyebrow">Network filter</div><div id="networkState" class="metric" role="status" aria-live="polite">Loading…</div><p id="networkDetail" class="muted">Reading the active filtering subsystem.</p></article>
 </section>
 <section class="card" style="margin-top:18px"><div class="eyebrow">Evidence</div><pre id="output">Loading…</pre></section>
 <script>
@@ -31,8 +31,11 @@ async function load(){
   if(!appResponse.ok) throw new Error(app.error||'XShield status unavailable');
   document.getElementById('appState').textContent=app.app?.name||'XShield';
   document.getElementById('appDetail').textContent=(app.filtering?'Filtering active':'Filtering not active')+' · '+(app.firstPartyPolicy||'policy unavailable');
-  document.getElementById('networkState').textContent=network.enabled===false?'DEGRADED':'ACTIVE';
-  document.getElementById('networkState').className='metric '+(network.enabled===false?'bad':'good');
+  const networkState=document.getElementById('networkState');
+  const networkEnabled=network.enabled===true;
+  const networkDegraded=network.enabled===false;
+  networkState.textContent=networkEnabled?'ACTIVE':networkDegraded?'DEGRADED':'UNKNOWN';
+  networkState.className='metric '+(networkEnabled?'good':networkDegraded?'bad':'status-warn');
   document.getElementById('networkDetail').textContent='Safari rules: '+(app.safariRules??'n/a');
   const lastStatusAt=new Date().toISOString();
   sessionStorage.setItem('apex.xshield.lastStatusAt',lastStatusAt);
