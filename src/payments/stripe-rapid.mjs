@@ -28,10 +28,10 @@ export function decodeRapidCheckoutMetadata(metadata={}){
 export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
-  // Offer cards as a fallback and US bank debit for eligible US customers.
-  // ACH usually costs less than card processing, but is not fee-free and can take longer to settle.
-  add('payment_method_types[0]','card');
-  add('payment_method_types[1]','us_bank_account');
+  // Put US bank debit first to favor the lower-cost option; retain cards as fallback.
+  // ACH is not free and can take longer to settle. Stripe availability depends on account/customer eligibility.
+  add('payment_method_types[0]','us_bank_account');
+  add('payment_method_types[1]','card');
   add('payment_method_options[us_bank_account][verification_method]','automatic');
   add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
   if(String(email||'').trim()) add('customer_email',String(email).trim());
