@@ -28,16 +28,13 @@ export function decodeRapidCheckoutMetadata(metadata={}){
 export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
-  // Offer cards as a fallback and US bank debit for eligible US customers.
-  // ACH usually costs less than card processing, but is not fee-free and can take longer to settle.
-  add('payment_method_types[0]','card');
-  add('payment_method_types[1]','us_bank_account');
-  add('payment_method_options[us_bank_account][verification_method]','automatic');
-  add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
+  // Let Stripe's Dashboard payment-method settings select eligible lower-cost options
+  // (for example US bank debit or stablecoins when enabled) instead of forcing cards.
+  // Availability depends on the merchant account, buyer, and region.
   if(String(email||'').trim()) add('customer_email',String(email).trim());
   add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','KornKash Video');
-  add('line_items[0][price_data][product_data][description]','One finished short-form video production. $25 total; US bank debit may have lower processing costs than cards.'); add('line_items[0][quantity]','1');
+  add('line_items[0][price_data][product_data][description]','One finished short-form video production. $25 total. Available payment methods and any applicable fees are shown at checkout.'); add('line_items[0][quantity]','1');
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
   return params;
 }
