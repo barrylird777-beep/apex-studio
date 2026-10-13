@@ -108,6 +108,20 @@ app.use(express.json({
   type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
 }));
 
+// Require an owner session for app screens; keep customer purchase pages and APIs available.
+const publicHtmlPages = new Set(['/teevee-buyer.html', '/rapid-video.html', '/paypex.html']);
+const signInPages = new Set(['/', '/index.html']);
+const appRouteAliases = new Set(['/local-ai', '/phone', '/production', '/teevee', '/ko-blocks']);
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path.startsWith('/api/') || req.path.startsWith('/vendor/') ||
+      /\.(?:js|css|map|png|jpe?g|webp|svg|ico|woff2?|ttf|webmanifest|xml|txt)$/i.test(req.path)) return next();
+  if (signInPages.has(req.path) || publicHtmlPages.has(req.path)) return next();
+  const isAppPage = req.path.toLowerCase().endsWith('.html') || appRouteAliases.has(req.path);
+  if (!isAppPage || hasValidOwnerSession(req)) return next();
+  return res.redirect(302, '/');
+});
+
 // One owner identity for the browser experience. No username registration or second authority.
 const ownerSignInAttempts = new Map();
 const OWNER_SIGN_IN_WINDOW_MS = 15 * 60 * 1000;
