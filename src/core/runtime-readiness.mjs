@@ -1,4 +1,5 @@
-export function isSovereignRuntimeReady(identity, now = Date.now(), expectedInstanceId = '') {
+export function isSovereignRuntimeReady(identity, now = Date.now(), expectedInstanceId = '', shuttingDown = false) {
+  if (shuttingDown) return false;
   const readiness = identity?.readiness;
   if (!expectedInstanceId || identity?.instanceId !== expectedInstanceId) return false;
   const lastSeenAt = Date.parse(identity?.lastSeenAt || '');
