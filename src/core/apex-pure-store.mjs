@@ -539,9 +539,9 @@ export class ApexPureStore {
         if(existing)return {durable:true,id:existing.id,duplicate:true,status:existing.status};
       }
       const job={id:String(id),type:String(type),payload:clone(payload),priority:Number(priority)||0,status:"queued",attempts:0,maxAttempts:Math.max(1,Number(maxAttempts)||5),dedupeKey:dedupeKey?String(dedupeKey):null,runAt:Number(runAt)||Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0};
-      await this.persistJob(job);
-      this.apply({type:"job.enqueue",payload:{id:job.id,job}});
-      return {durable:true,id:job.id};
+      const persisted=await this.persistJob(job);
+      this.jobsState.set(String(persisted.id),clone(persisted));
+      return {durable:true,id:persisted.id,duplicate:persisted.id!==job.id||persisted.createdAt!==job.createdAt,status:persisted.status};
     });
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
@@ -579,8 +579,9 @@ export class ApexPureStore {
         if(!current||current.status!=="queued")continue;
         const token=randomUUID(),fence=Number(current.leaseFence||0)+1;
         const patch={status:"running",attempts:Number(current.attempts)+1,leaseOwner:String(workerId),leaseToken:token,leaseFence:fence,leaseExpiresAt:now+Math.max(1000,Number(leaseMs)||45000),updatedAt:new Date().toISOString()};
-        const updated={...current,...patch};await this.persistJob(updated);
-        this.apply({type:"job.transition",payload:{id:current.id,patch}});out.push(updated);
+        const updated={...current,...patch};
+        const persisted=await this.persistJob(updated);
+        this.jobsState.set(String(persisted.id),clone(persisted));out.push(persisted);
       }
       return out;
     });
