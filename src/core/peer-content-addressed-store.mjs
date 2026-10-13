@@ -115,7 +115,7 @@ export class PeerContentAddressedStore {
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
       }
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
@@ -320,8 +320,11 @@ export class PeerContentAddressedStore {
       }
     }
     if (receipts.length < this.replicaCount) {
-      const error = new Error('peer reference write did not reach the configured replica count');
-      error.code = 'INSUFFICIENT_REPLICAS';
+      const conflicts = failures.length > 0 && failures.every(item => item.code === 'CAS_CONFLICT' || item.code === 'CAS_MISMATCH');
+      const error = new Error(conflicts
+        ? 'peer reference compare-and-swap conflict'
+        : 'peer reference write did not reach the configured replica count');
+      error.code = conflicts ? 'CAS_CONFLICT' : 'INSUFFICIENT_REPLICAS';
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
       error.failures = failures;
