@@ -24,6 +24,7 @@ test("TeeVee production start is blocked until remote worker state and artifact 
   const app = express();
   app.use("/api/teevee/production", createTeeVeeProductionRouter({
     store,
+    requireAuth: (_req, _res, next) => next(),
     enqueue: async item => { enqueueCalled = true; return item; }
   }));
   const server = app.listen(0, "127.0.0.1");
@@ -61,6 +62,7 @@ test("TeeVee production routes use content-addressed inventory and idempotent du
   const app = express();
   app.use("/api/teevee/production", createTeeVeeProductionRouter({
     store,
+    requireAuth: (_req, _res, next) => next(),
     enabled: true,
     enqueue: async item => store.enqueue({
       id: item.id,
