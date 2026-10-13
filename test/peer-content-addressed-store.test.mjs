@@ -192,7 +192,6 @@ test('peer CAS requires explicit independent failure domains when configured', a
       transport: mesh.client.transport,
       peers: ['peer-a', 'peer-b'],
       replicaCount: 2,
-      minFailureDomains: 2,
       namespace: 'PlanetApeX',
       encryptionKey: Buffer.alloc(32, 7)
     }),
