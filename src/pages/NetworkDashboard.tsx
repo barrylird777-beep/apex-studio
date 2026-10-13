@@ -33,7 +33,9 @@ function BrowserPeerTest(){
       try{
         const packet=JSON.parse(event.data);
         if(packet?.type!=="apex-webrtc-benchmark"||typeof packet.transferId!=="string"||typeof packet.payload!=="string")return;
+        const isNewTransfer=!incomingTransfers.current.has(packet.transferId);
         const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,string>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
+        if(isNewTransfer&&packet.index===0)setReceived(0);
         if(!Number.isInteger(packet.index)||!Number.isInteger(packet.totalChunks)||packet.totalChunks<1||packet.totalChunks>128||packet.index<0||packet.index>=packet.totalChunks||transfer.totalChunks!==packet.totalChunks||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
         if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,packet.payload);transfer.payloadBytes+=new Blob([packet.payload]).size;}
         incomingTransfers.current.set(packet.transferId,transfer);
@@ -112,17 +114,17 @@ function BrowserPeerTest(){
   const runTransfer=async()=>{
     const dc=channel.current;
     if(!dc||dc.readyState!=="open"){setNote("Connect both browsers before running a transfer.");return;}
-    setBusy(true);setTransferStatus("Sending test payload…");setTransferRate("Measuring…");
+    setBusy(true);setTransferStatus("Sending test payload…");setTransferRate("Measuring…");setSent(0);
     const totalBytes=1024*1024;
     const chunkBytes=32*1024;
     const totalChunks=totalBytes/chunkBytes;
     const payload="x".repeat(totalBytes);
-    const expectedSha256=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload))),b=>b.toString(16).padStart(2,"0")).join("");
     const transferId=crypto.randomUUID();
     const started=performance.now();
     let sentBytes=0;
     setChecksumStatus("Waiting for receiver checksum…");
     try{
+      const expectedSha256=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload))),b=>b.toString(16).padStart(2,"0")).join("");
       dc.bufferedAmountLowThreshold=128*1024;
       const waitForBufferLow=()=>new Promise<void>((resolve,reject)=>{
         let settled=false;
