@@ -8,7 +8,7 @@ Set these only on a deployment that is meant to host a storage peer:
 
 - `APEX_STORAGE_MODE=peer` (or `APEX_PEER_STORAGE_ENABLED=true`)
 - `APEX_APP_ID` to exactly one of `KernelVision`, `XShield`, `Kernelodies`, `PlanetApeX`, `KashKorner`, `KoinKob`
-- `APEX_PEER_STORAGE_BACKEND_MODULE` to an absolute path or file URL for a trusted module exporting `createPeerStorageBackend({ peerId, env })`
+- `APEX_PEER_STORAGE_BACKEND_MODULE` to a trusted module exporting `createPeerStorageBackend({ peerId, peerNode, env })`. For a network-only forwarding peer, use `./src/core/peer-network-storage-backend.mjs` and set `APEX_PEER_STORAGE_UPSTREAM` to `peerId@multiaddr` for a peer that proves durable peer-owned capacity.
 - `APEX_PEER_NAMESPACE_ACL` with explicit canonical app namespaces and authorized writer peer IDs, for example `KernelVision=peer-id-a,peer-id-b;PlanetApeX=peer-id-c`
 - For the one app named by `APEX_APP_ID`, `APEX_PEER_STORAGE_PEERS_<APP_SUFFIX>` as semicolon-separated `peerId@multiaddr` entries. Suffixes are uppercase with camel-case boundaries converted to underscores, e.g. `KERNEL_VISION` and `PLANET_APE_X`.
 - For that app only, `APEX_PEER_STORAGE_KEY_<APP_SUFFIX>` as canonical base64 for a 32-byte AES-256 key. Each app deployment loads only its own encryption key; do not reuse keys across app namespaces.
@@ -26,6 +26,6 @@ The backend module must return an object implementing:
 - `readRef(namespace, key)`
 - `writeRef(namespace, key, expectedHash, hash, bytes)`
 
-It must also explicitly declare `durable: true` and `ownership: 'peer-owned'`. Object writes must verify SHA-256; reference writes must provide atomic compare-and-swap semantics; data must remain recoverable after a process restart; and app namespaces must remain isolated. A RAM map, local filesystem fallback, or third-party hosted object bucket does not meet this contract.
+It must also explicitly declare `durable: true` and `ownership: 'peer-owned'`. The built-in network-only adapter stores no bytes locally and refuses to start unless its upstream returns a verified durable-capacity receipt. Object writes must verify SHA-256; reference writes must provide atomic compare-and-swap semantics; data must remain recoverable after a process restart; and app namespaces must remain isolated. A RAM map, local filesystem fallback, or third-party hosted object bucket does not meet this contract.
 
-**Important:** this repository wires the bridge and client assembly, but it does not ship a concrete durable backend module. Until a genuinely peer-owned durable backend is provisioned and its restart/recovery behavior is verified, enabling peer mode intentionally fails closed. Do not switch production storage mode or claim migration complete before that proof.
+**Important:** the built-in adapter connects peers without local persistence, but it is not a substitute for a leaf storage peer. At least one peer must be provisioned with genuinely peer-owned durable capacity and prove restart/recovery. Until that peer exists and is verified, enabling peer mode intentionally fails closed. Do not switch production storage mode or claim migration complete before that proof.
