@@ -1,5 +1,6 @@
-export function isSovereignRuntimeReady(identity, now = Date.now()) {
+export function isSovereignRuntimeReady(identity, now = Date.now(), expectedInstanceId = '') {
   const readiness = identity?.readiness;
+  if (!expectedInstanceId || identity?.instanceId !== expectedInstanceId) return false;
   return identity?.status === "online"
     && Number(identity?.leaseExpiresAt || 0) > now
     && readiness?.storageReady === true
