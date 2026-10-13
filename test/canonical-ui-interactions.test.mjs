@@ -116,3 +116,16 @@ test("XShield status failures render unavailable instead of a false healthy stat
   assert.match(page, /document\\.getElementById\\('networkState'\\)\\.textContent='UNAVAILABLE'/);
   assert.match(page, /document\\.getElementById\\('networkState'\\)\\.className='metric bad'/);
 });
+
+test("app profiles and primary workspaces match the six-app canon", async () => {
+  const hub = await readSource("src/pages/SixAppHub.tsx");
+  assert.match(hub, /const active = visibleApps\\.find/);
+  const planet = await readPublic("planet-apex.html");
+  assert.match(planet, /aria-label="PlanetApeX study and research"/);
+  assert.match(planet, /href="\\/bible-study-room\\.html"/);
+  assert.match(planet, /href="\\/garden-of-apex\\.html"/);
+  assert.match(planet, /href="\\/special-search\\.html"/);
+  const music = await readPublic("kernelodies.html");
+  assert.match(music, /Listen, discover, and build your music library/);
+  assert.match(music, /id="kernelodies-discovery"/);
+});
