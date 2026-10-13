@@ -17,7 +17,7 @@ const LEGACY_SUPPORT_APPS = Object.freeze({
   "ko-blocks": Object.freeze({ id:"ko-blocks", name:"KoBlocks", system:"apex-studio", role:"reusable execution blocks, graph composition and validation capability; not a separate canonical app", entry:"/ko-blocks.html" }),
   "engine-apex": Object.freeze({ id:"engine-apex", name:"EngineApex", system:"kash-korner", role:"historical opportunity-decision capability owned by KashKorner", entry:"/engine-apex.html" }),
   "shield-apex": Object.freeze({ id:"shield-apex", name:"ShieldApex", system:"xshield", role:"historical security-boundary capability owned by XShield", entry:"/shield-apex.html" }),
-  "apex-adblocker": Object.freeze({ id:"apex-adblocker", name:"ApexAdBlocker", system:"xshield", role:"historical ad-blocking capability owned by XShield", entry:"/xshield.html" }),
+  "apex-adblocker": Object.freeze({ id:"apex-adblocker", name:"Legacy ad-blocking capability", system:"xshield", role:"historical ad-blocking capability owned by XShield", entry:"/xshield.html" }),
   "xshield-legacy": Object.freeze({ id:"xshield-legacy", name:"XShield legacy alias", system:"xshield", role:"compatibility alias for the canonical XShield security app", entry:"/xshield.html" })
 });
 
