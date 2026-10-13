@@ -94,5 +94,5 @@ test("central outbound guard rejects unapproved hosts, insecure URLs, and redire
   const guarded = createGuardedFetch(["api.openai.com"], async (_url, options) => ({ options }));
   const result = await guarded("https://api.openai.com/v1/responses", { method: "POST" });
   assert.equal(result.options.redirect, "error");
-  await assert.rejects(() => guarded("https://attacker.invalid/", {}), /HTTPS host allowlist/);
+  assert.throws(() => guarded("https://attacker.invalid/", {}), /HTTPS host allowlist/);
 });
