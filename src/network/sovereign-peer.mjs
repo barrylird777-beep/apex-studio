@@ -291,6 +291,12 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         remotePeerId: connection?.remotePeer?.toString?.() || ''
       }));
       await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+    } finally {
+      // A libp2p v3 handler returning with its stream still open can cause the
+      // muxer to reset the stream instead of completing the request/ACK exchange.
+      // Close only after the response writer has drained; callers already have
+      // the complete newline-delimited response before this graceful close.
+      try { await stream.close?.(); } catch {}
     }
   });
   return node;
