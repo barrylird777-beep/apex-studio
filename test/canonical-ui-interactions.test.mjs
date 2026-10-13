@@ -121,6 +121,8 @@ test("XShield failure states remain unavailable and are announced accessibly", a
 test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async () => {
   const hub = await readSource("src/pages/SixAppHub.tsx");
   assert.match(hub, /const active = visibleApps\\.find/);
+  assert.match(hub, /useEffect\\(\\(\\) => \\{/);
+  assert.match(hub, /setActiveKey\\(visibleApps\\[0\\]\\.key\\)/);
   const planet = await readPublic("planet-apex.html");
   assert.match(planet, /aria-label="PlanetApeX study and research"/);
   assert.ok(planet.includes('href="/bible-study-room.html"'));
