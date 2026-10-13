@@ -62,3 +62,14 @@ test('peer media store rejects unknown apps and empty assets', async () => {
   await assert.rejects(media.saveAsset('KoBlocks', 'project-1', 'asset-1', Buffer.from('x')), /Unknown canonical Apex app/);
   await assert.rejects(media.saveAsset('PlanetApeX', 'project-1', 'asset-1', Buffer.alloc(0)), /cannot be empty/);
 });
+
+
+test('concurrent project updates retry CAS conflicts without losing assets', async () => {
+  const { media } = setup();
+  await Promise.all([
+    media.saveAsset('KashKorner', 'project-race', 'asset-a', Buffer.from('A')),
+    media.saveAsset('KashKorner', 'project-race', 'asset-b', Buffer.from('B'))
+  ]);
+  const project = await media.getProject('KashKorner', 'project-race');
+  assert.deepEqual(project.manifest.assets.map(asset => asset.id).sort(), ['asset-a', 'asset-b']);
+});
