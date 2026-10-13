@@ -3,7 +3,6 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ApexRingWAL } from "./apex-ring-wal.mjs";
-import { RemoteApexRingWAL } from "./remote-apex-ring-wal.mjs";
 import { ContentAddressedStore } from "./content-addressed-store.mjs";
 import { RemoteContentAddressedStore } from "./remote-content-addressed-store.mjs";
 import { createHash } from "node:crypto";
@@ -32,7 +31,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.remoteMode?(remoteWal||new RemoteApexRingWAL({cas:this.cas,scope:walScope})):this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -152,16 +151,7 @@ export class ApexPureStore {
     const scope=String(process.env.RAILWAY_SERVICE_NAME||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
     const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
     await this.withRemoteLock("queue-mutations",async()=>{
-      await this.wal.recover({onRecord:async record=>{
-        const p=record.payload||{};
-        if(record.type==="state.put"&&p.collection!=null&&p.id!=null&&p.record!=null){
-          await this.persistState(String(p.collection),String(p.id),p.record,{appendWal:false,walSeq:record.seq});
-        }else if(record.type==="state.delete"&&p.collection!=null&&p.id!=null){
-          await this.persistDelete(String(p.collection),String(p.id),{appendWal:false,walSeq:record.seq});
-        }else if(record.type==="job.put"&&p.job?.id!=null){
-          await this.persistJob(p.job,{appendWal:false,walSeq:record.seq});
-        }
-      }});
+      // Active remote startup reads durable CAS refs directly. Legacy WAL is migration-only.
       if(await this.cas.readRef("system",markerKey))return;
       await this.withRemoteLock(lockKey,async()=>{
       if(await this.cas.readRef("system",markerKey))return;
@@ -222,11 +212,11 @@ export class ApexPureStore {
     if(this.remoteQueueIndexPromise&&!force)return this.remoteQueueIndexPromise;
     this.remoteQueueIndexPromise=(async()=>{
       const markerKey="job-index-v3";
-      const initialMarker=await this.cas.readRef("system",markerKey);
-      if(initialMarker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
+      // Reconcile the queue indexes from durable job records on each process's
+      // first queue use. A prior marker cannot prove the previous process did
+      // not crash between writing a job and updating its queue index.
       const result=await this.withRemoteLock("job-index-v3-migration-lock",async()=>{
         const marker=await this.cas.readRef("system",markerKey);
-        if(marker&&!force){this.remoteQueueIndexReady=true;return {ready:true,indexed:0};}
         let indexed=0;
         const refs=await this.cas.listRefs("jobs");
         const dedupeRecords=new Map();
@@ -297,106 +287,78 @@ export class ApexPureStore {
   async refreshJobs(){await this.init();await this.loadJobReferences();return this;}
   async refresh(){await this.init();await this.loadReferences();return this;}
   refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
-  async persistJob(job,{appendWal=true,walSeq=null}={}){
-    let effectiveJob=clone(job),effectiveSeq=Number(walSeq)||0;
-    if(this.remoteMode){
-      if(appendWal){
-        const enqueueMutation=job.status==="queued"&&Number(job.attempts||0)===0&&Number(job.leaseFence||0)===0&&!job.leaseToken;
-        const requestHash=createHash("sha256").update(JSON.stringify(job)).digest("hex");
-        const idempotencyKey=enqueueMutation
-          ? "job.enqueue:"+String(job.id)
-          : "job.put:"+String(job.id)+":"+requestHash;
-        const idempotencyPayload=enqueueMutation?{
-          id:String(job.id),type:String(job.type),payload:job.payload,priority:Number(job.priority)||0,
-          runAt:Number(job.runAt)||0,maxAttempts:Number(job.maxAttempts)||5,dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey)
-        }:undefined;
-        const logged=await this.wal.append("job.put",{job:clone(job)},{idempotencyKey,...(idempotencyPayload?{idempotencyPayload}:{})});
-        effectiveSeq=logged.seq;
-        if(logged.payload?.job)effectiveJob=clone(logged.payload.job);
-      }
+  async persistJob(job,{appendWal=true,walSeq=null}={}) {
+    const effectiveJob=clone(job);
+    if(!this.remoteMode){
       const key=this.refKey("job",effectiveJob.id);
-      let persisted=false;
-      for(let attempt=0;attempt<8;attempt++){
-        const current=await this.cas.readRef("jobs",key);
-        if(effectiveSeq>0&&Number(current?.value?.walSeq||0)>=effectiveSeq){
-          effectiveJob=clone(current.value.job);
-          effectiveSeq=Number(current.value.walSeq)||effectiveSeq;
-          persisted=true;break;
-        }
-        try{
-          await this.cas.writeRef("jobs",key,{id:String(effectiveJob.id),job:clone(effectiveJob),walSeq:effectiveSeq},{expectedHash:current?.hash??null});
-          persisted=true;break;
-        }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
-      }
-      if(!persisted)throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed job state.");
-      if(effectiveJob.dedupeKey!=null&&String(effectiveJob.dedupeKey)){
-        const dedupeKey=createHash("sha256").update(String(effectiveJob.dedupeKey)).digest("hex");
-        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(effectiveJob.dedupeKey),id:String(effectiveJob.id),status:String(effectiveJob.status||""),type:String(effectiveJob.type||""),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq});
-      }
-      const current=await this.cas.readRef("queue",key);
-      const running=await this.cas.readRef("running",key);
-      if(effectiveJob.status==="queued"){
-        const value={id:String(effectiveJob.id),runAt:Number(effectiveJob.runAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq};
-        if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
-        if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-      }else if(effectiveJob.status==="running"){
-        const value={id:String(effectiveJob.id),leaseExpiresAt:Number(effectiveJob.leaseExpiresAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq};
-        if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
-        if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
-      }else{
-        if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
-        if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-      }
+      await this.cas.writeRef("jobs",key,{id:String(effectiveJob.id),job:clone(effectiveJob)});
       return clone(effectiveJob);
     }
-    const key=this.refKey("job",job.id);
-    await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
-    return clone(job);
+    const key=this.refKey("job",effectiveJob.id);
+    let persisted=false;
+    for(let attempt=0;attempt<8;attempt++){
+      const current=await this.cas.readRef("jobs",key);
+      try{
+        await this.cas.writeRef("jobs",key,{id:String(effectiveJob.id),job:clone(effectiveJob)},{expectedHash:current?.hash??null});
+        persisted=true;break;
+      }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
+    }
+    if(!persisted)throw new Error("[REMOTE_STORE_CAS] Could not persist job state.");
+    if(effectiveJob.dedupeKey!=null&&String(effectiveJob.dedupeKey)){
+      const dedupeKey=createHash("sha256").update(String(effectiveJob.dedupeKey)).digest("hex");
+      const current=await this.cas.readRef("dedupe",dedupeKey);
+      await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(effectiveJob.dedupeKey),id:String(effectiveJob.id),status:String(effectiveJob.status||""),type:String(effectiveJob.type||""),updatedAt:String(effectiveJob.updatedAt||"")},{expectedHash:current?.hash??null}).catch(async error=>{
+        if(error.code!=="CAS_CONFLICT")throw error;
+        const latest=await this.cas.readRef("dedupe",dedupeKey);
+        if(latest?.value?.id!==String(effectiveJob.id))throw error;
+        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(effectiveJob.dedupeKey),id:String(effectiveJob.id),status:String(effectiveJob.status||""),type:String(effectiveJob.type||""),updatedAt:String(effectiveJob.updatedAt||"")},{expectedHash:latest.hash});
+      });
+    }
+    const current=await this.cas.readRef("queue",key);
+    const running=await this.cas.readRef("running",key);
+    if(effectiveJob.status==="queued"){
+      const value={id:String(effectiveJob.id),runAt:Number(effectiveJob.runAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||"")};
+      if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+      if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
+    }else if(effectiveJob.status==="running"){
+      const value={id:String(effectiveJob.id),leaseExpiresAt:Number(effectiveJob.leaseExpiresAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||"")};
+      if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+      if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+    }else{
+      if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
+      if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
+    }
+    return clone(effectiveJob);
   }
-  async persistState(collection,id,record,{appendWal=true,walSeq=null}={}){
+  async persistState(collection,id,record,{appendWal=true,walSeq=null}={}) {
     const key=this.refKey(collection,id),value={collection:String(collection),id:String(id),record:clone(record)};
     if(!this.remoteMode){await this.cas.writeRef("state",key,value);return value;}
-    if(appendWal){
-      const contentHash=createHash("sha256").update(JSON.stringify(value)).digest("hex");
-      const logged=await this.wal.append("state.put",value,{idempotencyKey:"state.put:"+String(collection)+":"+String(id)+":"+contentHash});
-      walSeq=logged.seq;
-    }
-    const seq=Number(walSeq)||0;
     for(let attempt=0;attempt<8;attempt++){
       const current=await this.cas.readRef("state",key);
-      if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return current.value;
       try{
-        const stored={...value,walSeq:seq};
+        const stored={...value};
         await this.cas.writeRef("state",key,stored,{expectedHash:current?.hash??null});
         return stored;
       }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
     }
-    throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed state.");
+    throw new Error("[REMOTE_STORE_CAS] Could not persist state.");
   }
-  async persistDelete(collection,id,{appendWal=true,walSeq=null}={}){
+  async persistDelete(collection,id,{appendWal=true,walSeq=null}={}) {
     const key=this.refKey(collection,id);
     if(!this.remoteMode){
       const current=await this.cas.readRef("state",key);
       if(current)await this.cas.deleteRef("state",key,{expectedHash:current.hash});
       return true;
     }
-    let current=await this.cas.readRef("state",key);
-    if(appendWal){
-      if(!current||current.value?.deleted)return true;
-      const priorHash=current.hash;
-      const logged=await this.wal.append("state.delete",{collection:String(collection),id:String(id),priorHash},{idempotencyKey:"state.delete:"+String(collection)+":"+String(id)+":"+priorHash});
-      walSeq=logged.seq;
-    }
-    const seq=Number(walSeq)||0;
     for(let attempt=0;attempt<8;attempt++){
-      current=await this.cas.readRef("state",key);
-      if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return true;
+      const current=await this.cas.readRef("state",key);
+      if(!current||current.value?.deleted)return true;
       try{
-        await this.cas.writeRef("state",key,{collection:String(collection),id:String(id),deleted:true,walSeq:seq},{expectedHash:current?.hash??null});
+        await this.cas.writeRef("state",key,{collection:String(collection),id:String(id),deleted:true},{expectedHash:current.hash});
         return true;
       }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
     }
-    throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed deletion.");
+    throw new Error("[REMOTE_STORE_CAS] Could not persist deletion.");
   }
   async withMutationLock(operation){
     // Reentrant for nested mutations in the same async call chain; otherwise a

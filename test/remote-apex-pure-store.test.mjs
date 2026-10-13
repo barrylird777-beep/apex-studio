@@ -36,26 +36,15 @@ class MemoryCAS {
   }
 }
 
-test("remote Pure-WAL mode persists records and jobs without creating local record mirrors", async () => {
+test("remote Pure Store writes directly to CAS without an active WAL or local record mirrors", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-store-"));
   try {
     const cas = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
     await store.init();
-    assert.ok(store.wal instanceof RemoteApexRingWAL, "remote mode must use the remote CAS WAL");
-    const walRecord = await store.wal.append("proof.record", { durable: true });
-    assert.equal(walRecord.seq, 1);
-    assert.equal((await store.wal.snapshot()).sequence, 1);
+    assert.ok(store.wal instanceof ApexRingWAL, "the legacy WAL remains migration-only");
     const durable = await store.put("app_records", "no-wal-proof", { durable: true });
     assert.equal(durable.id, "no-wal-proof");
-    await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
-    const reloaded = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
-    await reloaded.init();
-    assert.deepEqual(await reloaded.get("app_records", "no-wal-proof"), durable);
-    assert.ok(reloaded.wal instanceof RemoteApexRingWAL, "restart must retain remote WAL mode");
-    const recoveredWal = await reloaded.wal.snapshot();
-    assert.equal(recoveredWal.sequence, 2, "manual and state-mutation WAL records must survive reinitialization");
-    assert.equal(recoveredWal.ring[1]?.type, "state.put", "state mutation is recorded in remote WAL");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
     const saved = await store.put("app_records", "record-1", { title: "durable remotely" });
     assert.equal(saved.id, "record-1");
@@ -66,8 +55,13 @@ test("remote Pure-WAL mode persists records and jobs without creating local reco
     const claimed = await store.claim({ workerId: "remote-test", limit: 1 });
     assert.equal(claimed.length, 1);
     assert.equal(claimed[0].id, "job-1");
+    assert.equal((await cas.listRefs("wal")).length, 0, "active state/job writes must not create remote WAL records");
     assert.equal(await store.delete("app_records", "record-1"), true);
     assert.equal(await store.get("app_records", "record-1"), null);
+    const reloaded = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
+    await reloaded.init();
+    assert.deepEqual(await reloaded.get("app_records", "no-wal-proof"), durable, "CAS records survive store reinitialization");
+    assert.equal((await cas.listRefs("wal")).length, 0);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -126,6 +120,28 @@ test("remote dispatch dedupe uses an index and retains completed dispatch keys",
     assert.equal(duplicate.id, "dispatch-first");
     assert.equal(duplicate.status, "completed");
     assert.equal(cas.listCalls.get("jobs") || 0, baseline, "dedupe must not scan the full job namespace");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("remote queue indexes recover from a crash after job persistence", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-queue-recovery-"));
+  try {
+    const cas = new MemoryCAS();
+    const first = new ApexPureStore({ root, cas });
+    await first.init();
+    await first.ensureRemoteQueueIndex();
+    const queued = await first.enqueue({ id: "crash-window-job", type: "test.recover", payload: {} });
+    assert.equal(queued.durable, true);
+    const queueKey = first.refKey("job", "crash-window-job");
+    const index = await cas.readRef("queue", queueKey);
+    assert.ok(index, "enqueue creates the queue index");
+    await cas.deleteRef("queue", queueKey, { expectedHash: index.hash });
+
+    const restarted = new ApexPureStore({ root, cas });
+    await restarted.init();
+    const claimed = await restarted.claim({ workerId: "recovery-test", limit: 1 });
+    assert.equal(claimed.length, 1, "startup reconciliation must rebuild a missing index even when an old marker exists");
+    assert.equal(claimed[0].id, "crash-window-job");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
