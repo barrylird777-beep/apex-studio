@@ -125,8 +125,6 @@ export class PeerContentAddressedStore {
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
       error.requiredFailureDomains = this.minFailureDomains;
-      error.verifiedFailureDomains = verifiedDomains;
-      error.requiredFailureDomains = this.minFailureDomains;
       error.verifiedFailureDomains = verifiedFailureDomains;
       error.failures = failures;
       throw error;
