@@ -59,36 +59,40 @@ export function createSilentAssetCompiler({ store = apexPureStore, clock = () =>
     }
 
     const sourceHash = digest(source);
-    await store.init?.();
-    const existing = await store.get("silent_assets", String(id));
-    if (existing && existing.sourceHash !== sourceHash) {
-      throw Object.assign(new Error("Asset id already exists with different generation data."), { code: "ASSET_ID_CONFLICT" });
-    }
+    const persist = async () => {
+      await store.init?.();
+      const existing = await store.get("silent_assets", String(id));
+      if (existing && existing.sourceHash !== sourceHash) {
+        throw Object.assign(new Error("Asset id already exists with different generation data."), { code: "ASSET_ID_CONFLICT" });
+      }
 
-    const now = clock().toISOString();
-    const asset = existing || {
-      id: String(id),
-      kind: String(kind),
-      status: "compiled",
-      source,
-      sourceHash,
-      sourceBytes: bytes,
-      compiler: "silent-asset-compiler/v1",
-      createdAt: now
+      const now = clock().toISOString();
+      const asset = existing || {
+        id: String(id),
+        kind: String(kind),
+        status: "compiled",
+        source,
+        sourceHash,
+        sourceBytes: bytes,
+        compiler: "silent-asset-compiler/v1",
+        createdAt: now
+      };
+
+      if (!existing) await store.put("silent_assets", String(id), asset);
+
+      // Serialize id checks and writes across workers; a retry after partial failure
+      // safely replays this same event key without creating duplicate audit entries.
+      const event = await store.wal.append("asset.compile.completed", {
+        assetId: String(id),
+        kind: String(kind),
+        sourceHash,
+        sourceBytes: bytes,
+        compiler: "silent-asset-compiler/v1"
+      }, { idempotencyKey: "silent-asset-compile:" + String(id) + ":" + sourceHash });
+
+      return { asset: existing || asset, sourceHash, sourceBytes: bytes, walSequence: event.seq, duplicate: Boolean(existing) };
     };
-
-    if (!existing) await store.put("silent_assets", String(id), asset);
-
-    // A retry after a partial failure safely replays this same event key.
-    const event = await store.wal.append("asset.compile.completed", {
-      assetId: String(id),
-      kind: String(kind),
-      sourceHash,
-      sourceBytes: bytes,
-      compiler: "silent-asset-compiler/v1"
-    }, { idempotencyKey: "silent-asset-compile:" + String(id) + ":" + sourceHash });
-
-    return { asset: existing || asset, sourceHash, sourceBytes: bytes, walSequence: event.seq, duplicate: Boolean(existing) };
+    return typeof store.withMutationLock === "function" ? store.withMutationLock(persist) : persist();
   }
 
   return { compile };
