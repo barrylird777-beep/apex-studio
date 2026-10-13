@@ -86,7 +86,7 @@ test("outgoing sovereign transport accepts an explicitly allowlisted peer", asyn
   process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
   const fakeStream = {
     async sink() {},
-    source: (async function* () { yield new TextEncoder().encode('{"accepted":true}\n'); })(),
+    source: (async function* () { yield new TextEncoder().encode('{"accepted":true,"peerId":"allowed-peer"}\n'); })(),
     async close() {}
   };
   let dialed = false;
