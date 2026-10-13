@@ -280,10 +280,11 @@ export class PeerContentAddressedStore {
     const refKey = String(key || '');
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(refKey) || refKey.includes('..')) throw new Error('invalid peer reference key');
     const failures = [];
+    let confirmedMissing = false;
     for (const peerId of this.peers) {
       try {
         const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.get', namespace: this.namespace, key: refKey });
-        if (response.hash == null) return null;
+        if (response.hash == null) { confirmedMissing = true; continue; }
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) throw new Error('peer reference failed content hash verification');
         return { value: this.decrypt(decodeCanonical(bytes)), hash: response.hash };
@@ -291,6 +292,7 @@ export class PeerContentAddressedStore {
         failures.push(error instanceof Error ? error.message : String(error));
       }
     }
+    if (confirmedMissing && failures.length === 0) return null;
     const error = new Error('peer reference was not recoverable from any configured peer');
     error.code = 'OBJECT_UNAVAILABLE';
     error.failures = failures;
