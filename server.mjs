@@ -68,11 +68,13 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 const peerStorageRequired = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
   String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
+let peerStorageIpcClient = null;
 if (peerStorageRequired) {
   const appId = String(process.env.APEX_APP_ID || '').trim();
   if (!appId) throw new Error('APEX_APP_ID must name one canonical app when peer-only storage is enabled');
   const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
-  configurePeerMediaStorage(createPeerStorageIpcClient({ token }), appId);
+  peerStorageIpcClient = createPeerStorageIpcClient({ token });
+  configurePeerMediaStorage(peerStorageIpcClient, appId);
 }
 const productionMode = process.env.NODE_ENV === 'production';
 const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase() === 'true';
@@ -1245,6 +1247,11 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
     return res.status(400).json({ success: false, error: String(error?.message || error) });
   }
 });
+
+if (peerStorageRequired) {
+  await peerStorageIpcClient.waitUntilReady({ timeoutMs: Number(process.env.APEX_PEER_STORAGE_STARTUP_TIMEOUT_MS || 30000) });
+  console.log('[apex] peer storage daemon handshake verified');
+}
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`[apex] server listening on ${HOST}:${PORT}`);
