@@ -381,3 +381,29 @@ test("two sovereign peers exchange peer-storage envelopes over binary canonical 
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+
+test("additional peer allowlist extends existing trust without replacing it", async () => {
+  const priorIds = process.env.APEX_ALLOWED_PEER_IDS;
+  const priorExtra = process.env.APEX_ALLOWED_PEER_IDS_EXTRA;
+  process.env.APEX_ALLOWED_PEER_IDS = "existing-peer";
+  process.env.APEX_ALLOWED_PEER_IDS_EXTRA = "remote-storage-peer";
+  const fakeStream = {
+    async sink() {},
+    source: (async function* () { yield new TextEncoder().encode('{"accepted":true}'); })(),
+    async close() {}
+  };
+  try {
+    const response = await sendToPeer({
+      async dialProtocol(address) {
+        assert.match(String(address), /\/p2p\/remote-storage-peer$/);
+        return fakeStream;
+      }
+    }, "/ip4/127.0.0.1/tcp/1234/p2p/remote-storage-peer", { type: "test" });
+    assert.equal(response.accepted, true);
+    assert.equal(process.env.APEX_ALLOWED_PEER_IDS, "existing-peer");
+  } finally {
+    if (priorIds === undefined) delete process.env.APEX_ALLOWED_PEER_IDS; else process.env.APEX_ALLOWED_PEER_IDS = priorIds;
+    if (priorExtra === undefined) delete process.env.APEX_ALLOWED_PEER_IDS_EXTRA; else process.env.APEX_ALLOWED_PEER_IDS_EXTRA = priorExtra;
+  }
+});
