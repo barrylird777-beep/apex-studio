@@ -53,7 +53,7 @@ export async function createPeerStorageAssembly({ peerNode, env = process.env } 
     : pathToFileURL(path.resolve(backendSpecifier)).href;
   const backendModule = await import(backendUrl);
   if (typeof backendModule.createPeerStorageBackend !== 'function') {
-    throw new Error('peer-owned backend module must export createPeerStorageBackend({ peerId, env })');
+    throw new Error('peer-owned backend module must export createPeerStorageBackend({ peerId, peerNode, env })');
   }
   const backend = validateBackend(await backendModule.createPeerStorageBackend({
     peerId: peerNode.peerId.toString(), peerNode, env
