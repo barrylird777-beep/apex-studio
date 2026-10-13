@@ -39,6 +39,41 @@ class MemoryCAS {
   }
 }
 
+
+test("remote WAL startup replay is serialized against concurrent appends", async () => {
+  class SnapshotPauseCAS extends MemoryCAS {
+    constructor() {
+      super();
+      this.pauseNextWalSnapshot = false;
+      this.snapshotTakenResolve = null;
+      this.releaseSnapshotResolve = null;
+      this.snapshotTaken = new Promise(resolve => { this.snapshotTakenResolve = resolve; });
+      this.releaseSnapshot = new Promise(resolve => { this.releaseSnapshotResolve = resolve; });
+    }
+    async listRefs(ns) {
+      const snapshot = await super.listRefs(ns);
+      if (ns === "wal" && this.pauseNextWalSnapshot) {
+        this.pauseNextWalSnapshot = false;
+        this.snapshotTakenResolve();
+        await this.releaseSnapshot;
+      }
+      return snapshot;
+    }
+  }
+  const cas = new SnapshotPauseCAS();
+  const writer = new RemoteApexRingWAL({ cas, scope: "wal-startup-race", ringSize: 8 });
+  await writer.append("before-startup", { value: 1 });
+  const restarting = new RemoteApexRingWAL({ cas, scope: "wal-startup-race", ringSize: 8 });
+  cas.pauseNextWalSnapshot = true;
+  const startup = restarting.init();
+  await cas.snapshotTaken;
+  const concurrentAppend = writer.append("during-startup", { value: 2 });
+  cas.releaseSnapshotResolve();
+  await Promise.all([startup, concurrentAppend]);
+  const verified = new RemoteApexRingWAL({ cas, scope: "wal-startup-race", ringSize: 8 });
+  assert.equal(await verified.replay(), 2, "startup must not mistake a concurrent append for a broken hash chain");
+});
+
 test("remote WAL persists and verifies its hash chain across reinitialization without local files", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-"));
   const forbiddenRoot = path.join(parent, "must-not-be-created");
