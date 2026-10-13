@@ -187,3 +187,123 @@ body:has(.apex-app-nav a[aria-current="page"][href="/"]){--apex-accent:#80c6ff}
 .apex-shell [aria-live=polite],.apex-shell [role=status]{overflow-wrap:anywhere}
 .apex-shell .risk-modal{padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
 .apex-shell .risk-card{max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain}
+
+
+/* APEX realism pass: restrained motion, compact touch navigation, and app-specific visual systems. */
+.apex-shell{animation:none!important}
+.apex-app-nav{scrollbar-width:none;scrollbar-color:transparent transparent;box-shadow:0 8px 24px #0002}
+.apex-app-nav::-webkit-scrollbar{display:none}
+.apex-shell .card,.apex-shell .panel{transition:border-color .14s ease,background-color .14s ease!important}
+.apex-shell .card:hover,.apex-shell .panel:hover{transform:none!important}
+.apex-app-index .card:hover{transform:none!important}
+.apex-shell button{transition:background-color .14s ease,border-color .14s ease,filter .14s ease!important}
+.apex-shell button:hover:not(:disabled){transform:none!important;filter:brightness(1.06)}
+.apex-shell button:active:not(:disabled){transform:none!important}
+.apex-shell .card,.apex-shell .panel{box-shadow:0 10px 28px #0000001c}
+.apex-app-nav{backdrop-filter:blur(12px) saturate(110%);-webkit-backdrop-filter:blur(12px) saturate(110%)}
+@media(max-width:680px){
+  .apex-app-nav{gap:4px;padding:7px 8px;margin-bottom:15px}
+  .apex-app-nav a:not(.apex-app-brand){min-height:38px;padding:8px 9px;font-size:11px}
+  .apex-shell h1{font-size:clamp(32px,9vw,48px);line-height:1.02;letter-spacing:-.04em}
+}
+@media(prefers-reduced-motion:reduce){
+  .apex-shell,.apex-shell *,.apex-app-index .card{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+
+/* KernelVision — cinematic graphite, restrained violet, hard-edged production surfaces. */
+body:has(.apex-shell[data-apex-app="kernelvision"]){--apex-bg:#09090e;--apex-panel:#111119;--apex-line:#302b3d;--apex-accent:#b6a4ff;background:radial-gradient(ellipse at 50% -18%,#4b3a7138,transparent 58%),#09090e}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .panel{border-radius:12px;background:linear-gradient(145deg,#17151f,#0d0d13);box-shadow:0 14px 36px #0005}
+
+/* XShield — security-console charcoal with precise teal status accents. */
+body:has(.apex-shell[data-apex-app="xshield"]){--apex-bg:#070e11;--apex-panel:#0b171a;--apex-line:#1c3b3e;--apex-accent:#68d8ce;background:linear-gradient(180deg,#0b24261c,transparent 46%),#070e11}
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell .panel{border-radius:10px;background:#0b171a;box-shadow:inset 3px 0 #68d8ce12,0 10px 28px #0003}
+
+/* Kernelodies — warm analog listening room, plum and rose, soft album-like panels. */
+body:has(.apex-shell[data-apex-app="kernelodies"]){--apex-bg:#140d14;--apex-panel:#21151f;--apex-line:#493044;--apex-accent:#f0a0c7;background:radial-gradient(ellipse at 80% 0%,#7b315025,transparent 48%),#140d14}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell .panel{border-radius:20px;background:linear-gradient(155deg,#291b29,#181018);box-shadow:0 12px 30px #0004}
+
+/* PlanetApeX — quiet research observatory, ink-blue with manuscript-gold accents. */
+body:has(.apex-shell[data-apex-app="planetapex"]){--apex-bg:#08111b;--apex-panel:#101d2a;--apex-line:#293e50;--apex-accent:#dfc18a;background:radial-gradient(ellipse at 15% 0%,#234a6330,transparent 50%),#08111b}
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell .panel{border-radius:8px;background:linear-gradient(135deg,#122231,#0c1722);box-shadow:inset 0 1px #ffffff08,0 12px 28px #0003}
+
+/* KashKorner — financial ledger, warm paper-gold over near-black graphite. */
+body:has(.apex-shell[data-apex-app="kashkorner"]){--apex-bg:#11100c;--apex-panel:#1b1912;--apex-line:#403722;--apex-accent:#e4bd69;background:radial-gradient(ellipse at 90% 0%,#8b6a2426,transparent 48%),#11100c}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell .panel{border-radius:8px;background:#1a1812;box-shadow:inset 0 1px #ffffff08,0 10px 24px #0003}
+
+/* KoinKob — autonomous economy lab, cool steel and measured blue. */
+body:has(.apex-shell[data-apex-app="koinkob"]){--apex-bg:#0a1018;--apex-panel:#111c29;--apex-line:#293e56;--apex-accent:#8dbbfa;background:linear-gradient(140deg,#12243a30,transparent 48%),#0a1018}
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell .panel{border-radius:5px;background:linear-gradient(180deg,#142233,#0d1723);box-shadow:inset 0 1px #ffffff08,0 10px 26px #0003}
+
+
+/* TCL 1.3 — six distinct, realistic interfaces; additive override, no history rewritten. */
+.apex-shell{animation:none!important}
+.apex-shell .card,.apex-shell .panel,.apex-app-index .card{transition:none!important}
+.apex-shell .card:hover,.apex-shell .panel:hover,.apex-app-index .card:hover{transform:none!important}
+.apex-shell button:hover:not(:disabled),.apex-shell button:active:not(:disabled){transform:none!important}
+.apex-app-nav{scrollbar-width:none}
+.apex-app-nav::-webkit-scrollbar{display:none}
+.apex-app-nav a:not(.apex-app-brand){transition:none!important}
+
+/* KernelVision: cinematic edit bay — matte black, violet-metal controls, compact hard-edged panels. */
+body:has(main[data-apex-app="kernelvision"]){--apex-accent:#b6a0ff;background:#08080d;color:#f3f0f8}
+body:has(main[data-apex-app="kernelvision"]) .apex-app-nav{background:#08080df5;border-color:#30283d}
+body:has(main[data-apex-app="kernelvision"]) .apex-shell .card,
+body:has(main[data-apex-app="kernelvision"]) .apex-shell .panel{background:#111117;border-color:#393044;border-radius:8px;box-shadow:0 10px 28px #0005}
+body:has(main[data-apex-app="kernelvision"]) .apex-shell button{background:#282136;border-color:#51416c;border-radius:6px}
+
+/* XShield: security console — flat graphite, high-contrast mint status, no glow. */
+body:has(main[data-apex-app="xshield"]){--apex-accent:#62dfbd;background:#080d0e;color:#e8f4f1}
+body:has(main[data-apex-app="xshield"]) .apex-app-nav{background:#080e10;border-color:#263b38}
+body:has(main[data-apex-app="xshield"]) .apex-shell .card,
+body:has(main[data-apex-app="xshield"]) .apex-shell .panel{background:#0d1718;border-color:#29433f;border-radius:7px;box-shadow:none}
+body:has(main[data-apex-app="xshield"]) .apex-shell button{background:#102722;border-color:#376b5e;border-radius:6px}
+body:has(main[data-apex-app="xshield"]) .apex-shell pre{background:#050b0c;border-color:#213835}
+
+/* Kernelodies: listening room — plum-black, warm rose, tactile album-like surfaces. */
+body:has(main[data-apex-app="kernelodies"]){--apex-accent:#f08dbb;background:#100a11;color:#fbf0f7}
+body:has(main[data-apex-app="kernelodies"]) .apex-app-nav{background:#120b14;border-color:#43283d}
+body:has(main[data-apex-app="kernelodies"]) .apex-shell .card,
+body:has(main[data-apex-app="kernelodies"]) .apex-shell .panel{background:#1a101b;border-color:#4a2b43;border-radius:18px;box-shadow:0 10px 28px #0005}
+body:has(main[data-apex-app="kernelodies"]) .apex-shell button{background:#3a1d35;border-color:#744365;border-radius:999px}
+body:has(main[data-apex-app="kernelodies"]) .apex-shell audio{width:100%;max-width:100%}
+
+/* PlanetApeX: research library — quiet deep-blue reading environment and long-form line length. */
+body:has(main[data-apex-app="planetapex"]){--apex-accent:#8dcfff;background:#07101b;color:#e9f3fc}
+body:has(main[data-apex-app="planetapex"]) .apex-app-nav{background:#07101b;border-color:#233b53}
+body:has(main[data-apex-app="planetapex"]) .apex-shell .card,
+body:has(main[data-apex-app="planetapex"]) .apex-shell .panel{background:#0b1928;border-color:#29445e;border-radius:11px;box-shadow:0 8px 24px #0003}
+body:has(main[data-apex-app="planetapex"]) .apex-shell .lead{max-width:68ch;line-height:1.8}
+body:has(main[data-apex-app="planetapex"]) .apex-shell button{background:#102b43;border-color:#315a78;border-radius:7px}
+
+/* KashKorner: financial desk — charcoal and brass, precise numeric hierarchy. */
+body:has(main[data-apex-app="kashkorner"]){--apex-accent:#e8c16c;background:#100f0b;color:#f7f2e5}
+body:has(main[data-apex-app="kashkorner"]) .apex-app-nav{background:#100f0b;border-color:#443a22}
+body:has(main[data-apex-app="kashkorner"]) .apex-shell .card,
+body:has(main[data-apex-app="kashkorner"]) .apex-shell .panel{background:#19170f;border-color:#4b4026;border-radius:9px;box-shadow:0 8px 24px #0004}
+body:has(main[data-apex-app="kashkorner"]) .apex-shell .metric{font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+body:has(main[data-apex-app="kashkorner"]) .apex-shell button{background:#302613;border-color:#6c572c;border-radius:6px}
+
+/* KoinKob: quantitative market lab — steel-blue instrument panels and tabular data. */
+body:has(main[data-apex-app="koinkob"]){--apex-accent:#7db8ff;background:#080d16;color:#eaf2ff}
+body:has(main[data-apex-app="koinkob"]) .apex-app-nav{background:#080d16;border-color:#253b57}
+body:has(main[data-apex-app="koinkob"]) .apex-shell .card,
+body:has(main[data-apex-app="koinkob"]) .apex-shell .panel{background:#0d1522;border-color:#2a405b;border-radius:5px;box-shadow:none}
+body:has(main[data-apex-app="koinkob"]) .apex-shell .metric,
+body:has(main[data-apex-app="koinkob"]) .apex-shell pre{font-variant-numeric:tabular-nums}
+body:has(main[data-apex-app="koinkob"]) .apex-shell button{background:#10233c;border-color:#345b86;border-radius:5px}
+
+@media(max-width:760px){
+ .apex-app-nav{gap:4px;padding-inline:8px}
+ .apex-app-nav a:not(.apex-app-brand){min-height:42px;padding-inline:9px}
+ main.apex-shell{padding-inline:12px}
+ .apex-shell .card,.apex-shell .panel{padding:15px}
+}
+@media(prefers-reduced-motion:reduce){
+ .apex-shell,.apex-shell *,.apex-app-nav *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
