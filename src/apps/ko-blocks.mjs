@@ -86,7 +86,7 @@ export function koBlocksStatus() {
     role: APP.role,
     capabilities: ["block registry", "composition", "graph validation", "reusable components", "acyclic execution graphs", "ad/tracker filtering", "DNS protection"],
     networkProtection: xshieldStatus(),
-    canonical: true,
+    canonical: false,
     checkedAt: new Date().toISOString()
   };
 }
