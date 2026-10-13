@@ -2,6 +2,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs/promises';
 import path from 'path';
 import { OUTPUT_PRESETS } from './ffmpeg.mjs';
+import { probeFfmpegEncoders } from './render-performance.mjs';
 
 export const PROD_SETTINGS = {
   audio: {
@@ -71,12 +72,15 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
   await ensureParent(outputPath);
 
   const preset = OUTPUT_PRESETS[format] || OUTPUT_PRESETS.master;
+  const availableEncoders = await probeFfmpegEncoders();
+  const useNvenc = availableEncoders.includes('nvenc');
+  const videoCodec = useNvenc ? 'h264_nvenc' : 'libx264';
   const videoFilter = preset.requires120Fps
     ? `scale=${preset.width}:${preset.height}:flags=lanczos,fps=${preset.fps},${PROD_SETTINGS.video.colorGrade}`
     : PROD_SETTINGS.video.colorGrade;
   const outputOptions = [
-    '-preset', preset.encodePreset || PROD_SETTINGS.video.preset,
-    '-crf', String(preset.crf ?? PROD_SETTINGS.video.crf),
+    '-preset', useNvenc ? 'p4' : (preset.encodePreset || PROD_SETTINGS.video.preset),
+    ...(useNvenc ? ['-rc', 'vbr', '-cq', String(preset.crf ?? 20)] : ['-crf', String(preset.crf ?? PROD_SETTINGS.video.crf)]),
     '-r', String(preset.fps),
     '-vf', videoFilter,
     '-pix_fmt', 'yuv420p',
@@ -91,7 +95,7 @@ export async function masterFinalVideo(stitchedVideoPath, masteredAudioPath, out
     ffmpeg()
       .input(stitchedVideoPath)
       .input(masteredAudioPath)
-      .videoCodec(PROD_SETTINGS.video.codec)
+      .videoCodec(videoCodec)
       .audioCodec('aac')
       .audioBitrate(PROD_SETTINGS.audio.bitrate)
       .audioFrequency(PROD_SETTINGS.audio.frequency)
