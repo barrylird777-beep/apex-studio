@@ -169,7 +169,7 @@ test("completed result is retrievable only through its app-scoped verified hash"
   assert.deepEqual((await c.getJobResult({ app: "KashKorner", jobId: "result-job" })).result, result);
   const duplicateFinish = await c.finishJob({ app: "KashKorner", jobId: "result-job", workerId: "ledger-worker", leaseToken: claim.lease.token, resultHash: stored.payloadHash });
   assert.equal(duplicateFinish.accepted, false);
-  assert.equal(duplicateFinish.reason, "lease-not-active");
+  assert.equal(duplicateFinish.reason, "job-not-queued");
   assert.equal(await c.getJobResult({ app: "KoinKob", jobId: "result-job" }), null);
 });
 
