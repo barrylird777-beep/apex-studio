@@ -122,7 +122,7 @@ export function createPeerStorageIpcClient({
   return Object.freeze({
     apps: Object.freeze(['PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob']),
     saveAsset: (app, projectId, assetId, bytes, options = {}) => call('saveAsset', {
-      app, projectId, assetId, bytes: Buffer.from(bytes), contentType: options.contentType, metadata: options.metadata ?? {}
+      app, projectId, assetId, bytes: Buffer.from(bytes), contentType: options.contentType || 'application/octet-stream', metadata: options.metadata ?? {}
     }),
     async getAsset(app, projectId, assetId) {
       const result = await call('getAsset', { app, projectId, assetId });
