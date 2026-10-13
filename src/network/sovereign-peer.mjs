@@ -11,6 +11,7 @@ import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
 import { createPeerSecurityGuard } from './sovereign-peer-security.mjs';
+import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
@@ -66,7 +67,7 @@ export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
 }
 
 const encoder = new TextEncoder();
-const MAX_ENVELOPE_BYTES = Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVELOPE_BYTES || 65536));
+const MAX_ENVELOPE_BYTES = Math.min(1024 * 1024, Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVELOPE_BYTES || 65536)));
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
@@ -238,6 +239,13 @@ async function sendSovereignEnvelope(stream, envelope) {
 
 export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE } = {}) {
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
+  const ingressGuard = createPeerIngressGuard({
+    windowMs: 60_000,
+    maxRequestsPerPeer: Math.max(1, Math.min(600, Number(process.env.APEX_PEER_MAX_REQUESTS_PER_MINUTE || 60))),
+    maxConcurrentPerPeer: Math.max(1, Math.min(32, Number(process.env.APEX_PEER_MAX_CONCURRENT_PER_PEER || 8))),
+    maxConcurrentTotal: Math.max(1, Math.min(1024, Number(process.env.APEX_PEER_MAX_CONCURRENT_TOTAL || 128))),
+    maxTrackedPeers: 4096
+  });
   const node = await createLibp2p({
     privateKey,
     // Match Railway's TCP proxy target. Set APEX_P2P_PORT=0 explicitly for local ephemeral-port tests.
@@ -275,11 +283,18 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     // messages emitted before a listener is registered, so pausing first can
     // lose the first envelope during fast cross-region handshakes.
     readerFor(stream);
+    let ingressPermit;
     try {
       const remotePeerId = connection?.remotePeer?.toString?.() || '';
       console.info('[SOVEREIGN PEER] inbound stream opened', JSON.stringify({ remotePeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null }));
       if (!isAllowedPeer(remotePeerId)) {
         await sendSovereignEnvelope(stream, { accepted: false, error: 'peer is not allowlisted' });
+        return;
+      }
+      ingressPermit = ingressGuard.acquire(remotePeerId);
+      if (!ingressPermit.ok) {
+        console.warn('[SOVEREIGN PEER] inbound request throttled', JSON.stringify({ remotePeerId, reason: ingressPermit.reason }));
+        await sendSovereignEnvelope(stream, { accepted: false, error: 'peer request limit reached' });
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
@@ -298,12 +313,13 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         error: error instanceof Error ? error.message : String(error),
         remotePeerId: connection?.remotePeer?.toString?.() || ''
       }));
-      await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+      await sendSovereignEnvelope(stream, { accepted: false, error: 'peer request rejected' }).catch(() => {});
     } finally {
       // A libp2p v3 handler returning with its stream still open can cause the
       // muxer to reset the stream instead of completing the request/ACK exchange.
       // Close only after the response writer has drained; callers already have
       // the complete newline-delimited response before this graceful close.
+      ingressPermit?.release();
       try { await stream.close?.(); } catch {}
     }
   });
@@ -350,6 +366,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       const response = await readSovereignEnvelope(stream);
       if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
+      if (response.peerId !== destinationPeerId) throw new Error('sovereign peer response identity mismatch');
       console.log('[SOVEREIGN PEER] outbound acknowledged', JSON.stringify({ destinationPeerId, remotePeerId: response.peerId || null, attempt: attempt + 1 }));
       return response;
     } catch (error) {
