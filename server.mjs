@@ -1324,7 +1324,6 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     await apexPureStore.init();
     const wal = apexPureStore.wal;
     const paymentKey = 'payment.verified:stripe:' + sessionId;
-    const wasRecorded = Boolean(wal.idempotencyIndex?.has(paymentKey));
     const payment = {
       provider: 'stripe',
       providerEventId: String(event.id || ''),
@@ -1336,7 +1335,15 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
       verifiedAt: new Date().toISOString(),
       email: metadata.email || String(session.customer_details?.email || session.customer_email || '')
     };
-    await wal.append('payment.verified', payment, { idempotencyKey: paymentKey });
+    // The receipt reference also covers WAL implementations that do not expose
+    // an in-memory idempotency index. Serialize check+write across replicas.
+    const wasRecorded = await apexPureStore.withMutationLock(async () => {
+      const existingReceipt = await apexPureStore.get('apex_payment_receipts', sessionId);
+      if (existingReceipt) return true;
+      await wal.append('payment.verified', payment, { idempotencyKey: paymentKey });
+      await apexPureStore.put('apex_payment_receipts', sessionId, payment);
+      return false;
+    });
 
     // Queue insertion is independently idempotent. Always attempt it after the WAL
     // commit so a crash between recording and dispatch cannot strand a paid order.
