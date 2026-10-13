@@ -28,15 +28,13 @@ export function decodeRapidCheckoutMetadata(metadata={}){
 export function buildRapidCheckoutParams({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
-  // Leave eligible payment methods to Stripe's Dashboard-managed dynamic configuration.
-  // This allows lower-cost US bank debit when enabled, while preserving eligible card fallbacks.
+  // Offer cards as a fallback and US bank debit for eligible US customers.
+  // ACH usually costs less than card processing, but is not fee-free and can take longer to settle.
+  add('payment_method_types[0]','card');
+  add('payment_method_types[1]','us_bank_account');
   add('payment_method_options[us_bank_account][verification_method]','automatic');
   add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
   if(String(email||'').trim()) add('customer_email',String(email).trim());
-  // Let Stripe's Dashboard-managed dynamic payment methods choose eligible methods.
-  // When ACH Direct Debit is enabled for the account, Checkout can offer it alongside cards
-  // at Stripe's lower bank-debit rate; don't hard-code payment_method_types because newer
-  // Stripe API versions reject that legacy parameter.
   add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','KornKash Video');
   add('line_items[0][price_data][product_data][description]','One finished short-form video production. $25 total; US bank debit may have lower processing costs than cards.'); add('line_items[0][quantity]','1');
