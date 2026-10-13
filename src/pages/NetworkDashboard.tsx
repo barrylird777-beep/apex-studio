@@ -104,28 +104,27 @@ function BrowserPeerTest(){
     let sentBytes=0;
     try{
       dc.bufferedAmountLowThreshold=128*1024;
+      const waitForBufferLow=()=>new Promise<void>((resolve,reject)=>{
+        let settled=false;
+        const cleanup=()=>{window.clearTimeout(timeout);dc.removeEventListener("bufferedamountlow",onLow);};
+        const timeout=window.setTimeout(()=>{if(settled)return;settled=true;cleanup();reject(new Error("Timed out waiting for WebRTC send-buffer backpressure."));},10000);
+        const onLow=()=>{if(settled||dc.bufferedAmount>dc.bufferedAmountLowThreshold)return;settled=true;cleanup();resolve();};
+        dc.addEventListener("bufferedamountlow",onLow);
+        // Recheck after listener registration to avoid missing a threshold crossing.
+        onLow();
+      });
       for(let offset=0;offset<totalBytes;offset+=chunkBytes){
         const packet=JSON.stringify({type:"apex-webrtc-benchmark",index:offset/chunkBytes,payload:chunk});
-        if(dc.bufferedAmount>256*1024){
-          await new Promise<void>((resolve,reject)=>{
-            const timeout=window.setTimeout(()=>{dc.removeEventListener("bufferedamountlow",onLow);reject(new Error("Timed out waiting for WebRTC backpressure."));},10000);
-            const onLow=()=>{window.clearTimeout(timeout);resolve();};
-            dc.addEventListener("bufferedamountlow",onLow,{once:true});
-          });
-        }
+        if(dc.bufferedAmount>256*1024)await waitForBufferLow();
+        if(dc.readyState!=="open")throw new Error("WebRTC data channel closed during transfer.");
         dc.send(packet);
         sentBytes+=new Blob([packet]).size;
       }
-      await new Promise<void>((resolve,reject)=>{
-        const deadline=window.setTimeout(()=>{dc.removeEventListener("bufferedamountlow",onLow);reject(new Error("Timed out draining the WebRTC send buffer."));},10000);
-        const onLow=()=>{if(dc.bufferedAmount===0){window.clearTimeout(deadline);dc.removeEventListener("bufferedamountlow",onLow);resolve();}};
-        if(dc.bufferedAmount===0){window.clearTimeout(deadline);resolve();return;}
-        dc.addEventListener("bufferedamountlow",onLow);
-      });
+      if(dc.bufferedAmount>dc.bufferedAmountLowThreshold)await waitForBufferLow();
       const seconds=Math.max((performance.now()-started)/1000,0.001);
       setSent(n=>n+sentBytes);
-      setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s queued");
-      setTransferStatus("Sent 1 MiB test payload; receiver byte counter is independent.");
+      setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s to low-water mark");
+      setTransferStatus("Sent 1 MiB test payload; send buffer reached its low-water mark. Receiver byte counter is independent.");
       setNote("Transfer finished sending through the WebRTC data channel. This measures browser-to-browser test traffic, not verified savings for application traffic or Railway egress.");
     }catch(e){
       setTransferStatus("Transfer incomplete");
