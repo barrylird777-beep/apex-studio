@@ -1,6 +1,6 @@
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
-import { verifyRemotePersistenceProbe } from './runtime-readiness.mjs';
+import { verifyRemoteWalProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
@@ -14,6 +14,8 @@ import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
+import { createPeerStorageAssembly } from './peer-storage-assembly.mjs';
+import { createPeerStorageIpcServer } from './peer-storage-ipc.mjs';
 
 const storageMigration = await migrateSovereignStorage();
 console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
@@ -32,7 +34,9 @@ let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
-const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, dispatchReady: false };
+let peerStorageIpc = null;
+let peerStorageAssembly = null;
+const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (envelope?.protocol === 'apex.cas.v1') {
@@ -108,21 +112,24 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   return true;
 }
 
-async function verifyRemotePersistenceReadiness() {
-  if (!apexPureStore.remoteMode || !apexPureStore.cas?.writeRef || !apexPureStore.cas?.readRef || !apexPureStore.cas?.deleteRef) {
-    runtimeReadiness.remotePersistenceVerified = false;
+async function verifyRemoteWalReadiness() {
+  if (!apexPureStore.remoteMode || apexPureStore.wal?.constructor?.name !== 'RemoteApexRingWAL') {
+    runtimeReadiness.remoteWalVerified = false;
     return false;
   }
-  const key = 'runtime-probe-' + randomUUID();
-  const probe = { version: 1, nonce: randomUUID(), peerId: peerNode?.peerId?.toString() || null, checkedAt: new Date().toISOString() };
-  const written = await apexPureStore.cas.writeRef('system', key, probe, { expectedHash: null });
-  const readback = await apexPureStore.cas.readRef('system', key);
-  if (!verifyRemotePersistenceProbe(probe, readback) || written?.hash !== readback?.hash) {
-    throw new Error('Remote CAS readiness write/read/hash verification failed');
+  const record = await apexPureStore.wal.append('runtime.readiness.probe', {
+    version: 1,
+    nonce: randomUUID(),
+    peerId: peerNode?.peerId?.toString() || null,
+    checkedAt: new Date().toISOString()
+  });
+  const snapshot = await apexPureStore.wal.snapshot();
+  if (!verifyRemoteWalProbe(record, snapshot)) {
+    throw new Error('RemoteApexRingWAL readiness append/readback/hash-chain verification failed');
   }
-  await apexPureStore.cas.deleteRef('system', key, { expectedHash: readback.hash });
-  runtimeReadiness.remotePersistenceVerified = true;
-  runtimeReadiness.remotePersistenceHash = readback.hash;
+  runtimeReadiness.remoteWalVerified = true;
+  runtimeReadiness.remoteWalSequence = record.seq;
+  runtimeReadiness.remoteWalHash = record.hash;
   return true;
 }
 
@@ -132,16 +139,27 @@ async function main() {
   runtimeReadiness.storageReady = true;
   await engine.ready();
   if (stopping) return;
-  peerStorageRuntime = await initializePeerObjectStorage({
-    peerId: () => peerNode?.peerId?.toString?.() || ''
-  });
-  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
-  if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
   if (stopping) return;
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
+  const peerStorageEnabled = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
+    String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
+  if (peerStorageEnabled) {
+    peerStorageAssembly = await createPeerStorageAssembly({ peerNode });
+    peerStorageRuntime = await initializePeerObjectStorage({
+      enabled: true,
+      store: peerStorageAssembly.backend,
+      peerId: () => peerNode?.peerId?.toString?.() || ''
+    });
+    const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
+    peerStorageIpc = createPeerStorageIpcServer({ mediaStore: peerStorageAssembly.mediaStore, token });
+  } else {
+    peerStorageRuntime = await initializePeerObjectStorage({ enabled: false, peerId: () => peerNode?.peerId?.toString?.() || '' });
+  }
+  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
+
   if (stopping) {
     await peerNode.stop().catch(() => {});
     return;
@@ -159,11 +177,15 @@ async function main() {
     throw new Error('libp2p start resolved without any listen address');
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+  if (peerStorageIpc) {
+    const address = await peerStorageIpc.listen();
+    console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({ enabled: true, host: address.address, port: address.port, protocol: 'binary-cbor-loopback', auth: 'shared-secret', apps: peerStorageAssembly.mediaStore.apps }));
+  }
   try {
-    await verifyRemotePersistenceReadiness();
+    await verifyRemoteWalReadiness();
   } catch (error) {
-    runtimeReadiness.remotePersistenceVerified = false;
-    console.error('[SOVEREIGN READINESS] remote CAS probe failed; readiness remains closed', String(error?.message || error));
+    runtimeReadiness.remoteWalVerified = false;
+    console.error('[SOVEREIGN READINESS] remote WAL probe failed; readiness remains closed', String(error?.message || error));
   }
   await publishRuntimeIdentity('starting');
   if (stopping) return;
@@ -213,7 +235,7 @@ async function main() {
   if (stopping) return;
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
-  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady;
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
   console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
     status: readinessReady ? 'online' : 'starting',
     readiness: { ...runtimeReadiness, ready: readinessReady },
@@ -248,7 +270,7 @@ async function publishRuntimeIdentity(status = 'online') {
   const publicPeerAddress = buildPublicPeerAddress(peerId);
   const readiness = {
     ...runtimeReadiness,
-    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady
   };
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
@@ -266,11 +288,11 @@ async function publishRuntimeIdentity(status = 'online') {
 }
 
 async function runCycle(activeBridge) {
-  if (!runtimeReadiness.remotePersistenceVerified) {
+  if (!runtimeReadiness.remoteWalVerified) {
     try {
-      await verifyRemotePersistenceReadiness();
+      await verifyRemoteWalReadiness();
     } catch (error) {
-      console.error('[SOVEREIGN READINESS] remote CAS retry failed; readiness remains closed', String(error?.message || error));
+      console.error('[SOVEREIGN READINESS] remote WAL retry failed; readiness remains closed', String(error?.message || error));
     }
   }
   await publishRuntimeIdentity('online');
@@ -310,8 +332,9 @@ async function shutdown(signal) {
     offlineIdentityCommitted: false,
     edgeStopped: false,
     peerStopped: false,
-    remotePersistenceVerified: runtimeReadiness.remotePersistenceVerified,
-    remotePersistenceHash: runtimeReadiness.remotePersistenceHash
+    remoteWalVerified: runtimeReadiness.remoteWalVerified,
+    remoteWalSequence: runtimeReadiness.remoteWalSequence,
+    remoteWalHash: runtimeReadiness.remoteWalHash
   };
   console.log('[SOVEREIGN] draining', JSON.stringify(shutdownEvidence));
   try {
@@ -337,6 +360,13 @@ async function shutdown(signal) {
   } catch (error) {
     process.exitCode = 1;
     console.error('[SOVEREIGN] offline identity commit failed', String(error?.message || error));
+  }
+  try {
+    if (peerStorageIpc) await peerStorageIpc.close();
+    console.log('[SOVEREIGN] peer storage IPC stopped');
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] peer storage IPC shutdown failed', String(error?.message || error));
   }
   try {
     if (edgeNode) await edgeNode.stop();
