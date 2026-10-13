@@ -11,8 +11,10 @@ import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
+import { encodeCanonical, decodeCanonical } from '../core/apex-cbor.mjs';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
+const CAS_PROTOCOL = '/apex/cas/1.0.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
@@ -69,6 +71,113 @@ const MAX_ENVELOPE_BYTES = Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVEL
 const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
+
+
+const binaryStreamReaders = new WeakMap();
+
+function binaryReaderFor(stream) {
+  let reader = binaryStreamReaders.get(stream);
+  if (reader) return reader;
+  const queue = [];
+  const waiters = [];
+  let ended = false;
+  let closeError = null;
+  let iterator = null;
+  const normalize = chunk => Buffer.from(chunk?.subarray ? chunk.subarray() : chunk);
+  const deliver = item => {
+    const waiter = waiters.shift();
+    if (waiter) waiter.resolve(item);
+    else queue.push(item);
+  };
+  const onMessage = event => deliver({ done: false, value: normalize(event?.data) });
+  const onClose = event => {
+    ended = true;
+    closeError = event?.error || null;
+    while (waiters.length) {
+      const waiter = waiters.shift();
+      if (closeError) waiter.reject(closeError);
+      else waiter.resolve({ done: true });
+    }
+  };
+  if (stream && typeof stream.addEventListener === 'function') {
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
+  } else {
+    const iterable = stream?.source && typeof stream.source[Symbol.asyncIterator] === 'function'
+      ? stream.source
+      : stream && typeof stream[Symbol.asyncIterator] === 'function' ? stream : null;
+    if (!iterable) throw new TypeError('unsupported binary libp2p stream read interface');
+    iterator = iterable[Symbol.asyncIterator]();
+  }
+  reader = {
+    buffer: Buffer.alloc(0),
+    async nextChunk() {
+      if (queue.length) return queue.shift();
+      if (ended) {
+        if (closeError) throw closeError;
+        return { done: true };
+      }
+      if (iterator) return iterator.next();
+      return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
+    },
+    async readExact(size) {
+      const timeoutMs = Math.max(1, Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
+      const deadline = Date.now() + timeoutMs;
+      while (this.buffer.length < size) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new Error('binary peer storage frame timed out');
+        let timer;
+        let result;
+        try {
+          result = await Promise.race([
+            this.nextChunk(),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('binary peer storage frame timed out')), remaining); })
+          ]);
+        } finally { clearTimeout(timer); }
+        if (!result || result.done) throw new Error('binary peer storage stream closed before frame completed');
+        this.buffer = Buffer.concat([this.buffer, normalize(result.value)]);
+        if (this.buffer.length > MAX_BINARY_FRAME_BYTES + 4) throw new Error('binary peer storage frame exceeds size limit');
+      }
+      const result = this.buffer.subarray(0, size);
+      this.buffer = this.buffer.subarray(size);
+      return result;
+    },
+    cleanup() {
+      stream.removeEventListener?.('message', onMessage);
+      stream.removeEventListener?.('close', onClose);
+    }
+  };
+  binaryStreamReaders.set(stream, reader);
+  if (!iterator && stream.status !== 'closing' && stream.status !== 'closed') {
+    try { stream.resume?.(); }
+    catch (error) {
+      if (!/closing\/closed/i.test(error instanceof Error ? error.message : String(error))) throw error;
+    }
+  }
+  return reader;
+}
+
+const MAX_BINARY_FRAME_BYTES = Math.max(1024, Number(process.env.APEX_PEER_MAX_ENVELOPE_BYTES || 65536));
+
+async function writeBinaryFrame(stream, value) {
+  const payload = Buffer.from(encodeCanonical(value));
+  if (!payload.length || payload.length > MAX_BINARY_FRAME_BYTES) throw new Error('binary peer storage frame exceeds size limit');
+  const frame = Buffer.allocUnsafe(payload.length + 4);
+  frame.writeUInt32BE(payload.length, 0);
+  payload.copy(frame, 4);
+  if (typeof stream?.send === 'function') await stream.send(frame);
+  else if (typeof stream?.sink === 'function') await stream.sink([frame]);
+  else throw new TypeError('unsupported binary libp2p stream write interface');
+}
+
+async function readBinaryFrame(stream) {
+  const reader = binaryReaderFor(stream);
+  const header = await reader.readExact(4);
+  const length = header.readUInt32BE(0);
+  if (length < 1 || length > MAX_BINARY_FRAME_BYTES) throw new Error('invalid binary peer storage frame length');
+  const payload = await reader.readExact(length);
+  return decodeCanonical(payload);
+}
 
 const streamReaders = new WeakMap();
 
@@ -234,7 +343,7 @@ async function sendSovereignEnvelope(stream, envelope) {
   });
 }
 
-export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE } = {}) {
+export async function createSovereignPeer({ onEnvelope, onBinaryEnvelope, keyFile = PEER_KEY_FILE } = {}) {
   const privateKey = await loadOrCreatePeerPrivateKey(keyFile);
   const node = await createLibp2p({
     privateKey,
@@ -300,6 +409,38 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
       try { await stream.close?.(); } catch {}
     }
   });
+
+  if (typeof onBinaryEnvelope === 'function') {
+    node.handle(CAS_PROTOCOL, async (streamOrContext, maybeConnection) => {
+      const contextForm = streamOrContext && typeof streamOrContext === 'object' && 'stream' in streamOrContext;
+      const stream = contextForm ? streamOrContext.stream : streamOrContext;
+      const connection = contextForm ? streamOrContext.connection : maybeConnection;
+      const remotePeerId = connection?.remotePeer?.toString?.() || '';
+      try {
+        if (!stream || typeof stream !== 'object') throw new TypeError('libp2p binary handler did not provide a stream');
+        binaryReaderFor(stream);
+        if (!isAllowedPeer(remotePeerId)) {
+          await writeBinaryFrame(stream, { accepted: false, peerId: node.peerId.toString(), error: 'peer is not allowlisted' });
+          return;
+        }
+        const envelope = await readBinaryFrame(stream);
+        const outcome = await onBinaryEnvelope(envelope, { remotePeerId });
+        const response = outcome && typeof outcome === 'object' && !Array.isArray(outcome)
+          ? { ...outcome, peerId: node.peerId.toString() }
+          : { accepted: Boolean(outcome), peerId: node.peerId.toString() };
+        await writeBinaryFrame(stream, response);
+      } catch (error) {
+        await writeBinaryFrame(stream, {
+          accepted: false, peerId: node.peerId.toString(),
+          error: error instanceof Error ? error.message : String(error)
+        }).catch(() => {});
+      } finally {
+        try { await stream?.close?.(); } catch {}
+        binaryStreamReaders.get(stream)?.cleanup?.();
+      }
+    });
+  }
+
   return node;
 }
 
@@ -358,7 +499,34 @@ export async function sendToPeer(node, multiaddr, envelope) {
   }
   throw new Error('sovereign peer send failed after transport retry');
 }
-export { PROTOCOL };
+
+export async function sendPeerStorageEnvelope(node, multiaddr, envelope) {
+  const address = String(multiaddr || '');
+  const match = address.match(/\/p2p\/([^/]+)$/);
+  const destinationPeerId = match?.[1] || '';
+  if (!destinationPeerId || !isAllowedPeer(destinationPeerId)) throw new Error('outgoing peer storage target is not allowlisted');
+  const localPeerId = node?.peerId?.toString?.() || '';
+  if (localPeerId && destinationPeerId === localPeerId) throw new Error('outgoing peer storage target cannot be this peer');
+  const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
+  let stream;
+  try {
+    stream = await node.dialProtocol(target, CAS_PROTOCOL, {
+      signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
+    });
+    binaryReaderFor(stream);
+    await writeBinaryFrame(stream, envelope);
+    const response = await readBinaryFrame(stream);
+    if (!response || response.accepted !== true || response.peerId !== destinationPeerId) {
+      throw new Error(response?.error || 'peer storage binary request was rejected or returned an unexpected identity');
+    }
+    return response;
+  } finally {
+    try { await stream?.close?.(); } catch {}
+    binaryStreamReaders.get(stream)?.cleanup?.();
+  }
+}
+
+export { PROTOCOL, CAS_PROTOCOL };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const node = await startSovereignPeer({
