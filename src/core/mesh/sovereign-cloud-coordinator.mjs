@@ -104,6 +104,49 @@ export class SovereignCloudCoordinator {
     if (record.value.app !== app || record.value.jobId !== jobId) throw new Error("App-scope integrity check failed");
     return record.value;
   }
+  async claimJob({ app, jobId, workerId, leaseMs = 30000 }) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    const id = segment(jobId);
+    const worker = segment(workerId);
+    const jobKey = this.key("apps", app, "jobs", id + ".json");
+    const jobResult = await this.read(jobKey);
+    if (!jobResult) return { claimed: false, reason: "not-found" };
+    const job = jobResult.value;
+    if (job.app !== app || job.jobId !== id) throw new Error("App-scope integrity check failed");
+    if (job.expiresAt <= now()) return { claimed: false, reason: "expired" };
+    const leaseKey = this.key("apps", app, "leases", id + ".json");
+    const lease = { version: 1, app, jobId: id, workerId: worker, token: randomUUID(), fence: now(), claimedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
+    try {
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(lease), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(lease)) }, IfNoneMatch: "*" }));
+      return { claimed: true, lease };
+    } catch (e) {
+      if (!conflict(e)) throw e;
+      const existing = await this.read(leaseKey);
+      if (!existing || existing.value.expiresAt > now()) return { claimed: false, reason: "leased" };
+      // Expired-lease takeover requires provider-verified compare-and-swap semantics.
+      if (!existing.etag) return { claimed: false, reason: "lease-etag-unavailable" };
+      try {
+        await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(lease), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(lease)) }, IfMatch: existing.etag }));
+        return { claimed: true, lease, reclaimed: true };
+      } catch (replaceError) {
+        if (conflict(replaceError)) return { claimed: false, reason: "lease-race-lost" };
+        throw replaceError;
+      }
+    }
+  }
+  async finishJob({ app, jobId, workerId, leaseToken, resultHash = null, status = "completed" }) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    if (!["completed", "failed"].includes(status)) throw new Error("Invalid terminal job status");
+    const id = segment(jobId);
+    const worker = segment(workerId);
+    const leaseKey = this.key("apps", app, "leases", id + ".json");
+    const current = await this.read(leaseKey);
+    if (!current || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { accepted: false, reason: "lease-invalid" };
+    const record = { version: 1, app, jobId: id, workerId: worker, status, resultHash: resultHash == null ? null : String(resultHash), finishedAt: now(), leaseToken };
+    const eventKey = this.key("apps", app, "job-events", id + "/" + randomUUID() + ".json");
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: eventKey, Body: JSON.stringify(record), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(record)) }, IfNoneMatch: "*" }));
+    return { accepted: true, event: record };
+  }
   async health() {
     const key = this.key("health", randomUUID() + ".json");
     const proof = { version: 1, nonce: randomUUID(), timestamp: now() };
