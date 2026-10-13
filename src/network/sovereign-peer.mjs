@@ -13,7 +13,7 @@ import { identify } from '@libp2p/identify';
 import { createPeerSecurityGuard } from './sovereign-peer-security.mjs';
 import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
-import { encodeCanonical, decodeCanonical } from '../core/apex-cbor.mjs';
+import { encodeSovereignCborFrame, decodeSovereignCborPayload } from './sovereign-peer-cbor-frame.mjs';
 
 const PROTOCOL = '/apex/sovereign/1.0.0';
 const CBOR_PROTOCOL = '/apex/sovereign/2.0.0';
@@ -281,7 +281,7 @@ async function readSovereignCborEnvelope(stream) {
   while (reader.binaryBuffer.length < length + 4) await nextChunk();
   const payload = reader.binaryBuffer.subarray(4, length + 4);
   reader.binaryBuffer = reader.binaryBuffer.subarray(length + 4);
-  const envelope = decodeCanonical(payload);
+  const envelope = decodeSovereignCborPayload(payload, { maxBytes: MAX_ENVELOPE_BYTES });
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
     throw new Error('sovereign peer CBOR envelope must be a map');
   }
@@ -289,11 +289,7 @@ async function readSovereignCborEnvelope(stream) {
 }
 
 async function sendSovereignCborEnvelope(stream, envelope) {
-  const payload = encodeCanonical(envelope);
-  if (payload.length < 1 || payload.length > MAX_ENVELOPE_BYTES) throw new Error('sovereign peer CBOR envelope exceeds size limit');
-  const frame = Buffer.allocUnsafe(payload.length + 4);
-  frame.writeUInt32BE(payload.length, 0);
-  payload.copy(frame, 4);
+  const frame = encodeSovereignCborFrame(envelope, { maxBytes: MAX_ENVELOPE_BYTES });
   if (typeof stream?.send !== 'function') {
     if (typeof stream?.sink === 'function') return stream.sink([frame]);
     throw new TypeError('unsupported sovereign peer stream write interface');
