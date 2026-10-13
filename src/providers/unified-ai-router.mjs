@@ -1,3 +1,5 @@
+import { sanitizeOutboundPayload } from "../security/sovereign-outbound-gateway.mjs";
+
 const boundedNumber = (value, fallback, min, max) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
@@ -170,7 +172,7 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
   try {
   const p = providerOf(effectiveProvider);
   if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
-  const normalized = messagesOf({ prompt, messages, system });
+  const normalized = sanitizeOutboundPayload({ messages: messagesOf({ prompt, messages, system }) }).messages;
   const selectedModel = String(model || process.env[p.modelEnv] || p.defaultModel).trim();
   const requestedMaxTokens = maxTokens ?? max_tokens;
   const outputTokenLimit = requestedMaxTokens == null ? undefined : boundedNumber(requestedMaxTokens, 1024, 1, 8192);
