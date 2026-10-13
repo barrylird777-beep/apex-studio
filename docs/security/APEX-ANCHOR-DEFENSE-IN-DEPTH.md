@@ -26,15 +26,19 @@ Protect the six canonical apps — KernelVision, XShield, Kernelodies, PlanetApe
 6. Fail closed for missing identity, invalid signatures, unknown peers, stale leases, and policy errors.
 7. Keep each app's data namespace and permissions isolated; shared infrastructure does not imply shared authorization.
 8. No claim of phone protection from server-side changes alone.
+9. **Preserve the owner's privileges and abilities.** Do not lock the owner out, revoke owner access, narrow legitimate owner capabilities, disable features, or change authentication/authorization behavior without a verified replacement path and explicit approval for that specific change.
+10. Security controls must be additive where possible. If a proposed control could block a legitimate owner workflow, test it in isolation and document the recovery route before considering production promotion.
+11. Never disable security checks merely to make a test pass; repair the policy or the test based on evidence.
 
 ## Required hardening gates
 
 ### Identity and authorization
 - Enumerate every public route and classify it as public, owner-only, app-scoped, worker-only, or peer-only.
 - Verify each sensitive route has an explicit authentication and authorization guard.
-- Use distinct, revocable, least-privilege identities for apps, workers, and peers.
+- Use distinct, revocable, least-privilege identities for apps, workers, and peers without reducing the owner's existing authorized control.
 - Require authenticated peer identity plus an explicit peer allowlist; reject unknown or expired peer leases.
 - Audit session lifetime, cookie attributes, CSRF exposure, login throttling, and credential rotation/revocation.
+- Test owner access to existing legitimate functions before and after each candidate change; include a rollback/recovery test.
 
 ### AI and tool boundaries
 - Treat prompts, model output, retrieved documents, uploads, and peer-supplied payloads as untrusted data.
