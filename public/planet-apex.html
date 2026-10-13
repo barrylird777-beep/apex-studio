@@ -20,12 +20,111 @@ button:hover{filter:brightness(1.12);transform:translateY(-1px)}
 input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--apex-blue);outline-offset:2px}
 a{color:var(--apex-blue)}
 @media(max-width:600px){main{padding:22px 13px 36px}}
+
+/* PlanetApeX four distinct experiences: analytics, scripture, archive, living-world simulation. */
+.pa-intro{display:grid;gap:8px;margin:18px 0 22px;padding:clamp(18px,4vw,30px);border:1px solid #344a5d;background:linear-gradient(120deg,#142c3a,#101a27 62%,#211c2a);border-radius:16px}
+.pa-intro .kicker,.pa-section-kicker{font-size:10px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:#dfc18a}
+.pa-intro h1{margin:4px 0;font-size:clamp(32px,7vw,58px);letter-spacing:-.05em}
+.pa-intro p{max-width:66ch;color:#bdcbd6;margin:0}
+.pa-experiences{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;margin:18px 0 26px}
+.pa-experience{min-width:0;grid-column:span 6;padding:clamp(15px,2.5vw,22px);border:1px solid;border-radius:13px;overflow:hidden}
+.pa-experience h2{margin:7px 0 9px;font-size:clamp(20px,3vw,27px)}
+.pa-experience p{margin:7px 0;color:inherit;opacity:.82}
+.pa-analytics{background:#f2f5f7;color:#18242e;border-color:#cdd8df}
+.pa-analytics .pa-section-kicker{color:#356f91}
+.pa-bible{background:#f3e8cc;color:#3e3020;border-color:#d6c39b;font-family:Georgia,'Times New Roman',serif}
+.pa-bible .pa-section-kicker{color:#8d6a2b}
+.pa-research{background:#101e2b;color:#e6edf3;border-color:#42566a}
+.pa-research .pa-section-kicker{color:#d6b775}
+.pa-garden{grid-column:1/-1;background:#0b1715;color:#e2f0e7;border-color:#2d5547;padding:0}
+.pa-garden-head{padding:18px 20px 10px;background:linear-gradient(100deg,#122d26,#15241f)}
+.pa-garden-scene{position:relative;min-height:255px;overflow:hidden;padding:18px;background:radial-gradient(ellipse at 50% 0%,#b5d9ad26,transparent 55%),linear-gradient(#172d2b,#10201c 55%,#08110f)}
+.pa-garden-scene:before{content:"";position:absolute;inset:auto -10% -70px;height:190px;background:radial-gradient(ellipse,#436b4d 0%,#243f32 48%,transparent 70%);pointer-events:none}
+.pa-village{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;z-index:1}
+.pa-korn{min-width:0;padding:12px 8px;text-align:center;border:1px solid #4b6e58;border-radius:12px;background:#10231fd9;box-shadow:0 8px 24px #0002}
+.pa-korn .face{font-size:30px;line-height:1.3;display:block}
+.pa-korn strong{display:block;font-size:12px;color:#d8e7bf}
+.pa-korn small{display:block;margin-top:4px;color:#adc6b4;line-height:1.35}
+.pa-garden-foot{padding:12px 18px 18px}
+.pa-garden-feed{max-height:145px;overflow:auto;margin:10px 0 0;padding-left:20px;color:#c0d6c7;font-size:12px}
+.pa-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:15px}
+.pa-metric{padding:10px;border-radius:8px;background:#e4ebef}
+.pa-metric strong{display:block;font-size:23px;color:#1b4d67;font-variant-numeric:tabular-nums}
+.pa-metric small{font-size:10px;color:#536571;text-transform:uppercase;letter-spacing:.08em}
+.pa-scripture{font-size:clamp(18px,3vw,24px);line-height:1.55}
+.pa-citation{font-size:12px;font-family:system-ui,sans-serif;color:#806a46}
+.pa-research-list{display:grid;gap:8px;margin-top:12px}
+.pa-source{padding:10px 12px;border-left:2px solid #d6b775;background:#ffffff08}
+.pa-source strong{display:block;font-size:13px}
+.pa-source small{color:#b8c7d3}
+.pa-analytics-bars{display:grid;gap:9px;margin:14px 0}
+.pa-bar-row{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:center;gap:8px;font-size:12px}
+.pa-bar{height:8px;background:#dce4e9;border-radius:99px;overflow:hidden}
+.pa-bar span{display:block;height:100%;width:var(--w);background:#397b9e;border-radius:99px}
+.pa-experience button{min-height:42px}
+.pa-garden button{background:#1e4032;border-color:#537b60}
+.pa-garden .hint{color:#a9c5b3}
+@media(max-width:620px){.pa-experience{grid-column:1/-1}.pa-village{grid-template-columns:repeat(2,minmax(0,1fr))}.pa-garden-scene{padding:12px}.pa-metrics{gap:5px}.pa-metric{padding:8px}.pa-metric strong{font-size:20px}}
+
 </style>
 <link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css"><script src="/apex-six-apps.js" defer></script>
 <script src="/apex-ui-controls.js" defer></script></head>
 <body><a class="apex-skip-link" href="#apex-main">Skip to PlanetApeX content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" aria-current="page" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="planetapex" id="apex-main" tabindex="-1">
 <div>APEX CANONICAL APP</div><h1>PlanetApeX</h1>
 <p>Build your world, then save it to the configured shared peer-storage service. Changes remain in this page until you save them.</p>
+
+<section class="pa-intro" aria-label="PlanetApeX overview">
+  <span class="kicker">PLANETAPEX · THE BRAIN OF APEX</span>
+  <h1>A universe with room to think.</h1>
+  <p>Four distinct spaces: measure the world, study scripture, investigate sources, and observe GardenApex—a simulated civilization whose inhabitants pursue their own goals inside the world.</p>
+</section>
+<section class="pa-experiences" aria-label="PlanetApeX experiences">
+  <article class="pa-experience pa-analytics">
+    <span class="pa-section-kicker">01 / ANALYTICS</span><h2>Signals, not noise.</h2>
+    <p>A clear read on the activity of this session. GardenApex metrics update as its inhabitants act.</p>
+    <div class="pa-metrics">
+      <div class="pa-metric"><strong id="pa-pop">6</strong><small>Inhabitants</small></div>
+      <div class="pa-metric"><strong id="pa-actions">0</strong><small>Life events</small></div>
+      <div class="pa-metric"><strong id="pa-bonds">3</strong><small>Social bonds</small></div>
+    </div>
+    <div class="pa-analytics-bars">
+      <div class="pa-bar-row"><span>Exploration</span><div class="pa-bar"><span id="pa-bar-explore" style="--w:42%"></span></div></div>
+      <div class="pa-bar-row"><span>Community</span><div class="pa-bar"><span id="pa-bar-social" style="--w:68%"></span></div></div>
+      <div class="pa-bar-row"><span>Craft &amp; care</span><div class="pa-bar"><span id="pa-bar-care" style="--w:54%"></span></div></div>
+    </div>
+    <p class="hint">Session telemetry only; no external analytics service is contacted.</p>
+  </article>
+  <article class="pa-experience pa-bible">
+    <span class="pa-section-kicker">02 / BIBLE STUDY</span><h2>A quieter reading room.</h2>
+    <p class="pa-scripture">“And the light shineth in darkness; and the darkness comprehended it not.”</p>
+    <p class="pa-citation">John 1:5 · King James Version</p>
+    <details><summary>Study notes</summary><p>Read the verse in context: John 1:1–5 introduces the Word, life, and light. Consider how the image of light functions across the passage before drawing a personal application.</p></details>
+    <a href="/bible-study-room.html">Enter the Bible Study Room →</a>
+  </article>
+  <article class="pa-experience pa-research">
+    <span class="pa-section-kicker">03 / RESEARCH</span><h2>Follow the evidence.</h2>
+    <p>A research desk for manuscripts, historical context, and source trails. Treat leads as leads until a primary source confirms them.</p>
+    <div class="pa-research-list">
+      <div class="pa-source"><strong>Manuscripts &amp; textual witnesses</strong><small>Compare wording, date, provenance, and catalog records.</small></div>
+      <div class="pa-source"><strong>Archaeology &amp; cultural context</strong><small>Separate excavated evidence from later interpretation.</small></div>
+      <div class="pa-source"><strong>Source verification</strong><small>Track claims back to a catalog, archive, or publication.</small></div>
+    </div>
+    <p><a href="/special-search.html">Open Special Search →</a></p>
+  </article>
+  <article class="pa-experience pa-garden" id="pa-garden">
+    <div class="pa-garden-head"><span class="pa-section-kicker">04 / GARDENAPEX</span><h2 style="margin:6px 0">A world already in progress.</h2><p style="margin:0;color:#bad0c1">The Korns are not waiting for a player command. Each has a current need, a preference, and relationships that shape what they do next.</p></div>
+    <div class="pa-garden-scene"><div class="pa-village" id="pa-village" aria-live="polite">
+      <div class="pa-korn"><span class="face">◉</span><strong>Ori</strong><small>Checking the garden</small></div>
+      <div class="pa-korn"><span class="face">◈</span><strong>Mira</strong><small>Trading fruit</small></div>
+      <div class="pa-korn"><span class="face">●</span><strong>Tavi</strong><small>Exploring the creek</small></div>
+      <div class="pa-korn"><span class="face">◉</span><strong>Nemi</strong><small>Repairing a bridge</small></div>
+      <div class="pa-korn"><span class="face">◈</span><strong>Koro</strong><small>Visiting a friend</small></div>
+      <div class="pa-korn"><span class="face">●</span><strong>Seli</strong><small>Resting near home</small></div>
+    </div></div>
+    <div class="pa-garden-foot"><div class="row"><button id="pa-life-toggle" type="button" aria-pressed="true">Pause world</button><button id="pa-life-step" type="button">Observe next moment</button><button id="pa-life-reset" type="button">New day</button></div><p class="hint" id="pa-life-status" role="status">The village is active. Events continue while this page remains open; this prototype does not claim persistent memory or sentience.</p><ul class="pa-garden-feed" id="pa-life-feed"><li>The day begins; the village stirs.</li></ul></div>
+  </article>
+</section>
+
 <div class="grid">
 <section class="card wide" aria-label="PlanetApeX study and research">
 <h2>Study &amp; Research</h2>
@@ -73,4 +172,75 @@ async function refresh(){try{const r=await fetch("/api/apex/apps/planet-apex/sta
 $("refresh").onclick=refresh;
 const storedToken=sessionStorage.getItem(tokenKey);if(storedToken)$("token").value=storedToken;
 render();refresh();
-</script></body></html>
+</script>
+<script>
+/* GardenApex session simulation: agents choose actions from needs, traits, and social ties. */
+(()=> {
+ const inhabitants=[
+  {name:"Ori",face:"◉",need:"tend",trait:"careful",friend:"Mira",mood:"focused"},
+  {name:"Mira",face:"◈",need:"trade",trait:"curious",friend:"Ori",mood:"hopeful"},
+  {name:"Tavi",face:"●",need:"explore",trait:"restless",friend:"Seli",mood:"curious"},
+  {name:"Nemi",face:"◉",need:"repair",trait:"patient",friend:"Koro",mood:"steady"},
+  {name:"Koro",face:"◈",need:"visit",trait:"social",friend:"Nemi",mood:"warm"},
+  {name:"Seli",face:"●",need:"rest",trait:"observant",friend:"Tavi",mood:"calm"}
+ ];
+ const acts=[
+  ["tend","checks seedlings and waters the terrace","care"],
+  ["trade","offers gathered fruit at the market","social"],
+  ["explore","follows a glowing stream beyond the bridge","explore"],
+  ["repair","tightens the woven bridge supports","care"],
+  ["visit","stops by a friend's home to share news","social"],
+  ["rest","rests beneath the root-lanterns and listens","care"],
+  ["observe","notices a new pattern in the night insects","explore"],
+  ["craft","makes a small tool from riverstone","care"],
+  ["help","helps a neighbor carry supplies home","social"],
+  ["wander","takes a different path through the village","explore"]
+ ];
+ let count=0,paused=false,day=1,turn=0;
+ const $=id=>document.getElementById(id);
+ function act(){
+  turn++;
+  const k=inhabitants[Math.floor(Math.random()*inhabitants.length)];
+  let choices=acts.filter(a=>a[0]===k.need||Math.random()<.25);
+  const chosen=choices[Math.floor(Math.random()*choices.length)]||acts[turn%acts.length];
+  k.mood=["curious","content","thoughtful","hopeful","focused","calm"][Math.floor(Math.random()*6)];
+  if(Math.random()<.35)k.need=["tend","trade","explore","repair","visit","rest"][Math.floor(Math.random()*6)];
+  count++;
+  const card=document.querySelector('[data-korn="'+k.name+'"]');
+  if(card){card.querySelector("small").textContent=chosen[1];card.querySelector(".mood").textContent=k.mood;}
+  const feed=$("pa-life-feed"),li=document.createElement("li");
+  li.textContent="Day "+day+" · "+k.name+" "+chosen[1]+".";
+  feed.prepend(li);while(feed.children.length>8)feed.lastElementChild.remove();
+  $("pa-actions").textContent=count;
+  $("pa-bonds").textContent=inhabitants.filter(x=>x.friend).length;
+  $("pa-bar-explore").style.setProperty("--w",(20+Math.min(70,turn*7%70))+"%");
+  $("pa-bar-social").style.setProperty("--w",(25+Math.min(65,turn*11%65))+"%");
+  $("pa-bar-care").style.setProperty("--w",(30+Math.min(60,turn*5%60))+"%");
+ }
+ function render(){
+  $("pa-village").replaceChildren();
+  inhabitants.forEach(k=>{
+   const card=document.createElement("div");card.className="pa-korn";card.dataset.korn=k.name;
+   const face=document.createElement("span");face.className="face";face.textContent=k.face;
+   const name=document.createElement("strong");name.textContent=k.name;
+   const detail=document.createElement("small");detail.textContent=k.need+" · ";
+   const mood=document.createElement("small");mood.className="mood";mood.textContent=k.mood;
+   card.append(face,name,detail,mood);$("pa-village").append(card);
+  });
+ }
+ $("pa-life-toggle").addEventListener("click",()=>{
+  paused=!paused;$("pa-life-toggle").textContent=paused?"Resume world":"Pause world";
+  $("pa-life-toggle").setAttribute("aria-pressed",String(!paused));
+  $("pa-life-status").textContent=paused?"The village is paused.":"The village is active; inhabitants continue choosing actions.";
+ });
+ $("pa-life-step").addEventListener("click",act);
+ $("pa-life-reset").addEventListener("click",()=>{
+  day++;turn=0;count=0;inhabitants.forEach((k,i)=>{k.need=["tend","trade","explore","repair","visit","rest"][i];k.mood="curious"});
+  $("pa-actions").textContent="0";$("pa-life-feed").replaceChildren();
+  const li=document.createElement("li");li.textContent="Day "+day+" begins. Each Korn starts with a different intention.";$("pa-life-feed").append(li);render();
+ });
+ render();setInterval(()=>{if(!paused)act()},3200);
+})();
+</script>
+
+</body></html>
