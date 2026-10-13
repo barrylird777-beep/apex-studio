@@ -52,8 +52,9 @@ export async function initializePeerObjectStorage({
       handle: async () => { throw new Error('peer object storage is disabled'); }
     });
   }
-  if (!store || typeof store.putBytes !== 'function' || typeof store.getBytes !== 'function') {
-    throw new Error('peer object storage requires an injected peer-owned binary backend; local filesystem fallback is forbidden');
+  if (!store || typeof store.putBytes !== 'function' || typeof store.getBytes !== 'function' ||
+      typeof store.readRef !== 'function' || typeof store.writeRef !== 'function') {
+    throw new Error('peer object storage requires an injected peer-owned binary backend with durable atomic references; local filesystem fallback is forbidden');
   }
   const acl = parseNamespaceAcl(namespaceAcl);
   const { createPeerObjectStorageHandler } = await import('./peer-content-addressed-store.mjs');
