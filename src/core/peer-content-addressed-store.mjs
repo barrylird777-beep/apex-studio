@@ -125,6 +125,8 @@ export class PeerContentAddressedStore {
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
       error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = verifiedDomains;
+      error.requiredFailureDomains = this.minFailureDomains;
       error.verifiedFailureDomains = verifiedFailureDomains;
       error.failures = failures;
       throw error;
@@ -279,23 +281,36 @@ export class PeerContentAddressedStore {
   async readRef(key) {
     const refKey = String(key || '');
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(refKey) || refKey.includes('..')) throw new Error('invalid peer reference key');
+    const observations = [];
     const failures = [];
-    let confirmedMissing = false;
     for (const peerId of this.peers) {
       try {
         const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.get', namespace: this.namespace, key: refKey });
-        if (response.hash == null) { confirmedMissing = true; continue; }
+        if (response.hash == null) {
+          observations.push({ peerId, hash: null, value: null });
+          continue;
+        }
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) throw new Error('peer reference failed content hash verification');
-        return { value: this.decrypt(decodeCanonical(bytes)), hash: response.hash };
+        observations.push({ peerId, hash: response.hash, value: this.decrypt(decodeCanonical(bytes)) });
       } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (confirmedMissing && failures.length === 0) return null;
-    const error = new Error('peer reference was not recoverable from any configured peer');
-    error.code = 'OBJECT_UNAVAILABLE';
+    const groups = new Map();
+    for (const item of observations) {
+      const group = groups.get(item.hash) || { hash: item.hash, value: item.value, peers: [] };
+      group.peers.push(item.peerId);
+      groups.set(item.hash, group);
+    }
+    const winner = [...groups.values()].sort((a, b) => b.peers.length - a.peers.length)[0];
+    if (winner && winner.peers.length >= this.replicaCount) {
+      return winner.hash === null ? null : { value: winner.value, hash: winner.hash, replicas: winner.peers };
+    }
+    const error = new Error(winner ? 'peer reference replicas disagree; no value reached the required quorum' : 'peer reference was not recoverable from any configured peer');
+    error.code = winner ? 'REF_QUORUM_CONFLICT' : 'OBJECT_UNAVAILABLE';
     error.failures = failures;
+    error.observed = observations.map(item => ({ peerId: item.peerId, hash: item.hash }));
     throw error;
   }
 
@@ -319,7 +334,8 @@ export class PeerContentAddressedStore {
         failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (receipts.length < this.replicaCount) {
+    const verifiedDomains = new Set(receipts.map(item => item.failureDomain).filter(Boolean)).size;
+    if (receipts.length < this.replicaCount || verifiedDomains < this.minFailureDomains) {
       const conflicts = failures.length > 0 && failures.every(item => item.code === 'CAS_CONFLICT' || item.code === 'CAS_MISMATCH');
       const error = new Error(conflicts
         ? 'peer reference compare-and-swap conflict'
