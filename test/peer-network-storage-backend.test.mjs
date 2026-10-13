@@ -94,5 +94,6 @@ test('network backend refuses wrong upstream identity and mismatched hashes', as
     peerId: 'writer-peer', peerNode: harness.peerNode, env,
     send: async (_node, _address, request) => ({ accepted: true, peerId: 'upstream-peer', namespace: request.namespace, durable: true, ownership: 'peer-owned' })
   });
-  await assert.rejects(backend.putBytes('0'.repeat(64), encryptedEnvelope()), /object receipt did not prove durable/);
+  const bytes = encryptedEnvelope();
+  await assert.rejects(backend.putBytes(sha256(bytes), bytes), /object receipt did not prove durable/);
 });
