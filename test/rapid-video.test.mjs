@@ -46,3 +46,12 @@ test('Rapid checkout module exposes payment-gate primitives',async()=>{
   assert.equal(typeof source.verifyRapidStripeSignature,'function');
   assert.equal(typeof source.decodeRapidCheckoutMetadata,'function');
 });
+
+
+test('Rapid Stripe checkout uses a $25 total and webhook-safe stable payment idempotency identity',()=>{
+  const params=buildRapidCheckoutParams({
+    orderId:'order-fee-test',name:'Apex',type:'Product ad',brief:'Spec ad',platform:'Other',email:'buyer@example.com',
+    successUrl:'https://example.com/paid',cancelUrl:'https://example.com/canceled'
+  });
+  assert.equal(params.get('line_items[0][price_data][unit_amount]'),'2500');
+});

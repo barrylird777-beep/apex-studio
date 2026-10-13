@@ -50,6 +50,7 @@ import { createResearchRouter } from './src/api/research-routes.mjs';
 import { searchAnything } from './src/core/apex-web-search.mjs';
 import { FrictionlessResearchEngine } from './src/core/research/frictionless-research-engine.mjs';
 import { createRapidCheckout, verifyRapidStripeSignature, decodeRapidCheckoutMetadata } from './src/payments/stripe-rapid.mjs';
+import { publishCanonicalHandoff } from './src/apps/canonical-handoff-bus.mjs';
 import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/rapid-video-worker.mjs';
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
@@ -1312,15 +1313,42 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
     const metadata = decodeRapidCheckoutMetadata(session.metadata || {});
     const amount = Number(session.amount_total);
     const paid = session.payment_status === 'paid';
-    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !paid || amount !== 2610 || String(session.currency || '').toLowerCase() !== 'usd') {
+    const sessionId = String(session.id || '');
+    const paymentIntentId = String(typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || sessionId);
+    if (!metadata.orderId || String(session.client_reference_id || '') !== metadata.orderId || !sessionId || !paymentIntentId || !paid || amount !== 2500 || String(session.currency || '').toLowerCase() !== 'usd') {
       return res.status(400).json({ received: false, error: 'Invalid Rapid Video payment' });
     }
     if (!durableWorkerEnabled()) return res.status(503).json({ received: false, error: 'Order queue unavailable' });
 
-    const existing = await getWorkerTask(metadata.orderId);
-    if (existing) return res.json({ received: true, duplicate: true, orderId: metadata.orderId });
+    // Commit the payment receipt to the configured Pure-WAL before dispatching work.
+    // The session ID is the stable payment identity across webhook retries and event types.
+    await apexPureStore.init();
+    const wal = apexPureStore.wal;
+    const paymentKey = 'payment.verified:stripe:' + paymentIntentId;
+    const payment = {
+      provider: 'stripe',
+      providerEventId: String(event.id || ''),
+      transactionId: paymentIntentId,
+      orderId: metadata.orderId,
+      amountMinor: amount,
+      currency: 'usd',
+      status: 'verified',
+      verifiedAt: new Date().toISOString(),
+      email: metadata.email || String(session.customer_details?.email || session.customer_email || '')
+    };
+    // The receipt reference also covers WAL implementations that do not expose
+    // an in-memory idempotency index. Serialize check+write across replicas.
+    const wasRecorded = await apexPureStore.withMutationLock(async () => {
+      const existingReceipt = await apexPureStore.get('apex_payment_receipts', paymentIntentId);
+      if (existingReceipt) return true;
+      await wal.append('payment.verified', payment, { idempotencyKey: paymentKey });
+      await apexPureStore.put('apex_payment_receipts', paymentIntentId, payment);
+      return false;
+    });
 
-    await enqueueWorkerTask({
+    // Queue insertion is independently idempotent. Always attempt it after the WAL
+    // commit so a crash between recording and dispatch cannot strand a paid order.
+    const queued = await enqueueWorkerTask({
       id: metadata.orderId,
       workerId: 'rapid-video-intake',
       role: 'rapid-video',
@@ -1331,17 +1359,25 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
         type: metadata.type,
         brief: metadata.brief,
         platform: metadata.platform,
-        email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
+        email: payment.email,
         price: 25, netTarget: 25,
         paid: true,
-        stripeSessionId: String(session.id || ''),
-        paidAt: new Date().toISOString()
+        stripeSessionId: sessionId,
+        paymentWalKey: paymentKey,
+        paidAt: payment.verifiedAt
       },
       maxAttempts: 3,
       dedupeKey: 'rapid-paid:' + metadata.orderId,
       traceId: metadata.orderId
     });
-    return res.json({ received: true, queued: true, orderId: metadata.orderId });
+
+    // Cross-app authorization event: publish only for the first durable payment record.
+    if (!wasRecorded) {
+      const payload = { ...payment, product: 'rapid-video-order', source: 'verified-stripe-webhook' };
+      publishCanonicalHandoff({ from: 'kernel-vision', to: 'kash-korner', payload, correlationId: metadata.orderId });
+      publishCanonicalHandoff({ from: 'kash-korner', to: 'kernel-vision', payload: { ...payload, fulfillmentAuthorized: true }, correlationId: metadata.orderId });
+    }
+    return res.json({ received: true, queued: true, duplicate: Boolean(queued.duplicate || wasRecorded), orderId: metadata.orderId });
   } catch (error) {
     console.error('[rapid-stripe-webhook]', error);
     return res.status(400).json({ received: false, error: error.message || 'Webhook verification failed' });
@@ -1928,7 +1964,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
       success: true,
       orderId,
       status: 'payment_required',
-      price: 26.10,
+      price: 25.00,
       checkoutUrl: checkout.url,
       statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
