@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { DeterministicSimulator, SimulatedNetwork } from "../src/testing/deterministic-simulator.mjs";
 import {
   ensureWorkerTaskSchema,
   enqueueWorkerTask,
@@ -92,4 +93,45 @@ test("rate limiter uses durable state and has a bounded wait", async () => {
   assert.equal(await acquireAiRateLimit({key,capacity:1,refillPerSecond:0.0001,maxWaitMs:100}),true);
   assert.equal(await acquireAiRateLimit({key,capacity:1,refillPerSecond:0.0001,retryMs:50,maxWaitMs:100}),false);
   await closeWorkerStore();
+});
+
+
+test("chaos mesh partitions and 50% packet loss still produce one durable task claimant", async () => {
+  const id = crypto.randomUUID();
+  await enqueueWorkerTask({id,workerId:"chaos-test",role:"chaos-claim",task:"one opportunity, one winner"});
+  const sim = new DeterministicSimulator({seed:"claim-partition-seed-2026",startTime:1000});
+  const network = new SimulatedNetwork(sim,{latencyMs:2,jitterMs:5,dropRate:0.5});
+  const results = [];
+  const peerClock = peer => sim.now + (peer === "peer-a" ? 60000 : -60000);
+
+  network.register("claim-store",async payload=>{
+    const claimed = await claimNextWorkerTasks(1,15000,"chaos-claim",payload.peer);
+    if (claimed.length) {
+      const task = claimed[0];
+      const completed = await completeWorkerTask(id,{winner:payload.peer,attempt:payload.attempt},task.lease_token,task.lease_fence);
+      results.push({peer:payload.peer,attempt:payload.attempt,claimed:true,completed,clientClock:payload.clientClock});
+    } else {
+      results.push({peer:payload.peer,attempt:payload.attempt,claimed:false,completed:false,clientClock:payload.clientClock});
+    }
+  });
+
+  network.partition("peer-a","claim-store");
+  for (let attempt=0;attempt<8;attempt+=1) {
+    sim.schedule(attempt*3,()=>network.send("peer-a","claim-store",{peer:"peer-a",attempt,clientClock:peerClock("peer-a")},{label:"claim-a-"+attempt}),"peer-a-attempt-"+attempt);
+    sim.schedule(attempt*3,()=>network.send("peer-b","claim-store",{peer:"peer-b",attempt,clientClock:peerClock("peer-b")},{label:"claim-b-"+attempt}),"peer-b-attempt-"+attempt);
+  }
+  sim.schedule(25,()=>network.heal("peer-a","claim-store"),"heal-peer-a-partition");
+  sim.schedule(26,()=>network.send("peer-a","claim-store",{peer:"peer-a",attempt:8,clientClock:peerClock("peer-a")},{dropRate:0,label:"claim-a-recovery"}),"peer-a-recovery-attempt");
+  sim.schedule(27,()=>network.send("peer-b","claim-store",{peer:"peer-b",attempt:8,clientClock:peerClock("peer-b")},{dropRate:0,label:"claim-b-recovery"}),"peer-b-recovery-attempt");
+
+  const run = await sim.run({maxEvents:500});
+  const winners = results.filter(result=>result.claimed);
+  assert.equal(winners.length,1,"the durable store must grant exactly one claim despite duplicate and reordered requests");
+  assert.equal(winners[0].completed,true,"the winning claim must complete with its lease token/fence");
+  assert.ok(results.length>1,"retries must reach the durable store");
+  assert.ok(sim.trace.some(event=>event.type==="network:drop"&&event.reason==="partition"));
+  assert.ok(sim.trace.some(event=>event.type==="network:drop"&&event.reason==="packet-loss"));
+  assert.ok(sim.trace.some(event=>event.type==="network:heal"&&event.removed));
+  assert.ok(winners[0].clientClock!==sim.now,"peer wall clocks are adversarial inputs, not the simulated coordinator clock");
+  assert.ok(run.processed>0);
 });
