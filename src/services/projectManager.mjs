@@ -1,11 +1,13 @@
 import {
   initStorage,
+  configurePeerMediaStorage,
   saveProjectAsset,
   saveProjectAssetFromFile,
   saveSceneAsset,
   getProjectState,
+  getPeerMediaAsset,
   STORAGE_DIR,
   PROJECT_FILE
 } from "../core/storage.mjs";
 
-export { initStorage, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset, getProjectState, STORAGE_DIR, PROJECT_FILE };
+export { configurePeerMediaStorage, initStorage, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset, getProjectState, getPeerMediaAsset, STORAGE_DIR, PROJECT_FILE };
