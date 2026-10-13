@@ -174,13 +174,18 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   }
   const bytes = Buffer.isBuffer(buffer) ? Buffer.from(buffer) : Buffer.from(buffer);
   if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
+  const requestedDuration = Number(metadata?.durationMs);
+  const durationMs = Number.isFinite(requestedDuration) && requestedDuration >= 1000 && requestedDuration <= 600000
+    ? Math.round(requestedDuration) : undefined;
   if (PEER_MODE_REQUIRED) {
     const { store, app } = requirePeerMediaStore();
     const projectId = "apex-scenes";
     const assetId = sceneKey + "-" + assetKind;
+    const peerMetadata = { sceneId: sceneKey, kind: assetKind, extension: ext };
+    if (durationMs !== undefined) peerMetadata.durationMs = durationMs;
     const record = await store.saveAsset(app, projectId, assetId, bytes, {
       contentType: assetKind === "image" ? "image/" + ext : assetKind === "video" ? "video/" + ext : "audio/" + ext,
-      metadata: { sceneId: sceneKey, kind: assetKind, extension: ext, durationMs: metadata?.durationMs }
+      metadata: peerMetadata
     });
     const url = peerProjectUrl(projectId, assetId);
     return { sceneId: sceneKey, [assetKind]: url, url, bytes: bytes.length, sha256: record.sha256, updatedAt: record.updatedAt };
