@@ -1,8 +1,11 @@
 ---------------- MODULE RemoteWALIdempotency ----------------
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
-\* Bounded safety model: the CAS append is abstracted as one atomic action.
-\* This model does not represent a provider implementation or Byzantine consensus.
+\* Bounded safety model of the WAL record/head protocol.
+\* The record write and head commit are separate transitions; a crash between them
+\* leaves an immutable record that recovery must discover and commit.
+\* Hashes are symbolic links here, not a model of SHA-256 collision resistance.
+\* The CAS provider is abstracted; Byzantine consensus is outside this module.
 
 CONSTANTS Ops, Nodes, Keys, MaxSeq
 ASSUME /\ Ops # {}
@@ -10,91 +13,133 @@ ASSUME /\ Ops # {}
        /\ Keys # {}
        /\ MaxSeq \in Nat \ {0}
 
-VARIABLES wal, claims, dedup, online
-vars == <<wal, claims, dedup, online>>
+VARIABLES records, head, pending, claims, dedup, online
+vars == <<records, head, pending, claims, dedup, online>>
+
+RebuildClaims(rs) ==
+  [op \in Ops |->
+    IF \E i \in 1..Len(rs) : rs[i].op = op
+    THEN rs[CHOOSE i \in 1..Len(rs) : rs[i].op = op].node
+    ELSE "NONE"]
+
+RebuildDedup(rs) ==
+  [key \in Keys |->
+    IF \E i \in 1..Len(rs) : rs[i].key = key
+    THEN CHOOSE i \in 1..Len(rs) : rs[i].key = key
+    ELSE 0]
 
 Init ==
-  /\ wal = <<>>
+  /\ records = <<>>
+  /\ head = 0
+  /\ pending = 0
   /\ claims = [op \in Ops |-> "NONE"]
   /\ dedup = [key \in Keys |-> 0]
   /\ online = TRUE
 
-Claim(op, node, key) ==
+AppendRecord(op, node, key) ==
   /\ online
+  /\ pending = 0
   /\ op \in Ops
   /\ node \in Nodes
   /\ key \in Keys
-  /\ claims[op] = "NONE"
-  /\ dedup[key] = 0
-  /\ Len(wal) < MaxSeq
-  /\ LET prev == IF Len(wal) = 0 THEN "GENESIS" ELSE wal[Len(wal)].hash
-         rec == [seq |-> Len(wal) + 1,
+  /\ ~\E i \in 1..Len(records) : records[i].op = op
+  /\ ~\E i \in 1..Len(records) : records[i].key = key
+  /\ Len(records) < MaxSeq
+  /\ LET seq == Len(records) + 1
+         prev == IF Len(records) = 0 THEN "GENESIS" ELSE records[Len(records)].hash
+         rec == [seq |-> seq,
                  op |-> op,
                  node |-> node,
                  key |-> key,
                  prev |-> prev,
-                 hash |-> <<Len(wal) + 1, op, node, key, prev>>]
-     IN /\ wal' = Append(wal, rec)
-        /\ claims' = [claims EXCEPT ![op] = node]
-        /\ dedup' = [dedup EXCEPT ![key] = Len(wal) + 1]
-        /\ UNCHANGED online
+                 hash |-> <<seq, op, node, key, prev>>]
+     IN /\ records' = Append(records, rec)
+        /\ pending' = seq
+        /\ UNCHANGED <<head, claims, dedup, online>>
+
+CommitHead ==
+  /\ online
+  /\ pending > 0
+  /\ pending = Len(records)
+  /\ pending = head + 1
+  /\ LET rec == records[pending]
+     IN /\ head' = pending
+        /\ pending' = 0
+        /\ claims' = [claims EXCEPT ![rec.op] = rec.node]
+        /\ dedup' = [dedup EXCEPT ![rec.key] = pending]
+        /\ UNCHANGED <<records, online>>
 
 ReplaySameClaim(op, node, key) ==
   /\ online
   /\ claims[op] = node
-  /\ \E i \in 1..Len(wal) :
-       /\ dedup[key] = i
-       /\ wal[i].op = op
+  /\ dedup[key] \in 1..head
+  /\ records[dedup[key]].op = op
+  /\ records[dedup[key]].key = key
   /\ UNCHANGED vars
 
 Crash ==
   /\ online
   /\ online' = FALSE
-  /\ UNCHANGED <<wal, claims, dedup>>
+  /\ pending' = 0
+  /\ UNCHANGED <<records, head, claims, dedup>>
 
 Recover ==
   /\ ~online
   /\ online' = TRUE
-  /\ UNCHANGED <<wal, claims, dedup>>
+  /\ head' = Len(records)
+  /\ pending' = 0
+  /\ claims' = RebuildClaims(records)
+  /\ dedup' = RebuildDedup(records)
+  /\ UNCHANGED records
 
 Next ==
-  \/ \E op \in Ops, node \in Nodes, key \in Keys : Claim(op, node, key)
+  \/ \E op \in Ops, node \in Nodes, key \in Keys : AppendRecord(op, node, key)
+  \/ CommitHead
   \/ \E op \in Ops, node \in Nodes, key \in Keys : ReplaySameClaim(op, node, key)
   \/ Crash
   \/ Recover
 
 Spec == Init /\ [][Next]_vars
 
-ClaimedOps ==
-  {op \in Ops : claims[op] # "NONE"}
-
-NoDuplicateClaims ==
-  \A op \in Ops : claims[op] = "NONE" \/ claims[op] \in Nodes
-
 NoDuplicateIdempotencyKeys ==
-  \A i, j \in 1..Len(wal) :
-    wal[i].key = wal[j].key => i = j
+  \A i, j \in 1..Len(records) :
+    records[i].key = records[j].key => i = j
 
 NoDuplicateOpportunityClaims ==
-  \A i, j \in 1..Len(wal) :
-    wal[i].op = wal[j].op => i = j
+  \A i, j \in 1..Len(records) :
+    records[i].op = records[j].op => i = j
 
-DurableClaimMatchesWAL ==
+DurableClaimMatchesHead ==
   \A op \in Ops :
     claims[op] # "NONE" =>
-      \E i \in 1..Len(wal) :
-        wal[i].op = op /\ wal[i].node = claims[op]
+      \E i \in 1..head :
+        records[i].op = op /\ records[i].node = claims[op]
+
+DedupMatchesHead ==
+  \A key \in Keys :
+    IF dedup[key] = 0
+    THEN TRUE
+    ELSE dedup[key] \in 1..head /\ records[dedup[key]].key = key
+
+HeadAndPendingConsistent ==
+  /\ head \in 0..Len(records)
+  /\ (pending = 0 \/ (pending = Len(records) /\ pending = head + 1))
+
+OnlineHeadCaughtUp ==
+  online /\ pending = 0 => head = Len(records)
 
 SequenceAndHashChain ==
-  \A i \in 1..Len(wal) :
-    /\ wal[i].seq = i
-    /\ wal[i].prev = (IF i = 1 THEN "GENESIS" ELSE wal[i - 1].hash)
+  \A i \in 1..Len(records) :
+    /\ records[i].seq = i
+    /\ records[i].prev = (IF i = 1 THEN "GENESIS" ELSE records[i - 1].hash)
 
 Safety ==
-  /\ NoDuplicateClaims
   /\ NoDuplicateIdempotencyKeys
   /\ NoDuplicateOpportunityClaims
-  /\ DurableClaimMatchesWAL
+  /\ DurableClaimMatchesHead
+  /\ DedupMatchesHead
+  /\ HeadAndPendingConsistent
+  /\ OnlineHeadCaughtUp
   /\ SequenceAndHashChain
 
 =============================================================================
