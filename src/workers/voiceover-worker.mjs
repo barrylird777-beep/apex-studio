@@ -119,7 +119,7 @@ export async function executeVoiceoverTask(payload = {}, taskId = crypto.randomU
       storagePrefix: STORAGE_PREFIX, format: extension, bytes: bytes.length, completedAt: new Date().toISOString() };
   } finally {
     try {
-      const safeResultPath = await resolveContainedPath(STORAGE_ROOT, path.relative(STORAGE_ROOT, result.path), { mustExist: true });
+      const safeResultPath = await resolveContainedPath(STORAGE_ROOT, path.relative(STORAGE_ROOT, result.path));
       await fs.unlink(safeResultPath);
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
