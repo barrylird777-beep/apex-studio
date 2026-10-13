@@ -559,6 +559,8 @@ export class ApexPureStore {
             await this.cas.deleteRef("queue",candidate.indexKey,{expectedHash:candidate.indexHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")throw error;});
             continue;
           }
+          const currentRole=String(current.payload?._apex_worker?.role||"");
+          if(role?currentRole!==role:currentRole==="sovereign-runtime")continue;
           this.jobsState.set(String(current.id),clone(current));
         }else{
           current=this.jobsState.get(String(candidate.id));
