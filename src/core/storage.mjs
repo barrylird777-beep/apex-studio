@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
@@ -54,6 +54,36 @@ export async function initStorage() {
       if (writeError?.code !== "EEXIST") throw writeError;
     });
   }
+}
+
+export async function saveProjectAssetFromFile(type, sourcePath, extension) {
+  await initStorage();
+  const assetType = safePart(type, "type");
+  const ext = safePart(extension, "extension").replace(/^\\./, "");
+  const source = path.resolve(String(sourcePath || ""));
+  const root = path.resolve(STORAGE_DIR) + path.sep;
+  if (!source.startsWith(root)) throw new TypeError("Source artifact must be inside the managed storage directory");
+  const sourceStat = await fs.stat(source);
+  if (!sourceStat.isFile() || sourceStat.size <= 0) throw new TypeError("Source artifact must be a non-empty regular file");
+  const filename = `project_${assetType}.${ext}`;
+  const filepath = path.join(STORAGE_DIR, filename);
+  await fs.rename(source, filepath);
+  const fileStat = await fs.stat(filepath);
+  const digest = crypto.createHash("sha256");
+  for await (const chunk of createReadStream(filepath)) digest.update(chunk);
+  const sha256 = digest.digest("hex");
+  return queueManifestWrite(async () => {
+    const manifest = await readManifest();
+    if (!Array.isArray(manifest.assets)) manifest.assets = [];
+    if (!Array.isArray(manifest.exports)) manifest.exports = [];
+    const record = { type: assetType, url: `/files/${encodeURIComponent(filename)}`, bytes: fileStat.size, sha256, updatedAt: Date.now() };
+    manifest.exports = [record, ...manifest.exports.filter(entry => entry?.type !== assetType)];
+    const temp = `${PROJECT_FILE}.tmp-${process.pid}-${crypto.randomUUID()}`;
+    await fs.writeFile(temp, JSON.stringify(manifest, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
+    try { await fs.rename(temp, PROJECT_FILE); }
+    catch (error) { await fs.rm(temp, { force: true }).catch(() => {}); throw error; }
+    return record;
+  });
 }
 
 export async function saveProjectAsset(type, buffer, extension) {
