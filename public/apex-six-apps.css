@@ -109,3 +109,27 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
   .apex-shell .card,.apex-shell .panel,.apex-app-index .card{transition:none}
   .apex-app-index .card:hover{transform:none}
 }
+
+
+/* App-level visual hierarchy shared by all six canonical workspaces. */
+.apex-shell>h1{
+  color:var(--apex-ink);
+  background:linear-gradient(105deg,var(--apex-ink) 8%,color-mix(in srgb,var(--apex-accent) 78%,white) 96%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  max-width:100%;text-wrap:balance;
+}
+.apex-shell>header.top+h1,.apex-shell header.top h1{margin-top:18px}
+.apex-shell .card,.apex-shell .panel{box-shadow:0 16px 44px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.018)}
+.apex-shell .card h2,.apex-shell .panel h2{display:flex;align-items:center;gap:9px}
+.apex-shell .card h2::before,.apex-shell .panel h2::before{
+  content:"";display:inline-block;width:3px;height:1em;flex:0 0 3px;border-radius:4px;
+  background:var(--apex-accent);opacity:.9
+}
+.apex-shell .result[role="status"],.apex-shell [role="status"]{overflow-wrap:anywhere}
+.apex-shell :is(button,a,input,select,textarea):focus-visible{outline:3px solid var(--apex-accent);outline-offset:3px}
+.apex-shell a:not(.apex-app-brand){text-underline-offset:3px}
+.apex-shell .apex-app-nav a[aria-current="page"]{color:var(--apex-ink);background:color-mix(in srgb,var(--apex-accent) 15%,transparent);border-color:color-mix(in srgb,var(--apex-accent) 42%,var(--apex-line))}
+@media(max-width:760px){
+  .apex-shell>h1{letter-spacing:-.045em}
+  .apex-shell .card,.apex-shell .panel{border-radius:16px}
+}
