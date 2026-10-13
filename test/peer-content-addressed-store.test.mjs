@@ -32,7 +32,7 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
   for (const id of ids) {
     const store = memoryStore();
     stores.set(id, store);
-    handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024 }));
+    handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024, authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' }));
   }
   const unavailable = new Set();
   const transport = {
@@ -47,7 +47,7 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     stores,
     handlers,
     unavailable,
-    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length) })
+    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
   };
 }
 
@@ -60,7 +60,7 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.equal(result.receipts.every(receipt => receipt.hash === result.hash), true);
   assert.deepEqual(await mesh.client.getObject(result.hash), value);
   assert.equal(mesh.stores.get('peer-a').objects.has(result.hash), true);
-  assert.equal(mesh.stores.get('peer-b').objects.has(result.hash), true);
+  assert.equal(mesh.stores.get('peer-b').objects.has(result.hash), true);\n  assert.equal(JSON.stringify(mesh.stores.get('peer-a').objects.get(result.hash)).includes('manuscript'), false);
 });
 
 test('peer CAS fails closed when the configured replica count cannot be met', async () => {
@@ -82,21 +82,47 @@ test('peer CAS retrieves from a surviving replica when another peer is unavailab
 
 test('peer object handler rejects unauthenticated requests and corrupted content', async () => {
   const store = memoryStore();
-  const handler = createPeerObjectStorageHandler({ store, peerId: 'peer-a' });
+  const handler = createPeerObjectStorageHandler({ store, peerId: 'peer-a', authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' });
   await assert.rejects(
-    handler({ protocol: 'apex.cas.v1', operation: 'object.get', hash: 'a'.repeat(64) }, {}),
+    handler({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'PlanetApeX', hash: 'a'.repeat(64) }, {}),
     /authenticated remote peer identity missing/
   );
   const bytes = Buffer.from('{"tampered":true}', 'utf8');
   await assert.rejects(
-    handler({ protocol: 'apex.cas.v1', operation: 'object.put', hash: '0'.repeat(64), bytesBase64: bytes.toString('base64') }, { remotePeerId: 'writer-peer' }),
+    handler({ protocol: 'apex.cas.v1', operation: 'object.put', namespace: 'PlanetApeX', hash: '0'.repeat(64), bytesBase64: bytes.toString('base64') }, { remotePeerId: 'writer-peer' }),
     /hash mismatch/
   );
 });
 
 test('peer CAS refuses fewer configured peers than the durability policy requires', async () => {
   assert.throws(
-    () => new PeerContentAddressedStore({ transport: { request: async () => ({}) }, peers: ['peer-a'], replicaCount: 2 }),
+    () => new PeerContentAddressedStore({ transport: { request: async () => ({}) }, peers: ['peer-a'], replicaCount: 2, namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) }),
     /insufficient configured peers/
   );
+});
+
+test('peer storage denies cross-app namespace access', async () => {
+  const store = memoryStore();
+  const handler = createPeerObjectStorageHandler({
+    store,
+    peerId: 'peer-a',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'KashKorner', hash: 'a'.repeat(64) }, { remotePeerId: 'writer-peer' }),
+    /namespace access denied/
+  );
+});
+
+test('peer CAS cannot decrypt an object under a different app namespace', async () => {
+  const mesh = makeMesh();
+  const result = await mesh.client.putObject({ secret: 'private' });
+  const otherNamespace = new PeerContentAddressedStore({
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    namespace: 'KernelVision',
+    encryptionKey: Buffer.alloc(32, 7)
+  });
+  await assert.rejects(otherNamespace.getObject(result.hash), error => error.code === 'OBJECT_UNAVAILABLE');
 });
