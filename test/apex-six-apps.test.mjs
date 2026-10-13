@@ -161,3 +161,27 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
   assert.equal(rows[0].record.workerCount, 20);
   assert.equal(rows[0].record.recordType, "simulation");
 });
+
+
+test("all six canonical app surfaces share responsive navigation and accessibility hooks", async () => {
+  const expected = [
+    ["planet-apex", "index.html"],
+    ["ko-blocks", "ko-blocks.html"],
+    ["kernel-vision", "kernel-vision.html"],
+    ["koin-kob", "koin-kob.html"],
+    ["kash-korner", "kash-korner.html"],
+    ["kernelodies", "kernelodies.html"]
+  ];
+  const navTargets = ['href="/"', 'href="/ko-blocks.html"', 'href="/kernel-vision.html"', 'href="/koin-kob.html"', 'href="/kash-korner.html"', 'href="/kernelodies.html"'];
+  const css = await readFile(resolve(process.cwd(), "public/apex-ui.css"), "utf8");
+  assert.match(css, /prefers-reduced-motion/);
+  assert.match(css, /focus-visible/);
+  for (const [app, file] of expected) {
+    const html = await readFile(resolve(process.cwd(), "public", file), "utf8");
+    assert.match(html, new RegExp('<body data-apex-app="' + app + '">'), file + " must identify its canonical app");
+    assert.match(html, /href="\/apex-ui\.css"/, file + " must load shared responsive styles");
+    assert.match(html, /class="apex-universe-nav"/, file + " must show the app switcher");
+    assert.match(html, /class="apex-skip-link"/, file + " must provide keyboard skip navigation");
+    for (const target of navTargets) assert.ok(html.includes(target), file + " missing canonical destination " + target);
+  }
+});
