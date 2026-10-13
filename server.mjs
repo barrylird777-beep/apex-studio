@@ -585,7 +585,7 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-app.get('/api/health', requireControlPlaneAuth, async (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   try {
     res.status(200).json(await buildHealthSnapshot());
   } catch (error) {
