@@ -33,7 +33,7 @@ test("every static app-page button has a corresponding script reference", async 
     for (const tag of buttonTags) {
       const id = tag.match(/\bid=["']([^"']+)["']/i)?.[1];
       if (!id || /onclick=/i.test(tag)) continue;
-      const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escaped = id.replaceAll("-", "\\-");
       const referenced = new RegExp("(?:getElementById|querySelector|querySelectorAll)\\(\\s*['\"]#?" + escaped + "['\"]\\s*\\)|\\$\\(\\s*['\"]" + escaped + "['\"]\\s*\\)|\\[['\"]" + escaped + "['\"]\\]").test(source);
       assert.ok(referenced, app.name + " button #" + id + " has no script reference");
     }
@@ -58,18 +58,18 @@ test("project dashboard reports failed mutations and prevents duplicate submissi
 
 test("main dashboard tabs resolve to real views and network settings refresh is wired", async () => {
   const html = await readPublic("index.html");
-  const buttons = [...html.matchAll(/<button\\b[^>]*data-view=["']([^"']+)["'][^>]*>/gi)];
+  const buttons = [...html.matchAll(/<button\b[^>]*data-view=["']([^"']+)["'][^>]*>/gi)];
   assert.ok(buttons.length >= 15, "main dashboard should expose its existing workspaces");
-  const sectionIds = new Set([...html.matchAll(/<(?:section|div)\\b[^>]*id=["']([^"']+)["']/gi)].map(match => match[1]));
+  const sectionIds = new Set([...html.matchAll(/<(?:section|div)\b[^>]*id=["']([^"']+)["']/gi)].map(match => match[1]));
   for (const match of buttons) {
     const view = match[1];
     assert.ok(sectionIds.has(view), "dashboard tab " + view + " has no matching view container");
-    assert.match(match[0], /onclick=["']view\\(/i, "dashboard tab " + view + " must call the view switcher");
+    assert.match(match[0], /onclick=["']view\(/i, "dashboard tab " + view + " must call the view switcher");
   }
-  assert.match(html, /<h1>Network Settings<\\/h1>/);
-  assert.match(html, /onclick=["']loadNetwork\\(\\)["']/);
-  assert.match(html, /async function loadNetwork\\(\\)/);
-  assert.match(html, /api\\(["']\\/api\\/network\\/status["']\\)/);
+  assert.match(html, /<h1>Network Settings<\/h1>/);
+  assert.match(html, /onclick=["']loadNetwork\(\)["']/);
+  assert.match(html, /async function loadNetwork\(\)/);
+  assert.match(html, /api\(["']\/api\/network\/status["']\)/);
 });
 
 test("React dashboards and utility pages wire every button to an action or form", async () => {
@@ -85,8 +85,8 @@ test("React dashboards and utility pages wire every button to an action or form"
   ];
   for (const path of pages) {
     const source = await readSource(path);
-    const tags = [...source.matchAll(/<(?:Button|button)\\b[^>]*>/g)].map(match => match[0]);
-    const unwired = tags.filter(tag => !/onClick\\s*=|onclick\\s*=|type\\s*=\\s*["']submit["']|disabled\\s*(?:=|\\s|>)/i.test(tag));
+    const tags = [...source.matchAll(/<(?:Button|button)\b[^>]*>/g)].map(match => match[0]);
+    const unwired = tags.filter(tag => !/onClick\s*=|onclick\s*=|type\s*=\s*["']submit["']|disabled\s*(?:=|\s|>)/i.test(tag));
     assert.deepEqual(unwired, [], path + " contains a button without an action, form submit, or intentional disabled state");
   }
 });
