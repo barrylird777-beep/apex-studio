@@ -61,7 +61,7 @@ jobs:
       - name: Verify remote sovereign CAS adapter and non-destructive migration
         run: node --test test/remote-content-addressed-store.test.mjs test/remote-apex-ring-wal.test.mjs test/remote-apex-pure-store.test.mjs test/sovereign-mesh-remote-cas.test.mjs
       - name: Verify six-app identity and handoff contract
-        run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs
+        run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs test/apex-six-app-routes.test.mjs test/planet-apex-world-builder.test.mjs test/kash-korner-opportunities.test.mjs test/opportunity-engine-scan-scheduler.test.mjs
       - name: Verify isolated Pure-WAL app namespaces and dispatch queue
         run: node --test test/sovereign-app-fabric.test.mjs
       - name: Verify Pure-WAL security and peer acknowledgements
