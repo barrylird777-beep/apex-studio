@@ -6,6 +6,8 @@ import {
   createSovereignLlmGateway,
   sanitizeOutboundPayload,
   validateProviderTarget,
+  validateOutboundTarget,
+  createGuardedFetch,
   hashStagedChange,
   validateStagedChange
 } from "../src/security/sovereign-outbound-gateway.mjs";
@@ -82,4 +84,15 @@ test("staged changes require an approved canonical app and matching digest", () 
   assert.equal(validateStagedChange({ value, expectedDigest, approved: true, app: "PlanetApeX", allowedApps: APEX_CANONICAL_APPS }).app, "PlanetApeX");
   assert.throws(() => validateStagedChange({ value, expectedDigest, app: "PlanetApeX", allowedApps: APEX_CANONICAL_APPS }), /approval/);
   assert.throws(() => validateStagedChange({ value, expectedDigest: "sha256:wrong", approved: true, app: "PlanetApeX", allowedApps: APEX_CANONICAL_APPS }), /digest mismatch/);
+});
+
+
+test("central outbound guard rejects unapproved hosts, insecure URLs, and redirects", async () => {
+  assert.equal(validateOutboundTarget("https://api.openai.com/v1/responses", ["api.openai.com"]).hostname, "api.openai.com");
+  assert.throws(() => validateOutboundTarget("http://api.openai.com/v1/responses", ["api.openai.com"]), /HTTPS host allowlist/);
+  assert.throws(() => validateOutboundTarget("https://api.openai.com.attacker.invalid/", ["api.openai.com"]), /HTTPS host allowlist/);
+  const guarded = createGuardedFetch(["api.openai.com"], async (_url, options) => ({ options }));
+  const result = await guarded("https://api.openai.com/v1/responses", { method: "POST" });
+  assert.equal(result.options.redirect, "error");
+  await assert.rejects(() => guarded("https://attacker.invalid/", {}), /HTTPS host allowlist/);
 });
