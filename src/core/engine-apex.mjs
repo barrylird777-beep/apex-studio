@@ -70,7 +70,7 @@ export async function getEngineSnapshot() {
 
   return {
     engine: "EngineApex",
-    system: "apex-studio",
+    system: "kash-korner",
     role: "studio_decision_engine",
     purpose: "opportunity, growth, business and monetization intelligence",
     state: state.channel ? "evidence-backed" : "awaiting-evidence",
@@ -82,15 +82,16 @@ export async function getEngineSnapshot() {
       opportunityId: item.id,
       action: "build-brief",
       handoff: "TeeVee",
-      ownerSystem: "apex-studio",
+      ownerSystem: "kash-korner",
       status: "proposed"
     })),
     separation: {
-      EngineApex: "Studio decision and opportunity intelligence",
-      ApexStudio: "production, mastering, QC, delivery and infrastructure",
-      TeeVee: "Studio production surface for original animated entertainment",
-      GardenOfApex: "knowledge and research source where applicable",
-      KORNKNOB: "AI, model, media and computational capability"
+      KashKorner: "financial, crypto/data and monetization intelligence",
+      KernelVision: "production, mastering, quality control and media delivery",
+      Kernelodies: "music, listening, discovery and audio capabilities",
+      PlanetApeX: "universe, Bible study, research and analytics",
+      XShield: "security, privacy and tracker blocking",
+      KoinKob: "canonical app integration and exchange capabilities"
     },
     generatedAt: new Date().toISOString()
   };
@@ -102,7 +103,7 @@ export function buildEngineBrief(input = {}) {
   return {
     id: randomUUID(),
     engine: "EngineApex",
-    system: "apex-studio",
+    system: "kash-korner",
     topic,
     objective: text(input.objective) || "Test the highest-value opportunity with the smallest credible production.",
     audience: text(input.audience) || "existing Apex audience",
