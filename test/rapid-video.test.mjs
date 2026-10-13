@@ -61,6 +61,8 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(worker, /pipeline: "oracle-to-forge"/);
   assert.match(worker, /new RemoteContentAddressedStore/);
   assert.match(worker, /generateForgeBackground/);
+  assert.match(worker, /APEX_RAPID_ENABLE_POLLINATIONS === "true" \? "pollinations"/);
+  assert.match(worker, /optional image generation failed; using cinematic fallback/);
   assert.ok(worker.includes("black-forest-labs/FLUX.1-dev"));
   assert.ok(worker.includes("SG161222/RealVisXL_V4.0"));
   assert.match(worker, /Sovereign video rendering requires remote CAS/);
