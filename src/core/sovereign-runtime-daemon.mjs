@@ -132,11 +132,12 @@ async function main() {
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   await peerNode.start();
+  // node.start() has resolved; verify that libp2p actually bound a listen address.
+  // The current libp2p node API does not expose an isStarted() method.
   const peerAddresses = peerNode.getMultiaddrs?.() || [];
-  const peerStarted = typeof peerNode.isStarted === 'function' ? peerNode.isStarted() : false;
-  runtimeReadiness.peerReady = peerStarted === true && peerAddresses.length > 0;
+  runtimeReadiness.peerReady = peerAddresses.length > 0;
   if (!runtimeReadiness.peerReady) {
-    throw new Error('libp2p peer did not report started state with at least one listen address');
+    throw new Error('libp2p start resolved without any listen address');
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
   try {
