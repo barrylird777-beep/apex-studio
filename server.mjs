@@ -1746,16 +1746,12 @@ app.get("/api/music-radar/status", async (_req, res) => {
   res.json(await musicRadarBridge.status());
 });
 
-app.post("/api/music-radar/handoff", async (req, res) => {
-  const expected = String(process.env.APEX_SHORTCUT_TOKEN || "");
-  const supplied = String(req.get("x-apex-shortcut-token") || "");
-  if (!expected || !supplied || supplied !== expected) {
-    return res.status(401).json({ ok: false, error: "Music Radar integration authentication failed" });
-  }
+app.post("/api/music-radar/handoff", requireControlPlaneAuth, async (req, res) => {
   try {
     res.json(await musicRadarBridge.handoff(req.body || {}));
-  } catch (error) {
-    res.status(400).json({ ok: false, error: error?.message || String(error) });
+  } catch {
+    // Keep internal provider/storage details out of unauthenticated-facing responses.
+    res.status(400).json({ ok: false, error: "Music Radar handoff request was rejected" });
   }
 });
 
