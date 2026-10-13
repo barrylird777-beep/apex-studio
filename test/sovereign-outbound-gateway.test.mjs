@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -103,6 +104,31 @@ test("staged changes require an approved canonical app and matching digest", () 
   assert.throws(() => validateStagedChange({ value, expectedDigest: "sha256:wrong", approved: true, app: "PlanetApeX", allowedApps: APEX_CANONICAL_APPS }), /digest mismatch/);
 });
 
+
+test("production AI egress entry points use the outbound security gateway", async () => {
+  const files = [
+    ["server.mjs", ["guardedProviderFetch", "sanitizeOutboundPayload", "redirect: 'error'"]],
+    ["routes/bard.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["routes/forge.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["routes/oracle.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["src/jobs/teevee-handlers.mjs", ["teeveeProviderFetch", "sanitizeOutboundPayload"]],
+    ["src/providers/unified-ai-router.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["src/providers/openai-max-router.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["src/providers/grok-router.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["src/core/mesh/gemini-mesh-provider.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["src/core/mesh/claude-mesh-provider.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    ["src/core/apex-web-search.mjs", ["createGuardedFetch"]],
+    ["src/core/music/music-discovery.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]]
+  ];
+  for (const [path, required] of files) {
+    const source = await readFile(new URL("../" + path, import.meta.url), "utf8");
+    for (const marker of required) assert.ok(source.includes(marker), path + " is missing outbound safeguard: " + marker);
+  }
+  for (const path of ["routes/bard.mjs", "routes/forge.mjs", "routes/oracle.mjs"]) {
+    const source = await readFile(new URL("../" + path, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /await\\s+fetch\\s*\\(/, path + " contains an unguarded direct fetch");
+  }
+});
 
 test("central outbound guard rejects unapproved hosts, insecure URLs, and redirects", async () => {
   assert.equal(validateOutboundTarget("https://api.openai.com/v1/responses", ["api.openai.com"]).hostname, "api.openai.com");
