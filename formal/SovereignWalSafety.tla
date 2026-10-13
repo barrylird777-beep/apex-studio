@@ -52,7 +52,7 @@ Crash ==
 Recover ==
   /\ pendingRecord = NoRecord
   /\ head < MaxSeq
-  /\ records[head + 1] # NoRecord
+  /\ records[head + 1] \in Record
   /\ records[head + 1].seq = head + 1
   /\ records[head + 1].prevHash = head
   /\ records[head + 1].hash = head + 1
@@ -99,7 +99,7 @@ TypeOK ==
 
 HeadConsistent ==
   \A i \in 1..head :
-    /\ records[i] # NoRecord
+    /\ records[i] \in Record
     /\ records[i].seq = i
     /\ records[i].prevHash = i - 1
     /\ records[i].hash = i
