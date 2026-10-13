@@ -60,7 +60,7 @@ test("Music Radar handoff delegates to the shared timing-safe control-plane guar
   assert.match(auth, /crypto\.timingSafeEqual\(left, right\)/);
   assert.match(server, /app\.use\(['"]\/api\/relay['"],\s*requireControlPlaneAuth,\s*createRelayRouter\(/);
   assert.match(server, /app\.use\(['"]\/api\/studio\/audio['"],\s*requireControlPlaneAuth,\s*createAudioStationRouter\(/);
-  const routeStart = server.indexOf('app.post("/api/music-radar/handoff"');
+  const routeStart = server.search(/app\\.post\\([\'"]\\/api\\/music-radar\\/handoff[\'"]/);
   assert.notEqual(routeStart, -1);
   const routeEnd = server.indexOf("\n});", routeStart);
   assert.ok(routeEnd > routeStart);
