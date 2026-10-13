@@ -55,13 +55,17 @@ import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } fro
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
+import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
+const productionMode = process.env.NODE_ENV === 'production';
+const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase() === 'true';
 
 app.disable('x-powered-by');
+app.use(createApexSecurityHeaders({ production: productionMode }));
 // Serve same-origin bundled runtime assets before the API CORS gate.
 // Browser module imports use CORS mode even for same-origin URLs; do not reject our own static assets.
 app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor')));
@@ -73,12 +77,14 @@ const corsOrigins = String(process.env.APEX_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
   .filter(Boolean);
-const allowAllCors = String(process.env.APEX_ALLOW_ALL_CORS || '').toLowerCase() === 'true'
-  || process.env.NODE_ENV !== 'production';
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowAllCors || corsOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('CORS origin not allowed'));
+    return callback(null, isCorsOriginAllowed({
+      origin,
+      allowedOrigins: corsOrigins,
+      production: productionMode,
+      allowAllCors
+    }));
   },
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Apex-Control-Token', 'X-Apex-Shortcut-Token', 'X-Apex-Client-Id', 'X-Apex-Worker-Token'],

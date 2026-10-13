@@ -1,15 +1,21 @@
-const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.APEX_AI_MAX_MESSAGES || 50)));
-const MAX_CHARS = Math.max(1000, Number(process.env.APEX_AI_MAX_PROMPT_CHARS || 50000));
+const boundedNumber = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+};
+const MAX_MESSAGES = boundedNumber(process.env.APEX_AI_MAX_MESSAGES, 20, 1, 50);
+const MAX_CHARS = boundedNumber(process.env.APEX_AI_MAX_PROMPT_CHARS, 30000, 1000, 50000);
+const MAX_TOTAL_MESSAGE_CHARS = MAX_CHARS;
+const MAX_SYSTEM_CHARS = 10000;
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_AI_PROVIDERS = new Set(['openrouter']);
 if (String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED ?? '').toLowerCase() === 'true') {
   FREE_AI_PROVIDERS.add('google');
 }
-const FREE_AI_MAX_CONCURRENCY = Math.max(1, Number(process.env.APEX_FREE_AI_MAX_CONCURRENCY || 64));
+const FREE_AI_MAX_CONCURRENCY = boundedNumber(process.env.APEX_FREE_AI_MAX_CONCURRENCY, 8, 1, 16);
 let freeAiInFlight = 0;
 const freeAiWaiters = [];
 async function acquireFreeAiSlot() {
-  if (!FREE_MODE || freeAiInFlight < FREE_AI_MAX_CONCURRENCY) { freeAiInFlight += 1; return; }
+  if (freeAiInFlight < FREE_AI_MAX_CONCURRENCY) { freeAiInFlight += 1; return; }
   await new Promise(resolve => freeAiWaiters.push(resolve));
   freeAiInFlight += 1;
 }
@@ -42,20 +48,37 @@ function providerOf(id) {
   return p;
 }
 
-function messagesOf({ prompt, messages, system }) {
+export function messagesOf({ prompt, messages, system }) {
   if (Array.isArray(messages) && messages.length) {
     if (messages.length > MAX_MESSAGES) throw new Error(`Too many messages; maximum is ${MAX_MESSAGES}`);
-    return messages.map(m => {
+    let totalChars = 0;
+    const normalized = messages.map(m => {
       const role = String(m?.role || '');
-      const content = String(m?.content || '').trim();
-      if (!['system','developer','user','assistant','tool'].includes(role) || !content || content.length > MAX_CHARS) throw new Error('invalid message');
+      const content = typeof m?.content === 'string' ? m.content.trim() : '';
+      // Callers may provide conversation turns, but cannot impersonate trusted instructions or tool output.
+      if (!['user', 'assistant'].includes(role) || !content || content.length > MAX_CHARS) {
+        throw new Error('invalid message role or content');
+      }
+      totalChars += content.length;
+      if (totalChars > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
       return { role, content };
     });
+    const callerContext = String(system || '').trim();
+    if (callerContext.length > MAX_SYSTEM_CHARS) throw new Error('additional context exceeds configured maximum');
+    if (callerContext) {
+      totalChars += callerContext.length;
+      if (totalChars > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
+      normalized.unshift({ role: 'user', content: callerContext });
+    }
+    return normalized;
   }
   const text = String(prompt || '').trim();
   if (!text) throw new Error('prompt is required');
   if (text.length > MAX_CHARS) throw new Error('prompt exceeds configured maximum');
-  return [{ role: 'system', content: String(system || '').trim() }, { role: 'user', content: text }].filter(x => x.content);
+  const callerContext = String(system || '').trim();
+  if (callerContext.length > MAX_SYSTEM_CHARS) throw new Error('additional context exceeds configured maximum');
+  if (text.length + callerContext.length > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
+  return [...(callerContext ? [{ role: 'user', content: callerContext }] : []), { role: 'user', content: text }];
 }
 
 function enforceFreeAiBudget(provider) {
@@ -102,7 +125,7 @@ async function gemini({ model, messages, temperature, maxTokens }) {
   if (!key) throw new Error('GEMINI_API_KEY is not configured');
   const system = messages.filter(m => m.role === 'system' || m.role === 'developer').map(m => m.content).join('\n');
   const contents = messages.filter(m => m.role !== 'system' && m.role !== 'developer').map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-  const data = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {}, {
+  const data = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { "x-goog-api-key": key }, {
     ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
     contents,
     generationConfig: { ...(temperature == null ? {} : { temperature }), ...(maxTokens ? { maxOutputTokens: Number(maxTokens) } : {}) }
@@ -149,18 +172,21 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
   if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
   const normalized = messagesOf({ prompt, messages, system });
   const selectedModel = String(model || process.env[p.modelEnv] || p.defaultModel).trim();
+  const requestedMaxTokens = maxTokens ?? max_tokens;
+  const outputTokenLimit = requestedMaxTokens == null ? undefined : boundedNumber(requestedMaxTokens, 1024, 1, 8192);
+  const requestedTemperature = temperature == null ? undefined : boundedNumber(temperature, 0.7, 0, 2);
   let result;
   if (p.id === 'pollinations') result = await pollinations({ model: selectedModel, messages: normalized });
-  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
-  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
+  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
+  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'cohere') result = await cohere({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
-  else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
+  else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'openai') {
     const { generateMax } = await import('./openai-max-router.mjs');
-    result = await generateMax({ prompt, messages, system, model: selectedModel });
+    result = await generateMax({ messages: normalized, model: selectedModel });
   } else if (p.id === 'xai') {
     const { generateGrok } = await import('./grok-router.mjs');
-    result = await generateGrok({ prompt, messages, system, model: selectedModel });
+    result = await generateGrok({ messages: normalized, model: selectedModel });
   } else throw new Error('provider protocol not implemented');
   return { provider: p.id, category: p.category, freeMode: FREE_MODE, ...result };
   } finally { releaseFreeAiSlot(); }
