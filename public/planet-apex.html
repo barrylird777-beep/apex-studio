@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080d12">
-<meta name="description" content="Kornworld — a cinematic planetary simulation within PlanetApeX.">
-<title>Kornworld — Planetary Simulation</title>
-<!-- PLANETAPEX OBSERVATORY REDESIGN -->
+<meta name="description" content="PlanetApeX — Bible study, research, analytics, and the GardenApeX living universe.">
+<title>PlanetApeX — Universe, Scripture & Research</title>
+<!-- PlanetApeX canonical interface; rejected Kornworld redesign removed. -->
 <link rel="stylesheet" href="/apex-six-apps.css">
 <link rel="stylesheet" href="/apex-ui-controls.css">
 <script src="/apex-six-apps.js" defer></script>
@@ -326,48 +326,7 @@ main.apex-shell{width:100%;max-width:none;padding:0 0 24px!important}
 </nav>
 <script src="/api-auth-bridge.js"></script>
 <main class="apex-shell" data-apex-app="planetapex" aria-label="PlanetApeX study and research" id="apex-main" tabindex="-1">
-<header class="kw-command" aria-label="Kornworld planetary simulation">
-  <div class="kw-topbar">
-    <a class="kw-brand" href="#kornworld-top" aria-label="Kornworld home"><span class="kw-brand-mark">K</span><span>KORNWORLD<small>PLANETARY SIMULATION</small></span></a>
-    <div class="kw-live"><i></i> LIVE SIMULATION <span>EARTH / 01</span></div>
-    <a class="kw-top-link" href="#analytics">SYSTEM INTELLIGENCE <span>↗</span></a>
-  </div>
-  <div class="kw-dashboard" id="kornworld-top">
-    <aside class="kw-left-rail" aria-label="Planetary metrics">
-      <div class="kw-panel kw-population"><div class="kw-panel-label"><span>01 / BIOSPHERE</span><i></i></div><div class="kw-panel-title">POPULATION</div><div class="kw-value" id="kw-population">08.42<span>M</span></div><div class="kw-panel-foot"><span class="kw-up">↗ 0.018%</span><span>SIMULATED</span></div><div class="kw-spark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-      <div class="kw-panel kw-atmos"><div class="kw-panel-label"><span>02 / CLIMATE SYSTEM</span><span>LIVE</span></div><div class="kw-panel-title">ATMOSPHERIC STABILITY</div><div class="kw-gauge-wrap"><svg class="kw-gauge" viewBox="0 0 120 120" role="img" aria-label="Atmospheric stability 98.6 percent"><circle class="kw-gauge-track" cx="60" cy="60" r="48"/><circle class="kw-gauge-progress" cx="60" cy="60" r="48"/><circle class="kw-gauge-inner" cx="60" cy="60" r="37"/></svg><div class="kw-gauge-center"><strong>98.6<small>%</small></strong><span>NOMINAL</span></div></div><div class="kw-panel-foot"><span>PRESSURE</span><b>101.3 kPa</b></div><div class="kw-panel-foot"><span>CO₂ LEVEL</span><b>421 ppm</b></div></div>
-      <div class="kw-panel kw-lifespan"><div class="kw-panel-label"><span>03 / DEMOGRAPHICS</span><span>↗</span></div><div class="kw-panel-title">AVERAGE LIFESPAN</div><div class="kw-value">84.7<span> YRS</span></div><div class="kw-life-track"><i></i></div><div class="kw-panel-foot"><span>+1.2 YEARS</span><span>OVER SIM. CYCLE</span></div></div>
-    </aside>
-    <section class="kw-planet-stage" aria-label="Earth from space, North America focus">
-      <div class="kw-scene-head"><span><i></i> PLANETARY VIEW / NORTH AMERICA</span><span>CAM 01 <b>·</b> 24 FPS</span></div>
-      <div class="kw-earth-wrap">
-        <div class="kw-earth-halo"></div><div class="kw-orbit kw-orbit-one"></div><div class="kw-orbit kw-orbit-two"></div>
-        <img class="kw-earth-photo" src="https://d2pn8kiwq2w21t.cloudfront.net/original_images/jpegPIA18033.jpg" alt="NASA Blue Marble view of Earth centered on North America" fetchpriority="high"><div class="kw-settlement kw-settle-one"></div><div class="kw-settlement kw-settle-two"></div><div class="kw-settlement kw-settle-three"></div><div class="kw-settlement kw-settle-four"></div><div class="kw-settlement kw-settle-five"></div>
-        <div class="kw-sun-flare"></div>
-        <div class="kw-map-label kw-label-na"><i></i><span>NORTH AMERICA<small>AGRICULTURAL ZONE / 04</small></span></div>
-        <div class="kw-map-label kw-label-gulf"><i></i><span>GULF SETTLEMENT<small>BIOME STABLE</small></span></div>
-        <div class="kw-target" aria-label="Selected biometric subject location"><span></span><i></i><b></b></div>
-        <svg class="kw-link-line" viewBox="0 0 600 500" preserveAspectRatio="none" aria-hidden="true"><path d="M310 220 C390 205 445 180 520 145"/></svg>
-        <div class="kw-map-coords">37° 14′ N <span>/</span> 96° 48′ W <small>ILLUSTRATIVE SIMULATION COORDINATES</small></div><button type="button" id="pa-world-enter" class="kw-enter-world">ENTER GARDENAPEX <span>↗</span></button>
-        <div class="kw-scale"><span>0</span><i></i><span>500 KM</span></div>
-      </div>
-      <div class="kw-scene-foot"><span><i></i> PLANETARY SYSTEM NOMINAL</span><span>GOLDEN-HOUR ORBITAL LIGHT <b>·</b> SIM DATA</span></div>
-    </section>
-    <aside class="kw-bio-panel" id="kw-bio-panel" aria-label="Live biometric feed">
-      <div class="kw-bio-head"><span>LIVE BIOMETRIC FEED</span><i><b></b> SUBJECT CONNECTED</i></div>
-      <div class="kw-subject-id"><span>SUBJECT ID</span><strong>KR-00842</strong><span class="kw-confidence">SYNC 99.2%</span></div>
-      <div class="kw-corn-portrait" role="img" aria-label="Detailed simulated Korn humanoid with golden kernel-textured skin and layered green husk clothing"><div class="kw-portrait-backlight"></div><div class="kw-portrait-shoulders"></div><div class="kw-husk husk-left"></div><div class="kw-husk husk-right"></div><div class="kw-neck"></div><div class="kw-head"><div class="kw-kernel-skin"></div><div class="kw-ear kw-ear-left"></div><div class="kw-ear kw-ear-right"></div><div class="kw-eye kw-eye-left"></div><div class="kw-eye kw-eye-right"></div><div class="kw-nose"></div><div class="kw-mouth"></div><div class="kw-kernel-highlight"></div></div><div class="kw-portrait-scan"></div><span class="kw-portrait-caption">KORN / ADULT / ZONE 04</span></div>
-      <div class="kw-subject-name"><strong>KAEL</strong><span>AGRICULTURAL STEWARD <i></i></span></div>
-      <div class="kw-vitals">
-        <div class="kw-vital"><span><i class="kw-vital-heart">♥</i> HEART RATE</span><strong id="kw-heart">72 <small>BPM</small></strong><div class="kw-vital-track"><i style="width:48%"></i></div></div>
-        <div class="kw-vital"><span><i class="kw-vital-breath">≈</i> RESPIRATION</span><strong id="kw-respiration">14 <small>BR/MIN</small></strong><div class="kw-vital-track"><i style="width:36%"></i></div></div>
-        <div class="kw-vital"><span><i class="kw-vital-drop">◇</i> HYDRATION</span><strong id="kw-hydration">68 <small>%</small></strong><div class="kw-vital-track"><i style="width:68%"></i></div></div>
-      </div>
-      <div class="kw-bio-foot"><span>LAST SYNC</span><strong id="kw-sync-time">JUST NOW</strong><span class="kw-encrypted">◈ ENCRYPTED SIM FEED</span></div>
-    </aside>
-  </div>
-  <div class="kw-bottom-meta"><span><b>WORLD STATE</b> SIMULATED / NOT LIVE EARTH TELEMETRY</span><span>ORBITAL OBSERVATION SYSTEM <i></i> READY</span></div>
-</header>
+
 <nav class="kw-bottom-nav" aria-label="Kornworld navigation">
   <a href="#kornworld-top" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7h14M5 17h14"/></svg><span>PLANET VIEW</span></a>
   <a href="#kw-bio-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2M3 5l2-2M21 5l-2-2"/></svg><span>INDIVIDUAL MONITOR</span></a>
