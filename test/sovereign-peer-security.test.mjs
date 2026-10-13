@@ -333,7 +333,7 @@ test("BFT quorum rejects forged votes and quarantines authenticated equivocation
 
 test("peer security guard rejects replayed message IDs and throttles noisy peers", () => {
   let now = 1000;
-  const guard = createPeerSecurityGuard({ now: () => now, windowMs: 60_000, limit: 2, replayTtlMs: 10_000 });
+  const guard = createPeerSecurityGuard({ now: () => now, windowMs: 60_000, limit: 3, replayTtlMs: 10_000 });
   const first = { type: "replica.write", messageId: "message-0001" };
   assert.equal(guard.admit("peer-a", first).allowed, true);
   assert.equal(guard.admit("peer-a", first).reason, "replayed message rejected");
