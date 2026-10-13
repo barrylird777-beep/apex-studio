@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { deserialize, serialize } from 'node:v8';
+import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
@@ -37,7 +37,7 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
       throw new TypeError('minFailureDomains must be between one and replicaCount');
     }
-    if (this.minFailureDomains >= 1) {
+    if (this.minFailureDomains > 1) {
       for (const peerId of this.peers) {
         if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains > 1');
       }
@@ -50,7 +50,7 @@ export class PeerContentAddressedStore {
   encrypt(value) {
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    const plaintext = serialize(value);
+    const plaintext = encodeCanonical(value);
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     return {
       version: 1,
@@ -74,7 +74,7 @@ export class PeerContentAddressedStore {
     const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    return deserialize(plaintext);
+    return decodeCanonical(plaintext);
   }
 
   async request(peerId, request) {
@@ -86,7 +86,7 @@ export class PeerContentAddressedStore {
   }
 
   async putObject(value) {
-    const bytes = serialize(this.encrypt(value));
+    const bytes = encodeCanonical(this.encrypt(value));
     if (bytes.length > this.maxObjectBytes) {
       const error = new Error('encrypted object exceeds the safe single-envelope limit; chunking is required');
       error.code = 'OBJECT_TOO_LARGE_REQUIRES_CHUNKING';
@@ -338,7 +338,7 @@ export function createPeerObjectStorageHandler({
       if (sha256(bytes) !== envelope.hash) throw new Error('peer object write hash mismatch');
       let value;
       try { value = decodeCanonical(bytes); }
-      catch { throw new Error('peer object payload is not a valid binary-serialized envelope'); }
+      catch { throw new Error('peer object payload is not a valid CBOR envelope'); }
       if (value?.namespace !== envelope.namespace || value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
         throw new Error('peer object must be a correctly namespaced encrypted envelope');
       }
@@ -353,7 +353,7 @@ export function createPeerObjectStorageHandler({
     if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
     const bytes = Buffer.from(await store.getBytes(envelope.hash));
     let value;
-    try { value = decodeCanonical(bytes); } catch { throw new Error('persistent peer object is not a valid binary envelope'); }
+    try { value = decodeCanonical(bytes); } catch { throw new Error('persistent peer object is not valid canonical CBOR'); }
     if (sha256(bytes) !== envelope.hash || value?.namespace !== envelope.namespace ||
         value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
       throw new Error('persistent peer object failed integrity or namespace verification');
