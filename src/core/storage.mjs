@@ -263,6 +263,7 @@ export { STORAGE_DIR, PROJECT_FILE };
 
 
 export async function downloadUrlAssetToStorage(url, episodeId, assetName, options = {}) {
+  if (PEER_MODE_REQUIRED) throw Object.assign(new Error("Peer-only mode rejects URL-to-filesystem downloads; stream the bytes into peer media storage"), { code: "LOCAL_STORAGE_FORBIDDEN" });
   const { downloadHttpAsset } = await import('../network/http-range-transfer.mjs');
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
@@ -288,6 +289,7 @@ export async function downloadUrlAssetToStorage(url, episodeId, assetName, optio
 }
 
 export async function streamAssetToStorage(readableStream, episodeId, assetName, options = {}) {
+  if (PEER_MODE_REQUIRED) throw Object.assign(new Error("Peer-only mode rejects filesystem stream sinks; stream the bytes into peer media storage"), { code: "LOCAL_STORAGE_FORBIDDEN" });
   if (!readableStream || typeof readableStream.pipe !== 'function') throw new TypeError('readableStream must be a readable stream');
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
