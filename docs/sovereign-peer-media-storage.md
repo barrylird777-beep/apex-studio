@@ -27,7 +27,7 @@ The backend module must return an object implementing:
 - `readRef(namespace, key)`
 - `writeRef(namespace, key, expectedHash, hash, bytes)`
 
-It must also explicitly declare `durable: true` and `ownership: 'peer-owned'`. The built-in network-only adapter stores no bytes locally and refuses to start unless its upstream returns a verified durable-capacity receipt. Object writes must verify SHA-256; reference writes must provide atomic compare-and-swap semantics; data must remain recoverable after a process restart; and app namespaces must remain isolated. A RAM map, local filesystem fallback, or third-party hosted object bucket does not meet this contract.
+It must also explicitly declare `durable: true`, `ownership: 'peer-owned'`, and `recoveryVerified: true`; the last flag may be set only after an actual process-restart recovery test. The built-in network-only adapter stores no bytes locally and refuses to start unless its upstream returns a verified durable-capacity receipt including restart/recovery verification. Object writes must verify SHA-256; reference writes must provide atomic compare-and-swap semantics; data must remain recoverable after a process restart; and app namespaces must remain isolated. A RAM map, local filesystem fallback, or third-party hosted object bucket does not meet this contract.
 
 **Scope boundary:** this integration routes project/scene assets through peer storage and blocks local `/files` reads in peer mode. It does not yet migrate every legacy render, export, or broadcast workflow; those must be ported before enabling peer mode across a production app.
 
