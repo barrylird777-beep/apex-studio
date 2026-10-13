@@ -12,13 +12,27 @@ This is an **optional alternate edge endpoint**, not a change to the canonical R
 
 The browser-to-Cloudflare connection can negotiate HTTP/3/QUIC if Cloudflare serves HTTP/3 for the assigned `workers.dev` hostname and the client network supports UDP/QUIC. The Worker-to-Railway hop remains HTTPS; it does not turn Railway's edge into HTTP/3.
 
-## Deploy (no paid plan intended)
+## Deploy without a paid plan
 
-1. Sign in to a Cloudflare account and confirm the Workers Free plan is available.
-2. From this directory, use Wrangler: `npx wrangler deploy`.
-3. Open the resulting `*.workers.dev` URL over HTTPS.
-4. Verify negotiation from a client with HTTP/3 support, for example: `curl --http3-only -I https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/`. A successful HTTP response and reported HTTP/3 version are required; a DNS/QUIC failure is not proof of HTTP/3.
-5. Check app login, API calls, uploads, redirects, and streaming on the alternate hostname before considering any broader rollout.
+**Phone-friendly path using GitHub Actions:**
+
+1. Sign in to Cloudflare and confirm Workers Free is available.
+2. In Cloudflare, create an API token with only the permissions needed to deploy Workers, and copy the account ID.
+3. In the GitHub repository settings, add Actions secrets named `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Never put either value in source code, issues, or chat.
+4. After this PR is merged, open **Actions → Deploy optional APEX HTTP/3 edge → Run workflow**.
+5. Open the resulting `*.workers.dev` URL from the workflow output or Cloudflare dashboard.
+
+Alternative CLI path from this directory: `npx wrangler deploy`.
+
+## Verify the actual protocol
+
+From an HTTP/3-capable client, run:
+
+```sh
+curl --http3-only -I https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/
+```
+
+A successful HTTP response with HTTP/3 negotiated is required. A DNS/QUIC failure is not proof of HTTP/3. Then check app login, API calls, uploads, redirects, and streaming on the alternate hostname before considering any broader rollout.
 
 ## Important limits
 
