@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#080b12">
-<meta name="description" content="Production and media studio for cinematic projects, scenes, editing, mastering, and media workflows.">
+<meta name="description" content="KernelVision is the production studio and home of the 24/7 original entertainment stream.">
 <title>KernelVision · APEX ANCHOR</title>
 <style>
 :root{color-scheme:dark;--bg:#080b12;--panel:#111827;--panel2:#0c1220;--line:#27364a;--ink:#f2f6ff;--muted:#aab7cb;--blue:#8abaff;--violet:#b9a0ff;--ok:#9ce7c4;--warn:#ffd38b}
@@ -12,10 +12,16 @@
 <link rel="stylesheet" href="/apex-six-apps.css">
 </head>
 <body><a class="apex-skip-link" href="#apex-main">Skip to KernelVision content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" aria-current="page" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="kernelvision" id="apex-main" tabindex="-1">
-<header class="top"><div class="eyebrow">APEX CANONICAL APP · THE EYES</div><div class="pill">KernelVision Theatre · Kornmax</div></header>
+<header class="top"><div class="eyebrow">APEX CANONICAL APP · THE EYES</div><div class="pill">24/7 Original Entertainment Stream</div></header>
 <h1>Make the story real.</h1>
-<p class="lead">Create production handoffs, keep theatre sessions in sovereign storage, and play actual media URLs. A queued handoff is not proof that a finished render exists.</p>
+<p class="lead">KernelVision owns production and the continuous entertainment network. Build original media, prepare episodes, and track real network status. Theatre and Kornmax remain playback experiences—not separate apps or the product identity. A queued handoff is not proof that a finished render exists.</p>
 <div class="grid">
+<section class="card wide">
+<h2>24/7 original entertainment network</h2>
+<p class="muted">TeeVee is the historical network surface now owned by KernelVision. This panel reports the available runtime contract; it does not pretend that a live stream is on-air without evidence.</p>
+<div id="network-status" class="result">Checking network runtime…</div>
+<p class="links"><a href="/teevee.html">Open network status</a> · <a href="/teevee-buyer.html">Network overview</a></p>
+</section>
 <section class="card">
 <h2>Theatre playback</h2>
 <p class="muted">Save a viewing session and return to it later from any signed-in browser session.</p>
@@ -52,5 +58,6 @@ function openSavedSession(session){const url=session.item?.mediaUrl||"";if(url){
 $("open").onclick=async()=>{const button=$("open");button.disabled=true;try{const title=$("title").value.trim()||"Finished Work",mediaUrl=$("url").value.trim();if(mediaUrl&&!/^https?:\/\//i.test(mediaUrl))throw new Error("Media URL must use HTTP or HTTPS.");const data=await json("/api/kernel-vision/sessions",{method:"POST",headers:headers(),body:JSON.stringify({title,mediaUrl,kind:"finished-work",status:mediaUrl?"ready":"placeholder",mode:"cinematic"})});openSavedSession(data.session);await loadSessions()}catch(error){$("session").textContent="Session save failed: "+error.message}finally{button.disabled=false}};
 $("produce").onclick=async()=>{const button=$("produce");button.disabled=true;try{const data=await json("/api/mobile/production/episode",{method:"POST",headers:headers(),body:JSON.stringify({book:$("book").value.trim(),chapter:Number($("chapter").value),verses:$("verses").value.trim()||"full",contentDomain:$("domain").value})});$("production-result").textContent=JSON.stringify({queued:true,warning:"This is a production handoff, not confirmation of a finished render.",result:data},null,2)}catch(error){$("production-result").textContent="Handoff failed: "+error.message}finally{button.disabled=false}};
 async function status(){try{$("status").textContent=JSON.stringify(await json("/api/canon/apps/kernel-vision/status"),null,2)}catch(error){$("status").textContent="Runtime unavailable: "+error.message}}
-status();loadSessions();
+async function networkStatus(){try{const data=await json("/api/apex/apps/teevee/status");$("network-status").textContent=JSON.stringify({canonicalOwner:"KernelVision",historicalSurface:"TeeVee",runtime:data},null,2)}catch(error){$("network-status").textContent="Network status unavailable: "+error.message}}
+status();networkStatus();loadSessions();
 </script></body></html>
