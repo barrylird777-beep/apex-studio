@@ -6,7 +6,6 @@ import { readFile } from "node:fs/promises";
 const PUBLIC_BY_DESIGN = new Map([
   ["/health", "Platform liveness probe; no private state."],
   ["/ready", "Platform readiness probe; no secrets or user data."],
-  ["/api/health", "Public basic health signal only."],
   ["/api/apex/readiness", "Public readiness signal only; must not expose secrets."],
   ["/api/search", "Public search entry point; rate-limited in its handler."],
   ["/api/teevee/buyer", "Public catalog metadata only; no private state or account data."],
