@@ -137,6 +137,76 @@ export class PeerContentAddressedStore {
     };
   }
 
+  async repairObject(hash, targetPeerIds = []) {
+    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+    const targets = [...new Set(targetPeerIds.map(String).filter(Boolean))];
+    if (targets.length === 0) throw new Error('at least one explicit repair target is required');
+    for (const peerId of targets) {
+      if (!this.peers.includes(peerId)) throw new Error('repair target is not in the configured peer allowlist');
+    }
+
+    let sourceBytes;
+    let sourcePeerId = '';
+    const sourceFailures = [];
+    for (const peerId of this.peers) {
+      if (targets.includes(peerId)) continue;
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1',
+          operation: 'object.get',
+          namespace: this.namespace,
+          hash
+        });
+        const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
+        if (response.hash !== hash || response.namespace !== this.namespace ||
+            bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
+          throw new Error('repair source failed object hash or namespace verification');
+        }
+        const envelope = JSON.parse(bytes.toString('utf8'));
+        this.decrypt(envelope);
+        sourceBytes = bytes;
+        sourcePeerId = peerId;
+        break;
+      } catch (error) {
+        sourceFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (!sourceBytes) {
+      const error = new Error('no healthy authorized peer could provide the object for repair');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.failures = sourceFailures;
+      throw error;
+    }
+
+    const repaired = [];
+    const failures = [];
+    for (const peerId of targets) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1',
+          operation: 'object.put',
+          namespace: this.namespace,
+          hash,
+          bytesBase64: sourceBytes.toString('base64')
+        });
+        if (response.hash !== hash || response.bytes !== sourceBytes.length || response.namespace !== this.namespace) {
+          throw new Error('repair target returned an invalid durability receipt');
+        }
+        repaired.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (failures.length) {
+      const error = new Error('object repair did not reach every requested target');
+      error.code = 'REPAIR_INCOMPLETE';
+      error.repaired = repaired;
+      error.failures = failures;
+      throw error;
+    }
+    return { hash, namespace: this.namespace, sourcePeerId, repaired };
+  }
+
   async putBlob(input, { chunkSize = 8 * 1024 } = {}) {
     const blob = Buffer.from(input);
     const size = Number(chunkSize);
