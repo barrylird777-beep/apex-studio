@@ -212,9 +212,15 @@ export class ApexPureStore {
     if(this.remoteQueueIndexPromise&&!force)return this.remoteQueueIndexPromise;
     this.remoteQueueIndexPromise=(async()=>{
       const markerKey="job-index-v3";
-      // Reconcile the queue indexes from durable job records on each process's
-      // first queue use. A prior marker cannot prove the previous process did
-      // not crash between writing a job and updating its queue index.
+      // The current writer maintains queue/running indexes before committing
+      // the corresponding job state, so ordinary process startup does not need
+      // to serialize a full jobs-namespace scan. Explicit force=true remains
+      // available for repairing legacy index gaps.
+      const existingMarker=await this.cas.readRef("system",markerKey);
+      if(!force&&Number(existingMarker?.value?.version)>=2){
+        this.remoteQueueIndexReady=true;
+        return {ready:true,indexed:0,version:Number(existingMarker.value.version),reconciled:false};
+      }
       const result=await this.withRemoteLock("job-index-v3-migration-lock",async()=>{
         const marker=await this.cas.readRef("system",markerKey);
         let indexed=0;
