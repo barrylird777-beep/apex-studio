@@ -1,4 +1,7 @@
 import { acquireAiRateLimit } from "./durable-worker-store.mjs";
+import { createGuardedFetch, sanitizeOutboundPayload } from "../../security/sovereign-outbound-gateway.mjs";
+
+const outboundFetch = createGuardedFetch(["generativelanguage.googleapis.com"]);
 
 export class GeminiMeshProvider {
   constructor() {
@@ -8,7 +11,7 @@ export class GeminiMeshProvider {
   }
 
   async generate(prompt, options = {}) {
-  if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Gemini');
+    if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Gemini');
     if (!this.apiKey) throw new Error('Gemini not configured');
     const model = options.model || this.model;
     const rateLimit = await acquireAiRateLimit({
@@ -16,12 +19,14 @@ export class GeminiMeshProvider {
       refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (10 / 60))
     });
     if (!rateLimit) throw new Error('Gemini shared rate limit reached; retry later');
+    const safeInput = sanitizeOutboundPayload({ prompt: String(prompt), system: options.system == null ? '' : String(options.system) });
     const body = {
       generationConfig: { thinkingConfig: { thinkingLevel: options.thinkingLevel || process.env.GEMINI_THINKING_LEVEL || 'high' }, maxOutputTokens: Number(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS || 65536) },
-      contents: [{ role: 'user', parts: [{ text: String(prompt) }] }]
+      contents: [{ role: 'user', parts: [{ text: safeInput.prompt }] }]
     };
-    if (options.system) body.systemInstruction = { parts: [{ text: String(options.system) }] };
-    const response = await fetch(`${this.endpoint}/${encodeURIComponent(model)}:generateContent`, {
+    if (safeInput.system) body.systemInstruction = { parts: [{ text: safeInput.system }] };
+    const target = `${this.endpoint}/${encodeURIComponent(model)}:generateContent`;
+    const response = await outboundFetch(target, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
       body: JSON.stringify(body)
