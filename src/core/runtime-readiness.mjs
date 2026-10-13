@@ -8,15 +8,14 @@ export function isSovereignRuntimeReady(identity, now = Date.now(), expectedInst
     && Number(identity?.leaseExpiresAt || 0) > now
     && readiness?.storageReady === true
     && readiness?.peerReady === true
-    && readiness?.remoteWalVerified === true
+    && readiness?.remotePersistenceVerified === true
     && readiness?.dispatchReady === true
-    && /^[0-9a-f]{64}$/i.test(String(readiness?.remoteWalHash || ""));
+    && /^[0-9a-f]{64}$/i.test(String(readiness?.remotePersistenceHash || ""));
 }
 
-export function verifyRemoteWalProbe(record, snapshot) {
-  if (!record || !Number.isSafeInteger(record.seq) || record.seq < 1) return false;
-  if (!/^[0-9a-f]{64}$/i.test(String(record.hash || ""))) return false;
-  if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < record.seq) return false;
-  return Array.isArray(snapshot.ring)
-    && snapshot.ring.some(item => item?.seq === record.seq && item?.hash === record.hash);
+export function verifyRemotePersistenceProbe(probe, readback) {
+  if (!probe || typeof probe.nonce !== "string" || !probe.nonce) return false;
+  if (!readback || !readback.value || readback.value.nonce !== probe.nonce) return false;
+  if (readback.value.version !== probe.version || readback.value.peerId !== probe.peerId) return false;
+  return /^[0-9a-f]{64}$/i.test(String(readback.hash || ""));
 }
