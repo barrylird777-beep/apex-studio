@@ -21,6 +21,7 @@ body{margin:0;background:#080a0f;color:#f2f4f7;font:16px/1.5 system-ui,sans-seri
 <script>
 async function load(){
  const r=await fetch("/api/apex/apps/paypex/status"); const d=await r.json();
+ d.canonicalOwner="KashKorner"; d.legacySurface="PayPex";
  document.getElementById("status").textContent=JSON.stringify(d,null,2);
 }
 document.getElementById("build").onclick=async()=>{
