@@ -8,7 +8,7 @@ Set these only on a deployment that is meant to host a storage peer:
 
 - `APEX_STORAGE_MODE=peer` (or `APEX_PEER_STORAGE_ENABLED=true`)
 - `APEX_APP_ID` to exactly one of `KernelVision`, `XShield`, `Kernelodies`, `PlanetApeX`, `KashKorner`, `KoinKob`
-- `APEX_PEER_STORAGE_BACKEND_MODULE` to a trusted module exporting `createPeerStorageBackend({ peerId, peerNode, env })`. For a network-only forwarding peer, use `./src/core/peer-network-storage-backend.mjs` and set `APEX_PEER_STORAGE_UPSTREAM` to `peerId@multiaddr` for a peer that proves durable peer-owned capacity.
+- `APEX_PEER_STORAGE_UPSTREAM` to `peerId@multiaddr` for a peer that proves durable peer-owned capacity. When this is set and no custom module is supplied, the daemon automatically uses the built-in network-only backend (`src/core/peer-network-storage-backend.mjs`). Alternatively, `APEX_PEER_STORAGE_BACKEND_MODULE` may name a trusted custom module exporting `createPeerStorageBackend({ peerId, peerNode, env })`.
 - `APEX_PEER_NAMESPACE_ACL` with explicit canonical app namespaces and authorized writer peer IDs, for example `KernelVision=peer-id-a,peer-id-b;PlanetApeX=peer-id-c`
 - For the one app named by `APEX_APP_ID`, `APEX_PEER_STORAGE_PEERS_<APP_SUFFIX>` as semicolon-separated `peerId@multiaddr` entries. Suffixes are uppercase with camel-case boundaries converted to underscores, e.g. `KERNEL_VISION` and `PLANET_APE_X`.
 - For that app only, `APEX_PEER_STORAGE_KEY_<APP_SUFFIX>` as canonical base64 for a 32-byte AES-256 key. Each app deployment loads only its own encryption key; do not reuse keys across app namespaces.
