@@ -10,7 +10,7 @@ const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(val
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -24,6 +24,10 @@ export class PeerContentAddressedStore {
     this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
     this.namespace = namespace;
     this.encryptionKey = key;
+    this.maxObjectBytes = Number(maxObjectBytes);
+    if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
+      throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
+    }
     if (!Number.isSafeInteger(this.replicaCount) || this.replicaCount < 1) {
       throw new TypeError('replicaCount must be a positive integer');
     }
@@ -83,6 +87,13 @@ export class PeerContentAddressedStore {
 
   async putObject(value) {
     const bytes = Buffer.from(canonical(this.encrypt(value)), 'utf8');
+    if (bytes.length > this.maxObjectBytes) {
+      const error = new Error('encrypted object exceeds the safe single-envelope limit; chunking is required');
+      error.code = 'OBJECT_TOO_LARGE_REQUIRES_CHUNKING';
+      error.bytes = bytes.length;
+      error.maxObjectBytes = this.maxObjectBytes;
+      throw error;
+    }
     const hash = sha256(bytes);
     const receipts = [];
     const failures = [];
