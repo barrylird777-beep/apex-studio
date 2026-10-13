@@ -47,3 +47,16 @@ test("single owner password creates an expiring signed HttpOnly session cookie",
     else process.env.APEX_OWNER_PASSWORD = previous;
   }
 });
+
+test("served PlanetApeX pages show the owner gate and private app pages require a session", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="owner-auth-gate"/);
+  assert.match(html, /src="\/owner-auth\.js"/);
+  assert.match(html, /One authority\. One sign-in\./);
+  assert.match(server, /app\.get\('\/api\/auth\/session'/);
+  assert.match(server, /app\.post\('\/api\/auth\/sign-in'/);
+  assert.match(server, /app\.post\('\/api\/auth\/sign-out'/);
+  assert.match(server, /if \(!isAppPage \|\| hasValidOwnerSession\(req\)\) return next\(\)/);
+});
