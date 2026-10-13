@@ -151,7 +151,7 @@ export class RemoteApexRingWAL {
       record.hash = sha(record);
       // Remote WAL is append-only and is not blocked by the legacy local-WAL byte cap.
       // Provider quota/billing remains external; do not silently drop durable records.
-      const incoming = Buffer.byteLength(JSON.stringify(record) + "\\n", "utf8");
+      const incoming = Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
       const recordKey = this.scope + "-" + keyFor(record.seq);
       await this.cas.writeRef("wal", recordKey, record, { expectedHash: null });
       await this.cas.writeRef("system", this.headKey, { seq: record.seq, lastHash: record.hash, updatedAt: record.ts }, { expectedHash: currentHead?.hash ?? null });
