@@ -10,7 +10,7 @@ const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(val
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -20,6 +20,8 @@ export class PeerContentAddressedStore {
     this.transport = transport;
     this.peers = [...new Set(peers.map(String).filter(Boolean))];
     this.replicaCount = Number(replicaCount);
+    this.minFailureDomains = Number(minFailureDomains);
+    this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
     this.namespace = namespace;
     this.encryptionKey = key;
     if (!Number.isSafeInteger(this.replicaCount) || this.replicaCount < 1) {
@@ -27,6 +29,17 @@ export class PeerContentAddressedStore {
     }
     if (this.peers.length < this.replicaCount) {
       throw new Error('insufficient configured peers for requested replica count');
+    }
+    if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
+      throw new TypeError('minFailureDomains must be between one and replicaCount');
+    }
+    if (this.minFailureDomains > 1) {
+      for (const peerId of this.peers) {
+        if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains > 1');
+      }
+      if (new Set(this.peers.map(peerId => this.failureDomainsByPeerId[peerId])).size < this.minFailureDomains) {
+        throw new Error('insufficient configured failure domains for requested durability policy');
+      }
     }
   }
 
@@ -85,17 +98,21 @@ export class PeerContentAddressedStore {
         if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace) {
           throw new Error('peer returned an invalid or cross-namespace durability receipt');
         }
-        receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace });
-        if (receipts.length >= this.replicaCount) break;
+        receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
+        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
+        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (receipts.length < this.replicaCount) {
-      const error = new Error('peer object write did not reach required replica count');
+    const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
+    if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
+      const error = new Error('peer object write did not satisfy required replica count and independent failure-domain policy');
       error.code = 'INSUFFICIENT_REPLICAS';
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = verifiedFailureDomains;
       error.failures = failures;
       throw error;
     }
