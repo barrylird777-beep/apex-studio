@@ -103,7 +103,7 @@ test('USDC checkout creates a remote-only $25 Polygon intent and queues only a c
     assert.equal(tasks.size, 1);
     assert.equal([...tasks.values()][0].payload.paymentMethod, 'usdc-polygon');
     assert.equal((await store.get('rapid_usdc_intents', intent.orderId)).status, 'paid');
-    assert.equal((await store.get('rapid_usdc_transactions', txHash)).status, undefined);
+    assert.equal((await store.get('rapid_usdc_transactions', txHash)).status, 'verified');
   });
 });
 
