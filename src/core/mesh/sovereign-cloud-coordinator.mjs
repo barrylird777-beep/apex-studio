@@ -134,6 +134,7 @@ export class SovereignCloudCoordinator {
     const job = jobResult.value;
     if (job.app !== app || job.jobId !== id) throw new Error("App-scope integrity check failed");
     if (job.expiresAt <= now()) return { claimed: false, reason: "expired" };
+    if (job.status !== "queued") return { claimed: false, reason: "not-queued" };
     const leaseKey = this.key("apps", app, "leases", id + ".json");
     const lease = { version: 1, app, jobId: id, workerId: worker, token: randomUUID(), fence: now(), claimedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
     try {
@@ -162,7 +163,17 @@ export class SovereignCloudCoordinator {
     const leaseKey = this.key("apps", app, "leases", id + ".json");
     const current = await this.read(leaseKey);
     if (!current || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { accepted: false, reason: "lease-invalid" };
+    const jobKey = this.key("apps", app, "jobs", id + ".json");
+    const job = await this.read(jobKey);
+    if (!job || job.value.status !== "queued") return { accepted: false, reason: "job-not-queued" };
     const record = { version: 1, app, jobId: id, workerId: worker, status, resultHash: resultHash == null ? null : String(resultHash), finishedAt: now(), leaseToken };
+    const terminalJob = { ...job.value, status, resultHash: record.resultHash, finishedAt: record.finishedAt, workerId: worker };
+    try {
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: jobKey, Body: JSON.stringify(terminalJob), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(terminalJob)) }, IfMatch: job.etag }));
+    } catch (e) {
+      if (conflict(e)) return { accepted: false, reason: "job-state-race" };
+      throw e;
+    }
     const eventKey = this.key("apps", app, "job-events", id + "/" + randomUUID() + ".json");
     await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: eventKey, Body: JSON.stringify(record), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(record)) }, IfNoneMatch: "*" }));
     return { accepted: true, event: record };
