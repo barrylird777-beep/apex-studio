@@ -141,7 +141,7 @@ async function main() {
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
   if (stopping) return;
 
-  peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
+  peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope, onBinaryEnvelope: acceptPeerEnvelope });
   if (stopping) {
     await peerNode.stop().catch(() => {});
     return;
