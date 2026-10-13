@@ -27,12 +27,16 @@ function assertKey(input, label) {
  * backend: immutable blobs alone cannot safely define the current project
  * state. That backend is injected and must never silently fall back to disk.
  */
-export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}) {
+export function createPeerMediaStore({ peerStores, apps = APEX_MEDIA_APPS, maxManifestRetries = 8 } = {}) {
   if (!peerStores || typeof peerStores !== 'object') throw new TypeError('per-app peerStores are required');
+  if (!Array.isArray(apps) || apps.length === 0 || apps.some(app => !APP_SET.has(app)) || new Set(apps).size !== apps.length) {
+    throw new TypeError('apps must be a non-empty unique subset of canonical Apex app namespaces');
+  }
+  const configuredApps = Object.freeze([...apps]);
   if (!Number.isSafeInteger(maxManifestRetries) || maxManifestRetries < 1 || maxManifestRetries > 32) {
     throw new TypeError('maxManifestRetries must be between 1 and 32');
   }
-  for (const app of APEX_MEDIA_APPS) {
+  for (const app of configuredApps) {
     const store = peerStores[app];
     if (!store || typeof store.putBlob !== 'function' || typeof store.getBlob !== 'function' ||
         typeof store.readRef !== 'function' || typeof store.writeRef !== 'function') {
@@ -71,7 +75,7 @@ export function createPeerMediaStore({ peerStores, maxManifestRetries = 8 } = {}
   }
 
   return Object.freeze({
-    apps: APEX_MEDIA_APPS,
+    apps: configuredApps,
     async saveAsset(appInput, projectInput, assetInput, input, { contentType = 'application/octet-stream', metadata = {} } = {}) {
       const app = assertApp(appInput);
       const projectId = assertKey(projectInput, 'project ID');
