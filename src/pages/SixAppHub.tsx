@@ -46,7 +46,7 @@ const apps: ApexApp[] = [
     features: ["Music library and playback", "Artist and album discovery", "DeckOfKobs controls", "KobSense and KornYtunes"],
     links: [
       { label: "Open Kernelodies", href: "/kernelodies.html", note: "Music library and discovery" },
-      { label: "Open KoinKob", href: "/koin-kob.html", note: "Autonomous-economy lab" },
+      { label: "Return to APEX apps", href: "/apps", note: "Six-app home" },
     ],
   },
   {
@@ -66,7 +66,7 @@ const apps: ApexApp[] = [
     icon: WalletCards, accent: "amber", status: "Finance workspace",
     features: ["Opportunity discovery", "Transaction surfaces", "Data tools", "Video-rendering storefront"],
     links: [
-      { label: "Open Studio projects", href: "/", note: "Existing project workspace" },
+      { label: "Open KashKorner", href: "/kash-korner.html", note: "Financial tools and video storefront" },
       { label: "Return to APEX apps", href: "/apps", note: "Six-app home" },
     ],
   },
@@ -76,7 +76,7 @@ const apps: ApexApp[] = [
     icon: Blocks, accent: "blue", status: "Economy simulation workspace",
     features: ["Worker and agent economies", "Asset markets and market clearing", "Systemic and adversarial events", "Simulation and outcome analysis"],
     links: [
-      { label: "Inspect network status", href: "/network", note: "Existing network dashboard" },
+      { label: "Open KoinKob", href: "/koin-kob.html", note: "Autonomous-economy lab" },
       { label: "Return to APEX apps", href: "/apps", note: "Six-app home" },
     ],
   },
