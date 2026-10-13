@@ -58,6 +58,9 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(worker, /generateOracleStoryboard/);
   assert.match(worker, /hookCandidates: hookResult\.candidates/);
   assert.match(worker, /pipeline: "oracle-to-forge"/);
+  assert.match(worker, /new RemoteContentAddressedStore/);
+  assert.match(worker, /Sovereign video rendering requires remote CAS/);
+  assert.match(worker, /assetStorage: asset\.storage/);
   assert.match(queue, /apexPureStore\.enqueue/);
   assert.doesNotMatch(queue, /durable_jobs/);
   assert.match(page, /id="oracleTab"/);
