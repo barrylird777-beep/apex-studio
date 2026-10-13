@@ -70,16 +70,20 @@ async function main() {
       .catch(error => console.error("[APEX CLOUD WORKER] peer heartbeat failed", String(error?.message || error)));
   }, 10000);
   peerHeartbeat.unref?.();
-  console.log("[APEX CLOUD WORKER] cloud storage verified", JSON.stringify({ app, workerId, persistence: health.persistence, readAfterWrite: health.readAfterWrite }));
-  while (!stopping) {
-    try {
-      const claimed = await coordinator.claimNextJob({ app, workerId, leaseMs, capabilities, taskTypes: taskTypes.length ? taskTypes : undefined });
-      if (claimed) await execute(claimed.job, claimed.lease);
-      else await sleep(pollMs);
-    } catch (error) {
-      console.error("[APEX CLOUD WORKER] cloud operation failed; retrying without local fallback", String(error?.message || error));
-      await sleep(Math.min(30000, pollMs * 4));
+  console.log("[APEX CLOUD WORKER] cloud storage verified", JSON.stringify({ app, workerId, capabilities, persistence: health.persistence, readAfterWrite: health.readAfterWrite }));
+  try {
+    while (!stopping) {
+      try {
+        const claimed = await coordinator.claimNextJob({ app, workerId, leaseMs, capabilities, taskTypes: taskTypes.length ? taskTypes : undefined });
+        if (claimed) await execute(claimed.job, claimed.lease);
+        else await sleep(pollMs);
+      } catch (error) {
+        console.error("[APEX CLOUD WORKER] cloud operation failed; retrying without local fallback", String(error?.message || error));
+        await sleep(Math.min(30000, pollMs * 4));
+      }
     }
+  } finally {
+    clearInterval(peerHeartbeat);
   }
 }
 
