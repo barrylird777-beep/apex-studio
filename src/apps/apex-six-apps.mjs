@@ -10,8 +10,8 @@ export const APEX_APP_IDS = Object.freeze(Object.values(APEX_APPS).map(app=>app.
 
 const LEGACY_SUPPORT_APPS = Object.freeze({
   "korn-knob": Object.freeze({ id:"korn-knob", name:"KornKnob", system:"kernelodies", role:"historical music identity absorbed into Kernelodies", entry:"/korn-knob.html" }),
-  "teevee": Object.freeze({ id:"teevee", name:"TeeVee", system:"apex-studio", role:"legacy production surface", entry:"/teevee-buyer.html" }),
-  "paypex": Object.freeze({ id:"paypex", name:"PayPex", system:"apex-studio", role:"legacy opportunity intelligence surface", entry:"/paypex.html" }),
+  "teevee": Object.freeze({ id:"teevee", name:"TeeVee", system:"kernel-vision", role:"historical 24/7 entertainment programming and broadcast surface owned by KernelVision", entry:"/teevee-buyer.html" }),
+  "paypex": Object.freeze({ id:"paypex", name:"PayPex", system:"kash-korner", role:"historical opportunity, market and monetization intelligence surface owned by KashKorner", entry:"/paypex.html" }),
   "apex-studio": Object.freeze({ id:"apex-studio", name:"ApexStudio", system:"apex-studio", role:"supporting production system surface", entry:"/" }),
   "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", system:"planet-apex", role:"embedded PlanetApeX knowledge universe: Bible study, Jesus Freaks and KORNS PEOPLE", entry:"/garden-of-apex.html" }),
   "ko-blocks": Object.freeze({ id:"ko-blocks", name:"KoBlocks", system:"apex-studio", role:"reusable execution blocks, graph composition and validation capability; not a separate canonical app", entry:"/ko-blocks.html" }),
