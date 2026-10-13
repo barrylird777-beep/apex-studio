@@ -10,8 +10,17 @@ const keyFor = seq => "r" + String(seq).padStart(20, "0");
  * appends are serialized with a leased, CAS-protected lock. No local files are touched.
  */
 export class RemoteApexRingWAL {
-  constructor({ cas = new RemoteContentAddressedStore(), ringSize = Math.max(1024, Number(process.env.APEX_RING_SIZE || 65536)), maxBytes = Number(process.env.APEX_WAL_MAX_BYTES || 50 * 1024 * 1024), scope = process.env.RAILWAY_SERVICE_NAME || "apex" } = {}) {
+  constructor({ cas = new RemoteContentAddressedStore(), ringSize = Math.max(1024, Number(process.env.APEX_RING_SIZE || 65536)), maxBytes = Number(process.env.APEX_WAL_MAX_BYTES || 50 * 1024 * 1024), scope = process.env.RAILWAY_SERVICE_NAME || "apex", clock = () => Date.now(), random = () => Math.random(), sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), scheduleInterval = (callback, ms) => { const handle = setInterval(callback, ms); handle.unref?.(); return () => clearInterval(handle); }, tokenFactory = randomUUID } = {}) {
+    if (typeof clock !== "function" || typeof random !== "function" || typeof sleep !== "function" || typeof scheduleInterval !== "function" || typeof tokenFactory !== "function") {
+      throw new TypeError("clock, random, sleep, scheduleInterval, and tokenFactory must be functions");
+    }
     this.cas = cas;
+    this.clock = clock;
+    this.random = random;
+    this.sleep = sleep;
+    this.scheduleInterval = scheduleInterval;
+    this.tokenFactory = tokenFactory;
+    this.timestamp = () => new Date(this.clock()).toISOString();
     this.ringSize = ringSize;
     this.maxBytes = maxBytes;
     this.scope = String(scope).replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
@@ -27,13 +36,13 @@ export class RemoteApexRingWAL {
     this.count = Math.min(this.count + 1, this.ringSize);
   }
   async _lock(operation) {
-    const started = Date.now(), token = randomUUID();
+    const started = this.clock(), token = this.tokenFactory();
     let lockHash = null, stopped = false;
     while (true) {
-      const current = await this.cas.readRef("system", this.lockKey), now = Date.now();
+      const current = await this.cas.readRef("system", this.lockKey), now = this.clock();
       if (current && Number(current.value?.leaseUntil || 0) > now) {
         if (now - started > 180000) throw new Error("[REMOTE_WAL_LOCK] Timed out waiting for remote WAL lock.");
-        await new Promise(resolve => setTimeout(resolve, 35 + Math.floor(Math.random() * 45))); continue;
+        await this.sleep(35 + Math.floor(this.random() * 45)); continue;
       }
       try {
         const acquired = await this.cas.writeRef("system", this.lockKey, { token, leaseUntil: now + 90000, owner: this.scope }, { expectedHash: current?.hash ?? null });
@@ -43,17 +52,16 @@ export class RemoteApexRingWAL {
         if (now - started > 180000) throw new Error("[REMOTE_WAL_LOCK] Timed out acquiring remote WAL lock.");
       }
     }
-    const heartbeat = setInterval(async () => {
+    const stopHeartbeat = this.scheduleInterval(async () => {
       if (stopped || !lockHash) return;
       try {
-        const renewed = await this.cas.writeRef("system", this.lockKey, { token, leaseUntil: Date.now() + 90000, owner: this.scope }, { expectedHash: lockHash });
+        const renewed = await this.cas.writeRef("system", this.lockKey, { token, leaseUntil: this.clock() + 90000, owner: this.scope }, { expectedHash: lockHash });
         lockHash = renewed.hash;
       } catch { /* lock expiry permits safe recovery if a renewal loses its CAS */ }
     }, 20000);
-    heartbeat.unref?.();
     try { return await operation(); }
     finally {
-      stopped = true; clearInterval(heartbeat);
+      stopped = true; stopHeartbeat();
       if (lockHash) await this.cas.deleteRef("system", this.lockKey, { expectedHash: lockHash }).catch(() => {});
     }
   }
@@ -139,7 +147,7 @@ export class RemoteApexRingWAL {
     // A crash can occur after the immutable record is committed but before its
     // head ref advances. Repair only while the caller holds the remote append lock.
     if (repairHead && !exact) {
-      await this.cas.writeRef("system", this.headKey, { seq: sequence, lastHash: previous, updatedAt: new Date().toISOString() }, { expectedHash: head?.hash ?? null });
+      await this.cas.writeRef("system", this.headKey, { seq: sequence, lastHash: previous, updatedAt: this.timestamp() }, { expectedHash: head?.hash ?? null });
     }
     return sequence;
   }
@@ -147,7 +155,7 @@ export class RemoteApexRingWAL {
     await this.init();
     return this._lock(async () => {
       const currentHead = await this._prepareAppendHead();
-      const record = { version: 1, id: randomUUID(), seq: this.seq + 1, ts: new Date().toISOString(), type: String(type), payload, meta, prevHash: this.lastHash };
+      const record = { version: 1, id: this.tokenFactory(), seq: this.seq + 1, ts: this.timestamp(), type: String(type), payload, meta, prevHash: this.lastHash };
       record.hash = sha(record);
       // Remote WAL is append-only and is not blocked by the legacy local-WAL byte cap.
       // Provider quota/billing remains external; do not silently drop durable records.
