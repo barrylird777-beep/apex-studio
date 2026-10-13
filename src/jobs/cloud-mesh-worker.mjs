@@ -67,7 +67,9 @@ async function execute(job, lease) {
   } catch (error) {
     const bytes = Buffer.from(JSON.stringify({ error: String(error?.message || error), at: new Date().toISOString() }));
     let errorHash = null;
-    try { errorHash = (await coordinator.putPayload({ app, bytes, contentType: "application/json" })).payloadHash; } catch {}
+    if (!leaseLost && !controller.signal.aborted) {
+      try { errorHash = (await coordinator.putPayload({ app, bytes, contentType: "application/json" })).payloadHash; } catch {}
+    }
     await stopLeaseHeartbeat();
     const failed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: errorHash, status: "failed" }).catch(() => ({ accepted: false }));
     console.error("[APEX CLOUD WORKER] job failed", JSON.stringify({ app, jobId: job.jobId, workerId, persisted: failed.accepted, error: String(error?.message || error) }));
