@@ -64,11 +64,6 @@ test("high-cost API routes require control-plane auth and public flows remain ex
     ["post", "/api/media/image"],
     ["post", "/api/media/video"],
     ["post", "/api/render/export"],
-    ["post", "/api/ai/generate-max"],
-    ["post", "/api/ai/generate-grok"],
-    ["post", "/api/ai/generate/:provider"],
-    ["post", "/api/ai/generate"],
-    ["post", "/api/ai/collaborate"],
     ["post", "/api/mesh/jobs"],
     ["post", "/api/crew/jobs"],
     ["post", "/api/crew/burst"],
@@ -108,6 +103,9 @@ test("high-cost API routes require control-plane auth and public flows remain ex
   ];
   for (const [method, route] of protectedRoutes) {
     assert.ok(server.includes("app." + method + "('" + route + "', requireControlPlaneAuth,"), method.toUpperCase() + " " + route + " must require control-plane auth");
+  }
+    for (const route of ["/api/ai/generate-max", "/api/ai/generate-grok", "/api/ai/generate/:provider", "/api/ai/generate", "/api/ai/collaborate"]) {
+    assert.ok(server.includes(`app.post('${route}', aiInferenceRateLimit, requireAiInferenceAuth(requireControlPlaneAuth),`), route + " must use scoped inference auth and throttling");
   }
   assert.match(server, /app\.get\(['"]\/api\/health['"],/);
   assert.match(server, /app\.get\(['"]\/api\/canon\/apps['"],/);
