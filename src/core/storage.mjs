@@ -6,6 +6,7 @@ import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
+import { resolveContainedPath, ensureContainedDirectory } from "./se-x-paths.mjs";
 
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
@@ -25,9 +26,14 @@ function safePart(value, label) {
   return part;
 }
 
+async function storagePath(relativePath, options = {}) {
+  return resolveContainedPath(STORAGE_DIR, relativePath, { allowHidden: true, ...options });
+}
+
 async function readManifest() {
   try {
-    return JSON.parse(await fs.readFile(PROJECT_FILE, "utf8"));
+    const manifestPath = await storagePath("manifest.json", { mustExist: true });
+    return JSON.parse(await fs.readFile(manifestPath, "utf8"));
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
     return { assets: [], exports: [] };
@@ -42,11 +48,12 @@ function queueManifestWrite(task) {
 
 export async function initStorage() {
   await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
+  const manifestPath = await storagePath("manifest.json");
   try {
-    await fs.access(PROJECT_FILE);
+    await fs.access(manifestPath);
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
-    await fs.writeFile(PROJECT_FILE, JSON.stringify({ assets: [], exports: [] }, null, 2), {
+    await fs.writeFile(manifestPath, JSON.stringify({ assets: [], exports: [] }, null, 2), {
       encoding: "utf8",
       mode: 0o600,
       flag: "wx"
@@ -61,7 +68,7 @@ export async function saveProjectAsset(type, buffer, extension) {
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\./, "");
   const filename = `project_${assetType}.${ext}`;
-  const filepath = path.join(STORAGE_DIR, filename);
+  const filepath = await storagePath(filename);
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   await fs.writeFile(filepath, bytes, { mode: 0o600 });
 
@@ -76,11 +83,12 @@ export async function saveProjectAsset(type, buffer, extension) {
       updatedAt: Date.now()
     };
     manifest.exports = [record, ...manifest.exports.filter(entry => entry?.type !== assetType)];
-    const temp = `${PROJECT_FILE}.tmp-${process.pid}-${Date.now()}`;
+    const manifestPath = await storagePath("manifest.json");
+    const temp = await storagePath(`manifest.json.tmp-${process.pid}-${Date.now()}`);
     await fs.writeFile(temp, JSON.stringify(manifest, null, 2), {
       encoding: "utf8", mode: 0o600
     });
-    await fs.rename(temp, PROJECT_FILE);
+    await fs.rename(temp, manifestPath);
     return record;
   });
 }
@@ -98,8 +106,8 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
   const filename = `scene_${sceneKey}_${assetKind}_${crypto.randomUUID()}.${ext}`;
-  const filepath = path.join(STORAGE_DIR, filename);
-  const temp = filepath + ".part-" + process.pid;
+  const filepath = await storagePath(filename);
+  const temp = await storagePath(filename + ".part-" + process.pid);
   await fs.writeFile(temp, bytes, { flag: "wx", mode: 0o600 });
   try {
     await fs.rename(temp, filepath);
@@ -131,10 +139,11 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
     manifest.assets.push({
       type: assetKind, sceneId: sceneKey, url, bytes: bytes.length, sha256: digest, updatedAt
     });
-    const tempManifest = `${PROJECT_FILE}.tmp-${process.pid}-${crypto.randomUUID()}`;
+    const manifestPath = await storagePath("manifest.json");
+    const tempManifest = await storagePath(`manifest.json.tmp-${process.pid}-${crypto.randomUUID()}`);
     await fs.writeFile(tempManifest, JSON.stringify(manifest, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
     try {
-      await fs.rename(tempManifest, PROJECT_FILE);
+      await fs.rename(tempManifest, manifestPath);
     } catch (error) {
       await fs.rm(tempManifest, { force: true }).catch(() => {});
       throw error;
@@ -156,10 +165,9 @@ export async function downloadUrlAssetToStorage(url, episodeId, assetName, optio
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
   await initStorage();
-  const dir = path.join(STORAGE_DIR, 'episodes', episode);
-  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-  const finalPath = path.join(dir, asset);
-  const tempPath = finalPath + '.part-' + process.pid + '-' + Date.now();
+  const dir = await ensureContainedDirectory(STORAGE_DIR, `episodes/${episode}`);
+  const finalPath = await storagePath(`episodes/${episode}/${asset}`);
+  const tempPath = await storagePath(`episodes/${episode}/${asset}.part-${process.pid}-${Date.now()}`);
   try {
     const transferController = options.transferController || buildAdaptiveTransferController({ initial: Math.max(1, Number(options.parallelStreams) || 4) });
     const result = await downloadHttpAsset(url, tempPath, { ...options, transferController });
@@ -193,10 +201,9 @@ export async function streamAssetToStorage(readableStream, episodeId, assetName,
   }
 
   await initStorage();
-  const dir = path.join(STORAGE_DIR, 'episodes', episode);
-  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-  const finalPath = path.join(dir, asset);
-  const tempPath = path.join(dir, '.' + asset + '.part-' + process.pid + '-' + Date.now());
+  const dir = await ensureContainedDirectory(STORAGE_DIR, `episodes/${episode}`);
+  const finalPath = await storagePath(`episodes/${episode}/${asset}`);
+  const tempPath = await storagePath(`episodes/${episode}/.${asset}.part-${process.pid}-${Date.now()}`);
   const hash = crypto.createHash('sha256');
   let bytes = 0;
   const startedAt = performance.now();
