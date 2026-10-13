@@ -183,3 +183,9 @@ test("legacy TeeVee and PayPex surfaces resolve to current canonical owners",()=
   assert.match(paypex.role,/opportunity, market and monetization intelligence surface owned by KashKorner/);
   assert.deepEqual(listApexApps().map(app=>app.name),["PlanetApeX","XShield","KernelVision","KoinKob","KashKorner","Kernelodies"]);
 });
+
+test("KernelVision registry assigns the continuous network and keeps Theatre/Kornmax as playback experiences",()=>{
+  const app=getApexApp("kernel-vision");
+  assert.match(app.role,/24\/7 original entertainment stream/);
+  assert.match(app.role,/Theatre and Kornmax are playback experiences/);
+});
