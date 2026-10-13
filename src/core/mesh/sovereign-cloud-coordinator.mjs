@@ -188,7 +188,7 @@ export class SovereignCloudCoordinator {
     if (job.expiresAt <= now()) return { claimed: false, reason: "expired" };
     if (job.status !== "queued") return { claimed: false, reason: "not-queued" };
     const leaseKey = this.key("apps", app, "leases", id + ".json");
-    const lease = { version: 1, app, jobId: id, workerId: worker, token: randomUUID(), fence: now(), claimedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
+    const lease = { version: 1, app, jobId: id, workerId: worker, token: randomUUID(), fence: now(), status: "active", claimedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
     try {
       await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(lease), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(lease)) }, IfNoneMatch: "*" }));
       return { claimed: true, lease };
@@ -214,7 +214,8 @@ export class SovereignCloudCoordinator {
     const key = this.key("apps", app, "leases", id + ".json");
     const current = await this.read(key);
     if (!current || current.value.app !== app || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { renewed: false, reason: "lease-invalid" };
-    const renewed = { ...current.value, renewedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
+    if (current.value.status && current.value.status !== "active") return { renewed: false, reason: "lease-not-active" };
+    const renewed = { ...current.value, status: "active", renewedAt: now(), expiresAt: now() + Math.max(5000, Math.min(300000, Number(leaseMs) || 30000)) };
     try {
       await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: JSON.stringify(renewed), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(renewed)) }, IfMatch: current.etag }));
       return { renewed: true, expiresAt: renewed.expiresAt };
@@ -233,6 +234,13 @@ export class SovereignCloudCoordinator {
     const leaseKey = this.key("apps", app, "leases", id + ".json");
     const current = await this.read(leaseKey);
     if (!current || current.value.workerId !== worker || current.value.token !== leaseToken || current.value.expiresAt <= now()) return { accepted: false, reason: "lease-invalid" };
+    const finishingLease = { ...current.value, status: "finishing", finishingAt: now(), expiresAt: now() + 30000 };
+    try {
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: leaseKey, Body: JSON.stringify(finishingLease), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(finishingLease)) }, IfMatch: current.etag }));
+    } catch (e) {
+      if (conflict(e)) return { accepted: false, reason: "lease-race-lost" };
+      throw e;
+    }
     const jobKey = this.key("apps", app, "jobs", id + ".json");
     const job = await this.read(jobKey);
     if (!job || job.value.status !== "queued") return { accepted: false, reason: "job-not-queued" };
