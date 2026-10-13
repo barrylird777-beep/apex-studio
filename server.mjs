@@ -1162,9 +1162,26 @@ server.on('error', (error) => {
 
 let shuttingDown = false;
 let shutdownTimer;
+let resolveShutdownStarted;
+const shutdownStarted = new Promise(resolve => { resolveShutdownStarted = resolve; });
+let rapidInlineLoopPromise = Promise.resolve();
+
+function waitForShutdownOrDelay(ms) {
+  if (shuttingDown) return Promise.resolve();
+  let timer;
+  return Promise.race([
+    new Promise(resolve => {
+      timer = setTimeout(resolve, ms);
+      timer.unref?.();
+    }),
+    shutdownStarted
+  ]).finally(() => clearTimeout(timer));
+}
+
 function beginGracefulShutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
+  resolveShutdownStarted?.();
   console.log('[apex] graceful shutdown started', JSON.stringify({ signal, drainMs: 20000 }));
   shutdownTimer = setTimeout(() => {
     console.error('[apex] HTTP drain deadline reached; closing remaining connections');
@@ -1172,12 +1189,19 @@ function beginGracefulShutdown(signal) {
     process.exitCode = 1;
   }, 20000);
   shutdownTimer.unref?.();
-  server.close(error => {
+  server.close(async error => {
     clearTimeout(shutdownTimer);
     if (error) {
       process.exitCode = 1;
       console.error('[apex] HTTP drain failed', String(error?.message || error));
       return;
+    }
+    try {
+      await rapidInlineLoopPromise;
+      console.log('[apex] background workers drained');
+    } catch (workerError) {
+      process.exitCode = 1;
+      console.error('[apex] background worker drain failed', String(workerError?.message || workerError));
     }
     console.log('[apex] HTTP drain complete');
   });
@@ -3298,26 +3322,34 @@ if (durableWorkerEnabled()) {
     const roles = ['rapid-preview', 'rapid-video'];
     let dbFailureBackoffMs = 1000;
     const maxDbFailureBackoffMs = 30000;
-    while (true) {
+    while (!shuttingDown) {
       try {
         let claimedAny = false;
         for (const role of roles) {
+          if (shuttingDown) break;
           const tasks = await claimNextWorkerTasks(1, 45000, role);
           if (!tasks.length) continue;
           claimedAny = true;
+          // Finish a task already claimed before shutdown, but never claim another after the signal.
           await runInlineRapidTask(tasks[0]);
+          if (shuttingDown) break;
         }
         dbFailureBackoffMs = 1000;
-        if (!claimedAny) await new Promise(resolve => setTimeout(resolve, 1500));
+        if (!claimedAny) await waitForShutdownOrDelay(1500);
       } catch (error) {
+        if (shuttingDown) break;
         console.error('[rapid-inline-worker] poll failed; backing off:', error?.message || error);
         const jitter = Math.floor(Math.random() * Math.max(250, dbFailureBackoffMs * 0.25));
-        await new Promise(resolve => setTimeout(resolve, Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter));
+        await waitForShutdownOrDelay(Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter);
         dbFailureBackoffMs = Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs * 2);
       }
     }
   };
-  void rapidInlineLoop();
+  rapidInlineLoopPromise = rapidInlineLoop();
+  rapidInlineLoopPromise.catch(error => {
+    process.exitCode = 1;
+    console.error('[rapid-inline-worker] loop stopped with error:', error?.message || error);
+  });
 }
 
 
