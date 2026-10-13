@@ -115,3 +115,30 @@ test("normal remote WAL appends do not rescan the entire remote WAL namespace", 
   assert.equal(cas.listCalls, scansAfterFirstAppend, "appends should verify the head and adjacent refs, not list every WAL record");
   assert.equal((await wal.snapshot()).sequence, 3);
 });
+
+test("remote WAL lock waiting and record timestamps use injected deterministic clock and sleep", async () => {
+  const cas = new MemoryCAS();
+  await cas.writeRef("system", "wal-lock-wal-injected-clock", {
+    token: "another-owner",
+    leaseUntil: 20,
+    owner: "another-owner"
+  });
+  let now = 0;
+  const sleeps = [];
+  const wal = new RemoteApexRingWAL({
+    cas,
+    scope: "wal-injected-clock",
+    clock: () => now,
+    random: () => 0,
+    sleep: async ms => { sleeps.push(ms); now += ms; },
+    scheduleInterval: () => () => {},
+    tokenFactory: () => "deterministic-token"
+  });
+
+  const record = await wal.append("clock.test", { value: 1 });
+  assert.deepEqual(sleeps, [35]);
+  assert.equal(record.id, "deterministic-token");
+  assert.equal(record.ts, new Date(35).toISOString());
+  assert.equal(record.seq, 1);
+  assert.equal(await cas.readRef("system", wal.lockKey), null, "lock is released after the append");
+});
