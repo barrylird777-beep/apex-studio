@@ -86,6 +86,39 @@ export class SovereignCloudCoordinator {
     }
     return { app, peers, count: peers.length, truncated: Boolean(result.IsTruncated), nextContinuationToken: result.NextContinuationToken || null };
   }
+  async putPayload({ app, bytes, contentType = "application/octet-stream" } = {}) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    const body = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes ?? "");
+    if (!body.length) throw new Error("Cloud payload cannot be empty");
+    const digest = hash(body);
+    const key = this.key("apps", app, "payloads", digest);
+    try {
+      await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: String(contentType).slice(0, 200), Metadata: { sha256: digest }, IfNoneMatch: "*" }));
+      return { app, payloadHash: digest, bytes: body.length, created: true };
+    } catch (e) {
+      if (!conflict(e)) throw e;
+      const existing = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      const prior = await bodyText(existing.Body);
+      if (hash(Buffer.from(prior)) !== digest) throw new Error("Content-addressed payload collision or provider corruption");
+      return { app, payloadHash: digest, bytes: body.length, created: false };
+    }
+  }
+  async getPayload({ app, payloadHash }) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    if (!/^[a-f0-9]{64}$/.test(String(payloadHash || ""))) throw new Error("Invalid payload SHA-256");
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.key("apps", app, "payloads", payloadHash) }));
+    const chunks = [];
+    if (result.Body?.[Symbol.asyncIterator]) {
+      for await (const chunk of result.Body) chunks.push(Buffer.from(chunk));
+    } else if (typeof result.Body?.transformToByteArray === "function") {
+      chunks.push(Buffer.from(await result.Body.transformToByteArray()));
+    } else {
+      throw new Error("S3 provider returned an unsupported payload body");
+    }
+    const bytes = Buffer.concat(chunks);
+    if (hash(bytes) !== payloadHash) throw new Error("Cloud payload checksum mismatch");
+    return bytes;
+  }
   async publishJob({ app, jobId = randomUUID(), taskType, payloadHash, capability, expiresInMs = 60000 }) {
     if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
     if (!/^[a-f0-9]{64}$/.test(String(payloadHash || ""))) throw new Error("Job requires a SHA-256 payload hash; payload bytes belong in private content-addressed storage");
