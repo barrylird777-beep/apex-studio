@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
+import { decodeCanonical } from './apex-cbor.mjs';
 import { sendToPeer } from '../network/sovereign-peer.mjs';
 import { createLibp2pPeerStorageTransport } from './peer-storage-libp2p-transport.mjs';
 import { APEX_MEDIA_APPS } from './peer-media-store.mjs';
@@ -39,14 +39,13 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
     return result;
   };
   const capability = await request({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: app });
-  if (capability.durable !== true || capability.ownership !== 'peer-owned' || capability.recoveryVerified !== true) {
+  if (capability.durable !== true || capability.ownership !== 'peer-owned') {
     throw new Error('upstream peer did not prove durable peer-owned storage capacity');
   }
 
   return Object.freeze({
     durable: true,
     ownership: 'peer-owned',
-    recoveryVerified: true,
     upstreamPeerId,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
@@ -61,7 +60,7 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
         protocol: 'apex.cas.v1', operation: 'object.put', namespace: app,
         hash, bytesBase64: bytes.toString('base64')
       });
-      if (result.hash !== hash || result.bytes !== bytes.length || result.durable !== true || result.ownership !== 'peer-owned' || result.recoveryVerified !== true || result.recoveryVerified !== true) {
+      if (result.hash !== hash || result.bytes !== bytes.length || result.durable !== true || result.ownership !== 'peer-owned') {
         throw new Error('upstream object receipt did not prove durable peer-owned storage');
       }
       return { hash, bytes: bytes.length };
@@ -71,7 +70,7 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
       const result = await request({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: app, hash });
       const bytes = Buffer.from(String(result.bytesBase64 || ''), 'base64');
       if (bytes.toString('base64') !== result.bytesBase64 || sha256(bytes) !== hash ||
-          result.hash !== hash || result.durable !== true || result.ownership !== 'peer-owned' || result.recoveryVerified !== true) {
+          result.hash !== hash || result.durable !== true || result.ownership !== 'peer-owned') {
         throw new Error('upstream object read failed integrity or durability verification');
       }
       return bytes;
@@ -79,11 +78,11 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
     async readRef(namespace, key) {
       if (namespace !== app) throw new Error('peer-network backend rejected a cross-app reference read');
       const result = await request({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace, key });
-      if (result.durable !== true || result.ownership !== 'peer-owned' || result.recoveryVerified !== true) throw new Error('upstream reference response lost its durable peer-owned capacity and recovery receipt');
+      if (result.durable !== true || result.ownership !== 'peer-owned') throw new Error('upstream reference response lost its durable peer-owned capacity receipt');
       if (result.hash == null) return null;
       const bytes = Buffer.from(String(result.bytesBase64 || ''), 'base64');
       if (bytes.toString('base64') !== result.bytesBase64 || sha256(bytes) !== result.hash ||
-          result.durable !== true || result.ownership !== 'peer-owned' || result.recoveryVerified !== true) {
+          result.durable !== true || result.ownership !== 'peer-owned') {
         throw new Error('upstream reference read failed integrity or durability verification');
       }
       return { hash: result.hash, bytes };
@@ -98,7 +97,7 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
         protocol: 'apex.cas.v1', operation: 'ref.cas', namespace, key, expectedHash,
         hash, bytesBase64: bytes.toString('base64')
       });
-      if (result.hash !== hash || result.durable !== true || result.ownership !== 'peer-owned' || result.recoveryVerified !== true) {
+      if (result.hash !== hash || result.durable !== true || result.ownership !== 'peer-owned') {
         throw new Error('upstream reference receipt did not prove durable peer-owned storage');
       }
       return { hash };
