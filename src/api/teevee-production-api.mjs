@@ -8,6 +8,9 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
   if (typeof enqueue !== "function") throw new TypeError("TeeVee production enqueue function is required");
   const router = express.Router();
   router.use(express.json({ limit: "64kb" }));
+  // Protect status and every present/future endpoint at the router boundary.
+  // The server supplies the receiver-side control-plane auth middleware.
+  router.use(requireAuth || ((_req, res) => res.status(503).json({ success: false, error: "TeeVee authorization is not configured" })));
 
   router.get("/assets/:id/download", requireAuth || ((_req, _res, next) => next()), async (req, res) => {
     try {
