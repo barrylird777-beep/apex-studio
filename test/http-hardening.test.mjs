@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createApexSecurityHeaders, isCorsOriginAllowed } from "../src/security/http-hardening.mjs";
+import { createApexSecurityHeaders, createHttpsOnlyRedirect, isCorsOriginAllowed } from "../src/security/http-hardening.mjs";
 
 test("production CORS never permits arbitrary browser origins, even when the development override is set", () => {
   assert.equal(isCorsOriginAllowed({ origin: "https://trusted.example", allowedOrigins: ["https://trusted.example"], production: true, allowAllCors: true }), true);
@@ -30,4 +30,42 @@ test("HSTS is not set for local development", () => {
   const headers = {};
   createApexSecurityHeaders({ production: false })({ path: "/" }, { setHeader(name, value) { headers[name.toLowerCase()] = value; } }, () => {});
   assert.equal(headers["strict-transport-security"], undefined);
+});
+
+
+test("production redirects cleartext requests to HTTPS only for configured public hosts", () => {
+  const middleware = createHttpsOnlyRedirect({ production: true, publicHosts: ["apex-studio-production.up.railway.app"] });
+  let redirect;
+  let continued = false;
+  const response = { redirect(status, location) { redirect = { status, location }; }, status(code) { this.code = code; return this; }, type() { return this; }, send(body) { this.body = body; } };
+  middleware({ headers: { "x-forwarded-proto": "http", host: "apex-studio-production.up.railway.app" }, originalUrl: "/api/auth/session?q=1" }, response, () => { continued = true; });
+  assert.deepEqual(redirect, { status: 308, location: "https://apex-studio-production.up.railway.app/api/auth/session?q=1" });
+  assert.equal(continued, false);
+});
+
+test("production does not redirect internal requests without an edge protocol header", () => {
+  let continued = false;
+  createHttpsOnlyRedirect({ production: true, publicHosts: ["apex-studio-production.up.railway.app"] })(
+    { headers: { host: "apex-studio-production.up.railway.app" }, url: "/health" },
+    {},
+    () => { continued = true; }
+  );
+  assert.equal(continued, true);
+});
+
+test("production rejects cleartext requests for unconfigured hosts instead of open-redirecting", () => {
+  const response = { status(code) { this.code = code; return this; }, type() { return this; }, send(body) { this.body = body; } };
+  createHttpsOnlyRedirect({ production: true, publicHosts: ["apex-studio-production.up.railway.app"] })(
+    { headers: { "x-forwarded-proto": "http", host: "attacker.example" }, originalUrl: "/" },
+    response,
+    () => {}
+  );
+  assert.equal(response.code, 400);
+  assert.equal(response.body, "HTTPS required");
+});
+
+test("development HTTP requests are not redirected", () => {
+  let continued = false;
+  createHttpsOnlyRedirect({ production: false })({ headers: { "x-forwarded-proto": "http" } }, {}, () => { continued = true; });
+  assert.equal(continued, true);
 });

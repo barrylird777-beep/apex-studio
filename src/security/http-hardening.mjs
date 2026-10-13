@@ -23,3 +23,20 @@ export function createApexSecurityHeaders({ production = false } = {}) {
     return next();
   };
 }
+
+export function createHttpsOnlyRedirect({ production = false, publicHosts = [] } = {}) {
+  const allowedHosts = new Set(publicHosts.map(host => String(host).trim().toLowerCase()).filter(Boolean));
+  return function httpsOnlyRedirect(req, res, next) {
+    if (!production) return next();
+    const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '')
+      .split(',')[0].trim().toLowerCase();
+    if (forwardedProto !== 'http') return next();
+
+    const host = String(req?.headers?.host || '').trim().toLowerCase();
+    if (!allowedHosts.has(host)) {
+      return res.status(400).type('text/plain').send('HTTPS required');
+    }
+    const path = String(req?.originalUrl || req?.url || '/');
+    return res.redirect(308, `https://${host}${path}`);
+  };
+}
