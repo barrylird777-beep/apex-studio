@@ -1,18 +1,28 @@
-import path from 'node:path';
-import { ContentAddressedStore } from './content-addressed-store.mjs';
-import { createPeerObjectStorageHandler } from './peer-content-addressed-store.mjs';
-
 const CANONICAL_APPS = new Set([
   'PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob'
 ]);
 
 function parseNamespaceAcl(value) {
-  const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new TypeError('peer namespace ACL must be a JSON object keyed by canonical app');
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return validateAcl(value);
   }
+  const source = String(value || '').trim();
+  if (!source) throw new Error('peer namespace ACL is empty; access defaults to deny');
   const acl = Object.create(null);
-  for (const [namespace, peers] of Object.entries(parsed)) {
+  for (const entry of source.split(';')) {
+    const split = entry.indexOf('=');
+    if (split < 1) throw new Error('peer namespace ACL must use AppName=peer-a,peer-b;AppName2=peer-c syntax');
+    const namespace = entry.slice(0, split).trim();
+    const peers = entry.slice(split + 1).split(',').map(peer => peer.trim()).filter(Boolean);
+    if (Object.hasOwn(acl, namespace)) throw new Error('duplicate app namespace in peer ACL');
+    acl[namespace] = peers;
+  }
+  return validateAcl(acl);
+}
+
+function validateAcl(value) {
+  const acl = Object.create(null);
+  for (const [namespace, peers] of Object.entries(value)) {
     if (!CANONICAL_APPS.has(namespace)) throw new Error('peer namespace ACL contains a non-canonical app');
     if (!Array.isArray(peers) || peers.length === 0 ||
         peers.some(peer => typeof peer !== 'string' || !peer.trim())) {
@@ -25,13 +35,13 @@ function parseNamespaceAcl(value) {
 }
 
 /**
- * Optional server-side peer object capacity. Disabled unless explicitly enabled.
- * It requires a separately configured absolute storage root and app-scoped ACL;
- * it never falls back to the general runtime store or creates an implicit ACL.
+ * Opt-in inbound peer object capacity.
+ * Persistence is injected as a peer-owned binary backend; this runtime never
+ * creates a local filesystem store or silently selects another persistence path.
  */
 export async function initializePeerObjectStorage({
   enabled = String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true',
-  root = process.env.APEX_PEER_OBJECT_STORE_ROOT || '',
+  store,
   namespaceAcl = process.env.APEX_PEER_NAMESPACE_ACL || '',
   peerId = () => ''
 } = {}) {
@@ -42,14 +52,11 @@ export async function initializePeerObjectStorage({
       handle: async () => { throw new Error('peer object storage is disabled'); }
     });
   }
-
-  const configuredRoot = String(root || '').trim();
-  if (!configuredRoot || !path.isAbsolute(configuredRoot) || path.resolve(configuredRoot) === path.parse(path.resolve(configuredRoot)).root) {
-    throw new Error('peer object storage requires an explicit absolute non-root APEX_PEER_OBJECT_STORE_ROOT');
+  if (!store || typeof store.putBytes !== 'function' || typeof store.getBytes !== 'function') {
+    throw new Error('peer object storage requires an injected peer-owned binary backend; local filesystem fallback is forbidden');
   }
   const acl = parseNamespaceAcl(namespaceAcl);
-  const store = new ContentAddressedStore({ root: path.resolve(configuredRoot) });
-  await store.init();
+  const { createPeerObjectStorageHandler } = await import('./peer-content-addressed-store.mjs');
   const handle = createPeerObjectStorageHandler({
     store,
     peerId,
