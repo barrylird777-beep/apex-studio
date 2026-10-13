@@ -74,6 +74,7 @@ const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 
 const streamReaders = new WeakMap();
 const peerSecurity = createPeerSecurityGuard();
+const outboundPeerSecurity = createPeerSecurityGuard();
 
 function readerFor(stream, { resume = true } = {}) {
   let reader = streamReaders.get(stream);
@@ -343,7 +344,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
   if (localPeerId && destinationPeerId === localPeerId) {
     throw new Error('outgoing sovereign peer cannot dial itself');
   }
-  const admission = peerSecurity.admit(destinationPeerId, envelope);
+  const admission = outboundPeerSecurity.admit(destinationPeerId, envelope);
   if (!admission.allowed) throw new Error(admission.reason);
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
   // Retry only transport failures on a fresh stream; never retry peer rejection.
