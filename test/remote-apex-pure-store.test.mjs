@@ -100,6 +100,75 @@ test("remote queue index keeps claim, heartbeat, and completion off full job sca
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("remote queue listing does not hold the global mutation lease", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-queue-lock-scope-"));
+  try {
+    const cas = new MemoryCAS();
+    const store = new ApexPureStore({ root, cas });
+    await store.init();
+    await store.ensureRemoteQueueIndex();
+    await store.enqueue({ id: "scan-lock-job", type: "test.lock-scope", payload: {} });
+
+    const listRefs = cas.listRefs.bind(cas);
+    let releaseScan;
+    let signalScan;
+    const scanStarted = new Promise(resolve => { signalScan = resolve; });
+    const scanGate = new Promise(resolve => { releaseScan = resolve; });
+    cas.listRefs = async namespace => {
+      if (namespace === "queue") {
+        signalScan();
+        await scanGate;
+      }
+      return listRefs(namespace);
+    };
+
+    const claimPromise = store.claim({ workerId: "lock-scope-test", limit: 1 });
+    await scanStarted;
+    assert.equal(cas.refs.has("system/queue-mutations"), false, "queue listing must happen before the global mutation lease is acquired");
+    releaseScan();
+    const claimed = await claimPromise;
+    assert.equal(claimed.length, 1);
+    assert.equal(claimed[0].id, "scan-lock-job");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("expired-running index listing does not hold the global mutation lease", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-running-lock-scope-"));
+  try {
+    const cas = new MemoryCAS();
+    const store = new ApexPureStore({ root, cas });
+    await store.init();
+    await store.ensureRemoteQueueIndex();
+    await store.enqueue({ id: "expired-lock-job", type: "test.lock-scope", payload: {} });
+    await store.claim({ workerId: "lock-scope-test", limit: 1, leaseMs: 1000 });
+
+    const jobKey = store.refKey("job", "expired-lock-job");
+    const jobRef = await cas.readRef("jobs", jobKey);
+    await cas.writeRef("jobs", jobKey, { ...jobRef.value, job: { ...jobRef.value.job, leaseExpiresAt: 0 } }, { expectedHash: jobRef.hash });
+    const runningRef = await cas.readRef("running", jobKey);
+    await cas.writeRef("running", jobKey, { ...runningRef.value, leaseExpiresAt: 0 }, { expectedHash: runningRef.hash });
+
+    const listRefs = cas.listRefs.bind(cas);
+    let releaseScan;
+    let signalScan;
+    const scanStarted = new Promise(resolve => { signalScan = resolve; });
+    const scanGate = new Promise(resolve => { releaseScan = resolve; });
+    cas.listRefs = async namespace => {
+      if (namespace === "running") {
+        signalScan();
+        await scanGate;
+      }
+      return listRefs(namespace);
+    };
+
+    const recoverPromise = store.recoverExpired(1);
+    await scanStarted;
+    assert.equal(cas.refs.has("system/queue-mutations"), false, "running-index listing must happen before the global mutation lease is acquired");
+    releaseScan();
+    assert.equal(await recoverPromise, 1);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("remote dispatch dedupe uses an index and retains completed dispatch keys", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-dedupe-index-"));
   try {
