@@ -187,3 +187,55 @@ body:has(.apex-app-nav a[aria-current="page"][href="/"]){--apex-accent:#80c6ff}
 .apex-shell [aria-live=polite],.apex-shell [role=status]{overflow-wrap:anywhere}
 .apex-shell .risk-modal{padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
 .apex-shell .risk-card{max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain}
+
+
+/* APEX realism pass: restrained motion, compact touch navigation, and app-specific visual systems. */
+.apex-shell{animation:none!important}
+.apex-app-nav{scrollbar-width:none;scrollbar-color:transparent transparent;box-shadow:0 8px 24px #0002}
+.apex-app-nav::-webkit-scrollbar{display:none}
+.apex-shell .card,.apex-shell .panel{transition:border-color .14s ease,background-color .14s ease!important}
+.apex-shell .card:hover,.apex-shell .panel:hover{transform:none!important}
+.apex-app-index .card:hover{transform:none!important}
+.apex-shell button{transition:background-color .14s ease,border-color .14s ease,filter .14s ease!important}
+.apex-shell button:hover:not(:disabled){transform:none!important;filter:brightness(1.06)}
+.apex-shell button:active:not(:disabled){transform:none!important}
+.apex-shell .card,.apex-shell .panel{box-shadow:0 10px 28px #0000001c}
+.apex-app-nav{backdrop-filter:blur(12px) saturate(110%);-webkit-backdrop-filter:blur(12px) saturate(110%)}
+@media(max-width:680px){
+  .apex-app-nav{gap:4px;padding:7px 8px;margin-bottom:15px}
+  .apex-app-nav a:not(.apex-app-brand){min-height:38px;padding:8px 9px;font-size:11px}
+  .apex-shell h1{font-size:clamp(32px,9vw,48px);line-height:1.02;letter-spacing:-.04em}
+}
+@media(prefers-reduced-motion:reduce){
+  .apex-shell,.apex-shell *,.apex-app-index .card{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+
+/* KernelVision — cinematic graphite, restrained violet, hard-edged production surfaces. */
+body:has(.apex-shell[data-apex-app="kernelvision"]){--apex-bg:#09090e;--apex-panel:#111119;--apex-line:#302b3d;--apex-accent:#b6a4ff;background:radial-gradient(ellipse at 50% -18%,#4b3a7138,transparent 58%),#09090e}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="kernelvision"]) .apex-shell .panel{border-radius:12px;background:linear-gradient(145deg,#17151f,#0d0d13);box-shadow:0 14px 36px #0005}
+
+/* XShield — security-console charcoal with precise teal status accents. */
+body:has(.apex-shell[data-apex-app="xshield"]){--apex-bg:#070e11;--apex-panel:#0b171a;--apex-line:#1c3b3e;--apex-accent:#68d8ce;background:linear-gradient(180deg,#0b24261c,transparent 46%),#070e11}
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="xshield"]) .apex-shell .panel{border-radius:10px;background:#0b171a;box-shadow:inset 3px 0 #68d8ce12,0 10px 28px #0003}
+
+/* Kernelodies — warm analog listening room, plum and rose, soft album-like panels. */
+body:has(.apex-shell[data-apex-app="kernelodies"]){--apex-bg:#140d14;--apex-panel:#21151f;--apex-line:#493044;--apex-accent:#f0a0c7;background:radial-gradient(ellipse at 80% 0%,#7b315025,transparent 48%),#140d14}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="kernelodies"]) .apex-shell .panel{border-radius:20px;background:linear-gradient(155deg,#291b29,#181018);box-shadow:0 12px 30px #0004}
+
+/* PlanetApeX — quiet research observatory, ink-blue with manuscript-gold accents. */
+body:has(.apex-shell[data-apex-app="planetapex"]){--apex-bg:#08111b;--apex-panel:#101d2a;--apex-line:#293e50;--apex-accent:#dfc18a;background:radial-gradient(ellipse at 15% 0%,#234a6330,transparent 50%),#08111b}
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="planetapex"]) .apex-shell .panel{border-radius:8px;background:linear-gradient(135deg,#122231,#0c1722);box-shadow:inset 0 1px #ffffff08,0 12px 28px #0003}
+
+/* KashKorner — financial ledger, warm paper-gold over near-black graphite. */
+body:has(.apex-shell[data-apex-app="kashkorner"]){--apex-bg:#11100c;--apex-panel:#1b1912;--apex-line:#403722;--apex-accent:#e4bd69;background:radial-gradient(ellipse at 90% 0%,#8b6a2426,transparent 48%),#11100c}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="kashkorner"]) .apex-shell .panel{border-radius:8px;background:#1a1812;box-shadow:inset 0 1px #ffffff08,0 10px 24px #0003}
+
+/* KoinKob — autonomous economy lab, cool steel and measured blue. */
+body:has(.apex-shell[data-apex-app="koinkob"]){--apex-bg:#0a1018;--apex-panel:#111c29;--apex-line:#293e56;--apex-accent:#8dbbfa;background:linear-gradient(140deg,#12243a30,transparent 48%),#0a1018}
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app="koinkob"]) .apex-shell .panel{border-radius:5px;background:linear-gradient(180deg,#142233,#0d1723);box-shadow:inset 0 1px #ffffff08,0 10px 26px #0003}
