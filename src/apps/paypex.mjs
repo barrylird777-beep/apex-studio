@@ -5,11 +5,11 @@ const APP = getApexApp("paypex");
 
 export async function payPexSnapshot() {
   const snapshot = await getPaypexSnapshot();
-  return { app: { ...APP }, ...snapshot, engine: "PayPex", decisionCore: "PayPex", productionExecutionOwnedBy: "ApexStudio" };
+  return { app: { ...APP }, ...snapshot, engine: "PayPex", decisionCore: "PayPex", productionExecutionOwnedBy: "KernelVision" };
 }
 
 export function createPayPexBrief(input = {}) {
-  return { app: { ...APP }, ...buildPaypexBrief(input), engine: "PayPex", executionOwner: "ApexStudio" };
+  return { app: { ...APP }, ...buildPaypexBrief(input), engine: "PayPex", executionOwner: "KernelVision" };
 }
 
 export function evaluatePayPex(input = {}) {
