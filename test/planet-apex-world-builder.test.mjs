@@ -31,7 +31,7 @@ test("PlanetApeX map supports accessible location inspection and GardenApeX hand
   const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
   assert.match(html, /id="pa-map-inspector"/);
   assert.match(html, /id="pa-map-location-name"/);
-  assert.match(html, /data-location=\?"rootlight\?/);
+  assert.match(html, /rootlight:\\{name:/);
   assert.match(html, /setAttribute\("role","button"\)/);
   assert.match(html, /setAttribute\("tabindex","0"\)/);
   assert.match(html, /North Ridge/);
