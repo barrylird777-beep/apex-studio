@@ -157,9 +157,13 @@ export class SovereignCloudCoordinator {
     jobs.sort((a, b) => a.createdAt - b.createdAt);
     return { app, jobs, count: jobs.length, truncated: Boolean(listed.IsTruncated), nextContinuationToken: listed.NextContinuationToken || null };
   }
-  async claimNextJob({ app, workerId, leaseMs = 30000, limit = 100 } = {}) {
+  async claimNextJob({ app, workerId, leaseMs = 30000, limit = 100, capabilities, taskTypes } = {}) {
     const listed = await this.listQueuedJobs({ app, limit });
+    const allowedCapabilities = capabilities ? new Set(capabilities.map(String)) : null;
+    const allowedTaskTypes = taskTypes ? new Set(taskTypes.map(String)) : null;
     for (const job of listed.jobs) {
+      if (allowedCapabilities && !allowedCapabilities.has(job.capability)) continue;
+      if (allowedTaskTypes && !allowedTaskTypes.has(job.taskType)) continue;
       const claim = await this.claimJob({ app, jobId: job.jobId, workerId, leaseMs });
       if (claim.claimed) return { job, lease: claim.lease };
     }
