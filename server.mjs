@@ -38,6 +38,7 @@ import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
 import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { createWebRtcProofRouter } from './src/api/webrtc-proof.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
 import { studioAdBlockMobileConfig } from './src/network/studio-adblock-profile.mjs';
@@ -100,6 +101,9 @@ app.use(express.json({
   limit: CAPACITY.jsonBody,
   type: (req) => !req.path.startsWith('/api/rapid/stripe/webhook')
 }));
+
+// Explicitly authenticated browser-test payload handoff; remote CAS/WAL only.
+app.use('/api/network/webrtc-proof', createWebRtcProofRouter({ store: apexPureStore, requireAuth: requireControlPlaneAuth }));
 
 function timingSafeSecret(expected, supplied) {
   if (!expected || !supplied) return false;
