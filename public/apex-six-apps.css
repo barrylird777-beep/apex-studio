@@ -48,3 +48,64 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
 .apex-app-footer{align-items:center}
 .apex-app-footer span:last-child{color:#8f9db2}
 @media(max-width:420px){.apex-app-footer{font-size:10px}.apex-app-nav a:not(.apex-app-brand){font-size:10px;padding-inline:3px}}
+
+
+/* Six-app interface polish: thumb-first navigation, calmer hierarchy, and resilient layouts. */
+.apex-app-nav{
+  position:sticky;top:0;z-index:1000;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;
+  scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--apex-accent) 55%,transparent) transparent;
+  border-radius:0 0 16px 16px;margin:0 0 26px;padding:10px max(12px,calc((100vw - 1240px)/2));
+  background:rgba(7,11,19,.9);backdrop-filter:blur(18px) saturate(145%);-webkit-backdrop-filter:blur(18px) saturate(145%);
+}
+.apex-app-nav .apex-app-brand{flex:0 0 auto}
+.apex-app-nav a:not(.apex-app-brand){flex:0 0 auto;white-space:nowrap;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.apex-shell{animation:apex-shell-enter .32s ease-out both}
+@keyframes apex-shell-enter{from{opacity:.72;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.apex-shell .card,.apex-shell .panel{position:relative;overflow-wrap:anywhere;transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.apex-shell .card:hover,.apex-shell .panel:hover{border-color:color-mix(in srgb,var(--apex-accent) 34%,var(--apex-line))}
+.apex-shell :is(input,select,textarea){display:block;min-height:44px;line-height:1.45}
+.apex-shell textarea{min-height:112px;resize:vertical}
+.apex-shell label{display:block;font-size:13px;font-weight:650;color:#d7e0ef}
+.apex-shell :is(button,a,.launch){-webkit-tap-highlight-color:transparent}
+.apex-shell button{min-height:44px}
+.apex-shell button:active:not(:disabled){transform:translateY(1px)}
+.apex-shell :is(pre,code){overflow-wrap:anywhere}
+.apex-shell audio,.apex-shell video,.apex-shell iframe{max-width:100%}
+.apex-shell img{max-width:100%;height:auto}
+.apex-shell :is(.grid,.row,.links){min-width:0}
+.apex-shell .grid{grid-template-columns:repeat(12,minmax(0,1fr))}
+.apex-shell .grid>.card{grid-column:span 6}
+.apex-shell .grid>.card.wide,.apex-shell .grid>.card:only-child{grid-column:1/-1}
+.apex-shell :is(.good,.status-ok){font-weight:750}
+.apex-shell .bad,.apex-shell .status-warn{font-weight:750}
+.apex-shell :is(.metric,.pill,.eyebrow){font-variant-numeric:tabular-nums}
+.apex-app-index main{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clamp(22px,4vw,48px) clamp(14px,3vw,30px) 56px}
+.apex-app-index header{align-items:flex-start}
+.apex-app-index h1{font-size:clamp(36px,6vw,64px);line-height:1;letter-spacing:-.055em}
+.apex-app-index .summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0 18px}
+.apex-app-index .metric{border-color:var(--apex-line);border-radius:16px;background:linear-gradient(145deg,rgba(19,29,46,.96),rgba(10,15,25,.98))}
+.apex-app-index .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.apex-app-index .card{min-width:0;border-color:var(--apex-line);border-radius:18px;background:linear-gradient(145deg,rgba(19,29,46,.96),rgba(10,15,25,.98));transition:transform .18s,border-color .18s,background .18s}
+.apex-app-index .card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--apex-accent) 40%,var(--apex-line))}
+.apex-app-index .launch{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--apex-accent) 42%,var(--apex-line));border-radius:11px;background:color-mix(in srgb,var(--apex-accent) 12%,#101827);font-weight:750}
+.apex-app-index :is(a,button):focus-visible{outline:3px solid var(--apex-accent);outline-offset:3px}
+@media(max-width:760px){
+  .apex-app-nav{gap:5px;padding:8px 10px;margin-bottom:18px;border-radius:0 0 13px 13px}
+  .apex-app-nav .apex-app-brand{width:auto;margin:0 4px 0 0;padding:4px 10px 4px 4px;border:0;border-right:1px solid var(--apex-line)}
+  .apex-app-nav a:not(.apex-app-brand){flex:0 0 auto;padding:9px 11px;font-size:11px}
+  .apex-shell .grid{grid-template-columns:minmax(0,1fr)}
+  .apex-shell .grid>.card{grid-column:1/-1}
+  .apex-app-index .summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .apex-app-index .summary .metric:last-child{grid-column:1/-1}
+  .apex-app-index .grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:380px){
+  .apex-app-nav .apex-app-brand{font-size:10px;letter-spacing:.03em}
+  .apex-app-nav .apex-app-brand-mark{width:30px;height:30px}
+  .apex-app-index .summary{gap:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  .apex-shell{animation:none}
+  .apex-shell .card,.apex-shell .panel,.apex-app-index .card{transition:none}
+  .apex-app-index .card:hover{transform:none}
+}
