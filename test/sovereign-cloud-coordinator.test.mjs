@@ -125,3 +125,14 @@ test("active workers can renew a lease before completion", async () => {
   const completed = await c.finishJob({ app: "KoinKob", jobId: "long-job", workerId: "worker-long", leaseToken: claim.lease.token });
   assert.equal(completed.accepted, true);
 });
+
+test("submitJob persists payload before publishing a hash-only job manifest", async () => {
+  const c = coordinator(fakeS3());
+  const payload = { prompt: "render a test clip", source: "integration-test" };
+  const submitted = await c.submitJob({ app: "KernelVision", jobId: "submit-roundtrip", taskType: "render", capability: "ffmpeg", payload });
+  assert.equal(submitted.job.status, "queued");
+  assert.equal(submitted.job.payloadHash, submitted.payload.payloadHash);
+  assert.equal(submitted.payload.bytes, Buffer.byteLength(JSON.stringify(payload)));
+  assert.deepEqual(JSON.parse((await c.getPayload({ app: "KernelVision", payloadHash: submitted.payload.payloadHash })).toString("utf8")), payload);
+  assert.equal(await c.getJob({ app: "XShield", jobId: "submit-roundtrip" }), null);
+});
