@@ -137,6 +137,73 @@ export class PeerContentAddressedStore {
     };
   }
 
+  async putBlob(input, { chunkSize = 8 * 1024 } = {}) {
+    const blob = Buffer.from(input);
+    const size = Number(chunkSize);
+    if (!Number.isSafeInteger(size) || size < 1 || size > 8 * 1024) {
+      throw new TypeError('chunkSize must be between 1 byte and 8 KiB for the current peer envelope ceiling');
+    }
+    const chunks = [];
+    for (let offset = 0; offset < blob.length; offset += size) {
+      const bytes = blob.subarray(offset, Math.min(offset + size, blob.length));
+      const chunkHash = sha256(bytes);
+      const receipt = await this.putObject({
+        kind: 'apex.blob-chunk.v1',
+        namespace: this.namespace,
+        bytes: bytes.length,
+        sha256: chunkHash,
+        dataBase64: bytes.toString('base64')
+      });
+      chunks.push({ hash: receipt.hash, bytes: bytes.length, sha256: chunkHash });
+    }
+    const manifest = {
+      kind: 'apex.blob-manifest.v1',
+      version: 1,
+      namespace: this.namespace,
+      totalBytes: blob.length,
+      sha256: sha256(blob),
+      chunks
+    };
+    const receipt = await this.putObject(manifest);
+    return { ...receipt, kind: manifest.kind, totalBytes: blob.length, contentSha256: manifest.sha256, chunkCount: chunks.length };
+  }
+
+  async getBlob(manifestHash) {
+    const manifest = await this.getObject(manifestHash);
+    if (!manifest || manifest.kind !== 'apex.blob-manifest.v1' || manifest.version !== 1 ||
+        manifest.namespace !== this.namespace || !Number.isSafeInteger(manifest.totalBytes) ||
+        manifest.totalBytes < 0 || !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || '')) ||
+        !Array.isArray(manifest.chunks)) {
+      throw new Error('invalid or cross-namespace blob manifest');
+    }
+    const parts = [];
+    let total = 0;
+    for (const item of manifest.chunks) {
+      if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+          !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
+          !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
+        throw new Error('invalid blob chunk reference');
+      }
+      const chunk = await this.getObject(item.hash);
+      if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
+          chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
+        throw new Error('blob chunk metadata mismatch');
+      }
+      const bytes = Buffer.from(chunk.dataBase64, 'base64');
+      if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
+        throw new Error('blob chunk integrity verification failed');
+      }
+      parts.push(bytes);
+      total += bytes.length;
+      if (total > manifest.totalBytes) throw new Error('blob chunks exceed manifest length');
+    }
+    const blob = Buffer.concat(parts, total);
+    if (total !== manifest.totalBytes || sha256(blob) !== manifest.sha256) {
+      throw new Error('reconstructed blob failed total length or SHA-256 verification');
+    }
+    return blob;
+  }
+
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
     const failures = [];
