@@ -224,3 +224,22 @@ test("remote WAL recovers a committed record after injected ENOSPC on head updat
   assert.equal(next.seq, 2);
   assert.equal(next.payload.id, "after-enospc");
 });
+
+
+test("remote WAL idempotency survives cross-instance appends and rejects key reuse", async () => {
+  const cas = new MemoryCAS();
+  const first = new RemoteApexRingWAL({cas,scope:"wal-idempotency",ringSize:8});
+  const one = await first.append("state.put",{id:"one",value:1},{idempotencyKey:"state:one:v1"});
+  const second = new RemoteApexRingWAL({cas,scope:"wal-idempotency",ringSize:8});
+  const two = await second.append("state.put",{id:"two",value:2},{idempotencyKey:"state:two:v1"});
+  const duplicate = await first.append("state.put",{id:"two",value:2},{idempotencyKey:"state:two:v1"});
+  assert.equal(duplicate.seq,two.seq,"a stale process must refresh the remote head and dedupe against another process's append");
+  assert.equal(duplicate.id,two.id);
+  assert.equal(one.seq,1);
+  assert.equal(two.seq,2);
+  await assert.rejects(
+    first.append("state.put",{id:"different",value:3},{idempotencyKey:"state:two:v1"}),
+    {code:"IDEMPOTENCY_CONFLICT"}
+  );
+  assert.equal((await cas.listRefs("wal")).filter(row=>row.key.startsWith("wal-idempotency-r")).length,2);
+});
