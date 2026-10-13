@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
+import { signSovereignVote, verifySovereignQuorum } from "../src/testing/sovereign-bft-quorum.mjs";
 import {
   readSovereignEnvelope,
   sendToPeer
@@ -248,4 +250,65 @@ test("outgoing sovereign envelopes wait for accepted bytes to drain before repor
     if (previous === undefined) delete process.env.APEX_ALLOWED_PEER_IDS;
     else process.env.APEX_ALLOWED_PEER_IDS = previous;
   }
+});
+
+
+test("BFT quorum accepts three of four authenticated validator signatures", () => {
+  const validators = new Map();
+  const keys = new Map();
+  for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
+    const pair = generateKeyPairSync("ed25519");
+    validators.set(peerId,pair.publicKey);
+    keys.set(peerId,pair.privateKey);
+  }
+  const body = {height:7,round:1,proposalHash:"hash-proposal-7",prevHash:"hash-proposal-6"};
+  const votes = ["peer-a","peer-b","peer-c"].map(peerId=>signSovereignVote({...body,peerId,privateKey:keys.get(peerId)}));
+  const certificate = verifySovereignQuorum({...body,votes,validators});
+  assert.equal(certificate.valid,true);
+  assert.equal(certificate.maxFaults,1);
+  assert.equal(certificate.quorum,3);
+  assert.equal(certificate.acceptedSigners.length,3);
+});
+
+test("BFT quorum rejects two votes and never counts duplicate signers twice", () => {
+  const validators = new Map();
+  const keys = new Map();
+  for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
+    const pair = generateKeyPairSync("ed25519");
+    validators.set(peerId,pair.publicKey);
+    keys.set(peerId,pair.privateKey);
+  }
+  const body = {height:8,round:0,proposalHash:"hash-proposal-8",prevHash:"hash-proposal-7"};
+  const a = signSovereignVote({...body,peerId:"peer-a",privateKey:keys.get("peer-a")});
+  const b = signSovereignVote({...body,peerId:"peer-b",privateKey:keys.get("peer-b")});
+  const short = verifySovereignQuorum({...body,votes:[a,b],validators});
+  assert.equal(short.valid,false);
+  const duplicate = verifySovereignQuorum({...body,votes:[a,a,b],validators});
+  assert.equal(duplicate.valid,false);
+  assert.equal(duplicate.acceptedSigners.length,2);
+  assert.ok(duplicate.rejected.some(item=>item.reason==="duplicate-vote"));
+});
+
+test("BFT quorum rejects forged votes and quarantines authenticated equivocation", () => {
+  const validators = new Map();
+  const keys = new Map();
+  for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
+    const pair = generateKeyPairSync("ed25519");
+    validators.set(peerId,pair.publicKey);
+    keys.set(peerId,pair.privateKey);
+  }
+  const body = {height:9,round:0,proposalHash:"hash-proposal-9",prevHash:"hash-proposal-8"};
+  const a = signSovereignVote({...body,peerId:"peer-a",privateKey:keys.get("peer-a")});
+  const b = signSovereignVote({...body,peerId:"peer-b",privateKey:keys.get("peer-b")});
+  const c = signSovereignVote({...body,peerId:"peer-c",privateKey:keys.get("peer-c")});
+  const forged = {...c,proposalHash:"tampered-proposal"};
+  const forgedOnly = verifySovereignQuorum({...body,votes:[a,b,forged],validators});
+  assert.equal(forgedOnly.valid,false);
+  assert.deepEqual(forgedOnly.quarantine,[],"an invalid signature alone must not let an attacker frame a validator");
+
+  const conflicting = signSovereignVote({...body,proposalHash:"other-proposal",peerId:"peer-c",privateKey:keys.get("peer-c")});
+  const equivocation = verifySovereignQuorum({...body,votes:[a,b,c,conflicting],validators});
+  assert.equal(equivocation.valid,false,"an equivocating validator is removed from the accepted quorum");
+  assert.ok(equivocation.quarantine.includes("peer-c"));
+  assert.ok(equivocation.rejected.some(item=>item.reason==="equivocation"));
 });
