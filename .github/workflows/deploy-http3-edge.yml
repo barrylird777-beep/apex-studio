@@ -22,34 +22,50 @@ jobs:
           workingDirectory: cloudflare-http3-worker
           command: deploy
 
-      - name: Verify HTTP/1.1 and HTTP/2
+      - name: Verify negotiated HTTP/1.1 and HTTP/2
         shell: bash
         run: |
           set -euo pipefail
           url="https://apex-free-http3-edge.tbtristan777.workers.dev/"
           for protocol in http1.1 http2; do
             echo "Checking client-to-edge protocol: $protocol"
-            status="$(curl "--$protocol" --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_code}' "$url")"
-            echo "$protocol HTTP status: $status"
+            result="$(curl "--$protocol" --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_version} %{http_code}' "$url")"
+            version="${result%% *}"
+            status="${result##* }"
+            echo "Negotiated HTTP version: $version; status: $status"
+            if [[ "$protocol" == "http1.1" && "$version" != "1.1" ]]; then
+              echo "Expected HTTP/1.1 but negotiated HTTP/$version." >&2
+              exit 1
+            fi
+            if [[ "$protocol" == "http2" && "$version" != "2" ]]; then
+              echo "Expected HTTP/2 but negotiated HTTP/$version." >&2
+              exit 1
+            fi
             if [[ ! "$status" =~ ^[234][0-9][0-9]$ ]]; then
               echo "$protocol edge check failed." >&2
               exit 1
             fi
           done
 
-      - name: Verify HTTP/3 when client supports it
+      - name: Verify negotiated HTTP/3 when client supports it
         shell: bash
         run: |
           set -euo pipefail
           url="https://apex-free-http3-edge.tbtristan777.workers.dev/"
           if curl --version | grep -qi 'HTTP3'; then
-            status="$(curl --http3-only --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_code}' "$url")"
-            echo "HTTP/3-only status: $status"
+            result="$(curl --http3-only --silent --show-error --location --max-redirs 5 --retry 5 --retry-all-errors --retry-delay 2 --output /dev/null --write-out '%{http_version} %{http_code}' "$url")"
+            version="${result%% *}"
+            status="${result##* }"
+            echo "Negotiated HTTP version: $version; status: $status"
+            if [[ "$version" != "3" ]]; then
+              echo "Expected HTTP/3 but negotiated HTTP/$version." >&2
+              exit 1
+            fi
             if [[ ! "$status" =~ ^[234][0-9][0-9]$ ]]; then
               echo "HTTP/3 edge check failed." >&2
               exit 1
             fi
             echo "HTTP/3 negotiation verified from this runner."
           else
-            echo "HTTP/3 not verified: this runner's curl lacks HTTP/3 support. HTTP/1.1 and HTTP/2 checks do not prove HTTP/3."
+            echo "HTTP/3 NOT VERIFIED: this runner's curl lacks HTTP/3 support. HTTP/1.1 and HTTP/2 checks do not prove HTTP/3."
           fi
