@@ -40,3 +40,48 @@ test("range downloader completes parallel HTTP ranges with exact bytes and hash"
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+
+test("range downloader aborts sibling streams and waits for them after a terminal failure", async () => {
+  const payload = crypto.randomBytes(256 * 1024);
+  let requests = 0;
+  const server = http.createServer((req, res) => {
+    const range = /^bytes=(\\d+)-(\\d+)$/.exec(String(req.headers.range || ""));
+    if (!range) {
+      res.writeHead(200, { "Content-Length": payload.length });
+      return res.end(payload);
+    }
+    requests++;
+    const start = Number(range[1]), end = Math.min(Number(range[2]), payload.length - 1);
+    if (start === 0) {
+      res.writeHead(503, { "Content-Length": "0" });
+      return res.end();
+    }
+    const timer = setTimeout(() => {
+      if (res.destroyed) return;
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${payload.length}`,
+        "Content-Length": end - start + 1,
+        ETag: '"apex-failure-test"'
+      });
+      res.end(payload.subarray(start, end + 1));
+    }, 150);
+    res.on("close", () => clearTimeout(timer));
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "apex-range-failure-"));
+  try {
+    const { downloadHttpAsset } = await import("../src/network/http-range-transfer.mjs");
+    await assert.rejects(
+      downloadHttpAsset(`http://127.0.0.1:${server.address().port}/asset`, path.join(dir, "asset.bin"), {
+        parallelStreams: 2,
+        chunkMiB: 0.03125,
+        retryLimit: 0
+      })
+    );
+    assert.ok(requests >= 2, "expected concurrent range requests to exercise sibling cancellation");
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
