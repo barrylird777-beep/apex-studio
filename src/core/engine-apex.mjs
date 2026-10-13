@@ -81,7 +81,7 @@ export async function getEngineSnapshot() {
       id: randomUUID(),
       opportunityId: item.id,
       action: "build-brief",
-      handoff: "KernelVision",
+      handoff: "TeeVee",
       ownerSystem: "kash-korner",
       status: "proposed"
     })),
@@ -109,7 +109,7 @@ export function buildEngineBrief(input = {}) {
     audience: text(input.audience) || "existing Apex audience",
     monetization: text(input.monetization) || "attention → audience growth → downstream revenue",
     evidenceRequired: true,
-    handoff: text(input.handoff) || "KernelVision",
+    handoff: text(input.handoff) || "TeeVee",
     createdAt: new Date().toISOString()
   };
 }
