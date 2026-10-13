@@ -1,3 +1,4 @@
+import { createGuardedFetch, sanitizeOutboundPayload } from "../../security/sovereign-outbound-gateway.mjs";
 const MAX_QUERY = 160;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -25,7 +26,7 @@ function trustedHttpsUrl(raw, allowedHosts) {
 }
 
 export async function discoverMusic(query, options = {}) {
-  const q = String(query ?? "").normalize("NFKC").trim();
+  const q = sanitizeOutboundPayload({ query: String(query ?? "").normalize("NFKC").trim() }).query;
   if (q.length < 2) throw new RangeError("Enter at least two characters to search the music catalog.");
   if (q.length > MAX_QUERY) throw new RangeError("Music search query exceeds 160 characters.");
 
@@ -33,8 +34,9 @@ export async function discoverMusic(query, options = {}) {
   if (!ALLOWED_ENTITIES.has(entity)) throw new RangeError("Music search entity must be song or album.");
   const limit = boundedInt(options.limit, 20, 1, 25);
   const timeoutMs = boundedInt(options.timeoutMs, DEFAULT_TIMEOUT_MS, 1000, 15000);
-  const fetchImpl = options.fetchImpl || globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("Fetch is unavailable in this runtime.");
+  const rawFetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof rawFetchImpl !== "function") throw new Error("Fetch is unavailable in this runtime.");
+  const fetchImpl = createGuardedFetch(["itunes.apple.com"], rawFetchImpl);
 
   const url = new URL("https://itunes.apple.com/search");
   url.searchParams.set("term", q);
