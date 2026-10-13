@@ -37,9 +37,9 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
       throw new TypeError('minFailureDomains must be between one and replicaCount');
     }
-    if (this.minFailureDomains >= 1) {
+    if (this.minFailureDomains > 1) {
       for (const peerId of this.peers) {
-        if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains is positive');
+        if (!this.failureDomainsByPeerId[peerId]) throw new Error('every configured peer needs an explicit failure domain when minFailureDomains > 1');
       }
       if (new Set(this.peers.map(peerId => this.failureDomainsByPeerId[peerId])).size < this.minFailureDomains) {
         throw new Error('insufficient configured failure domains for requested durability policy');
