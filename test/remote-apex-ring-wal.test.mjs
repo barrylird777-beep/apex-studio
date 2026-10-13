@@ -256,11 +256,22 @@ test("remote PureStore mutations are WAL-backed and recover deleted CAS projecti
     const store = new ApexPureStore({root,wal:legacyWal,cas,remoteWal:new RemoteApexRingWAL({cas,scope})});
     await store.init();
     const project = await store.put("projects","project-1",{name:"WAL-backed project"});
-    await store.enqueue({
-      id:"job-1",type:"example.run",
-      payload:{_apex_worker:{role:"chaos-claim"}},
-      dedupeKey:"job-dedupe-1"
+    const jobPayload={_apex_worker:{role:"chaos-claim"}};
+    const jobSnapshot={
+      id:"job-1",type:"example.run",payload:jobPayload,priority:0,status:"queued",attempts:0,
+      maxAttempts:5,dedupeKey:"job-dedupe-1",runAt:1700000000000,
+      createdAt:"2026-10-12T00:00:00.000Z",updatedAt:"2026-10-12T00:00:00.000Z",
+      leaseOwner:null,leaseToken:null,leaseFence:0,leaseExpiresAt:0,recoveredCount:0
+    };
+    await store.wal.append("job.put",{job:jobSnapshot},{
+      idempotencyKey:"job.enqueue:job-1",
+      idempotencyPayload:{id:"job-1",type:"example.run",payload:jobPayload,priority:0,runAt:1700000000000,maxAttempts:5,dedupeKey:"job-dedupe-1"}
     });
+    const enqueueResult=await store.enqueue({
+      id:"job-1",type:"example.run",payload:jobPayload,runAt:1700000000000,
+      maxAttempts:5,dedupeKey:"job-dedupe-1"
+    });
+    assert.equal(enqueueResult.duplicate,true,"retry after WAL commit must recover the original job instead of appending a second one");
     const records = (await store.wal.snapshot()).ring;
     assert.ok(records.some(record=>record.type==="state.put"&&record.payload.id==="project-1"));
     assert.ok(records.some(record=>record.type==="job.put"&&record.payload.job?.id==="job-1"));
