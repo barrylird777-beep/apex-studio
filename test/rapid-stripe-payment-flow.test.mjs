@@ -16,7 +16,7 @@ function signEvent(rawBody, timestamp = Math.floor(Date.now() / 1000)) {
   return `t=${timestamp},v1=${digest}`;
 }
 
-function makeEvent({ orderId = 'test-order-1', paymentStatus = 'paid', amount = 2610, currency = 'usd' } = {}) {
+function makeEvent({ orderId = 'test-order-1', paymentStatus = 'paid', amount = 2500, currency = 'usd' } = {}) {
   const metadata = buildRapidCheckoutMetadata({
     orderId,
     name: 'Smoke Buyer',
@@ -93,7 +93,7 @@ test('Stripe paid checkout webhook verifies payment and queues one order exactly
       assert.equal(unpaid.status, 400, 'unpaid checkouts must not queue work');
 
       const wrongAmount = await postEvent(baseUrl, makeEvent({ amount: 100 }));
-      assert.equal(wrongAmount.status, 400, 'payments that do not match the $26.10 all-in price must not queue work');
+      assert.equal(wrongAmount.status, 400, 'payments that do not match the $25 all-in price must not queue work');
 
       const response = await postEvent(baseUrl, event, signEvent(rawBody));
       assert.equal(response.status, 200);
@@ -115,7 +115,7 @@ test('Stripe paid checkout webhook verifies payment and queues one order exactly
       assert.equal(queued[0].id, 'test-order-1');
       assert.equal(queued[0].task, 'rapid-video-order');
       assert.equal(queued[0].payload.paid, true);
-      assert.equal(queued[0].payload.price, 26.10);
+      assert.equal(queued[0].payload.price, 25);
       assert.equal(queued[0].payload.netTarget, 25);
       assert.equal(queued[0].payload.brief, 'A cinematic launch video with a strong opening hook.');
     });

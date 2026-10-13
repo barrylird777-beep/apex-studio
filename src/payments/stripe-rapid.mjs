@@ -28,10 +28,14 @@ export function decodeRapidCheckoutMetadata(metadata={}){
 export async function createRapidCheckout({orderId,name,type,brief,platform,email,successUrl,cancelUrl}){
   const secret=requireSecret(),params=new URLSearchParams(),add=(k,v)=>params.set(k,String(v));
   add('mode','payment'); add('success_url',successUrl); add('cancel_url',cancelUrl); add('client_reference_id',orderId);
+  // Offer lower-cost US bank debit alongside cards; Stripe confirms the actual payment asynchronously.
+  add('payment_method_types[0]','card'); add('payment_method_types[1]','us_bank_account');
+  add('payment_method_options[us_bank_account][verification_method]','automatic');
+  add('payment_method_options[us_bank_account][financial_connections][permissions][]','payment_method');
   if(String(email||'').trim()) add('customer_email',String(email).trim());
-  add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2610');
+  add('line_items[0][price_data][currency]','usd'); add('line_items[0][price_data][unit_amount]','2500');
   add('line_items[0][price_data][product_data][name]','KornKash Video');
-  add('line_items[0][price_data][product_data][description]','One finished short-form video production. All-in price includes typical US card processing costs.'); add('line_items[0][quantity]','1');
+  add('line_items[0][price_data][product_data][description]','One finished short-form video production. $25 total; US bank debit may have lower processing costs than cards.'); add('line_items[0][quantity]','1');
   for(const [k,v] of Object.entries(buildRapidCheckoutMetadata({orderId,name,type,brief,platform,email}))) add('metadata['+k+']',v);
   const body=await new Promise((resolve,reject)=>{
     const request=https.request(STRIPE_API+'/checkout/sessions',{method:'POST',family:4,lookup:(hostname,options,callback)=>dns.lookup(hostname,{family:4,all:false},callback),headers:{Authorization:'Bearer '+secret,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(params.toString())},timeout:15000},response=>{

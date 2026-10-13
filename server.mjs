@@ -1332,7 +1332,7 @@ app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', li
         brief: metadata.brief,
         platform: metadata.platform,
         email: metadata.email || String(session.customer_details?.email || session.customer_email || ''),
-        price: 26.10, netTarget: 25,
+        price: 25, netTarget: 25,
         paid: true,
         stripeSessionId: String(session.id || ''),
         paidAt: new Date().toISOString()
