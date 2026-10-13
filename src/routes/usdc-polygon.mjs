@@ -25,7 +25,7 @@ function config() {
     merchant,
     contract,
     chainId,
-    configured: validRpc && isAddress(merchant) && isAddress(contract) && chainId === POLYGON_CHAIN_ID
+    configured: validRpc && isAddress(merchant) && isAddress(contract) && contract.toLowerCase() === USDC_POLYGON.toLowerCase() && chainId === POLYGON_CHAIN_ID
   };
 }
 
