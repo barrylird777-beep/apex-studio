@@ -16,6 +16,7 @@ import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { apexPureStore } from './src/core/apex-pure-store.mjs';
+import { isSovereignRuntimeReady } from './src/core/runtime-readiness.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -532,6 +533,24 @@ async function buildHealthSnapshot() {
 }
 
 // Railway liveness must not wait on PostgreSQL or a worker health query.
+app.get('/ready', async (_req, res) => {
+  try {
+    if (!apexPureStore.remoteMode) {
+      return res.status(503).json({ ok: false, status: 'not_ready', reason: 'remote durable storage is not enabled' });
+    }
+    const identity = await apexPureStore.get('sovereign_runtime', 'identity');
+    const ready = isSovereignRuntimeReady(identity);
+    return res.status(ready ? 200 : 503).json({
+      ok: ready,
+      status: ready ? 'ready' : 'not_ready',
+      readiness: identity?.readiness || null,
+      checkedAt: new Date().toISOString()
+    });
+  } catch {
+    return res.status(503).json({ ok: false, status: 'not_ready', reason: 'sovereign runtime readiness could not be verified' });
+  }
+});
+
 app.get('/health', (_req, res) => {
   const memory = process.memoryUsage();
   return res.status(200).json({
@@ -1123,6 +1142,32 @@ server.on('error', (error) => {
   };
   console.error('[apex][listen-error]', error);
 });
+
+let shuttingDown = false;
+let shutdownTimer;
+function beginGracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log('[apex] graceful shutdown started', JSON.stringify({ signal, drainMs: 20000 }));
+  shutdownTimer = setTimeout(() => {
+    console.error('[apex] HTTP drain deadline reached; closing remaining connections');
+    server.closeAllConnections?.();
+    process.exitCode = 1;
+  }, 20000);
+  shutdownTimer.unref?.();
+  server.close(error => {
+    clearTimeout(shutdownTimer);
+    if (error) {
+      process.exitCode = 1;
+      console.error('[apex] HTTP drain failed', String(error?.message || error));
+      return;
+    }
+    console.log('[apex] HTTP drain complete');
+  });
+  server.closeIdleConnections?.();
+}
+process.once('SIGTERM', () => beginGracefulShutdown('SIGTERM'));
+process.once('SIGINT', () => beginGracefulShutdown('SIGINT'));
 
 
 
