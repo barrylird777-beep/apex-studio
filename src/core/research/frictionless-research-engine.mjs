@@ -25,6 +25,7 @@ function absUrl(value, base) {
 async function fetchJson(fetchImpl, url, options = {}) {
   const response = await fetchImpl(url, {
     ...options,
+    redirect: 'error',
     headers: {
       accept: 'application/json',
       'user-agent': options.userAgent || DEFAULT_USER_AGENT,
