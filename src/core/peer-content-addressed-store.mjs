@@ -111,12 +111,12 @@ export class PeerContentAddressedStore {
         }
         receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
+        if (receipts.length >= this.replicaCount && (this.minFailureDomains === 1 || domains.size >= this.minFailureDomains)) break;
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
+    const verifiedFailureDomains = this.minFailureDomains === 1 ? 1 : new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
     if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
       const error = new Error('peer object write did not satisfy required replica count and independent failure-domain policy');
       error.code = 'INSUFFICIENT_REPLICAS';
