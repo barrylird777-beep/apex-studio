@@ -206,3 +206,34 @@ test("terminal job rejection does not mutate an otherwise active lease", async (
   const lease = JSON.parse(c.client.objects.get("apex-mesh/v1/apps/KernelVision/leases/already-terminal.json").body.toString("utf8"));
   assert.equal(lease.status, "active");
 });
+
+test("lease is conditionally restored when terminal job commit loses its race", async () => {
+  const base = fakeS3();
+  let injected = false;
+  const client = {
+    objects: base.objects,
+    async send(command) {
+      const result = await base.send(command);
+      if (!injected && command.constructor.name === "PutObjectCommand" && command.input.Key.endsWith("/leases/race-restore.json")) {
+        const lease = JSON.parse(Buffer.from(command.input.Body).toString("utf8"));
+        if (lease.status === "finishing") {
+          injected = true;
+          const key = "apex-mesh/v1/apps/KernelVision/jobs/race-restore.json";
+          const current = base.objects.get(key);
+          const job = JSON.parse(current.body.toString("utf8"));
+          job.raceMarker = "concurrent-update";
+          await base.send({ constructor: { name: "PutObjectCommand" }, input: { Key: key, Body: JSON.stringify(job), IfMatch: current.etag, Metadata: {} } });
+        }
+      }
+      return result;
+    }
+  };
+  const c = coordinator(client);
+  await c.submitJob({ app: "KernelVision", jobId: "race-restore", taskType: "render", capability: "ffmpeg", payload: { frame: 1 } });
+  const claim = await c.claimJob({ app: "KernelVision", jobId: "race-restore", workerId: "worker-race" });
+  const result = await c.finishJob({ app: "KernelVision", jobId: "race-restore", workerId: "worker-race", leaseToken: claim.lease.token });
+  assert.deepEqual(result, { accepted: false, reason: "job-state-race" });
+  const lease = JSON.parse(c.client.objects.get("apex-mesh/v1/apps/KernelVision/leases/race-restore.json").body.toString("utf8"));
+  assert.equal(lease.status, "active");
+  assert.equal(lease.token, claim.lease.token);
+});
