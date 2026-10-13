@@ -1,6 +1,6 @@
 export const APEX_APPS = Object.freeze({
   PLANET_APEX: Object.freeze({ id:"planet-apex", name:"PlanetApeX", role:"brain of the Apex universe: knowledge, Bible study, research, AI, world context and interactive experiences", entry:"/", module:"../apps/planet-apex.mjs" }),
-  KO_BLOCKS: Object.freeze({ id:"ko-blocks", name:"KoBlocks", role:"reusable execution blocks, graph composition, validation and network-protection capabilities for cross-app workflows", entry:"/ko-blocks.html", module:"../apps/ko-blocks.mjs" }),
+  XSHIELD: Object.freeze({ id:"xshield", name:"XShield", role:"security and privacy shield: ad and tracker blocking, DNS protection, content filtering and protected connectivity", entry:"/xshield.html", module:"../apps/xshield.mjs" }),
   KERNEL_VISION: Object.freeze({ id:"kernel-vision", name:"KernelVision", role:"eyes of the Apex universe: production, editing, rendering, publishing, analytics, KernelVision Theatre and Kornmax", entry:"/kernel-vision.html", module:"../apps/kernel-vision.mjs" }),
   KOIN_KOB: Object.freeze({ id:"koin-kob", name:"KoinKob", role:"autonomous economy: worker accounts, asset markets, market clearing, systemic events, adversarial rounds and 2,000-worker simulations", entry:"/koin-kob.html", module:"../apps/koin-kob.mjs" }),
   KASH_KORNER: Object.freeze({ id:"kash-korner", name:"KashKorner", role:"cash and ledger layer: financial state, cash flow, monetization and network/connectivity coordination", entry:"/kash-korner.html", module:"../apps/kash-korner.mjs" }),
@@ -14,7 +14,8 @@ const LEGACY_SUPPORT_APPS = Object.freeze({
   "paypex": Object.freeze({ id:"paypex", name:"PayPex", system:"apex-studio", role:"legacy opportunity intelligence surface", entry:"/paypex.html" }),
   "apex-studio": Object.freeze({ id:"apex-studio", name:"ApexStudio", system:"apex-studio", role:"supporting production system surface", entry:"/" }),
   "garden-of-apex": Object.freeze({ id:"garden-of-apex", name:"GardenOfApex", system:"planet-apex", role:"embedded PlanetApeX knowledge universe: Bible study, Jesus Freaks and KORNS PEOPLE", entry:"/garden-of-apex.html" }),
-  "xshield": Object.freeze({ id:"xshield", name:"XShield", system:"apex-studio", role:"legacy network protection surface", entry:"/xshield.html" })
+  "ko-blocks": Object.freeze({ id:"ko-blocks", name:"KoBlocks", system:"apex-studio", role:"reusable execution blocks, graph composition and validation capability; not a separate canonical app", entry:"/ko-blocks.html" }),
+  "xshield-legacy": Object.freeze({ id:"xshield-legacy", name:"XShield legacy alias", system:"xshield", role:"compatibility alias for the canonical XShield security app", entry:"/xshield.html" })
 });
 
 export function getApexApp(id){
