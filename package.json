@@ -46,7 +46,8 @@
     "smoke:kernelvision-episode": "node scripts/smoke-kernelvision-episode.mjs",
     "test:deterministic-sim": "node --test test/deterministic-simulator.test.mjs",
     "audit:storage-config": "node scripts/audit-storage-configuration.mjs",
-    "audit:provider-portability": "node scripts/audit-provider-portability.mjs"
+    "audit:provider-portability": "node scripts/audit-provider-portability.mjs",
+    "cloud:mesh-worker": "node src/jobs/cloud-mesh-worker.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
