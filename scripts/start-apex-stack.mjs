@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrateSovereignStorage } from "../src/core/sovereign-storage-migration.mjs";
@@ -9,6 +10,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const apiScript = path.join(root, "server.mjs");
 const runtimeScript = path.join(root, "src/core/sovereign-runtime-daemon.mjs");
 const children = new Map();
+// Reject readiness records left by a prior supervisor/process generation.
+const runtimeInstanceId = randomUUID();
+const childEnv = { ...process.env, APEX_RUNTIME_INSTANCE_ID: runtimeInstanceId };
 let stopping = false;
 let exitCode = 0;
 let restartTimer;
@@ -32,7 +36,7 @@ function stopAll(code = 0, signal = "SIGTERM") {
 }
 
 function startApi() {
-  const child = spawn(process.execPath, [apiScript], { cwd: root, env: process.env, stdio: "inherit" });
+  const child = spawn(process.execPath, [apiScript], { cwd: root, env: childEnv, stdio: "inherit" });
   children.set("apex-api", child);
   console.log("[APEX STACK] started", JSON.stringify({ service: "apex-api", pid: child.pid }));
   child.on("error", error => {
@@ -48,7 +52,7 @@ function startApi() {
 
 function startRuntime() {
   if (stopping) return;
-  const child = spawn(process.execPath, [runtimeScript], { cwd: root, env: process.env, stdio: "inherit" });
+  const child = spawn(process.execPath, [runtimeScript], { cwd: root, env: childEnv, stdio: "inherit" });
   children.set("sovereign-runtime", child);
   console.log("[APEX STACK] started", JSON.stringify({ service: "sovereign-runtime", pid: child.pid }));
   child.on("error", error => {
