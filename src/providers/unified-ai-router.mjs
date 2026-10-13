@@ -63,16 +63,22 @@ export function messagesOf({ prompt, messages, system }) {
       if (totalChars > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
       return { role, content };
     });
-    const trustedSystem = String(system || '').trim();
-    if (trustedSystem.length > MAX_SYSTEM_CHARS) throw new Error('system instruction exceeds configured maximum');
-    return [...(trustedSystem ? [{ role: 'system', content: trustedSystem }] : []), ...normalized];
+    const callerContext = String(system || '').trim();
+    if (callerContext.length > MAX_SYSTEM_CHARS) throw new Error('additional context exceeds configured maximum');
+    if (callerContext) {
+      totalChars += callerContext.length;
+      if (totalChars > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
+      normalized.unshift({ role: 'user', content: callerContext });
+    }
+    return normalized;
   }
   const text = String(prompt || '').trim();
   if (!text) throw new Error('prompt is required');
   if (text.length > MAX_CHARS) throw new Error('prompt exceeds configured maximum');
-  const trustedSystem = String(system || '').trim();
-  if (trustedSystem.length > MAX_SYSTEM_CHARS) throw new Error('system instruction exceeds configured maximum');
-  return [{ role: 'system', content: trustedSystem }, { role: 'user', content: text }].filter(x => x.content);
+  const callerContext = String(system || '').trim();
+  if (callerContext.length > MAX_SYSTEM_CHARS) throw new Error('additional context exceeds configured maximum');
+  if (text.length + callerContext.length > MAX_TOTAL_MESSAGE_CHARS) throw new Error('conversation exceeds configured total character limit');
+  return [...(callerContext ? [{ role: 'user', content: callerContext }] : []), { role: 'user', content: text }];
 }
 
 function enforceFreeAiBudget(provider) {
