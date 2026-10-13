@@ -116,9 +116,9 @@ export function createTokenSecurity({
     };
   }
 
-  function requireAiInferenceAuth(legacyAuth) {
-    const scopeGuard = requireTokenScope('ai:inference');
-    return function aiInferenceAuth(req, res, next) {
+  function requireTokenOrLegacyAuth(scope, legacyAuth) {
+    const scopeGuard = requireTokenScope(scope);
+    return function tokenOrLegacyAuth(req, res, next) {
       if (req.apexTokenError) {
         res.set?.('Cache-Control', 'no-store');
         return res.status(401).json({ success: false, error: 'Invalid scoped token' });
@@ -128,38 +128,55 @@ export function createTokenSecurity({
     };
   }
 
-  function aiInferenceRateLimit(req, res, next) {
-    const nowMs = now();
-    const tokenId = req.apexToken?.id;
-    const ip = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 160);
-    const key = tokenId ? 'token:' + tokenId : 'ip:' + ip;
-    let bucket = buckets.get(key);
-    if (!bucket || nowMs - bucket.startedAt >= safeWindowMs || nowMs < bucket.startedAt) {
-      bucket = { startedAt: nowMs, count: 0 };
-    }
-    if (bucket.count >= safeLimit) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.startedAt + safeWindowMs - nowMs) / 1000));
-      buckets.set(key, bucket);
-      res.set?.('Retry-After', String(retryAfter));
-      res.set?.('Cache-Control', 'no-store');
-      return res.status(429).json({ success: false, error: 'AI inference rate limit reached', retryAfterSeconds: retryAfter });
-    }
-    bucket.count += 1;
-    buckets.set(key, bucket);
-    if (buckets.size > MAX_BUCKETS) {
-      for (const [entryKey, entry] of buckets) {
-        if (nowMs - entry.startedAt >= safeWindowMs || nowMs < entry.startedAt) buckets.delete(entryKey);
+  function createStatefulRateLimit({ keyPrefix, message, limit: routeLimit = safeLimit, windowMs: routeWindowMs = safeWindowMs } = {}) {
+    const routeBuckets = new Map();
+    const limitValue = Math.max(1, Math.min(10_000, Math.floor(Number.isFinite(routeLimit) ? routeLimit : safeLimit)));
+    const windowValue = Math.max(1_000, Math.min(3_600_000, Math.floor(Number.isFinite(routeWindowMs) ? routeWindowMs : safeWindowMs)));
+    const prefix = String(keyPrefix || 'route');
+    const errorMessage = String(message || 'Request rate limit reached');
+    return function statefulRateLimit(req, res, next) {
+      const nowMs = now();
+      const tokenId = req.apexToken?.id;
+      const ip = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 160);
+      const key = prefix + ':' + (tokenId ? 'token:' + tokenId : 'ip:' + ip);
+      let bucket = routeBuckets.get(key);
+      if (!bucket || nowMs - bucket.startedAt >= windowValue || nowMs < bucket.startedAt) {
+        bucket = { startedAt: nowMs, count: 0 };
       }
-      while (buckets.size > MAX_BUCKETS) {
-        const oldest = buckets.keys().next().value;
-        if (oldest === undefined) break;
-        buckets.delete(oldest);
+      if (bucket.count >= limitValue) {
+        const retryAfter = Math.max(1, Math.ceil((bucket.startedAt + windowValue - nowMs) / 1000));
+        routeBuckets.set(key, bucket);
+        res.set?.('Retry-After', String(retryAfter));
+        res.set?.('Cache-Control', 'no-store');
+        return res.status(429).json({ success: false, error: errorMessage, retryAfterSeconds: retryAfter });
       }
-    }
-    return next();
+      bucket.count += 1;
+      routeBuckets.set(key, bucket);
+      if (routeBuckets.size > MAX_BUCKETS) {
+        for (const [entryKey, entry] of routeBuckets) {
+          if (nowMs - entry.startedAt >= windowValue || nowMs < entry.startedAt) routeBuckets.delete(entryKey);
+        }
+        while (routeBuckets.size > MAX_BUCKETS) {
+          const oldest = routeBuckets.keys().next().value;
+          if (oldest === undefined) break;
+          routeBuckets.delete(oldest);
+        }
+      }
+      return next();
+    };
   }
 
-  return { parseTokenScopes, requireTokenScope, requireAiInferenceAuth, aiInferenceRateLimit };
+  const aiInferenceRateLimit = createStatefulRateLimit({
+    keyPrefix: 'ai-inference',
+    message: 'AI inference rate limit reached'
+  });
+  const overseerMetricsRateLimit = createStatefulRateLimit({
+    keyPrefix: 'overseer-metrics',
+    message: 'Overseer metrics rate limit reached'
+  });
+  const requireAiInferenceAuth = legacyAuth => requireTokenOrLegacyAuth('ai:inference', legacyAuth);
+
+  return { parseTokenScopes, requireTokenScope, requireTokenOrLegacyAuth, requireAiInferenceAuth, aiInferenceRateLimit, overseerMetricsRateLimit };
 }
 
 export function createScopedToken({ id, scopes, expiresAt, notBefore, secret }) {
