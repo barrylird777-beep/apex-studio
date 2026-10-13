@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mjs';
+import { createPeerStorageAssembly } from '../src/core/peer-storage-assembly.mjs';
 
 function binaryMemoryStore() {
   const objects = new Map();
@@ -104,4 +105,12 @@ test('peer object storage provides encrypted atomic references with compare-and-
   );
   assert.deepEqual((await client.readRef('project-1')).value, { title: 'private project' });
   assert.equal(saved.replicas[0], 'storage-peer');
+});
+
+test('peer storage assembly fails closed when no durable peer-owned backend is configured', async () => {
+  const peerNode = { dialProtocol() {}, peerId: { toString: () => 'local-peer' } };
+  await assert.rejects(
+    createPeerStorageAssembly({ peerNode, env: {} }),
+    /APEX_PEER_STORAGE_BACKEND_MODULE/
+  );
 });
