@@ -56,6 +56,7 @@ import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mj
 import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
 import { createApexSecurityHeaders, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
+import { normalizeAutonomousAiPayload } from './src/security/ai-trust-boundary.mjs';
 import { createOwnerSessionToken, hasValidOwnerSession, isOwnerAuthConfigured, ownerSessionClearCookie, ownerSessionSetCookie, verifyOwnerPassword } from './src/security/owner-session-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -441,15 +442,15 @@ app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => 
   try {
     const item = req.body || {};
     const allowedRoles = new Set(['scripture-research', 'story-architecture', 'visual-direction', 'audio-direction', 'production-engineering', 'network-engineering', 'qa-review', 'architecture-review']);
-    const payload = item.payload && typeof item.payload === 'object' && !Array.isArray(item.payload) ? item.payload : null;
-    if (item.task !== 'ai-inference' || !allowedRoles.has(String(item.role || '')) || !payload || !String(payload.prompt || '').trim()) {
+    let payload;
+    try {
+      payload = normalizeAutonomousAiPayload(item.payload);
+    } catch (error) {
+      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 240) });
+    }
+    if (item.task !== 'ai-inference' || !allowedRoles.has(String(item.role || ''))) {
       return res.status(400).json({ success: false, error: 'Only validated autonomous AI inference tasks may be enqueued by remote workers' });
     }
-    if (!['openrouter', 'google'].includes(String(payload.provider || ''))) {
-      return res.status(400).json({ success: false, error: 'AI provider is not allowlisted for autonomous work' });
-    }
-    payload.prompt = String(payload.prompt).slice(0, 12000);
-    payload.system = String(payload.system || 'Apex Studio autonomous worker.').slice(0, 3000);
     const result = await enqueueWorkerTask({
       id: item.id,
       workerId: String(item.workerId || 'ai-autonomous').slice(0, 255),
