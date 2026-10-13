@@ -17,6 +17,7 @@ import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
 import { apexPureStore } from './src/core/apex-pure-store.mjs';
 import { isSovereignRuntimeReady } from './src/core/runtime-readiness.mjs';
+import { isSovereignRuntimeReady } from './src/core/runtime-readiness.mjs';
 import { WorkerSupervisor } from './src/core/mesh/worker-supervisor.mjs';
 import { DistributedTileRenderer } from './src/core/vision/distributed-tile-renderer.mjs';
 import { createPermanentWorkerFleet, startPermanentWorker, heartbeatPermanentWorker, completePermanentWorkerTask, failPermanentWorkerTask, fleetStatus } from './src/core/mesh/permanent-worker-fleet.mjs';
@@ -560,6 +561,29 @@ app.get('/health', (_req, res) => {
     pid: process.pid,
     memory: { rss: memory.rss, heapUsed: memory.heapUsed }
   });
+});
+
+// Readiness is separate from liveness: the sovereign runtime is a separate process
+// and publishes its verified state through the shared durable store.
+app.get('/ready', async (_req, res) => {
+  try {
+    const identity = await apexPureStore.get('sovereign_runtime', 'identity');
+    const ready = isSovereignRuntimeReady(identity);
+    return res.status(ready ? 200 : 503).json({
+      ok: ready,
+      status: ready ? 'ready' : 'not-ready',
+      runtime: identity?.status || 'unknown',
+      readiness: identity?.readiness || null,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({
+      ok: false,
+      status: 'not-ready',
+      error: 'sovereign runtime readiness unavailable',
+      checkedAt: new Date().toISOString()
+    });
+  }
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -3477,3 +3501,29 @@ app.get('/api/engine-apex/status', async (_req, res) => {
     return res.status(503).json({ success: false, engine: 'EngineApex', state: 'unavailable', error: 'EngineApex evidence is unavailable', checkedAt: new Date().toISOString() });
   }
 });
+
+// SIGTERM: stop accepting new requests immediately, then let in-flight responses drain.
+let shutdownStarted = false;
+function shutdownHttpServer(signal) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  console.log('[apex] graceful shutdown started', JSON.stringify({ signal }));
+  const forceTimer = setTimeout(() => {
+    console.error('[apex] graceful shutdown deadline reached; closing remaining connections');
+    server.closeAllConnections?.();
+    process.exitCode = 1;
+  }, 25000);
+  forceTimer.unref?.();
+  server.close(error => {
+    clearTimeout(forceTimer);
+    if (error) {
+      console.error('[apex] HTTP server close failed', error);
+      process.exitCode = 1;
+    } else {
+      console.log('[apex] HTTP server drained');
+    }
+  });
+  server.closeIdleConnections?.();
+}
+process.once('SIGTERM', () => shutdownHttpServer('SIGTERM'));
+process.once('SIGINT', () => shutdownHttpServer('SIGINT'));
