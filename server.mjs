@@ -53,6 +53,7 @@ import { executeRapidVideoOrder, executeRapidVideoPreview } from './src/workers/
 import { APEX_SURFACES, APEX_UNIVERSAL_CAPABILITIES, APEX_EXECUTION_POLICY } from './src/core/apex-universe.mjs';
 import { createTeeVeeProductionRouter } from './src/api/teevee-production-api.mjs';
 import { createShieldApex } from './src/core/shield-apex.mjs';
+import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -1919,15 +1920,15 @@ app.use('/files', express.static(STORAGE_DIR, {
   maxAge: '1h'
 }));
 
-// Helper for guaranteed-timeout fetch
+// Bounded retry for transient upstream gateway failures. Provider routing below
+// still escalates to the next eligible swarm node when the final response fails.
 async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchWithRetry(url, options, {
+    timeoutMs,
+    maxRetries: 3,
+    baseDelayMs: 500,
+    maxDelayMs: 4000
+  });
 }
 
 // ============================================================
@@ -3185,17 +3186,19 @@ app.get('/api/network/adblock/profile', (_req, res) => {
 app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
 app.all('/api/network/adblock/doh', (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
 
-// Decentralized swarm routing fallback & retry wrapper
-async function routeWithSwarm(payload, retries = 2) {
-  const providers = ['groq', 'openrouter', 'pollinations', 'gemini'];
-  for (const provider of providers) {
-    try {
-      return await executeInference(provider, payload);
-    } catch (e) {
-      if (retries === 0) continue;
-    }
+// Decentralized swarm routing fallback. executeInference owns the configured,
+// free-first provider order and records each provider failure before escalating.
+async function routeWithSwarm(payload) {
+  const prompt = typeof payload === 'string' ? payload : String(payload?.prompt || '');
+  const system = typeof payload === 'object' && payload ? payload.system : undefined;
+  if (!prompt.trim()) throw new Error('Swarm routing requires a non-empty prompt');
+  const result = await executeInference(prompt, system || DEFAULT_SYSTEM);
+  if (result.provider === 'fallback-passthrough') {
+    const error = new Error('All configured inference swarm providers failed');
+    error.failures = result.failures;
+    throw error;
   }
-  throw new Error('All swarm nodes failed');
+  return result;
 }
 
 void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
