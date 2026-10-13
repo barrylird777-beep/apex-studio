@@ -159,7 +159,7 @@ export async function executeRapidVideoOrder(payload = {}) {
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
 
   const storageRoot = path.resolve(process.env.STORAGE_DIR || process.env.APEX_PROJECTS_DIR || "/srv/apex/se-x/projects");
-  await ensureContainedDirectory(storageRoot, "renders");
+  await mkdir(storageRoot, { recursive: true, mode: 0o700 });
 
   const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
   const output = await resolveContainedPath(storageRoot, filename);
