@@ -29,7 +29,6 @@ function BrowserPeerTest(){
     dc.onerror=()=>setNote("Data channel error. Check network policy and repeat the handshake.");
     dc.onmessage=async(event)=>{
       if(typeof event.data!=="string"){setNote("Unexpected binary message ignored; test frames use validated metadata.");return;}
-      const size=new Blob([event.data]).size;
       try{
         const packet=JSON.parse(event.data);
         if(packet?.type!=="apex-webrtc-benchmark"||typeof packet.transferId!=="string"||typeof packet.payload!=="string")return;
@@ -146,7 +145,6 @@ function BrowserPeerTest(){
         if(dc.bufferedAmount>256*1024)await waitForBufferLow();
         if(dc.readyState!=="open")throw new Error("WebRTC data channel closed during transfer.");
         dc.send(packet);
-        const packetBytes=new Blob([packet]).size;
         sentBytes+=part.byteLength;
         setSent(n=>n+part.byteLength);
         setBufferedAmount(dc.bufferedAmount);
@@ -162,7 +160,7 @@ function BrowserPeerTest(){
     }finally{setBusy(false);}
   };
   const close=()=>{pc.current?.close();pc.current=null;channel.current=null;setConnection("Closed");setChannelState("Closed");setPathType("Not measured");setNote("Peer connection closed. No background connection remains.");};
-  useEffect(()=>()=>{pc.current?.close();},[]);
+  useEffect(()=>{const id=window.setInterval(()=>setBufferedAmount(channel.current?.bufferedAmount??0),150);return()=>{window.clearInterval(id);pc.current?.close();};},[]);
   return <Card className="mt-6"><CardHeader><CardTitle>Browser-to-browser WebRTC proof</CardTitle></CardHeader><CardContent>
     <p className="text-sm text-muted-foreground">Optional two-browser data-channel test with manual copy/paste signaling and a 1 MiB synthetic transfer. No media, jobs, files, or app data are routed through this prototype.</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Peer connection</div><b>{connection}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Data channel</div><b>{channelState}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Candidate path</div><b>{pathType}</b></div></div>
