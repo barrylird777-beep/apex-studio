@@ -265,7 +265,7 @@ export class SovereignCloudCoordinator {
       }
       throw e;
     }
-    const eventKey = this.key("apps", app, "job-events", id + "/" + randomUUID() + ".json");
+    const eventKey = this.key("apps", app, "job-events", id, randomUUID() + ".json");
     await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: eventKey, Body: JSON.stringify(record), ContentType: "application/json", Metadata: { sha256: hash(JSON.stringify(record)) }, IfNoneMatch: "*" }));
     return { accepted: true, event: record };
   }
