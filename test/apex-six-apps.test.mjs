@@ -223,3 +223,12 @@ test("KernelVision presents the continuous network as canonical and Theatre as a
   assert.match(hub,/24\/7 entertainment stream/);
   assert.match(hub,/href: "\/teevee\.html"/);
 });
+
+test("legacy TeeVee pages identify KernelVision as their canonical owner",async()=>{
+  const network=await readFile(resolve(process.cwd(),"public/teevee.html"),"utf8");
+  const buyer=await readFile(resolve(process.cwd(),"public/teevee-buyer.html"),"utf8");
+  assert.match(network,/KernelVision owns the continuous network/);
+  assert.match(network,/href="\/kernel-vision\.html">KernelVision/);
+  assert.match(buyer,/historical name for KernelVision's 24\/7 original animated entertainment network/);
+  assert.match(buyer,/not a separate canonical app/);
+});
