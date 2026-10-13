@@ -66,6 +66,25 @@ test("remote Pure Store writes directly to CAS without an active WAL or local re
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("production storage refuses a silent local fallback when remote credentials are missing", () => {
+  const priorNodeEnv = process.env.NODE_ENV;
+  const keys = ["APEX_CAS_REMOTE_ENABLED", "APEX_REQUIRE_REMOTE_STORAGE", "APEX_OBJECT_STORAGE_ENDPOINT", "APEX_OBJECT_STORAGE_BUCKET", "APEX_OBJECT_STORAGE_ACCESS_KEY_ID", "APEX_OBJECT_STORAGE_SECRET_ACCESS_KEY"];
+  const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.NODE_ENV = "production";
+    for (const key of keys) delete process.env[key];
+    assert.throws(
+      () => new ApexPureStore({ root: "/tmp/apex-production-must-not-fallback" }),
+      /Remote CAS requires APEX_OBJECT_STORAGE_ENDPOINT, BUCKET, ACCESS_KEY_ID, and SECRET_ACCESS_KEY/
+    );
+  } finally {
+    if (priorNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = priorNodeEnv;
+    for (const key of keys) {
+      if (prior[key] === undefined) delete process.env[key]; else process.env[key] = prior[key];
+    }
+  }
+});
+
 test("remote WAL does not inherit the legacy local byte-cap holdback", async () => {
   const cas = new MemoryCAS();
   const wal = new RemoteApexRingWAL({ cas, scope: "no-cap-test", maxBytes: 1 });
