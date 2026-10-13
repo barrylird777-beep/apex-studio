@@ -77,12 +77,13 @@ else
   fail "package-lock.json is missing; refusing nondeterministic dependency install"
 fi
 
-# 5. PostgreSQL migration
+# 5. Retired PostgreSQL migration path
+# This release verifier must never invoke PostgreSQL migrations.
 if [[ -n "${DATABASE_URL:-}" ]]; then
-  npm run db:migrate:postgres
-  ok "PostgreSQL migration completed"
+  fail "DATABASE_URL is configured, but PostgreSQL is retired from the APEX runtime; remove the obsolete configuration before release verification"
+  exit 1
 else
-  skip "DATABASE_URL is not set; PostgreSQL migration not executed"
+  skip "PostgreSQL migration retired; no database migration is run"
 fi
 
 # 6. Production build
