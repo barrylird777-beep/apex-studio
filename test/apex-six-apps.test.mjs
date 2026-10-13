@@ -172,3 +172,26 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
   assert.equal(rows[0].record.workerCount, 20);
   assert.equal(rows[0].record.recordType, "simulation");
 });
+
+
+test("all six canonical browser surfaces use the shared responsive UI system",async()=>{
+  const surfaces=[
+    ["KernelVision","kernel-vision.html"],
+    ["XShield","xshield.html"],
+    ["Kernelodies","kernelodies.html"],
+    ["PlanetApeX","planet-apex.html"],
+    ["KashKorner","kash-korner.html"],
+    ["KoinKob","koin-kob.html"]
+  ];
+  for(const [name,file] of surfaces){
+    const html=await readFile(resolve(process.cwd(),"public",file),"utf8");
+    assert.match(html,/<link rel="stylesheet" href="\/apex-six-apps\.css">/,name+" must load the shared UI");
+    assert.match(html,new RegExp('data-apex-app="[^"]+"'),name+" must expose an app-specific theme");
+    assert.ok(html.includes('href="/'+file+'"'),name+" must appear in the app switcher");
+    assert.ok(html.includes('aria-current="page"'),name+" must identify the active app");
+  }
+  const css=await readFile(resolve(process.cwd(),"public/apex-six-apps.css"),"utf8");
+  assert.match(css,/prefers-reduced-motion/,"shared UI must respect reduced motion");
+  assert.match(css,/focus-visible/,"shared UI must expose keyboard focus");
+  assert.match(css,/overflow-x:auto/,"app switcher must remain usable on narrow screens");
+});
