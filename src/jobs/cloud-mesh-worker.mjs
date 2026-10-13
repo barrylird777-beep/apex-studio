@@ -61,6 +61,7 @@ async function execute(job, lease) {
     const persisted = await coordinator.putPayload({ app, bytes: resultBytes, contentType: "application/json" });
     if (leaseLost || controller.signal.aborted) throw new Error("Cloud lease lost; refusing to finalize stale worker output");
     await stopLeaseHeartbeat();
+    if (leaseLost || controller.signal.aborted) throw new Error("Cloud lease lost during heartbeat drain; refusing to finalize stale worker output");
     const completed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: persisted.payloadHash, status: "completed" });
     if (!completed.accepted) throw new Error("Cloud job completion rejected: " + completed.reason);
     console.log("[APEX CLOUD WORKER] completed", JSON.stringify({ app, jobId: job.jobId, workerId, resultHash: persisted.payloadHash }));
@@ -71,6 +72,10 @@ async function execute(job, lease) {
       try { errorHash = (await coordinator.putPayload({ app, bytes, contentType: "application/json" })).payloadHash; } catch {}
     }
     await stopLeaseHeartbeat();
+    if (leaseLost || controller.signal.aborted) {
+      console.error("[APEX CLOUD WORKER] lease lost; leaving job for safe expiry and reclaim", JSON.stringify({ app, jobId: job.jobId, workerId }));
+      return;
+    }
     const failed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: errorHash, status: "failed" }).catch(() => ({ accepted: false }));
     console.error("[APEX CLOUD WORKER] job failed", JSON.stringify({ app, jobId: job.jobId, workerId, persisted: failed.accepted, error: String(error?.message || error) }));
   } finally {
