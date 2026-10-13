@@ -1,12 +1,16 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
+import { resolveContainedPath } from '../core/se-x-paths.mjs';
 
-const ROOT=path.resolve(process.env.APEX_MEDIA_ROOT||'/srv/apex/se-x/projects');
-function safePath(parts){const target=path.resolve(ROOT,...parts);if(target!==ROOT&&!target.startsWith(ROOT+path.sep))throw new Error('invalid asset path');return target;}
+const ROOT=path.resolve(process.env.APEX_MEDIA_ROOT||process.env.APEX_PROJECTS_DIR||'/srv/apex/se-x/projects');
+async function safePath(parts){
+  if(!Array.isArray(parts)||parts.length===0||parts.some(part=>typeof part!=='string'))throw new TypeError('invalid asset path');
+  return resolveContainedPath(ROOT,parts.join('/'),{mustExist:true,allowMissingLeaf:false});
+}
 function contentType(file){const ext=path.extname(file).toLowerCase();return({'.mp4':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.m4a':'audio/mp4','.aac':'audio/aac','.mp3':'audio/mpeg','.wav':'audio/wav'})[ext]||'application/octet-stream';}
 export async function streamAsset(req,res,parts){
-  const file=safePath(parts);const info=await stat(file);const size=info.size;
+  const file=await safePath(parts);const info=await stat(file);if(!info.isFile())throw new TypeError('asset path is not a file');const size=info.size;
   res.setHeader('Content-Type',contentType(file));res.setHeader('Accept-Ranges','bytes');res.setHeader('Cache-Control','private, max-age=60');
   const range=req.headers.range;
   if(!range){res.writeHead(200,{'Content-Length':size});return createReadStream(file).pipe(res);}
