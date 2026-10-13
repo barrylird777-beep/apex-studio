@@ -56,7 +56,7 @@ export async function createPeerStorageAssembly({ peerNode, env = process.env } 
     throw new Error('peer-owned backend module must export createPeerStorageBackend({ peerId, env })');
   }
   const backend = validateBackend(await backendModule.createPeerStorageBackend({
-    peerId: peerNode.peerId.toString(), env
+    peerId: peerNode.peerId.toString(), peerNode, env
   }));
 
   const replicaCount = Number(env.APEX_PEER_STORAGE_REPLICA_COUNT || 2);
