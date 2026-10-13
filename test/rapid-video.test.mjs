@@ -60,8 +60,8 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(worker, /pipeline: "oracle-to-forge"/);
   assert.match(worker, /new RemoteContentAddressedStore/);
   assert.match(worker, /generateForgeBackground/);
-  assert.match(worker, /black-forest-labs\\/FLUX\\.1-dev/);
-  assert.match(worker, /SG161222\\/RealVisXL_V4\\.0/);
+  assert.ok(worker.includes("black-forest-labs/FLUX.1-dev"));
+  assert.ok(worker.includes("SG161222/RealVisXL_V4.0"));
   assert.match(worker, /Sovereign video rendering requires remote CAS/);
   assert.match(worker, /assetStorage: asset\.storage/);
   assert.match(queue, /apexPureStore\.enqueue/);
@@ -69,6 +69,6 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(page, /id="oracleTab"/);
   assert.match(page, /id="forgeTab"/);
   assert.match(page, /body\.result\.storyboard/);
-  assert.match(server, /api\\/rapid\\/assets\\/:id/);
+  assert.ok(server.includes("/api/rapid/assets/:id"));
   assert.doesNotMatch(server, /app\.get\('\/rapid-video\.html', \(_req, res\) => res\.redirect\(308, '\/teevee-buyer\.html'\)\)/);
 });
