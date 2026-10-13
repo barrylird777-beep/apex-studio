@@ -32,7 +32,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.remoteMode?new RemoteApexRingWAL({cas:this.cas}):this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.remoteMode?(remoteWal||new RemoteApexRingWAL({cas:this.cas,scope:walScope})):this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -151,8 +151,19 @@ export class ApexPureStore {
     await this.cas.init();
     const scope=String(process.env.RAILWAY_SERVICE_NAME||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
     const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
-    if(await this.cas.readRef("system",markerKey))return this;
-    await this.withRemoteLock(lockKey,async()=>{
+    await this.withRemoteLock("queue-mutations",async()=>{
+      await this.wal.recover({onRecord:async record=>{
+        const p=record.payload||{};
+        if(record.type==="state.put"&&p.collection!=null&&p.id!=null&&p.record!=null){
+          await this.persistState(String(p.collection),String(p.id),p.record,{appendWal:false,walSeq:record.seq});
+        }else if(record.type==="state.delete"&&p.collection!=null&&p.id!=null){
+          await this.persistDelete(String(p.collection),String(p.id),{appendWal:false,walSeq:record.seq});
+        }else if(record.type==="job.put"&&p.job?.id!=null){
+          await this.persistJob(p.job,{appendWal:false,walSeq:record.seq});
+        }
+      }});
+      if(await this.cas.readRef("system",markerKey))return;
+      await this.withRemoteLock(lockKey,async()=>{
       if(await this.cas.readRef("system",markerKey))return;
       for(const namespace of ["state","jobs"]){
         try{await stat(path.join(this.localCas.refs,namespace));}
@@ -194,6 +205,7 @@ export class ApexPureStore {
         await flush();
       }
       await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-content-addressed",service:scope,migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
+      });
     });
     return this;
   }
