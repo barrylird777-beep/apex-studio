@@ -287,7 +287,7 @@ test("BFT quorum rejects two votes and never counts duplicate signers twice", ()
   assert.ok(duplicate.rejected.some(item=>item.reason==="duplicate-vote"));
 });
 
-test("BFT quorum quarantines a known validator with an invalid signature or equivocation", () => {
+test("BFT quorum rejects forged votes and quarantines authenticated equivocation", () => {
   const validators = new Map();
   const keys = new Map();
   for (const peerId of ["peer-a","peer-b","peer-c","peer-d"]) {
@@ -300,8 +300,13 @@ test("BFT quorum quarantines a known validator with an invalid signature or equi
   const b = signSovereignVote({...body,peerId:"peer-b",privateKey:keys.get("peer-b")});
   const c = signSovereignVote({...body,peerId:"peer-c",privateKey:keys.get("peer-c")});
   const forged = {...c,proposalHash:"tampered-proposal"};
-  const result = verifySovereignQuorum({...body,votes:[a,b,forged],validators});
-  assert.equal(result.valid,false);
-  assert.ok(result.quarantine.includes("peer-c"));
-  assert.ok(result.rejected.some(item=>item.reason==="invalid-signature"||item.reason==="conflicting-proposal"));
+  const forgedOnly = verifySovereignQuorum({...body,votes:[a,b,forged],validators});
+  assert.equal(forgedOnly.valid,false);
+  assert.deepEqual(forgedOnly.quarantine,[],"an invalid signature alone must not let an attacker frame a validator");
+
+  const conflicting = signSovereignVote({...body,proposalHash:"other-proposal",peerId:"peer-c",privateKey:keys.get("peer-c")});
+  const equivocation = verifySovereignQuorum({...body,votes:[a,b,c,conflicting],validators});
+  assert.equal(equivocation.valid,false,"an equivocating validator is removed from the accepted quorum");
+  assert.ok(equivocation.quarantine.includes("peer-c"));
+  assert.ok(equivocation.rejected.some(item=>item.reason==="equivocation"));
 });
