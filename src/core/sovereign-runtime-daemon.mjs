@@ -13,6 +13,7 @@ import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
+import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
 
 const storageMigration = await migrateSovereignStorage();
 console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
@@ -30,9 +31,14 @@ let timer;
 let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
+let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
 const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
+  if (envelope?.protocol === 'apex.cas.v1') {
+    if (!peerStorageRuntime.enabled) throw new Error('peer object storage is disabled');
+    return peerStorageRuntime.handle(envelope, { remotePeerId });
+  }
   if (!envelope || !['durable.accept', 'durable.read', 'edge.heartbeat'].includes(envelope.type)) {
     throw new Error('unsupported sovereign envelope');
   }
@@ -128,6 +134,11 @@ async function main() {
   if (!storageReady || stopping) return;
   runtimeReadiness.storageReady = true;
   await engine.ready();
+  if (stopping) return;
+  peerStorageRuntime = await initializePeerObjectStorage({
+    peerId: () => peerNode?.peerId?.toString?.() || ''
+  });
+  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
   if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
