@@ -356,7 +356,7 @@ test("outgoing sovereign transport rejects a mismatched peer identity in an ACK"
   process.env.APEX_ALLOWED_PEER_IDS = "allowed-peer";
   const fakeStream = {
     async sink() {},
-    source: (async function* () { yield new TextEncoder().encode('{"accepted":true,"peerId":"attacker-peer"}\\n'); })(),
+    source: (async function* () { yield new TextEncoder().encode('{"accepted":true,"peerId":"attacker-peer"}\n'); })(),
     async close() {}
   };
   try {
