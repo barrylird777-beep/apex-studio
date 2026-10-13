@@ -43,7 +43,7 @@ async function execute(job, lease) {
     const mod = await import(moduleUrl(handlerModule));
     const handler = mod.handlers?.[job.taskType] ?? mod.default?.[job.taskType] ?? mod.handleJob ?? mod.default;
     if (typeof handler !== "function") throw new Error("No real handler registered for cloud job type: " + job.taskType);
-    const result = await handler({ id: job.jobId, type: job.taskType, app, payload, capability: job.capability, workerId, leaseToken: lease.token });
+    const result = await handler({ id: job.jobId, type: job.taskType, app, payload, capability: job.capability, workerId });
     const resultBytes = Buffer.from(JSON.stringify(result ?? null));
     const persisted = await coordinator.putPayload({ app, bytes: resultBytes, contentType: "application/json" });
     const completed = await coordinator.finishJob({ app, jobId: job.jobId, workerId, leaseToken: lease.token, resultHash: persisted.payloadHash, status: "completed" });
