@@ -50,6 +50,7 @@ export class PeerContentAddressedStore {
   encrypt(value) {
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    cipher.setAAD(Buffer.from(this.namespace, 'utf8'));
     const plaintext = encodeCanonical(value);
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     return {
@@ -72,6 +73,7 @@ export class PeerContentAddressedStore {
     const ciphertext = Buffer.from(String(envelope.ciphertext || ''), 'base64');
     if (iv.length !== 12 || tag.length !== 16 || !ciphertext.length) throw new Error('invalid encrypted object envelope');
     const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
+    decipher.setAAD(Buffer.from(this.namespace, 'utf8'));
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     return decodeCanonical(plaintext);
