@@ -4,24 +4,24 @@
 
 ## Six canonical apps
 
-1. **PlanetApeX — brain:** Bible study, research, knowledge, AI, world/universe analytics, and interactive experiences. **GardenOfApex is the Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX**, not a seventh app. Answers must distinguish KNOWN, OBSERVED, INFERRED, and UNKNOWN.
+1. **PlanetApeX — brain:** Bible study, research, knowledge, AI, world/universe analytics, and interactive experiences. **GardenApex is the living Jesus Freaks / KORNS PEOPLE universe inside PlanetApeX.** GardenOfApex is historical/absorbed, not a seventh app. Answers must distinguish KNOWN, OBSERVED, INFERRED, and UNKNOWN.
 2. **XShield — shield:** security and privacy, ad/tracker blocking, DNS protection, content filtering and protected connectivity. KoBlocks remains a reusable workflow capability, not a separate app.
 3. **KernelVision — eyes:** creative production and delivery: direction, scripts, scenes, images, video, animation, VFX, editing, mixing/mastering, rendering, QC, publishing, Special Search, and social/manager analytics. KernelVision Theatre and Kornmax are experiences inside this app.
 4. **KoinKob — autonomous economy:** worker accounts, asset markets, market clearing and settlement, systemic events, adversarial rounds, and the 2,000-worker simulation.
-5. **KashKorner — cash/connectivity:** cash flow, ledger and financial state, monetization, and connectivity coordination; carry forward relevant EngineApex/Apexus capabilities without creating extra app identities.
+5. **KashKorner — money/connectivity:** cash flow, ledger and financial state, monetization, and connectivity coordination; carry forward relevant EngineApex/Apexus capabilities without creating extra app identities.
 6. **Kernelodies — ears:** music, sound, audio creation, discovery, and audio identity. Jesus Freaks / KORNS PEOPLE music follows the locked 432 Hz rule.
 
 ## Historical lineage
 
-ApexStudios, KORNKNOB, XShield, ShieldApex, EngineApex, Apexus, GardenOfApex, TeeVee, and PayPex are historical names, systems, or capability surfaces to recover. They are not automatically separate current apps. Their surviving capabilities belong under the six identities above. XShield is supporting network protection, not a seventh app.
+ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex, TeeVee, and PayPex are historical names, systems, or capability surfaces to recover. They are not automatically separate current apps. Their surviving capabilities belong under the six identities above. GardenApex is the current living universe inside PlanetApeX. XShield is one of the six canonical apps, not a seventh app.
 
 ## Sovereignty and storage
 
-- **Pure-WAL / Ring-WAL is the required durable-storage direction. Do not restore PostgreSQL or introduce SQL/SQLite runtime dependencies.**
-- Local durable state, atomic writes, fsync, hash-chain verification, path confinement, symlink checks, and corruption recovery must be tested.
-- Isolate each app's records in its own namespace. Shared handoffs must be authenticated, validated, durable, idempotent, and acknowledged by the receiving peer before being reported delivered.
+- **Target:** no WAL, no local disk as the system of record, no PostgreSQL, and no persisted JSON records. Use authenticated remote CAS/peer-backed persistence with isolated per-app namespaces and verified replica/peer receipts.
+- **Current implementation is not yet compliant:** local and remote WAL classes remain in the codebase, the store can select a local fallback when remote mode is disabled, and the remote CAS serializes objects/manifests as JSON. A remote-CAS readiness probe is only a probe; it does not prove all production writes use the intended storage path.
+- Keep each app's records isolated. Shared handoffs must be authenticated, validated, durable, idempotent, and acknowledged by the receiving peer before being reported delivered.
 - PostgreSQL-era modules, scripts, and instructions are legacy until proven unused and retired safely. Never delete old data or infrastructure as a shortcut.
-- A live service or passing unit test is not proof of full product behavior. Release evidence must include real artifacts, restart recovery, working iPhone controls, and confirmed cross-app handoffs.
+- A live service or passing unit test is not proof of full product behavior. Release evidence must include real artifacts, restart/failure recovery, working iPhone controls, and confirmed cross-app handoffs.
 
 ## Connectivity and sovereignty
 
@@ -41,7 +41,7 @@ ApexStudios, KORNKNOB, XShield, ShieldApex, EngineApex, Apexus, GardenOfApex, Te
 ## App integration
 
 - Keep all six apps distinct, with independent identities and isolated namespaces.
-- PlanetApeX owns Bible/research/knowledge experiences, including GardenOfApex.
+- PlanetApeX owns Bible/research/knowledge experiences, including GardenApex.
 - KoBlocks composes and validates workflows.
 - KernelVision owns production, publishing, analytics, and Special Search.
 - KoinKob owns economic simulation and market logic.
