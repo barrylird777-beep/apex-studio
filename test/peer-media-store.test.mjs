@@ -114,3 +114,12 @@ test('peer-only storage refuses to initialize without a configured peer runtime'
     if (previousEnabled === undefined) delete process.env.APEX_PEER_STORAGE_ENABLED; else process.env.APEX_PEER_STORAGE_ENABLED = previousEnabled;
   }
 });
+
+test('a single-app media runtime rejects every other canonical app namespace', async () => {
+  const store = createPeerMediaStore({ peerStores: { KernelVision: makePeerStore('KernelVision') }, apps: ['KernelVision'] });
+  assert.deepEqual(store.apps, ['KernelVision']);
+  await assert.rejects(
+    store.saveAsset('PlanetApeX', 'project-a', 'asset-a', Buffer.from('private'), { contentType: 'application/octet-stream' }),
+    /not configured in this peer media runtime/
+  );
+});
