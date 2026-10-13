@@ -97,7 +97,8 @@ export function createSovereignLlmGateway({ fetchImpl = globalThis.fetch, localG
         ? { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
         : { "content-type": "application/json", authorization: "Bearer " + apiKey };
       try {
-        const response = await fetchImpl(target, { method: "POST", headers, body: JSON.stringify(clean), signal });
+        const guardedFetch = createGuardedFetch([...cfg.hosts], fetchImpl);
+        const response = await guardedFetch(target, { method: "POST", headers, body: JSON.stringify(clean), signal });
         if (response.status === 429 || response.status >= 500 || response.status === 408) {
           return localGenerate(payload, { signal, fallbackReason: "provider_http_" + response.status });
         }
