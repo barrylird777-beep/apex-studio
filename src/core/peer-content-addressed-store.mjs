@@ -1,27 +1,63 @@
-import { createHash } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const canonical = value => JSON.stringify(value);
+const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
 
 /**
  * Peer-backed immutable object replication primitive.
- * The transport must authenticate the remote libp2p identity and return it as
- * peerId. This class never falls back to local disk or lowers replica count.
+ * Objects are AES-256-GCM encrypted before leaving the writer. Transport must
+ * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2 } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
+    if (!validNamespace(namespace)) throw new TypeError('a valid per-app namespace is required');
+    const key = typeof encryptionKey === 'string' ? Buffer.from(encryptionKey, 'base64') : Buffer.from(encryptionKey || []);
+    if (key.length !== 32) throw new TypeError('encryptionKey must be a 32-byte AES-256 key');
     this.transport = transport;
     this.peers = [...new Set(peers.map(String).filter(Boolean))];
     this.replicaCount = Number(replicaCount);
+    this.namespace = namespace;
+    this.encryptionKey = key;
     if (!Number.isSafeInteger(this.replicaCount) || this.replicaCount < 1) {
       throw new TypeError('replicaCount must be a positive integer');
     }
     if (this.peers.length < this.replicaCount) {
       throw new Error('insufficient configured peers for requested replica count');
     }
+  }
+
+  encrypt(value) {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const plaintext = Buffer.from(canonical(value), 'utf8');
+    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    return {
+      version: 1,
+      algorithm: 'aes-256-gcm',
+      namespace: this.namespace,
+      iv: iv.toString('base64'),
+      tag: cipher.getAuthTag().toString('base64'),
+      ciphertext: ciphertext.toString('base64')
+    };
+  }
+
+  decrypt(envelope) {
+    if (!envelope || envelope.version !== 1 || envelope.algorithm !== 'aes-256-gcm' ||
+        envelope.namespace !== this.namespace) {
+      throw new Error('encrypted object version, algorithm, or app namespace mismatch');
+    }
+    const iv = Buffer.from(String(envelope.iv || ''), 'base64');
+    const tag = Buffer.from(String(envelope.tag || ''), 'base64');
+    const ciphertext = Buffer.from(String(envelope.ciphertext || ''), 'base64');
+    if (iv.length !== 12 || tag.length !== 16 || !ciphertext.length) throw new Error('invalid encrypted object envelope');
+    const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return JSON.parse(plaintext.toString('utf8'));
   }
 
   async request(peerId, request) {
@@ -33,7 +69,7 @@ export class PeerContentAddressedStore {
   }
 
   async putObject(value) {
-    const bytes = Buffer.from(canonical(value), 'utf8');
+    const bytes = Buffer.from(canonical(this.encrypt(value)), 'utf8');
     const hash = sha256(bytes);
     const receipts = [];
     const failures = [];
@@ -42,13 +78,14 @@ export class PeerContentAddressedStore {
         const response = await this.request(peerId, {
           protocol: 'apex.cas.v1',
           operation: 'object.put',
+          namespace: this.namespace,
           hash,
           bytesBase64: bytes.toString('base64')
         });
-        if (response.hash !== hash || response.bytes !== bytes.length) {
-          throw new Error('peer returned an invalid object durability receipt');
+        if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace) {
+          throw new Error('peer returned an invalid or cross-namespace durability receipt');
         }
-        receipts.push({ peerId, hash, bytes: response.bytes });
+        receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace });
         if (receipts.length >= this.replicaCount) break;
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
@@ -65,6 +102,7 @@ export class PeerContentAddressedStore {
     return {
       hash,
       bytes: bytes.length,
+      namespace: this.namespace,
       uri: 'cas://sha256/' + hash,
       replicas: receipts.map(receipt => receipt.peerId),
       receipts
@@ -76,12 +114,17 @@ export class PeerContentAddressedStore {
     const failures = [];
     for (const peerId of this.peers) {
       try {
-        const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'object.get', hash });
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1',
+          operation: 'object.get',
+          namespace: this.namespace,
+          hash
+        });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
-        if (sha256(bytes) !== hash || response.hash !== hash) {
-          throw new Error('peer returned content that failed SHA-256 verification');
+        if (sha256(bytes) !== hash || response.hash !== hash || response.namespace !== this.namespace) {
+          throw new Error('peer returned content that failed SHA-256 or namespace verification');
         }
-        return JSON.parse(bytes.toString('utf8'));
+        return this.decrypt(JSON.parse(bytes.toString('utf8')));
       } catch (error) {
         failures.push(error instanceof Error ? error.message : String(error));
       }
@@ -95,21 +138,30 @@ export class PeerContentAddressedStore {
 
 /**
  * Server-side handler for a peer contributing durable object capacity.
- * store must be a persistent ContentAddressedStore owned by that peer.
+ * Store holds only encrypted envelopes. Namespace authorization is mandatory.
  * The transport must invoke this only after authenticated peer allowlisting.
  */
-export function createPeerObjectStorageHandler({ store, peerId, maxObjectBytes = 8 * 1024 * 1024 } = {}) {
+export function createPeerObjectStorageHandler({
+  store, peerId, authorizeNamespace, maxObjectBytes = 8 * 1024 * 1024
+} = {}) {
   if (!store || typeof store.putObject !== 'function' || typeof store.getObject !== 'function') {
     throw new TypeError('a persistent content-addressed peer store is required');
   }
   if (!peerId) throw new TypeError('local peerId is required');
+  if (typeof authorizeNamespace !== 'function') throw new TypeError('an explicit per-app namespace authorization policy is required');
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
 
   return async function handlePeerObjectStorage(envelope, { remotePeerId = '' } = {}) {
     if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
     if (envelope?.protocol !== 'apex.cas.v1') return false;
-    if (envelope.operation === 'object.put') {
+    if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
+    const operation = String(envelope.operation || '');
+    if (!['object.put', 'object.get'].includes(operation)) throw new Error('unsupported peer storage operation');
+    if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
+      throw new Error('peer storage namespace access denied');
+    }
+    if (operation === 'object.put') {
       if (typeof envelope.bytesBase64 !== 'string' || !/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) {
         throw new Error('invalid peer object write request');
       }
@@ -121,19 +173,22 @@ export function createPeerObjectStorageHandler({ store, peerId, maxObjectBytes =
       let value;
       try { value = JSON.parse(bytes.toString('utf8')); }
       catch { throw new Error('peer object payload is not valid JSON'); }
+      if (value?.namespace !== envelope.namespace || value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
+        throw new Error('peer object must be a correctly namespaced encrypted envelope');
+      }
       const saved = await store.putObject(value);
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
-      return { accepted: true, peerId, hash: saved.hash, bytes: saved.bytes };
+      return { accepted: true, peerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
     }
-    if (envelope.operation === 'object.get') {
-      if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
-      const value = await store.getObject(envelope.hash);
-      const bytes = Buffer.from(canonical(value), 'utf8');
-      if (sha256(bytes) !== envelope.hash) throw new Error('persistent peer object failed integrity verification');
-      return { accepted: true, peerId, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
+    if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
+    const value = await store.getObject(envelope.hash);
+    const bytes = Buffer.from(canonical(value), 'utf8');
+    if (sha256(bytes) !== envelope.hash || value?.namespace !== envelope.namespace ||
+        value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
+      throw new Error('persistent peer object failed integrity or namespace verification');
     }
-    throw new Error('unsupported peer storage operation');
+    return { accepted: true, peerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
   };
 }
