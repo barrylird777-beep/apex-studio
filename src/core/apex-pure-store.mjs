@@ -292,42 +292,46 @@ export class ApexPureStore {
   refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
   async persistJob(job,{appendWal=true,walSeq=null}={}){
     const key=this.refKey("job",job.id);
+    let effectiveJob=clone(job),effectiveSeq=Number(walSeq)||0;
     if(this.remoteMode){
       if(appendWal){
         const requestHash=createHash("sha256").update(JSON.stringify(job)).digest("hex");
         const logged=await this.wal.append("job.put",{job:clone(job)},{idempotencyKey:"job.put:"+String(job.id)+":"+requestHash});
-        walSeq=logged.seq;
+        effectiveSeq=logged.seq;
       }
-      const seq=Number(walSeq)||0;
       let persisted=false;
       for(let attempt=0;attempt<8;attempt++){
         const current=await this.cas.readRef("jobs",key);
-        if(seq>0&&Number(current?.value?.walSeq||0)>=seq)return clone(current.value.job);
+        if(effectiveSeq>0&&Number(current?.value?.walSeq||0)>=effectiveSeq){
+          effectiveJob=clone(current.value.job);
+          effectiveSeq=Number(current.value.walSeq)||effectiveSeq;
+          persisted=true;break;
+        }
         try{
-          await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job),walSeq:seq},{expectedHash:current?.hash??null});
+          await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job),walSeq:effectiveSeq},{expectedHash:current?.hash??null});
           persisted=true;break;
         }catch(error){if(error.code!=="CAS_CONFLICT"||attempt===7)throw error;}
       }
       if(!persisted)throw new Error("[REMOTE_STORE_CAS] Could not materialize WAL-backed job state.");
-      if(job.dedupeKey!=null&&String(job.dedupeKey)){
-        const dedupeKey=createHash("sha256").update(String(job.dedupeKey)).digest("hex");
-        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(job.dedupeKey),id:String(job.id),status:String(job.status||""),type:String(job.type||""),updatedAt:String(job.updatedAt||""),walSeq:seq});
+      if(effectiveJob.dedupeKey!=null&&String(effectiveJob.dedupeKey)){
+        const dedupeKey=createHash("sha256").update(String(effectiveJob.dedupeKey)).digest("hex");
+        await this.cas.writeRef("dedupe",dedupeKey,{dedupeKey:String(effectiveJob.dedupeKey),id:String(effectiveJob.id),status:String(effectiveJob.status||""),type:String(effectiveJob.type||""),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq});
       }
       const current=await this.cas.readRef("queue",key);
       const running=await this.cas.readRef("running",key);
-      if(job.status==="queued"){
-        const value={id:String(job.id),runAt:Number(job.runAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||""),walSeq:seq};
-        await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
+      if(effectiveJob.status==="queued"){
+        const value={id:String(effectiveJob.id),runAt:Number(effectiveJob.runAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq};
+        if(!current||JSON.stringify(current.value)!==JSON.stringify(value))await this.cas.writeRef("queue",key,value,{expectedHash:current?.hash??null});
         if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
-      }else if(job.status==="running"){
-        const value={id:String(job.id),leaseExpiresAt:Number(job.leaseExpiresAt)||0,priority:Number(job.priority)||0,role:String(job.payload?._apex_worker?.role||""),dedupeKey:job.dedupeKey==null?null:String(job.dedupeKey),updatedAt:String(job.updatedAt||""),walSeq:seq};
-        await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
+      }else if(effectiveJob.status==="running"){
+        const value={id:String(effectiveJob.id),leaseExpiresAt:Number(effectiveJob.leaseExpiresAt)||0,priority:Number(effectiveJob.priority)||0,role:String(effectiveJob.payload?._apex_worker?.role||""),dedupeKey:effectiveJob.dedupeKey==null?null:String(effectiveJob.dedupeKey),updatedAt:String(effectiveJob.updatedAt||""),walSeq:effectiveSeq};
+        if(!running||JSON.stringify(running.value)!==JSON.stringify(value))await this.cas.writeRef("running",key,value,{expectedHash:running?.hash??null});
         if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
       }else{
         if(current)await this.cas.deleteRef("queue",key,{expectedHash:current.hash});
         if(running)await this.cas.deleteRef("running",key,{expectedHash:running.hash});
       }
-      return clone(job);
+      return clone(effectiveJob);
     }
     await this.cas.writeRef("jobs",key,{id:String(job.id),job:clone(job)});
     return clone(job);
