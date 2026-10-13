@@ -166,3 +166,48 @@ test('libp2p transport rejects an ACK that names a different peer', async () => 
     /unexpected authenticated identity/
   );
 });
+
+
+test('peer CAS requires explicit independent failure domains when configured', async () => {
+  const mesh = makeMesh();
+  assert.throws(
+    () => new PeerContentAddressedStore({
+      transport: mesh.client.transport,
+      peers: ['peer-a', 'peer-b'],
+      replicaCount: 2,
+      minFailureDomains: 2,
+      namespace: 'PlanetApeX',
+      encryptionKey: Buffer.alloc(32, 7)
+    }),
+    /explicit failure domain/
+  );
+  assert.throws(
+    () => new PeerContentAddressedStore({
+      transport: mesh.client.transport,
+      peers: ['peer-a', 'peer-b'],
+      replicaCount: 2,
+      minFailureDomains: 2,
+      failureDomainsByPeerId: { 'peer-a': 'region-1', 'peer-b': 'region-1' },
+      namespace: 'PlanetApeX',
+      encryptionKey: Buffer.alloc(32, 7)
+    }),
+    /insufficient configured failure domains/
+  );
+});
+
+test('peer CAS verifies replica count and distinct failure domains before reporting durable success', async () => {
+  const mesh = makeMesh();
+  const client = new PeerContentAddressedStore({
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    minFailureDomains: 2,
+    failureDomainsByPeerId: { 'peer-a': 'region-1', 'peer-b': 'region-2' },
+    namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7)
+  });
+  const result = await client.putObject({ critical: 'must survive a domain loss' });
+  assert.equal(result.replicas.length, 2);
+  assert.equal(new Set(result.receipts.map(receipt => receipt.failureDomain)).size, 2);
+  assert.deepEqual(await client.getObject(result.hash), { critical: 'must survive a domain loss' });
+});
