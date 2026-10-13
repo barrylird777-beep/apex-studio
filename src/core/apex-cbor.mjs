@@ -71,8 +71,15 @@ export function decodeCanonical(input) {
       throw new Error('unsupported CBOR simple or floating-point value');
     }
     const length = readLength(additional);
-    if (major === 0) return length <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(length) : length;
-    if (major === 1) { const n = -1n - length; return n >= BigInt(Number.MIN_SAFE_INTEGER) ? Number(n) : n; }
+    if (major === 0) {
+      if (length > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('CBOR integer exceeds safe limits');
+      return Number(length);
+    }
+    if (major === 1) {
+      const n = -1n - length;
+      if (n < BigInt(Number.MIN_SAFE_INTEGER)) throw new Error('CBOR integer exceeds safe limits');
+      return Number(n);
+    }
     if (major === 2) return Buffer.from(read(asLength(length)));
     if (major === 3) return read(asLength(length)).toString('utf8');
     if (major === 4) {
@@ -93,5 +100,6 @@ export function decodeCanonical(input) {
   }
   const value = parse();
   if (offset !== bytes.length) throw new Error('trailing bytes after CBOR value');
+  if (!encodeCanonical(value).equals(bytes)) throw new Error('non-canonical CBOR encoding');
   return value;
 }
