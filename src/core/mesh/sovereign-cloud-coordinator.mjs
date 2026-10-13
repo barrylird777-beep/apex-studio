@@ -97,6 +97,26 @@ export class SovereignCloudCoordinator {
     if (!result.created) throw new Error("Job ID already exists; refusing to overwrite a prior job");
     return { ...record, sha256: result.sha256 };
   }
+  async listQueuedJobs({ app, limit = 100 } = {}) {
+    if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
+    const prefix = this.key("apps", app, "jobs") + "/";
+    const listed = await this.client.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, MaxKeys: Math.min(1000, Math.max(1, Number(limit) || 100)) }));
+    const jobs = [];
+    for (const item of listed.Contents || []) {
+      const stored = await this.read(item.Key);
+      if (stored?.value?.app === app && stored.value.status === "queued" && stored.value.expiresAt > now()) jobs.push(stored.value);
+    }
+    jobs.sort((a, b) => a.createdAt - b.createdAt);
+    return { app, jobs, count: jobs.length, truncated: Boolean(listed.IsTruncated), nextContinuationToken: listed.NextContinuationToken || null };
+  }
+  async claimNextJob({ app, workerId, leaseMs = 30000, limit = 100 } = {}) {
+    const listed = await this.listQueuedJobs({ app, limit });
+    for (const job of listed.jobs) {
+      const claim = await this.claimJob({ app, jobId: job.jobId, workerId, leaseMs });
+      if (claim.claimed) return { job, lease: claim.lease };
+    }
+    return null;
+  }
   async getJob({ app, jobId }) {
     if (!APPS.has(app)) throw new Error("Unknown canonical app scope");
     const record = await this.read(this.key("apps", app, "jobs", segment(jobId) + ".json"));
