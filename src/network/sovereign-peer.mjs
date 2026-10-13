@@ -291,7 +291,7 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         error: error instanceof Error ? error.message : String(error),
         remotePeerId: connection?.remotePeer?.toString?.() || ''
       }));
-      await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+      await sendSovereignEnvelope(stream, { accepted: false, error: error instanceof Error ? error.message : String(error), code: error?.code || null }).catch(() => {});
     } finally {
       // A libp2p v3 handler returning with its stream still open can cause the
       // muxer to reset the stream instead of completing the request/ACK exchange.
@@ -340,7 +340,11 @@ export async function sendToPeer(node, multiaddr, envelope) {
       console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       const response = await readSovereignEnvelope(stream);
-      if (!response.accepted) throw new Error(response.error || 'peer rejected envelope');
+      if (!response.accepted) {
+        const rejection = new Error(response.error || 'peer rejected envelope');
+        if (response.code) rejection.code = response.code;
+        throw rejection;
+      }
       console.log('[SOVEREIGN PEER] outbound acknowledged', JSON.stringify({ destinationPeerId, remotePeerId: response.peerId || null, attempt: attempt + 1 }));
       return response;
     } catch (error) {
