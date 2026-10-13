@@ -161,7 +161,7 @@ try {
     throw new Error(`KoBlocks cycle rejection smoke failed: ${JSON.stringify(cyclicGraph)}`);
   }
 
-  console.log('production server smoke: PASS (health, six canonical apps, KoBlocks valid/cyclic graph validation verified)');
+  console.log('production server smoke: PASS (health, six canonical apps, XShield identity, and reusable KoBlocks valid/cyclic graph validation verified)');
 } finally {
   child.kill('SIGTERM');
   await Promise.race([
