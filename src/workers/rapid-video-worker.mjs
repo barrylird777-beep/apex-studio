@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { generateUnifiedAi } from "../providers/unified-ai-router.mjs";
+import { resolveContainedPath, ensureContainedDirectory } from "../core/se-x-paths.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -117,10 +118,10 @@ export async function executeRapidVideoPreview(payload = {}) {
   const brief = cleanText(payload.brief, "Turn this idea into something people want to watch.");
   const platform = cleanText(payload.platform, "Short-form social");
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
-  const outputDir = path.join(process.env.STORAGE_DIR || "/srv/apex/se-x/projects", "previews");
-  await mkdir(outputDir, { recursive: true, mode: 0o700 });
+  const storageRoot = path.resolve(process.env.STORAGE_DIR || process.env.APEX_PROJECTS_DIR || "/srv/apex/se-x/projects");
+  const outputDir = await ensureContainedDirectory(storageRoot, "previews");
   const filename = "rapid_preview_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
-  const output = path.join(outputDir, filename);
+  const output = await resolveContainedPath(storageRoot, "previews/" + filename);
   const [bg, accent, warm] = paletteFor(brief + platform);
   const hook = await generateHook(brief, platform, payload.provider, payload.model);
   const scenes = [
@@ -157,11 +158,11 @@ export async function executeRapidVideoOrder(payload = {}) {
   const platform = cleanText(payload.platform, "Other");
   const orderId = cleanText(payload.orderId, crypto.randomUUID());
 
-  const outputDir = process.env.STORAGE_DIR || "/srv/apex/se-x/projects";
-  await mkdir(outputDir, { recursive: true, mode: 0o700 });
+  const storageRoot = path.resolve(process.env.STORAGE_DIR || process.env.APEX_PROJECTS_DIR || "/srv/apex/se-x/projects");
+  await ensureContainedDirectory(storageRoot, "renders");
 
   const filename = "rapid_order_" + orderId.replace(/[^A-Za-z0-9_-]/g, "") + ".mp4";
-  const output = path.join(outputDir, filename);
+  const output = await resolveContainedPath(storageRoot, filename);
   const hook = await generateHook(brief, platform, payload.provider, payload.model);
   const scenes = [
     [hook, brief],
