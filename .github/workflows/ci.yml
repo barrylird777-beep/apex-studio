@@ -34,6 +34,8 @@ jobs:
         run: npm run build
       - name: Production smoke
         run: npm run smoke:production
+      - name: SIGTERM readiness race
+        run: npm run test:sigterm-race
       - name: Canonical six-app contract
         run: npm run check:canonical
       - name: KernelVision episode smoke
