@@ -288,7 +288,7 @@ export class PeerContentAddressedStore {
           hash
         });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
-        if (sha256(bytes) !== hash || response.hash !== hash || response.namespace !== this.namespace) {
+        if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash || response.hash !== hash || response.namespace !== this.namespace) {
           throw new Error('peer returned content that failed SHA-256 or namespace verification');
         }
         return this.decrypt(decodeCanonical(bytes));
