@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { deserialize, serialize } from 'node:v8';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-const canonical = value => JSON.stringify(value);
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
 
 /**
@@ -50,7 +50,7 @@ export class PeerContentAddressedStore {
   encrypt(value) {
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    const plaintext = Buffer.from(canonical(value), 'utf8');
+    const plaintext = serialize(value);
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     return {
       version: 1,
@@ -74,7 +74,7 @@ export class PeerContentAddressedStore {
     const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    return JSON.parse(plaintext.toString('utf8'));
+    return deserialize(plaintext);
   }
 
   async request(peerId, request) {
@@ -86,7 +86,7 @@ export class PeerContentAddressedStore {
   }
 
   async putObject(value) {
-    const bytes = Buffer.from(canonical(this.encrypt(value)), 'utf8');
+    const bytes = serialize(this.encrypt(value));
     if (bytes.length > this.maxObjectBytes) {
       const error = new Error('encrypted object exceeds the safe single-envelope limit; chunking is required');
       error.code = 'OBJECT_TOO_LARGE_REQUIRES_CHUNKING';
@@ -162,7 +162,7 @@ export class PeerContentAddressedStore {
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
           throw new Error('repair source failed object hash or namespace verification');
         }
-        const envelope = JSON.parse(bytes.toString('utf8'));
+        const envelope = deserialize(bytes);
         this.decrypt(envelope);
         sourceBytes = bytes;
         sourcePeerId = peerId;
@@ -289,7 +289,7 @@ export class PeerContentAddressedStore {
         if (sha256(bytes) !== hash || response.hash !== hash || response.namespace !== this.namespace) {
           throw new Error('peer returned content that failed SHA-256 or namespace verification');
         }
-        return this.decrypt(JSON.parse(bytes.toString('utf8')));
+        return this.decrypt(deserialize(bytes));
       } catch (error) {
         failures.push(error instanceof Error ? error.message : String(error));
       }
@@ -309,8 +309,8 @@ export class PeerContentAddressedStore {
 export function createPeerObjectStorageHandler({
   store, peerId, authorizeNamespace, maxObjectBytes = 8 * 1024 * 1024
 } = {}) {
-  if (!store || typeof store.putObject !== 'function' || typeof store.getObject !== 'function') {
-    throw new TypeError('a persistent content-addressed peer store is required');
+  if (!store || typeof store.putBytes !== 'function' || typeof store.getBytes !== 'function') {
+    throw new TypeError('a peer-owned binary object backend with putBytes(hash, bytes) and getBytes(hash) is required');
   }
   if (!peerId) throw new TypeError('local peerId or peerId resolver is required');
   const resolvePeerId = () => String(typeof peerId === 'function' ? peerId() : peerId || '');
@@ -337,12 +337,12 @@ export function createPeerObjectStorageHandler({
       }
       if (sha256(bytes) !== envelope.hash) throw new Error('peer object write hash mismatch');
       let value;
-      try { value = JSON.parse(bytes.toString('utf8')); }
-      catch { throw new Error('peer object payload is not valid JSON'); }
+      try { value = deserialize(bytes); }
+      catch { throw new Error('peer object payload is not a valid binary-serialized envelope'); }
       if (value?.namespace !== envelope.namespace || value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
         throw new Error('peer object must be a correctly namespaced encrypted envelope');
       }
-      const saved = await store.putObject(value);
+      const saved = await store.putBytes(envelope.hash, bytes);
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
@@ -351,8 +351,9 @@ export function createPeerObjectStorageHandler({
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
     }
     if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
-    const value = await store.getObject(envelope.hash);
-    const bytes = Buffer.from(canonical(value), 'utf8');
+    const bytes = Buffer.from(await store.getBytes(envelope.hash));
+    let value;
+    try { value = deserialize(bytes); } catch { throw new Error('persistent peer object is not a valid binary envelope'); }
     if (sha256(bytes) !== envelope.hash || value?.namespace !== envelope.namespace ||
         value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
       throw new Error('persistent peer object failed integrity or namespace verification');
