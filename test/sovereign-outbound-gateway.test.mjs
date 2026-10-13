@@ -31,7 +31,9 @@ test("outbound payload screening catches bearer and base64-obfuscated credential
     "Authorization: Bearer ghp_123456789012345678901234",
     "xai-12345678901234567890123456789012",
     "hf_12345678901234567890123456789012",
-    Buffer.from("ghp_123456789012345678901234", "utf8").toString("base64")
+    Buffer.from("ghp_123456789012345678901234", "utf8").toString("base64"),
+    "g h p _ 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4",
+    "ghp%5F123456789012345678901234"
   ];
   for (const value of cases) {
     assert.throws(
