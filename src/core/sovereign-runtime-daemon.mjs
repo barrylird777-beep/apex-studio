@@ -1,5 +1,6 @@
 import os from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { verifyRemoteWalProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
@@ -27,6 +28,7 @@ let edgeNode;
 let stopping = false;
 let timer;
 let bridge;
+const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (!envelope || !['durable.accept', 'durable.read', 'edge.heartbeat'].includes(envelope.type)) {
@@ -98,17 +100,39 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   return true;
 }
 
+async function verifyRemoteWalReadiness() {
+  if (!apexPureStore.remoteMode || apexPureStore.wal?.constructor?.name !== 'RemoteApexRingWAL') {
+    throw new Error('RemoteApexRingWAL is required before sovereign readiness can be granted');
+  }
+  const record = await apexPureStore.wal.append('runtime.readiness.probe', {
+    version: 1,
+    nonce: randomUUID(),
+    peerId: peerNode?.peerId?.toString() || null,
+    checkedAt: new Date().toISOString()
+  });
+  const snapshot = await apexPureStore.wal.snapshot();
+  if (!verifyRemoteWalProbe(record, snapshot)) {
+    throw new Error('RemoteApexRingWAL readiness append/readback/hash-chain verification failed');
+  }
+  runtimeReadiness.remoteWalVerified = true;
+  runtimeReadiness.remoteWalSequence = record.seq;
+  runtimeReadiness.remoteWalHash = record.hash;
+}
+
 async function main() {
   const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
   if (!storageReady) return;
+  runtimeReadiness.storageReady = true;
   await engine.ready();
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
 
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   await peerNode.start();
+  runtimeReadiness.peerReady = true;
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
-  await publishRuntimeIdentity('online');
+  await verifyRemoteWalReadiness();
+  await publishRuntimeIdentity('starting');
 
   edgeNode = await createApexEdgeNode({
     peerNode,
@@ -144,6 +168,8 @@ async function main() {
   }
 
   await runCycle(bridge);
+  runtimeReadiness.dispatchReady = true;
+  await publishRuntimeIdentity('online');
   console.log('[*] APEX SOVEREIGN RUNTIME ONLINE', JSON.stringify({
     workerId,
     peerId: peerNode.peerId.toString(),
@@ -166,15 +192,21 @@ async function publishRuntimeIdentity(status = 'online') {
   const now = Date.now();
   const peerId = peerNode.peerId.toString();
   const publicPeerAddress = buildPublicPeerAddress(peerId);
+  const readiness = {
+    ...runtimeReadiness,
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady
+  };
+  const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
-    status,
+    status: effectiveStatus,
+    readiness,
     peerId,
     publicPeerAddress,
     workerId,
     listenAddresses: peerNode.getMultiaddrs().map(String),
     lastSeenAt: new Date(now).toISOString(),
     pendingPeerAcks: engine.snapshot().filter(record => record.status === 'DISPATCHED').length,
-    leaseExpiresAt: status === 'online' ? now + Math.max(30000, reconcileMs * 3) : 0
+    leaseExpiresAt: effectiveStatus === 'online' ? now + Math.max(30000, reconcileMs * 3) : 0
   });
 }
 
