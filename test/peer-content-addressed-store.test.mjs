@@ -5,6 +5,7 @@ import {
   PeerContentAddressedStore,
   createPeerObjectStorageHandler
 } from '../src/core/peer-content-addressed-store.mjs';
+import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
 
 const canonical = value => JSON.stringify(value);
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -126,4 +127,42 @@ test('peer CAS cannot decrypt an object under a different app namespace', async 
     encryptionKey: Buffer.alloc(32, 7)
   });
   await assert.rejects(otherNamespace.getObject(result.hash), error => error.code === 'OBJECT_UNAVAILABLE');
+});
+
+test('libp2p transport binds each configured address to the exact peer identity', async () => {
+  const calls = [];
+  const transport = createLibp2pPeerStorageTransport({
+    node: { dialProtocol() {} },
+    addressesByPeerId: { 'peer-a': '/ip4/127.0.0.1/tcp/9000/p2p/peer-a' },
+    send: async (_node, address, envelope) => {
+      calls.push({ address, envelope });
+      return { accepted: true, peerId: 'peer-a', hash: envelope.hash };
+    }
+  });
+  const response = await transport.request('peer-a', { protocol: 'apex.cas.v1', operation: 'object.get', hash: 'a'.repeat(64) });
+  assert.equal(response.peerId, 'peer-a');
+  assert.equal(calls.length, 1);
+  await assert.rejects(transport.request('peer-b', { protocol: 'apex.cas.v1' }), /not explicitly configured/);
+});
+
+test('libp2p transport rejects a configured multiaddress with a mismatched peer ID', () => {
+  assert.throws(
+    () => createLibp2pPeerStorageTransport({
+      node: { dialProtocol() {} },
+      addressesByPeerId: { 'peer-a': '/ip4/127.0.0.1/tcp/9000/p2p/peer-b' }
+    }),
+    /exact configured peer ID/
+  );
+});
+
+test('libp2p transport rejects an ACK that names a different peer', async () => {
+  const transport = createLibp2pPeerStorageTransport({
+    node: { dialProtocol() {} },
+    addressesByPeerId: { 'peer-a': '/ip4/127.0.0.1/tcp/9000/p2p/peer-a' },
+    send: async () => ({ accepted: true, peerId: 'peer-imposter' })
+  });
+  await assert.rejects(
+    transport.request('peer-a', { protocol: 'apex.cas.v1' }),
+    /unexpected authenticated identity/
+  );
 });
