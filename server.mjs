@@ -10,7 +10,7 @@ import { buildTimelineFfmpegPlan, OUTPUT_PRESETS } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset, getPeerMediaAsset } from './src/services/projectManager.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
@@ -998,6 +998,22 @@ const scheduleErrorResponse = (res, error) => res.status(Number(error?.status) |
   success: false,
   error: String(error?.message || error),
   ...(error?.code ? { code: error.code } : {})
+});
+
+app.get('/api/peer-media/:projectId/:assetId', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const asset = await getPeerMediaAsset(req.params.projectId, req.params.assetId);
+    if (!asset) return res.status(404).json({ success: false, error: 'Peer media asset not found' });
+    res.setHeader('Content-Type', asset.record.contentType || 'application/octet-stream');
+    res.setHeader('Content-Length', String(asset.bytes.length));
+    res.setHeader('ETag', '"' + asset.record.sha256 + '"');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-SHA256', asset.record.sha256);
+    return res.status(200).send(asset.bytes);
+  } catch (error) {
+    const status = error?.code === 'OBJECT_UNAVAILABLE' ? 503 : error?.code === 'PEER_STORAGE_NOT_CONFIGURED' ? 503 : 500;
+    return res.status(status).json({ success: false, error: error?.message || 'Peer media retrieval failed', code: error?.code || 'PEER_MEDIA_READ_FAILED' });
+  }
 });
 
 app.get('/api/projects', requireControlPlaneAuth, async (_req, res) => {
