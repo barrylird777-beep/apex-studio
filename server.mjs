@@ -104,6 +104,20 @@ app.use(cors({
   maxAge: 600
 }));
 
+// Defense-in-depth CSRF check for owner-cookie-authenticated mutations.
+// Browser Origin must match the explicit deployment allowlist; token-authenticated clients
+// without an owner session are handled by their existing authorization guards.
+app.use((req, res, next) => {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(req.method || '').toUpperCase())) return next();
+  if (!hasValidOwnerSession(req)) return next();
+  const origin = String(req.get('origin') || '').trim();
+  if (!origin) return next(); // SameSite=Strict remains the baseline for origin-less clients.
+  if (!corsOrigins.includes(origin)) {
+    return res.status(403).json({ success: false, error: 'Origin rejected for owner-session mutation' });
+  }
+  return next();
+});
+
 const shieldApex = createShieldApex({
   allowedOrigins: String(process.env.APEX_ALLOWED_ORIGINS || "")
     .split(",")
