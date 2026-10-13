@@ -133,3 +133,9 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:0 auto;padding:22
   .apex-shell>h1{letter-spacing:-.045em}
   .apex-shell .card,.apex-shell .panel{border-radius:16px}
 }
+
+
+/* Put each app's primary job before secondary tools in the first viewport. */
+.apex-shell[data-apex-app="kernelodies"] #kernelodies-discovery{order:-1;grid-column:1/-1}
+.apex-shell[data-apex-app="kernelodies"] #kernelodies-discovery>p{max-width:760px;color:var(--apex-muted)}
+.apex-shell[data-apex-app="planetapex"] .card[aria-label="PlanetApeX study and research"]{grid-column:1/-1}
