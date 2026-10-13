@@ -8,6 +8,8 @@ const workerId = String(process.env.APEX_CLOUD_WORKER_ID || randomUUID());
 const handlerModule = String(process.env.APEX_CLOUD_HANDLER_MODULE || "");
 const pollMs = Math.max(250, Number(process.env.APEX_CLOUD_WORKER_POLL_MS || 1500));
 const leaseMs = Math.max(5000, Math.min(300000, Number(process.env.APEX_CLOUD_WORKER_LEASE_MS || 30000)));
+const capabilities = (process.env.APEX_CLOUD_WORKER_CAPABILITIES || "cloud-job-worker").split(",").map(x => x.trim()).filter(Boolean);
+const taskTypes = (process.env.APEX_CLOUD_WORKER_TASK_TYPES || "").split(",").map(x => x.trim()).filter(Boolean);
 const coordinator = new SovereignCloudCoordinator();
 let stopping = false;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -61,16 +63,16 @@ async function execute(job, lease) {
 async function main() {
   if (!["KernelVision", "XShield", "Kernelodies", "PlanetApeX", "KashKorner", "KoinKob"].includes(app)) throw new Error("APEX_CLOUD_WORKER_APP must be one of the six canonical apps");
   const health = await coordinator.health();
-  await coordinator.advertisePeer({ app, peerId: workerId, capabilities: ["cloud-job-worker"], maxConcurrent: 1, expiresInMs: 30000 });
+  await coordinator.advertisePeer({ app, peerId: workerId, capabilities, maxConcurrent: 1, expiresInMs: 30000 });
   const peerHeartbeat = setInterval(() => {
-    coordinator.advertisePeer({ app, peerId: workerId, capabilities: ["cloud-job-worker"], maxConcurrent: 1, expiresInMs: 30000 })
+    coordinator.advertisePeer({ app, peerId: workerId, capabilities, maxConcurrent: 1, expiresInMs: 30000 })
       .catch(error => console.error("[APEX CLOUD WORKER] peer heartbeat failed", String(error?.message || error)));
   }, 10000);
   peerHeartbeat.unref?.();
   console.log("[APEX CLOUD WORKER] cloud storage verified", JSON.stringify({ app, workerId, persistence: health.persistence, readAfterWrite: health.readAfterWrite }));
   while (!stopping) {
     try {
-      const claimed = await coordinator.claimNextJob({ app, workerId, leaseMs });
+      const claimed = await coordinator.claimNextJob({ app, workerId, leaseMs, capabilities, taskTypes: taskTypes.length ? taskTypes : undefined });
       if (claimed) await execute(claimed.job, claimed.lease);
       else await sleep(pollMs);
     } catch (error) {
