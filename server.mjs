@@ -151,7 +151,7 @@ const streamRelay = new RtmpSessionMultiplexer({
   autoStart: relayAutoStart
 });
 
-app.use('/api/relay', createRelayRouter(streamRelay));
+app.use('/api/relay', requireControlPlaneAuth, createRelayRouter(streamRelay));
 
 const researchEngine = new FrictionlessResearchEngine();
 app.use('/api/research', createResearchRouter(researchEngine));
@@ -212,7 +212,7 @@ app.get('/api/search', async (req, res) => {
 });
 
 
-app.get('/api/workforce/status', (_req, res) => {
+app.get('/api/workforce/status', requireControlPlaneAuth, (_req, res) => {
   res.status(200).json({
     success: true,
     workforce: massiveAiWorkforce.status(),
@@ -242,7 +242,7 @@ app.post('/api/workforce/burst', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/relay/health', (_req, res) => {
+app.get('/api/relay/health', requireControlPlaneAuth, (_req, res) => {
   const relay = streamRelay.status();
   const healthy = relay.downstreamConnected && !relay.lastError;
   res.status(healthy ? 200 : 503).json({
@@ -259,7 +259,7 @@ const infiniteBroadcast = createInfiniteBroadcast({
 
 app.use('/api/teevee/production', createTeeVeeProductionRouter({ enqueue: enqueueWorkerTask, requireAuth: requireControlPlaneAuth }));
 
-app.get('/api/shield-apex/status', (_req, res) => {
+app.get('/api/shield-apex/status', requireControlPlaneAuth, (_req, res) => {
   res.status(200).json({
     success: true,
     system: 'apex-studio',
@@ -484,7 +484,7 @@ app.get('/api/apex/readiness', async (_req, res) => {
   }
 });
 
-app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
+app.get('/api/broadcast/status', requireControlPlaneAuth, (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
 app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
   catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
@@ -585,7 +585,7 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-app.get('/api/health', async (_req, res) => {
+app.get('/api/health', requireControlPlaneAuth, async (_req, res) => {
   try {
     res.status(200).json(await buildHealthSnapshot());
   } catch (error) {
@@ -613,7 +613,7 @@ app.post('/api/paypex/brief', requirePublicRequestSlot, express.json({ limit: '3
   }
 });
 
-app.get('/api/apex/apps', async (_req, res) => {
+app.get('/api/apex/apps', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listApexApps, assertSixAppInvariant } = await import('./src/apps/apex-six-apps.mjs');
     assertSixAppInvariant();
@@ -625,7 +625,7 @@ app.get('/api/apex/apps', async (_req, res) => {
   }
 });
 
-app.get('/api/apex/apps/:appId/status', async (req, res) => {
+app.get('/api/apex/apps/:appId/status', requireControlPlaneAuth, async (req, res) => {
   const id = String(req.params.appId || '').trim();
   try {
     const { APEX_APP_IDS } = await import('./src/apps/apex-six-apps.mjs');
@@ -665,7 +665,7 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
   }
 });
 
-app.get('/api/koin-kob/status', async (_req, res) => {
+app.get('/api/koin-kob/status', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { koinKobStatus } = await import('./src/apps/koin-kob.mjs');
     return res.json({ success: true, ...koinKobStatus() });
@@ -731,7 +731,7 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
   }
 });
 
-app.get('/api/canon/trajectory', async (_req, res) => {
+app.get('/api/canon/trajectory', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { canonicalTrajectory, validateCanonicalTrajectory } = await import('./src/apps/canonical-trajectory.mjs');
     const trajectory = canonicalTrajectory();
@@ -830,7 +830,7 @@ app.get('/api/canon/handoff/status', requireControlPlaneAuth, async (_req, res) 
   }
 });
 
-app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
+app.get('/api/canon/apps/:appId/neighbors', requireControlPlaneAuth, async (req, res) => {
   try {
     const { canonicalNeighbors } = await import('./src/apps/canonical-trajectory.mjs');
     return res.json({ success: true, appId: req.params.appId, neighbors: canonicalNeighbors(req.params.appId) });
@@ -841,7 +841,7 @@ app.get('/api/canon/apps/:appId/neighbors', async (req, res) => {
   }
 });
 
-app.get('/api/canon/apps', async (_req, res) => {
+app.get('/api/canon/apps', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { canonicalAppsStatus } = await import('./src/apps/canonical-six.mjs');
     return res.json({ success: true, apps: await canonicalAppsStatus(), checkedAt: new Date().toISOString() });
@@ -850,7 +850,7 @@ app.get('/api/canon/apps', async (_req, res) => {
   }
 });
 
-app.get('/api/canon/apps/:appId/status', async (req, res) => {
+app.get('/api/canon/apps/:appId/status', requireControlPlaneAuth, async (req, res) => {
   try {
     const { canonicalAppStatus } = await import('./src/apps/canonical-six.mjs');
     return res.json(await canonicalAppStatus(req.params.appId));
@@ -861,7 +861,7 @@ app.get('/api/canon/apps/:appId/status', async (req, res) => {
   }
 });
 
-app.post('/api/canon/apps/ko-blocks/validate', async (req, res) => {
+app.post('/api/canon/apps/ko-blocks/validate', requireControlPlaneAuth, async (req, res) => {
   try {
     const { validateKoBlockGraph } = await import('./src/apps/ko-blocks.mjs');
     const result = validateKoBlockGraph(req.body);
@@ -881,33 +881,33 @@ app.post('/api/canon/apps/ko-blocks/validate', async (req, res) => {
   }
 });
 
-app.get('/api/planet-apex/status', async (_req, res) => {
+app.get('/api/planet-apex/status', requireControlPlaneAuth, async (_req, res) => {
   try { const { planetApexStatus } = await import('./src/apps/planet-apex.mjs'); return res.json({ success: true, ...planetApexStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'PlanetApeX status unavailable' }); }
 });
-app.get('/api/kernel-vision/status', async (_req, res) => {
+app.get('/api/kernel-vision/status', requireControlPlaneAuth, async (_req, res) => {
   try { const { kernelVisionStatus } = await import('./src/apps/kernel-vision.mjs'); return res.json({ success: true, ...kernelVisionStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'KernelVision status unavailable' }); }
 });
-app.get('/api/kash-korner/status', async (_req, res) => {
+app.get('/api/kash-korner/status', requireControlPlaneAuth, async (_req, res) => {
   try { const { kashKornerStatus } = await import('./src/apps/kash-korner.mjs'); return res.json({ success: true, ...kashKornerStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'KashKorner status unavailable' }); }
 });
-app.get('/api/kernelodies/status', async (_req, res) => {
+app.get('/api/kernelodies/status', requireControlPlaneAuth, async (_req, res) => {
   try { const { kernelodiesStatus } = await import('./src/apps/kernelodies.mjs'); return res.json({ success: true, ...await kernelodiesStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'Kernelodies status unavailable' }); }
 });
-app.get('/api/xshield/status', async (_req, res) => {
+app.get('/api/xshield/status', requireControlPlaneAuth, async (_req, res) => {
   try { const { xshieldStatus } = await import('./src/apps/xshield.mjs'); return res.json({ success: true, ...xshieldStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'XShield status unavailable' }); }
 });
-app.get('/api/koin-kob/status', async (_req, res) => {
+app.get('/api/koin-kob/status', requireControlPlaneAuth, async (_req, res) => {
   try { const { koinKobStatus } = await import('./src/apps/koin-kob.mjs'); return res.json({ success: true, ...koinKobStatus() }); }
   catch { return res.status(503).json({ success: false, error: 'KoinKob status unavailable' }); }
 });
 
 // Public market data is read from KashKorner's sovereign Pure-WAL namespace.
-app.get('/api/kash-korner/opportunities', async (req, res) => {
+app.get('/api/kash-korner/opportunities', requireControlPlaneAuth, async (req, res) => {
   try {
     const items = await listKashKornerOpportunities(sovereignAppFabric, req.query.limit);
     return res.json({ success: true, storage: 'content-addressed', items });
@@ -1552,16 +1552,16 @@ app.get(['/ko-blocks', '/ko-blocks.html'], (_req, res) => res.sendFile(path.join
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/api/network/adblock/content/status', (_req, res) => {
+app.get('/api/network/adblock/content/status', requireControlPlaneAuth, (_req, res) => {
   return res.json(contentFilterStatus(studioAdBlockStatus().blockedDomains));
 });
 
-app.get('/api/network/adblock/content/rules', (_req, res) => {
+app.get('/api/network/adblock/content/rules', requireControlPlaneAuth, (_req, res) => {
   res.type('application/json').set('Cache-Control', 'no-store');
   return res.send(JSON.stringify(buildSafariContentBlockerRules(), null, 2));
 });
 
-app.get('/api/network/adblock/content/classify', (req, res) => {
+app.get('/api/network/adblock/content/classify', requireControlPlaneAuth, (req, res) => {
   const target = String(req.query?.url || '');
   const firstPartyHost = String(req.query?.firstPartyHost || '');
   const resourceType = String(req.query?.resourceType || 'other');
@@ -1569,7 +1569,7 @@ app.get('/api/network/adblock/content/classify', (req, res) => {
   return res.json({ ok:true, ...classifyNetworkRequest(target, { firstPartyHost, resourceType }) });
 });
 
-app.get('/api/network/adblock/profile', (_req, res) => {
+app.get('/api/network/adblock/profile', requireControlPlaneAuth, (_req, res) => {
   res.type('application/x-apple-aspen-config').set('Content-Disposition', 'attachment; filename="Apex-AdBlock.mobileconfig"');
   return res.send(studioAdBlockMobileConfig());
 });
@@ -1603,7 +1603,7 @@ function allowThroughputProbe(ip) {
   return true;
 }
 
-app.get('/api/network/throughput', async (req, res) => {
+app.get('/api/network/throughput', requireControlPlaneAuth, async (req, res) => {
   if (!allowThroughputProbe(req.ip)) {
     return res.status(429).json({ ok: false, error: 'Network benchmark rate limit exceeded' });
   }
@@ -1686,7 +1686,7 @@ async function getNetworkFabric() {
   }
 }
 
-app.get('/api/network/status', async (req,res)=>{
+app.get('/api/network/status', requireControlPlaneAuth, async (req,res)=>{
   try {
     const { buildConnectionPolicy, buildNetworkSpeedPolicy } = await import('./src/network/path-selector.mjs');
     const fabric = await getNetworkFabric();
@@ -1697,11 +1697,11 @@ app.get('/api/network/status', async (req,res)=>{
     res.set('Cache-Control', 'no-store').json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy({ clientVerifiedPaths: 0 }),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:Boolean(fabric.verification?.starlinkVerified),sixGObserved:Boolean(fabric.verification?.sixGVerified)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
   } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
 });
-app.use('/api/studio/audio', createAudioStationRouter());
+app.use('/api/studio/audio', requireControlPlaneAuth, createAudioStationRouter());
 app.use('/api/kernelodies/library', createKernelodiesLibraryRouter({ storageDir: STORAGE_DIR, authorize: createKernelodiesLibraryAuth() }));
 app.use('/api/kernelodies/discovery', createKernelodiesDiscoveryRouter({ authorize: requireControlPlaneAuth }));
 
-app.get('/api/studio/omni/events', async (req, res) => {
+app.get('/api/studio/omni/events', requireControlPlaneAuth, async (req, res) => {
   const { omniEventsHandler } = await import('./src/api/omni-events.mjs');
   return omniEventsHandler(req, res);
 });
@@ -1742,11 +1742,11 @@ const musicRadarBridge = createMusicRadarBridge({
   }
 });
 
-app.get("/api/music-radar/status", async (_req, res) => {
+app.get("/api/music-radar/status", requireControlPlaneAuth, async (_req, res) => {
   res.json(await musicRadarBridge.status());
 });
 
-app.post("/api/music-radar/handoff", async (req, res) => {
+app.post("/api/music-radar/handoff", requireControlPlaneAuth, async (req, res) => {
   const expected = String(process.env.APEX_SHORTCUT_TOKEN || "");
   const supplied = String(req.get("x-apex-shortcut-token") || "");
   if (!expected || !supplied || supplied !== expected) {
@@ -1877,7 +1877,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
   }
 });
 
-app.get('/api/rapid/orders/:id', async (req, res) => {
+app.get('/api/rapid/orders/:id', requireControlPlaneAuth, async (req, res) => {
   try {
     const task = await getWorkerTask(req.params.id);
     if (!task || !['rapid-video-order','rapid-video-preview'].includes(task.task)) {
@@ -1900,16 +1900,16 @@ app.get('/api/rapid/orders/:id', async (req, res) => {
   }
 });
 
-app.get('/api/capacity', (_req,res)=>res.json(capacitySnapshot()));
-app.get('/api/workers/permanent', (_req,res)=>res.json({
+app.get('/api/capacity', requireControlPlaneAuth, (_req,res)=>res.json(capacitySnapshot()));
+app.get('/api/workers/permanent', requireControlPlaneAuth, (_req,res)=>res.json({
   success:true,
   ...fleetStatus(permanentWorkerFleet),
   supervisor: permanentWorkerSupervisor.status()
 }));
-app.get('/api/workers/overseer', (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
-app.get('/api/workers/durable', async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
+app.get('/api/workers/overseer', requireControlPlaneAuth, (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
+app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
 
-app.get('/api/network/rogue-ap/status', (_req, res) => {
+app.get('/api/network/rogue-ap/status', requireControlPlaneAuth, (_req, res) => {
   return res.json({ success: true, detector: rogueApDetector.status() });
 });
 
@@ -2768,7 +2768,7 @@ app.post('/api/audio', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/audio/status', (_req, res) => {
+app.get('/api/audio/status', requireControlPlaneAuth, (_req, res) => {
   res.json({
     success: true,
     provider: 'huggingface',
@@ -2875,7 +2875,7 @@ app.post('/api/media/video', requireControlPlaneAuth, async (req, res) => {
     return res.status(502).json({ success: false, error: error.message });
   }
 });
-app.get('/api/media/status', (_req, res) => {
+app.get('/api/media/status', requireControlPlaneAuth, (_req, res) => {
   res.json({
     success: true,
     image: {
@@ -2916,7 +2916,7 @@ function storagePathFromFileUrl(value) {
   return path.join(STORAGE_DIR, name);
 }
 
-app.get('/api/render/status', async (_req, res) => {
+app.get('/api/render/status', requireControlPlaneAuth, async (_req, res) => {
   try {
     const worker = new RenderWorker();
     return res.json({ success: true, ffmpegAvailable: await worker.available() });
@@ -3054,7 +3054,7 @@ app.post('/api/ai/generate-max', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/ai/generate-max/status', (_req, res) => {
+app.get('/api/ai/generate-max/status', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, ...openAiMaxStatus() });
 });
 
@@ -3078,11 +3078,11 @@ app.post('/api/ai/generate-grok', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/ai/generate-grok/status', (_req, res) => {
+app.get('/api/ai/generate-grok/status', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, ...grokStatus() });
 });
 
-app.get('/api/apex/universe', (_req, res) => res.json({
+app.get('/api/apex/universe', requireControlPlaneAuth, (_req, res) => res.json({
   success: true,
   surfaces: APEX_SURFACES,
   capabilities: APEX_UNIVERSAL_CAPABILITIES,
@@ -3096,11 +3096,11 @@ app.get('/api/apex/universe', (_req, res) => res.json({
   }
 }));
 
-app.get('/api/ai/catalog', (_req, res) => {
+app.get('/api/ai/catalog', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, generatedAt: new Date().toISOString(), providers: getAiCatalog(), categories: getAiCategories() });
 });
 
-app.get('/api/ai/providers', (_req, res) => {
+app.get('/api/ai/providers', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, providers: AI_PROVIDER_CATALOG, ...unifiedAiStatus() });
 });
 
@@ -3160,7 +3160,7 @@ app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/ai/status', (_req, res) => res.json({
+app.get('/api/ai/status', requireControlPlaneAuth, (_req, res) => res.json({
   success: true,
   gemini: {
     configured: Boolean(process.env.GEMINI_API_KEY),
@@ -3185,11 +3185,11 @@ app.post('/api/mesh/jobs', requireControlPlaneAuth, async (req, res) => {
   }
 });
 
-app.get('/api/mesh/workers', (_req, res) => {
+app.get('/api/mesh/workers', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, ...meshWorkerSupervisor.status() });
 });
 
-app.get('/api/crew/status', (_req, res) => {
+app.get('/api/crew/status', requireControlPlaneAuth, (_req, res) => {
   res.json({ success: true, crew: aiCrew.status(), fleet: fleetStatus(permanentWorkerFleet), overseer: overseerStatus(apexOverseer, permanentWorkerFleet) });
 });
 
@@ -3215,7 +3215,7 @@ app.post('/api/crew/burst', requireControlPlaneAuth, (req, res) => {
   }
 });
 
-app.get('/api/mesh/status', (_req, res) => {
+app.get('/api/mesh/status', requireControlPlaneAuth, (_req, res) => {
   res.json({
     success: true,
     zeroCostMode: !ALLOW_METERED_PROVIDERS,
@@ -3241,7 +3241,7 @@ app.get('/api/mesh/status', (_req, res) => {
   });
 });
 
-app.get('/api/voiceover/voices', async (_req,res) => {
+app.get('/api/voiceover/voices', requireControlPlaneAuth, async (_req,res) => {
   try {
     const { listVoiceCatalog } = await import('./src/workers/voiceover-worker.mjs');
     res.json({success:true,voices:await listVoiceCatalog()});
@@ -3249,7 +3249,7 @@ app.get('/api/voiceover/voices', async (_req,res) => {
     res.status(503).json({success:false,error:error.message});
   }
 });
-app.get('/api/voiceover/status', async (_req,res) => {
+app.get('/api/voiceover/status', requireControlPlaneAuth, async (_req,res) => {
   try {
     const { voiceoverWorkerStatus } = await import('./src/workers/voiceover-worker.mjs');
     res.json({success:true,...await voiceoverWorkerStatus()});
@@ -3282,7 +3282,7 @@ app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
   } catch(error){ res.status(500).json({success:false,error:error.message}); }
 });
 
-app.get('/api/network/adblock/profile', (_req, res) => {
+app.get('/api/network/adblock/profile', requireControlPlaneAuth, (_req, res) => {
   try {
     const body = studioAdBlockMobileConfig();
     res.writeHead(200, {
@@ -3295,8 +3295,8 @@ app.get('/api/network/adblock/profile', (_req, res) => {
     res.status(500).json({ error: error instanceof Error ? error.message : 'profile generation failed' });
   }
 });
-app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
-app.all('/api/network/adblock/doh', (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
+app.get('/api/network/adblock/status', requireControlPlaneAuth, (_req, res) => res.status(200).json(studioAdBlockStatus()));
+app.all('/api/network/adblock/doh', requireControlPlaneAuth, (req, res) => handleStudioAdBlockDoH(req, res, new URL(req.originalUrl || req.url || '/', 'http://localhost')));
 
 // Decentralized swarm routing fallback. executeInference owns the configured,
 // free-first provider order and records each provider failure before escalating.
@@ -3387,7 +3387,7 @@ if (durableWorkerEnabled()) {
 
 
 // EngineApex decision layer: opportunity intelligence stays separate from production.
-app.get('/api/korn-knob/status', async (_req, res) => {
+app.get('/api/korn-knob/status', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
     return res.json({ success: true, ...kornKnobStatus() });
@@ -3535,7 +3535,7 @@ app.post('/api/engine-apex/brief', requireControlPlaneAuth, async (req, res) => 
   }
 });
 
-app.get('/api/engine-apex/status', async (_req, res) => {
+app.get('/api/engine-apex/status', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
     const snapshot = await getEngineSnapshot();

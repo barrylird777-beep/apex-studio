@@ -14,7 +14,6 @@
     if (
       path.startsWith("/api/internal/") ||
       path === "/api/rapid/stripe/webhook" ||
-      path === "/api/kash-korner/opportunities" ||
       path === "/api/kernelodies/library" ||
       path.startsWith("/api/kernelodies/library/")
     ) return nativeFetch(input, init);
