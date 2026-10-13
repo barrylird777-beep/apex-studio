@@ -57,6 +57,30 @@ test('peer media store separates canonical app namespaces', async () => {
   assert.equal((await media.getAsset('Kernelodies', 'project-1', 'same-id')).bytes.toString(), 'music library');
 });
 
+test('all six canonical apps round-trip the same asset ID without cross-app reads', async () => {
+  const { media } = setup();
+  const projectId = 'shared-project';
+  const assetId = 'same-asset-id';
+  const values = new Map(APEX_MEDIA_APPS.map(app => [app, Buffer.from('private payload for ' + app)]));
+  for (const app of APEX_MEDIA_APPS) {
+    await media.saveAsset(app, projectId, assetId, values.get(app), {
+      contentType: 'application/octet-stream',
+      metadata: { canonicalApp: app }
+    });
+  }
+  for (const app of APEX_MEDIA_APPS) {
+    const loaded = await media.getAsset(app, projectId, assetId);
+    assert.deepEqual(loaded.bytes, values.get(app), app + ' must read only its own payload');
+    assert.equal(loaded.record.app, app, app + ' manifest must retain its own namespace');
+    for (const other of APEX_MEDIA_APPS) {
+      if (other === app) continue;
+      const otherRecord = await media.getAsset(other, projectId, assetId);
+      assert.deepEqual(otherRecord.bytes, values.get(other), other + ' payload must remain separate from ' + app);
+      assert.notDeepEqual(otherRecord.bytes, loaded.bytes, 'cross-app payloads must not collide');
+    }
+  }
+});
+
 test('peer media store rejects unknown apps and empty assets', async () => {
   const { media } = setup();
   await assert.rejects(media.saveAsset('KoBlocks', 'project-1', 'asset-1', Buffer.from('x')), /Unknown canonical Apex app/);
