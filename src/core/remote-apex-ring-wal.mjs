@@ -28,10 +28,20 @@ export class RemoteApexRingWAL {
     this.lockKey = "wal-lock-" + this.scope;
     this.file = "remote://cas/wal/" + this.scope;
     this.seq = 0; this.lastHash = ZERO; this.ring = new Array(ringSize);
-    this.head = 0; this.count = 0; this.offset = 0; this.lastExternalRecords = []; this.ready = false; this.initPromise = null;
+    this.head = 0; this.count = 0; this.offset = 0; this.idempotencyIndex = new Map(); this.lastExternalRecords = []; this.ready = false; this.initPromise = null;
+  }
+  _indexRecord(record) {
+    const key = record?.meta?.idempotencyKey == null ? "" : String(record.meta.idempotencyKey);
+    if (!key) return;
+    const previous = this.idempotencyIndex.get(key);
+    if (previous != null && previous !== Number(record.seq)) {
+      throw new Error("[REMOTE_WAL_IDEMPOTENCY] Duplicate idempotency key at sequence " + record.seq);
+    }
+    this.idempotencyIndex.set(key, Number(record.seq));
   }
   _load(record) {
     this.seq = Number(record.seq); this.lastHash = String(record.hash);
+    this._indexRecord(record);
     this.ring[this.head] = record; this.head = (this.head + 1) % this.ringSize;
     this.count = Math.min(this.count + 1, this.ringSize);
   }
@@ -115,12 +125,26 @@ export class RemoteApexRingWAL {
       const stillNext = await this.cas.readRef("wal", this.scope + "-" + keyFor(sequence + 1));
       if (stillNext) throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL contains an unexpected record after its head.");
     }
-    this.seq = sequence;
-    this.lastHash = lastHash;
+    if (sequence > this.seq) {
+      let previousHash = this.lastHash;
+      for (let nextSequence = this.seq + 1; nextSequence <= sequence; nextSequence += 1) {
+        const row = await this.cas.readRef("wal", this.scope + "-" + keyFor(nextSequence));
+        const record = row?.value;
+        const { hash, ...body } = record || {};
+        if (!record || record.seq !== nextSequence || record.prevHash !== previousHash || hash !== sha(body)) {
+          throw new Error("[REMOTE_WAL_INTEGRITY] Remote WAL append gap or hash mismatch at record " + nextSequence);
+        }
+        this._load(record);
+        previousHash = record.hash;
+      }
+    }
+    if (this.seq !== sequence || this.lastHash !== lastHash) {
+      throw new Error("[REMOTE_WAL_INTEGRITY] Local WAL cursor does not match remote head.");
+    }
     return head;
   }
   async _records({ onRecord = async () => {}, retainRing = true, allowHeadLag = false, repairHead = false } = {}) {
-    this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0;
+    this.seq = 0; this.lastHash = ZERO; this.ring = new Array(this.ringSize); this.head = 0; this.count = 0; this.offset = 0; this.idempotencyIndex = new Map();
     const refs = (await this.cas.listRefs("wal")).filter(ref => String(ref.key).startsWith(this.scope + "-r")).sort((a,b) => String(a.key).localeCompare(String(b.key)));
     let previous = ZERO, sequence = 0, bytes = 0;
     const hashAtSequence = new Map([[0, ZERO]]);
@@ -131,8 +155,8 @@ export class RemoteApexRingWAL {
         throw new Error("[REMOTE_WAL_INTEGRITY] Hash chain or sequence failure at record " + (sequence + 1));
       }
       bytes += Buffer.byteLength(JSON.stringify(record) + "\n", "utf8");
-      if (retainRing) this._load(record); else { this.seq = record.seq; this.lastHash = record.hash; }
-      previous = record.hash; sequence = record.seq; hashAtSequence.set(sequence, previous); await onRecord(record);
+      if (retainRing) this._load(record); else { this.seq = record.seq; this.lastHash = record.hash; this._indexRecord(record); }
+      previous = record.hash; sequence = record.seq; hashAtSequence.set(sequence, previous);
     }
     this.offset = bytes;
     const head = await this.cas.readRef("system", this.headKey);
@@ -149,13 +173,34 @@ export class RemoteApexRingWAL {
     if (repairHead && !exact) {
       await this.cas.writeRef("system", this.headKey, { seq: sequence, lastHash: previous, updatedAt: this.timestamp() }, { expectedHash: head?.hash ?? null });
     }
+    for (const ref of refs) await onRecord(ref.value);
     return sequence;
   }
   async append(type, payload = {}, meta = {}) {
     await this.init();
     return this._lock(async () => {
       const currentHead = await this._prepareAppendHead();
-      const record = { version: 1, id: this.tokenFactory(), seq: this.seq + 1, ts: this.timestamp(), type: String(type), payload, meta, prevHash: this.lastHash };
+      const idempotencyKey = meta?.idempotencyKey == null ? "" : String(meta.idempotencyKey);
+      const requestMeta = { ...(meta || {}) };
+      delete requestMeta.idempotencyKey;
+      delete requestMeta.requestHash;
+      const requestHash = sha({ type: String(type), payload, meta: requestMeta });
+      if (idempotencyKey) {
+        const existingSequence = this.idempotencyIndex.get(idempotencyKey);
+        if (existingSequence != null) {
+          const existing = (await this.cas.readRef("wal", this.scope + "-" + keyFor(existingSequence)))?.value;
+          if (!existing || existing.meta?.idempotencyKey !== idempotencyKey) {
+            throw new Error("[REMOTE_WAL_IDEMPOTENCY] Index points to a missing or mismatched record.");
+          }
+          if (existing.meta?.requestHash !== requestHash) {
+            throw Object.assign(new Error("[REMOTE_WAL_IDEMPOTENCY] Idempotency key was reused with a different request."), { code: "IDEMPOTENCY_CONFLICT" });
+          }
+          Object.defineProperty(existing, "externalRecords", { value: this.lastExternalRecords.slice(), enumerable: false });
+          return existing;
+        }
+      }
+      const recordMeta = idempotencyKey ? { ...(meta || {}), idempotencyKey, requestHash } : meta;
+      const record = { version: 1, id: this.tokenFactory(), seq: this.seq + 1, ts: this.timestamp(), type: String(type), payload, meta: recordMeta, prevHash: this.lastHash };
       record.hash = sha(record);
       // Remote WAL is append-only and is not blocked by the legacy local-WAL byte cap.
       // Provider quota/billing remains external; do not silently drop durable records.
@@ -180,6 +225,14 @@ export class RemoteApexRingWAL {
   async replayReadOnly({ onRecord = async () => {}, retainRing = false } = {}) {
     await this.cas.init();
     const count = await this._records({ onRecord, retainRing }); this.ready = true; return count;
+  }
+  async recover({ onRecord = async () => {}, retainRing = true } = {}) {
+    await this.cas.init();
+    return this._lock(async () => {
+      const count = await this._records({ onRecord, retainRing, allowHeadLag: true, repairHead: true });
+      this.ready = true;
+      return count;
+    });
   }
   async snapshot() {
     await this.replay({ retainRing: true });
