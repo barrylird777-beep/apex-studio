@@ -79,6 +79,30 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#aab5ab;font-size:11px}
 @media(max-width:850px){main{padding-top:16px!important}.grid{gap:11px}#kernelodies-discovery{grid-column:1/-1;grid-row:auto}#kernelodies-library{grid-column:1/-1;grid-row:auto}.grid>.card:first-child,.grid>.card:nth-child(2){grid-column:1/-1;grid-row:auto}.kl-playerbar{grid-template-columns:minmax(0,1fr) auto}.kl-player-center{display:none}.kl-player-right{display:none}.kl-topline{align-items:flex-start}.kl-top-tag{display:none}}
 @media(max-width:520px){.apex-app-nav{gap:11px;padding:9px 12px}.apex-app-nav .apex-app-brand{margin-right:2px}.apex-app-nav a{font-size:11px}.apex-app-nav .apex-app-brand small{display:none!important}.kl-brand-disc{width:38px;height:38px}.kl-brandline h1{font-size:27px}.kl-brandline p{max-width:210px;font-size:11px}.kl-search-pill{width:42px;min-width:42px;height:42px;padding:0;justify-content:center;font-size:0}.kl-search-pill:before{font-size:21px}.kl-topline{margin-bottom:18px}.grid>.card{padding:14px}.kl-controls{grid-template-columns:minmax(0,1fr) 112px;gap:7px}.track{gap:9px;padding:9px}.track img{width:60px;height:60px}.track audio{height:30px}.kl-section-head h2{font-size:19px}.kl-playerbar{padding:9px 12px}.kl-player-art{width:34px;height:34px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+/* Kernelodies — tactile listening room; matte black, acid-lime accents, album-first hierarchy */
+:root{--kl-bg:#080908;--kl-panel:#10120f;--kl-panel2:#151812;--kl-line:#30362a;--kl-text:#f4f5ed;--kl-muted:#a4aa99;--kl-green:#d5f66b;--kl-green2:#9fc64d}
+body{background:radial-gradient(ellipse at 50% -15%,rgba(170,214,70,.10),transparent 43%),#080908;color:var(--kl-text)}
+.apex-app-nav{background:rgba(8,9,8,.96);border-bottom:1px solid #252a20;backdrop-filter:blur(12px)}
+.kl-brand-disc{background:radial-gradient(circle at 50% 50%,#0a0c08 0 12%,#d5f66b 13% 16%,#1a2111 17% 35%,#d5f66b 36% 38%,#11150d 39% 100%);box-shadow:0 0 0 1px #4b5b2b,0 0 24px rgba(184,243,107,.09)}
+.kl-brandline h1{letter-spacing:-.06em;font-weight:650}
+.kl-topline{border-bottom:1px solid #292e24}
+.kl-chiprow a,.kl-search-pill{border-radius:5px;border-color:#353d2b;background:#10130e}
+.kl-chiprow a:hover,.kl-search-pill:hover{background:#202718;border-color:#718f3b}
+.kl-section-head h2{letter-spacing:-.04em;font-weight:620}
+.grid>.card{background:linear-gradient(150deg,#141711,#0c0e0a);border:1px solid #2b3125;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.23)}
+.grid>.card h2{font-weight:620;letter-spacing:-.025em}
+button{border-radius:5px;background:#c6e85d;border-color:#d5f66b;color:#101407;transition:none}
+button:hover{filter:brightness(1.04);transform:none}
+input,select,textarea{border-radius:5px;background:#090b08;border-color:#353c2b}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid #d5f66b;outline-offset:2px}
+.track{border-radius:6px;background:#0b0d09;border-color:#2b3125}
+.track img,.kl-player-art{border-radius:4px}
+.kl-playerbar{background:rgba(8,9,8,.97);border:1px solid #39412d;box-shadow:0 -10px 32px rgba(0,0,0,.3);backdrop-filter:blur(14px)}
+.kl-playerbar button{background:transparent;color:#d5f66b;border:1px solid #4b5b2b}
+pre{background:#090b08;border:1px solid #292f23;border-radius:6px;padding:12px}
+@media(max-width:520px){.apex-app-nav{overflow-x:auto}.kl-playerbar{bottom:0}.grid>.card{border-radius:7px}}
+
 </style><link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css">
 <style>
 /* Kernelodies owns its music identity; override the shared app theme on this surface only. */
