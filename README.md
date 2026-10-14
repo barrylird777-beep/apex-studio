@@ -42,3 +42,19 @@ npm start
 ## Current implementation note
 
 This repository contains shared implementation surfaces for the six-app layer. A live Railway service does not by itself prove every feature works. The active recovery work includes removing WAL/local fallback paths, replacing JSON-backed persistence, verifying secure peer transport, and proving all six app interfaces and app-to-app flows independently.
+
+## Pay-per-render checkout
+
+The existing Rapid Video purchase flow charges **$25 USD for one finished render**. It creates a Stripe Checkout Session at `POST /api/rapid/orders`; it does **not** start the paid render merely because the browser returns to the success page. The render is queued only after the server verifies a signed Stripe webhook, a paid status, the matching order ID, USD currency, and the exact $25 amount. Replayed webhook events are deduplicated.
+
+Configure these server-side environment variables in the deployment (never in browser code):
+
+- `STRIPE_MODE=test` while validating; set to `live` only when ready to accept real payments.
+- `STRIPE_SECRET_KEY` — the matching Stripe test or live secret key.
+- `STRIPE_WEBHOOK_SECRET` — the signing secret for the webhook endpoint below.
+
+Configure the Stripe webhook endpoint as `https://YOUR-APEX-HOST/api/rapid/stripe/webhook` and subscribe to `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Keep the deployment's durable worker/fulfillment service healthy; checkout intentionally fails closed when fulfillment is unavailable.
+
+Run the focused payment checks with `npm run test:payments`. These tests verify checkout price parameters, webhook signature validation, unpaid/wrong-amount rejection, duplicate-event idempotency, and fail-closed behavior when the queue is unavailable. CI test success does not prove that deployment secrets or the live Stripe webhook have been configured.
+
+**Scope:** this is pay-per-render checkout, not yet general per-API-request metering. A future API-hit product should define the exact endpoint, price per unit, abuse limits, and whether customers prepay credits or complete a checkout before each request.
