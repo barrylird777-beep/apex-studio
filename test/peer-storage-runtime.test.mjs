@@ -70,3 +70,36 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     /namespace access denied/
   );
 });
+
+test('peer storage runtime reports ready only after a verified peer-owned recovery receipt', async () => {
+  const store = binaryMemoryStore();
+  const refs = new Map();
+  store.readRef = async (namespace, key) => refs.get(namespace + ':' + key) ?? null;
+  store.writeRef = async (namespace, key, expectedHash, hash, bytes) => {
+    const id = namespace + ':' + key;
+    if ((refs.get(id)?.hash ?? null) !== expectedHash) throw new Error('reference compare-and-swap conflict');
+    refs.set(id, { hash, bytes: Buffer.from(bytes) });
+    return { hash };
+  };
+  store.health = async ({ namespace, peerId }) => ({
+    durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
+    atomicReferencesVerified: true, peerId, namespace,
+    receipt: 'signed-test-receipt', receiptId: 'peer-proof-1'
+  });
+  store.verifyDurabilityReceipt = async (receipt, claims) =>
+    receipt === 'signed-test-receipt' && claims.peerId === 'storage-peer' &&
+    claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
+    claims.atomicReferencesVerified === true;
+
+  const runtime = await initializePeerObjectStorage({
+    enabled: true, store, namespaceAcl: 'PlanetApeX=writer-peer',
+    peerId: () => 'storage-peer'
+  });
+  assert.equal(runtime.durabilityVerified, true);
+  const health = await runtime.handle({
+    protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX'
+  }, { remotePeerId: 'writer-peer' });
+  assert.equal(health.durable, true);
+  assert.equal(health.recoveryVerified, true);
+  assert.equal(health.receiptId, 'peer-proof-1');
+});
