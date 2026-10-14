@@ -800,5 +800,66 @@ render();refresh();
  nav.querySelector('[data-tab="home"]').setAttribute('aria-current','page');
 })();
 </script>
+
+<style id="pa-interactive-world-styles">
+.pa-home-planet .planet-stage{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.pa-home-planet .planet-stage.pa-dragging{cursor:grabbing}
+.pa-home-planet .planet{transform:perspective(900px) rotateX(var(--pa-tilt,0deg)) rotateY(var(--pa-spin,0deg)) scale(var(--pa-zoom,1))!important;transform-style:preserve-3d;will-change:transform;background-position:var(--pa-map-x,50%) center!important;transition:box-shadow .18s ease!important}
+.pa-home-planet .planet-stage:focus-visible{outline:2px solid #d6b77a;outline-offset:8px;border-radius:50%}
+.pa-world-controls{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;width:min(100%,520px);padding:10px 12px;border:1px solid rgba(175,199,194,.2);border-radius:14px;background:rgba(12,21,24,.94);color:#e9eee9}
+.pa-world-controls button{min-width:42px;min-height:40px;padding:8px 12px;border:1px solid rgba(185,208,202,.2);border-radius:999px;background:#111f22;color:#e9eee9;font:700 12px/1.2 inherit;cursor:pointer}
+.pa-world-controls button[aria-pressed=true],.pa-world-controls button:hover{border-color:#d6b77a;color:#f0d39b}
+.pa-world-controls .pa-world-readout{flex:1 1 130px;text-align:center;color:#a9b8b5;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.pa-region-panel{width:min(100%,520px);padding:14px 16px;border:1px solid rgba(214,183,122,.28);border-radius:12px;background:rgba(12,21,24,.94);text-align:left;color:#e9eee9}
+.pa-region-panel strong{display:block;color:#e2c68e;font:500 18px Georgia,serif}
+.pa-region-panel p{margin:5px 0 10px;color:#a9b8b5;font-size:12px;line-height:1.6}
+.pa-region-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pa-region-actions button{min-height:38px;padding:8px 11px;border:1px solid rgba(185,208,202,.2);border-radius:999px;background:#172629;color:#e9eee9;font-size:11px;font-weight:700}
+.pa-region-pins{position:absolute;inset:0;z-index:8;pointer-events:none}
+.pa-region-pin{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);min-height:32px!important;padding:6px 9px!important;border:1px solid rgba(236,205,143,.6)!important;border-radius:999px!important;background:rgba(5,12,15,.86)!important;color:#f0d39b!important;font-size:10px!important;box-shadow:0 0 16px #0008}
+.pa-region-pin[aria-pressed=true]{background:#d6b77a!important;color:#111!important}
+@media(max-width:700px){.pa-world-controls{gap:6px;padding:8px}.pa-world-controls button{min-height:42px}.pa-region-panel{padding:12px}.pa-region-pin{font-size:9px!important;padding:5px 7px!important}}
+@media(prefers-reduced-motion:reduce){.pa-home-planet .planet{transition:none!important}}
+</style>
+<script id="pa-interactive-world">
+(()=> {
+ const main=document.querySelector('main[data-apex-app="planetapex"]');
+ const stage=main?.querySelector('.pa-home-planet .planet-stage');
+ const planet=stage?.querySelector('.planet');
+ if(!stage||!planet||document.getElementById('pa-world-controls'))return;
+ stage.removeAttribute('role');stage.setAttribute('role','application');
+ stage.setAttribute('aria-label','Interactive planet. Drag to rotate, use plus and minus to zoom, or select a region.');
+ stage.setAttribute('tabindex','0');
+ const regions=[
+  {id:'orbit',name:'Orbital Observatory',x:50,y:13,detail:'A planet-wide overview for navigation, world status, and discoveries.',action:'Explore orbit'},
+  {id:'north',name:'Northern Continents',x:33,y:32,detail:'High-latitude settlements, old archives, and cold-climate ecosystems.',action:'Explore north'},
+  {id:'heartland',name:'Golden Heartlands',x:62,y:47,detail:'Living Korn communities, cultivated fields, rivers, and shared gathering places.',action:'Enter heartlands'},
+  {id:'south',name:'Southern Wilds',x:45,y:69,detail:'Remote biomes, field observations, and unexplored routes.',action:'Explore south'}
+ ];
+ let spin=0,tilt=-8,zoom=1,drag=null,selected='heartland';
+ const controls=document.createElement('div');controls.className='pa-world-controls';controls.id='pa-world-controls';controls.setAttribute('aria-label','Planet navigation controls');
+ controls.innerHTML='<button type="button" data-world="minus" aria-label="Zoom out">−</button><button type="button" data-world="plus" aria-label="Zoom in">＋</button><button type="button" data-world="left" aria-label="Rotate left">↶</button><button type="button" data-world="right" aria-label="Rotate right">↷</button><button type="button" data-world="reset">Reset view</button><span class="pa-world-readout" aria-live="polite">Orbit view · 100%</span>';
+ const panel=document.createElement('section');panel.className='pa-region-panel';panel.setAttribute('aria-live','polite');panel.innerHTML='<strong></strong><p></p><div class="pa-region-actions"><button type="button" data-region-action>Explore location</button><button type="button" data-region-research>Open research</button></div>';
+ const pins=document.createElement('div');pins.className='pa-region-pins';pins.setAttribute('aria-label','Planet regions');
+ regions.forEach(r=>{const b=document.createElement('button');b.type='button';b.className='pa-region-pin';b.dataset.region=r.id;b.textContent=r.name;b.style.left=r.x+'%';b.style.top=r.y+'%';b.setAttribute('aria-pressed','false');pins.append(b)});
+ stage.append(pins);const host=stage.closest('.pa-home-planet');host.append(controls,panel);
+ const readout=controls.querySelector('.pa-world-readout');
+ function paint(){planet.style.setProperty('--pa-spin',spin+'deg');planet.style.setProperty('--pa-tilt',tilt+'deg');planet.style.setProperty('--pa-zoom',zoom);planet.style.setProperty('--pa-map-x',(50+spin/3.6%50)+'%');readout.textContent='Orbit view · '+Math.round(zoom*100)+'%';}
+ function selectRegion(id){selected=id;const r=regions.find(x=>x.id===id)||regions[0];panel.querySelector('strong').textContent=r.name;panel.querySelector('p').textContent=r.detail;panel.querySelector('[data-region-action]').textContent=r.action;pins.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.region===id)));readout.textContent=r.name+' · '+Math.round(zoom*100)+'%';}
+ function changeZoom(delta){zoom=Math.max(.75,Math.min(2.1,+(zoom+delta).toFixed(2)));paint();selectRegion(selected)}
+ controls.addEventListener('click',e=>{const b=e.target.closest('button[data-world]');if(!b)return;switch(b.dataset.world){case'plus':changeZoom(.15);break;case'minus':changeZoom(-.15);break;case'left':spin-=18;paint();break;case'right':spin+=18;paint();break;case'reset':spin=0;tilt=-8;zoom=1;paint();selectRegion('heartland');break;}});
+ pins.addEventListener('click',e=>{const b=e.target.closest('[data-region]');if(b)selectRegion(b.dataset.region)});
+ panel.querySelector('[data-region-action]').addEventListener('click',()=>{const r=regions.find(x=>x.id===selected);readout.textContent='Exploring · '+r.name;panel.querySelector('p').textContent=r.detail+' This region is selected for exploration.';});
+ panel.querySelector('[data-region-research]').addEventListener('click',()=>{const target=document.getElementById('research');if(target)target.scrollIntoView({behavior:'smooth',block:'start'});else window.location.href='/special-search.html'});
+ stage.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;drag={x:e.clientX,y:e.clientY,spin,tilt,id:e.pointerId};stage.classList.add('pa-dragging');try{stage.setPointerCapture(e.pointerId)}catch(_){}});
+ stage.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;spin=drag.spin+(e.clientX-drag.x)*.65;tilt=Math.max(-32,Math.min(32,drag.tilt-(e.clientY-drag.y)*.35));paint()});
+ function endDrag(){if(!drag)return;drag=null;stage.classList.remove('pa-dragging')}
+ stage.addEventListener('pointerup',endDrag);stage.addEventListener('pointercancel',endDrag);stage.addEventListener('lostpointercapture',endDrag);
+ stage.addEventListener('wheel',e=>{e.preventDefault();changeZoom(e.deltaY<0?.08:-.08)},{passive:false});
+ stage.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'){spin-=12;paint();e.preventDefault()}else if(e.key==='ArrowRight'){spin+=12;paint();e.preventDefault()}else if(e.key==='ArrowUp'){tilt=Math.max(-32,tilt-5);paint();e.preventDefault()}else if(e.key==='ArrowDown'){tilt=Math.min(32,tilt+5);paint();e.preventDefault()}else if(e.key==='+'||e.key==='='){changeZoom(.1);e.preventDefault()}else if(e.key==='-'){changeZoom(-.1);e.preventDefault()}});
+ paint();selectRegion(selected);
+})();
+</script>
+
 </body>
 </html>
