@@ -151,6 +151,36 @@ export const APEX_CANONICAL_APPS = Object.freeze([
 
 
 /**
+ * Fail-closed inference egress policy. In sovereign-only mode, requests may
+ * target only explicitly configured inference origins; no provider fallback.
+ */
+export function validateSovereignInferenceTarget(url, {
+  enabled = String(process.env.APEX_SOVEREIGN_INFERENCE_ONLY || "").toLowerCase() === "true",
+  trustedBases = [
+    process.env.APEX_SOVEREIGN_INFERENCE_BASE_URL,
+    process.env.APEX_VLLM_BASE_URL,
+    process.env.OLLAMA_BASE_URL
+  ].filter(Boolean)
+} = {}) {
+  let target;
+  try { target = new URL(url instanceof URL ? url.toString() : String(url)); }
+  catch { throw new OutboundPolicyError("Invalid inference target URL.", "INVALID_INFERENCE_URL"); }
+  if (!enabled) return target;
+  if (target.username || target.password || !["http:", "https:"].includes(target.protocol)) {
+    throw new OutboundPolicyError("Sovereign inference permits only explicitly trusted HTTP(S) origins.", "SOVEREIGN_INFERENCE_TARGET_BLOCKED");
+  }
+  const allowed = trustedBases.map(value => {
+    try { return new URL(value); } catch { return null; }
+  }).filter(Boolean);
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname);
+  const trustedOrigin = allowed.some(base => base.origin === target.origin);
+  if (!loopback && !trustedOrigin) {
+    throw new OutboundPolicyError("Sovereign inference blocked an unconfigured external AI endpoint.", "SOVEREIGN_INFERENCE_TARGET_BLOCKED");
+  }
+  return target;
+}
+
+/**
  * Enforce an exact HTTPS hostname allowlist on outbound HTTP calls.
  * Redirects are rejected by createGuardedFetch so a trusted host cannot bounce
  * credentials or prompts to an untrusted destination.
