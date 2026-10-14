@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { chmod } from 'node:fs/promises';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const safeId = value => typeof value === 'string' && value.length <= 256 &&
@@ -71,7 +72,14 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
   });
   return { server, listen: () => new Promise((resolve, reject) => {
     server.once('error', reject);
-    if (socketPath) server.listen(socketPath, () => resolve({ socketPath }));
+    if (socketPath) server.listen(socketPath, async () => {
+      try {
+        await chmod(socketPath, 0o600);
+        resolve({ socketPath });
+      } catch (error) {
+        server.close(() => reject(error));
+      }
+    });
     else server.listen(port, host, () => resolve(server.address()));
   }), close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())) };
 }
