@@ -3,6 +3,11 @@ import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
+const hasVerifiedDurabilityReceipt = response =>
+  response?.durable === true && response?.ownership === 'peer-owned' &&
+  response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
+  response?.atomicReferencesVerified === true && Boolean(response?.receipt) &&
+  typeof response?.receiptId === 'string' && response.receiptId.length > 0;
 
 /**
  * Peer-backed immutable object replication primitive.
@@ -108,10 +113,15 @@ export class PeerContentAddressedStore {
           hash,
           bytesBase64: bytes.toString('base64')
         });
-        if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace) {
-          throw new Error('peer returned an invalid or cross-namespace durability receipt');
+        if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace ||
+            !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
         }
-        receipts.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null) });
+        receipts.push({
+          peerId, hash, bytes: response.bytes, namespace: this.namespace,
+          receiptId: response.receiptId, durabilityReceipt: response.receipt,
+          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
+        });
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
@@ -161,8 +171,9 @@ export class PeerContentAddressedStore {
         });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (response.hash !== hash || response.namespace !== this.namespace ||
+            !hasVerifiedDurabilityReceipt(response) ||
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
-          throw new Error('repair source failed object hash or namespace verification');
+          throw new Error('repair source failed object hash, namespace, or durability receipt verification');
         }
         const envelope = decodeCanonical(bytes);
         this.decrypt(envelope);
@@ -191,8 +202,9 @@ export class PeerContentAddressedStore {
           hash,
           bytesBase64: sourceBytes.toString('base64')
         });
-        if (response.hash !== hash || response.bytes !== sourceBytes.length || response.namespace !== this.namespace) {
-          throw new Error('repair target returned an invalid durability receipt');
+        if (response.hash !== hash || response.bytes !== sourceBytes.length || response.namespace !== this.namespace ||
+            !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('repair target returned an invalid or unverified durability receipt');
         }
         repaired.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
       } catch (error) {
@@ -288,8 +300,10 @@ export class PeerContentAddressedStore {
           hash
         });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
-        if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash || response.hash !== hash || response.namespace !== this.namespace) {
-          throw new Error('peer returned content that failed SHA-256 or namespace verification');
+        if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash ||
+            response.hash !== hash || response.namespace !== this.namespace ||
+            !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
         }
         return this.decrypt(decodeCanonical(bytes));
       } catch (error) {
