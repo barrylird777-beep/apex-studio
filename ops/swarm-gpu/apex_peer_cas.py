@@ -8,7 +8,8 @@ import hashlib
 import json
 import os
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen\nfrom urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
+from urllib.parse import quote, urlencode
 
 NAMESPACE = os.environ.get("APEX_PEER_CAS_NAMESPACE", "")
 MODEL_ID = os.environ.get("APEX_MODEL_ID", "")
