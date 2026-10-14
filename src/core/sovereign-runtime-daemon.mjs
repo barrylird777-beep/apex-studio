@@ -166,23 +166,37 @@ async function main() {
   const peerStorageEnabled = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
     String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
   if (peerStorageEnabled) {
-    peerStorageAssembly = await createPeerStorageAssembly({ peerNode });
-    peerStorageRuntime = await initializePeerObjectStorage({
-      enabled: true,
-      store: peerStorageAssembly.backend,
-      namespaceAcl: process.env.APEX_PEER_NAMESPACE_ACL || '',
-      peerId: () => peerNode?.peerId?.toString?.() || ''
-    });
-    const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
-    peerStorageIpc = createPeerStorageIpcServer({ mediaStore: peerStorageAssembly.mediaStore, token });
-    const address = await peerStorageIpc.listen();
-    runtimeReadiness.peerStorageVerified = peerStorageRuntime.durabilityVerified === true;
-    console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({
-      enabled: true, host: address.address, port: address.port,
-      protocol: 'binary-cbor-loopback', auth: 'shared-secret',
-      apps: peerStorageAssembly.mediaStore.apps,
-      durabilityVerified: runtimeReadiness.peerStorageVerified
-    }));
+    try {
+      peerStorageAssembly = await createPeerStorageAssembly({ peerNode });
+      peerStorageRuntime = await initializePeerObjectStorage({
+        enabled: true,
+        store: peerStorageAssembly.backend,
+        namespaceAcl: process.env.APEX_PEER_NAMESPACE_ACL || '',
+        peerId: () => peerNode?.peerId?.toString?.() || ''
+      });
+      if (peerStorageRuntime.durabilityVerified !== true) {
+        throw new Error('peer storage backend did not pass the durable recovery receipt check');
+      }
+      const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
+      peerStorageIpc = createPeerStorageIpcServer({ mediaStore: peerStorageAssembly.mediaStore, token });
+      const address = await peerStorageIpc.listen();
+      runtimeReadiness.peerStorageVerified = true;
+      console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({
+        enabled: true, host: address.address, port: address.port,
+        protocol: 'binary-cbor-loopback', auth: 'shared-secret',
+        apps: peerStorageAssembly.mediaStore.apps,
+        durabilityVerified: true
+      }));
+    } catch (error) {
+      runtimeReadiness.peerStorageVerified = false;
+      await peerStorageIpc?.close().catch(() => {});
+      peerStorageIpc = null;
+      peerStorageAssembly = null;
+      peerStorageRuntime = await initializePeerObjectStorage({
+        enabled: false, peerId: () => peerNode?.peerId?.toString?.() || ''
+      });
+      console.error('[SOVEREIGN PEER STORAGE] configuration or recovery proof failed; readiness remains closed', String(error?.message || error));
+    }
   } else {
     peerStorageRuntime = await initializePeerObjectStorage({
       enabled: false, peerId: () => peerNode?.peerId?.toString?.() || ''
