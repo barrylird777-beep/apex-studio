@@ -45,7 +45,8 @@
     "smoke:canonical": "node scripts/smoke-production.mjs",
     "smoke:kernelvision-episode": "node scripts/smoke-kernelvision-episode.mjs",
     "test:deterministic-sim": "node --test test/deterministic-simulator.test.mjs",
-    "audit:storage-config": "node scripts/audit-storage-configuration.mjs"
+    "audit:storage-config": "node scripts/audit-storage-configuration.mjs",
+    "test:peer-model-bridge": "node --test test/peer-model-bridge.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
