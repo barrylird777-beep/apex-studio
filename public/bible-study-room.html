@@ -2,24 +2,65 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bible Study Room · GardenOfApex</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080d0e">
+<meta name="description" content="Personal Bible Study Room inside PlanetApeX.">
+<title>Bible Study Room · PlanetApeX</title>
 <style>
-body{margin:0;background:#080808;color:#eee;font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-main{max-width:1000px;margin:auto;padding:28px 20px 70px}
-nav{display:flex;gap:8px;flex-wrap:wrap}a{color:#eee;border:1px solid #303030;border-radius:999px;padding:7px 11px;text-decoration:none;font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}.card{padding:20px;border:1px solid #303030;border-radius:18px;background:#111}.card p{color:#aaa}
-.status{color:#82e2aa}@media(max-width:650px){.grid{grid-template-columns:1fr}}
-</style></head>
-<body><script src="/api-auth-bridge.js"></script><main>
-<nav><a href="/garden-of-apex.html">GardenOfApex</a><a href="/">ApexStudio</a><a href="/korn-popz.html">KornPopz</a></nav>
-<p class="status">GardenOfApex · active room</p>
-<h1>Bible Study Room</h1>
-<p>Dedicated Scripture study and Bible research room. Garden owns study and evidence; ApexStudio owns production.</p>
-<div class="grid">
-<section class="card"><h2>Scripture</h2><p>Passage study, cross-references, Bible-version comparison, textual traditions and canon context.</p></section>
-<section class="card"><h2>Research</h2><p>Original-language context, historical and cultural context, theology, interpretation and source provenance.</p></section>
-<section class="card"><h2>Discoveries</h2><p>Study notes and discoveries can become Popcorn candidates and receive KornPopz evaluation inside GardenOfApex.</p></section>
-<section class="card"><h2>Production handoff</h2><p>Verified study discoveries can be handed to ApexStudio as movie or show production candidates without moving research ownership out of the Garden.</p></section>
+:root{color-scheme:dark;--bg:#080d0e;--panel:#111a1b;--panel2:#151e1e;--line:#2a3937;--ink:#e9eee8;--muted:#a2b0a9;--gold:#d7bb80;--green:#a6d1b0;--blue:#9bc8df}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:auto}body{margin:0;background:radial-gradient(ellipse at 80% 0%,#1a302b 0,transparent 38%),var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}button,input,select,textarea{font:inherit}button,input,select,textarea{border:1px solid var(--line);border-radius:9px;background:#0b1213;color:var(--ink);padding:11px 12px}button{min-height:42px;cursor:pointer;font-size:12px;font-weight:750;background:#27372e;border-color:#506b54}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px max(14px,calc((100vw - 980px)/2));border-bottom:1px solid #263331;background:#080e0ff0;backdrop-filter:blur(14px)}.brand{display:flex;align-items:center;gap:10px}.mark{display:grid;place-items:center;width:36px;height:36px;border:1px solid #75694b;border-radius:10px;color:var(--gold);font:20px Georgia,serif}.brand strong{display:block;font-size:13px}.brand small{display:block;color:var(--muted);font-size:10px}.headlink{border:1px solid var(--line);border-radius:99px;padding:8px 11px;font-size:11px;white-space:nowrap}
+main{width:min(980px,100%);margin:auto;padding:22px 14px 95px}.eyebrow{color:var(--gold);font-size:10px;font-weight:800;letter-spacing:.17em;text-transform:uppercase}.intro{padding:15px 0 22px;border-bottom:1px solid var(--line)}h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.025em}h1{font-size:clamp(34px,7vw,54px);line-height:1.05;margin:8px 0 12px}h2{font-size:24px;line-height:1.2;margin:0 0 8px}h3{font-size:18px;margin:0 0 8px}.intro p,.muted{color:var(--muted)}.workspace{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:13px;margin-top:18px}.panel{min-width:0;padding:18px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#121c1d,#0d1415)}.panel.wide{grid-column:1/-1}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:15px}.panel-head p{margin:0;color:var(--muted);font-size:12px}.badge{flex:0 0 auto;border:1px solid #62583e;border-radius:99px;padding:5px 8px;color:var(--gold);font-size:9px;letter-spacing:.1em;text-transform:uppercase}.field{display:grid;gap:6px;margin:13px 0}.field label{color:#c5d0c9;font-size:11px;font-weight:750}.field input,.field select,.field textarea{width:100%;min-width:0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.actions a,.actions button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:9px 12px;border:1px solid #506b54;border-radius:8px;background:#23352b;color:#e6eee6;font-size:11px;font-weight:750}.actions .secondary{border-color:var(--line);background:#101718;color:#d0d9d3}.reading{padding:18px;border-left:2px solid var(--gold);background:#181a15;border-radius:0 8px 8px 0}.reading blockquote{margin:0;color:#f0e8d7;font:clamp(20px,3.7vw,28px)/1.55 Georgia,serif}.reading .citation{margin-top:12px;color:var(--gold);font-size:10px;font-weight:800;letter-spacing:.12em}.note-tools{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.note-tools small{color:var(--muted);font-size:10px}.source-list{display:grid;gap:0}.source-list a{display:block;padding:13px 0;border-top:1px solid var(--line)}.source-list strong{display:block;color:#e3e9e2;font-size:12px}.source-list small{display:block;color:var(--muted);font-size:11px;margin-top:3px}.status{min-height:22px;margin-top:10px;color:var(--green);font-size:11px}.bottom-nav{position:fixed;z-index:10;bottom:max(7px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(560px,calc(100vw - 14px));display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px;border:1px solid #2e3d3a;border-radius:16px;background:#080e0ff5;box-shadow:0 10px 35px #0008}.bottom-nav a{display:grid;place-items:center;min-height:42px;border-radius:9px;color:#aab8b0;font-size:10px;font-weight:700}.bottom-nav a.active{background:#29271e;color:#f1dcae}@media(max-width:700px){.workspace{grid-template-columns:1fr}.panel.wide{grid-column:auto}main{padding:16px 12px 88px}.panel{padding:16px}.intro{padding-top:10px}.headlink{font-size:10px;padding:7px 9px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<script src="/api-auth-bridge.js"></script>
+<header><div class="brand"><span class="mark" aria-hidden="true">P</span><div><strong>PlanetApeX</strong><small>Personal Bible Study Room</small></div></div><a class="headlink" href="/planet-apex.html">← PlanetApeX</a></header>
+<main>
+<section class="intro"><div class="eyebrow">Scripture desk · focused study</div><h1>Bible Study Room</h1><p>Read the passage, compare translations, follow the historical context, and keep study notes in this session. Passage links open the selected reference in an external Bible source; this room does not pretend to have an offline Bible-text database.</p></section>
+<div class="workspace">
+<section class="panel"><div class="panel-head"><div><h2>Open a passage</h2><p>Choose a reference and translation.</p></div><span class="badge">01 · Read</span></div>
+<div class="field"><label for="reference">Bible reference</label><input id="reference" value="John 1:1-5" placeholder="e.g. Genesis 1:1-5" autocomplete="off"></div>
+<div class="field"><label for="version">Translation</label><select id="version"><option value="KJV">King James Version (KJV)</option><option value="WEB">World English Bible (WEB)</option><option value="ASV">American Standard Version (ASV)</option><option value="NIV">New International Version (NIV)</option><option value="ESV">English Standard Version (ESV)</option></select></div>
+<div class="actions"><button id="openPassage" type="button">Read passage ↗</button><button class="secondary" id="searchPassage" type="button">Search reference</button></div>
+<p class="status" id="passageStatus" role="status">Ready to open a passage.</p>
+<div class="reading"><blockquote>“And the light shineth in darkness; and the darkness comprehended it not.”</blockquote><div class="citation">JOHN 1:5 · KING JAMES VERSION · STARTING VERSE</div></div>
+<p class="muted" style="font-size:11px;margin:12px 0 0">The verse above is a fixed starting point, not the result of your passage lookup. Use “Read passage” to load the reference at the selected source.</p>
+</section>
+<section class="panel"><div class="panel-head"><div><h2>Study notebook</h2><p>Record observations, questions, and conclusions.</p></div><span class="badge">02 · Notes</span></div>
+<div class="field"><label for="studyTitle">Study title</label><input id="studyTitle" value="John 1 — Word, life, and light"></div>
+<div class="field"><label for="studyNotes">Personal study notes</label><textarea id="studyNotes" rows="9" placeholder="Observation: What does the passage say?&#10;Interpretation: What did it mean in context?&#10;Cross-references: Which related passages matter?&#10;Questions: What remains unresolved?"></textarea></div>
+<div class="note-tools"><small>Notes remain in this open page only until you copy them.</small><div class="actions" style="margin:0"><button id="copyNotes" type="button">Copy notes</button><button id="clearNotes" class="secondary" type="button">Clear</button></div></div><p class="status" id="noteStatus" role="status"></p>
+</section>
+<section class="panel wide"><div class="panel-head"><div><h2>Research desk</h2><p>Use primary texts and trace each claim to a source.</p></div><span class="badge">03 · Evidence</span></div>
+<div class="source-list">
+<a id="sourceCompare" href="https://www.biblegateway.com/passage/?search=John%201%3A1-5&version=KJV" target="_blank" rel="noopener noreferrer"><strong>Translation comparison · Bible Gateway</strong><small>Read the chosen passage in the selected translation and compare available versions.</small></a>
+<a id="sourceOriginal" href="https://biblehub.com/interlinear/john/1-1.htm" target="_blank" rel="noopener noreferrer"><strong>Original-language tools · Bible Hub Interlinear</strong><small>Inspect Greek or Hebrew wording, morphology, and lexical references. Check the passage-specific entry before drawing conclusions.</small></a>
+<a href="https://www.stepbible.org/" target="_blank" rel="noopener noreferrer"><strong>STEP Bible · language and textual study</strong><small>Explore language tools and linked biblical text resources.</small></a>
+<a href="/special-search.html"><strong>PlanetApeX Special Search ↗</strong><small>Continue into the wider source and historical research workflow.</small></a>
 </div>
-</main></body></html>
+<div class="field"><label for="researchQuestion">Research question</label><textarea id="researchQuestion" rows="3" placeholder="What claim are you checking? What evidence would confirm or challenge it?"></textarea></div>
+<div class="actions"><button id="openResearch" type="button">Search this question ↗</button></div>
+<p class="muted" style="font-size:11px;margin:10px 0 0">Research searches open externally. Sources are references for investigation, not automatic proof that a claim is correct.</p>
+</section>
+</div>
+</main>
+<nav class="bottom-nav" aria-label="Bible study room navigation"><a href="/planet-apex.html">⌂ Home</a><a class="active" href="#top">✧ Bible Study</a><a href="/special-search.html">⌕ Research</a><a href="/planet-apex.html#garden">♧ GardenApeX</a></nav>
+<script>
+(()=> {
+ const $=id=>document.getElementById(id);
+ const ref=()=> $('reference').value.trim();
+ const version=()=> $('version').value;
+ function passageUrl(){return 'https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref())+'&version='+encodeURIComponent(version())}
+ function valid(){if(!ref()){ $('passageStatus').textContent='Enter a Bible reference first.';return false}return true}
+ $('openPassage').addEventListener('click',()=>{if(!valid())return;$('passageStatus').textContent='Opening '+ref()+' ('+version()+') in Bible Gateway.';window.open(passageUrl(),'_blank','noopener,noreferrer')});
+ $('searchPassage').addEventListener('click',()=>{if(!valid())return;window.open('https://www.google.com/search?q='+encodeURIComponent('Bible passage '+ref()+' '+version()+' text commentary manuscript'),'_blank','noopener,noreferrer');$('passageStatus').textContent='Opened a web search for '+ref()+'.'});
+ function updateSources(){const u=passageUrl();$('sourceCompare').href=u;const r=ref().match(/([1-3]?\s*[A-Za-z]+)\s+(\d+)(?::(\d+))?/);if(r){const book=r[1].trim().toLowerCase().replace(/\s+/g,'');$('sourceOriginal').href='https://biblehub.com/interlinear/'+book+'/'+(r[2]||'1')+'-'+(r[3]||'1')+'.htm'}}
+ $('reference').addEventListener('change',updateSources);$('version').addEventListener('change',updateSources);updateSources();
+ $('copyNotes').addEventListener('click',async()=>{const text=$('studyTitle').value+'\n\nPassage: '+ref()+' ('+version()+')\n\n'+$('studyNotes').value+'\n\nResearch question: '+$('researchQuestion').value;try{await navigator.clipboard.writeText(text);$('noteStatus').textContent='Study notes copied.'}catch(e){$('noteStatus').textContent='Clipboard access is unavailable here. Select and copy the note text manually.'}});
+ $('clearNotes').addEventListener('click',()=>{if(confirm('Clear the notes currently in this page?')){$('studyNotes').value='';$('researchQuestion').value='';$('noteStatus').textContent='Current-session notes cleared.'}});
+ $('openResearch').addEventListener('click',()=>{const q=$('researchQuestion').value.trim()||ref();if(!q){$('noteStatus').textContent='Enter a research question or Bible reference.';return}window.open('https://www.google.com/search?q='+encodeURIComponent(q+' biblical scholarship primary sources'),'_blank','noopener,noreferrer')});
+})();
+</script>
+</body>
+</html>
