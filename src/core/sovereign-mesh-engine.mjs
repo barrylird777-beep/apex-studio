@@ -21,8 +21,10 @@ export function verifySovereignRecord(record) {
 }
 
 /**
- * Sovereign mesh state uses immutable SHA-256 objects and atomic per-wave manifests.
- * The former NDJSON log is read once for migration only; this engine never appends to it.
+ * Sovereign mesh state requires an explicitly injected CAS adapter.
+ * This engine never creates filesystem or hosted-object-store persistence itself.
+ * The adapter is not considered sovereign until it is backed by verified peer-owned
+ * encrypted binary objects and quorum-confirmed receipts.
  */
 export class SovereignMeshEngine {
   constructor(_storageDir, { cas = null } = {}) {
