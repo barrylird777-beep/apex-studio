@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm, readdir, lstat } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { encodeCanonical, decodeCanonical } from './apex-cbor.mjs';
 
@@ -146,21 +146,37 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       });
     },
     async health({ namespace, peerId: requestedPeerId }) {
-      if (requestedPeerId !== peerId || !Array.isArray(acl[namespace]) || !acl[namespace].length) throw new Error('peer CAS health claim does not match peer identity or ACL');
+      if (requestedPeerId !== peerId || !Array.isArray(acl[namespace]) || !acl[namespace].length) {
+        throw new Error('peer CAS health claim does not match peer identity or ACL');
+      }
+      // This verifies the durable on-disk state on this startup. It does not
+      // claim that independent replicas exist; replication is verified by the
+      // network-level CAS client before it acknowledges a write.
       await verifyDisk();
-      const claims = { version: 1, peerId, namespace, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
+      const claims = {
+        version: 1, peerId, namespace, ownership: 'peer-owned', durable: true,
+        atomicReferencesVerified: true, restartRecoveryVerified: true
+      };
       return { ...claims, receipt: receiptFor(claims), receiptId: sha256(encodeCanonical(claims)) };
     },
     async verifyDurabilityReceipt(receipt, claims) {
       try {
+        if (!receipt || typeof receipt.body !== 'string' || typeof receipt.mac !== 'string') return false;
         const body = Buffer.from(receipt.body, 'base64');
         const mac = Buffer.from(receipt.mac, 'base64');
+        if (body.toString('base64') !== receipt.body || mac.toString('base64') !== receipt.mac) return false;
         const expected = createHmac('sha256', signingSecret).update(body).digest();
-        return mac.length === expected.length && timingSafeEqual(mac, expected) &&
-          decodeCanonical(body).peerId === claims.peerId &&
-          decodeCanonical(body).namespace === claims.namespace &&
-          decodeCanonical(body).restartRecoveryVerified === true &&
-          decodeCanonical(body).atomicReferencesVerified === true;
+        if (mac.length !== expected.length || !timingSafeEqual(mac, expected)) return false;
+        const signed = decodeCanonical(body);
+        return signed.version === 1 &&
+          signed.peerId === claims.peerId &&
+          signed.namespace === claims.namespace &&
+          signed.ownership === 'peer-owned' &&
+          signed.durable === true &&
+          signed.restartRecoveryVerified === true &&
+          signed.atomicReferencesVerified === true &&
+          claims.restartRecoveryVerified === true &&
+          claims.atomicReferencesVerified === true;
       } catch { return false; }
     }
   });
