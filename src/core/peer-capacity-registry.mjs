@@ -105,7 +105,7 @@ export class PeerCapacityRegistry {
     if (peer.role !== 'mobile-storage' || !peer.appNamespaces.includes(appNamespace) || record.appNamespace !== appNamespace) {
       throw new Error('receipt rejected: peer role or app namespace mismatch');
     }
-    if (!STAGES.has(stage) || bytes !== record.expectedBytes || readbackHash !== hash) {
+    if (!STAGES.has(stage) || bytes !== record.expectedBytes || (stage !== 'locally_committed' && readbackHash !== hash)) {
       throw new Error('receipt rejected: stage, byte length, or SHA-256 read-back proof mismatch');
     }
     const previous = record.replicas.get(peerId);
@@ -125,7 +125,7 @@ export class PeerCapacityRegistry {
     const rank = { locally_committed: 1, readback_verified: 2, restart_recovery_verified: 3 };
     if (previous && previous.sessionId === sessionId && rank[stage] < rank[previous.stage]) throw new Error('receipt stage regression rejected');
     const receipt = {
-      peerId, sessionId, stage, bytes, readbackHash,
+      peerId, sessionId, stage, bytes, readbackHash: stage === 'locally_committed' ? null : readbackHash,
       receiptId: String(receiptId || ''),
       availability: 'available',
       durableReplica: stage === 'restart_recovery_verified',
