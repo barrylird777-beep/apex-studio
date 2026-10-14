@@ -699,7 +699,7 @@ render();refresh();
   tabs.forEach(x=>{const a=nav.querySelector('[data-tab="'+x.id+'"]');if(a)a.setAttribute('aria-current',x.id===t.id?'page':'false')});
   if(scroll){const target=main.querySelector(t.target);if(target)target.scrollIntoView({behavior:'auto',block:'start'})}
  }
- tabs.forEach(t=>{const a=document.createElement('a');a.href=t.target;a.dataset.tab=t.id;a.innerHTML='<span class="glyph" aria-hidden="true">'+t.glyph+'</span><span>'+t.label+'</span>';a.addEventListener('click',e=>{e.preventDefault();activate(t.id);});nav.append(a)});
+ tabs.forEach(t=>{const a=document.createElement('a');a.href=t.target;a.dataset.tab=t.id;a.innerHTML='<span class="glyph" aria-hidden="true">'+t.glyph+'</span><span>'+t.label+'</span>';a.addEventListener('click',e=>{if(t.id==='scripture'){e.preventDefault();window.location.href='/bible-study-room.html';return;}e.preventDefault();activate(t.id);});nav.append(a)});
  document.body.append(nav);
  const originalLinks=main.querySelectorAll('.pa-home-links a');
  originalLinks.forEach(a=>{
