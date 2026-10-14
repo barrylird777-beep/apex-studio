@@ -185,6 +185,37 @@ main[data-apex-app="planetapex"]>.pa-home{display:grid!important;position:relati
 *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 button:hover,button:active{transform:none!important}
 @media(max-width:700px){.pa-home-planet .planet-stage{width:min(94vmin,calc(100vw - 12px))!important;max-width:calc(100vw - 12px)!important}.pa-home-planet{display:flex!important}}
+
+/* PlanetApeX polish: richer ocean depth, terrain relief, and fine cloud detail; keep the scene completely still. */
+.pa-home-planet .planet{
+  background:
+    radial-gradient(ellipse at 27% 23%,rgba(236,250,255,.95) 0,rgba(183,225,255,.38) 1.5%,transparent 13%),
+    radial-gradient(ellipse at 31% 29%,#287eb1 0,#145b91 20%,#0a3c70 43%,#06234b 67%,#010716 100%)!important;
+  box-shadow:
+    inset -8vmin -5vmin 13vmin 2.5vmin rgba(0,0,0,.98),
+    inset 1.2vmin .8vmin 3vmin rgba(228,247,255,.28),
+    inset -1px 0 1px rgba(150,216,255,.7),
+    0 0 2px 1px rgba(176,222,255,.9),
+    0 0 22px 5px rgba(75,163,255,.34),
+    0 0 58px 12px rgba(35,112,225,.2),
+    0 0 120px 18px rgba(22,65,145,.1)!important;
+}
+.pa-home-planet .planet:before{
+  background:
+    radial-gradient(ellipse at 26% 23%,rgba(255,255,255,.46),transparent 12%),
+    radial-gradient(ellipse at 42% 40%,transparent 36%,rgba(0,5,17,.22) 63%,rgba(0,0,0,.98) 100%),
+    linear-gradient(108deg,rgba(255,255,255,.16),transparent 24%,transparent 55%,rgba(0,0,0,.8) 100%)!important;
+}
+.pa-home-planet .land{filter:drop-shadow(0 0 2px rgba(145,210,166,.48)) saturate(1.2) contrast(1.05)!important}
+.pa-home-planet .clouds{opacity:.56!important;filter:contrast(1.08) brightness(1.06);mix-blend-mode:screen!important}
+.pa-home-planet .atmosphere{
+  box-shadow:
+    inset 0 0 0 1px rgba(202,235,255,.42),
+    0 0 0 2px rgba(95,174,255,.42),
+    0 0 22px 4px rgba(57,143,255,.28),
+    0 0 48px 7px rgba(38,108,220,.14)!important;
+}
+
 </style>
 </head>
 <body>
@@ -201,6 +232,7 @@ button:hover,button:active{transform:none!important}
 <linearGradient id="landColor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a6c994"/><stop offset=".36" stop-color="#668e68"/><stop offset=".7" stop-color="#385f4e"/><stop offset="1" stop-color="#203f3c"/></linearGradient>
 <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e5f3ef"/><stop offset="1" stop-color="#a8d1dc"/></linearGradient>
 <filter id="terrain"><feTurbulence type="fractalNoise" baseFrequency=".013 .024" numOctaves="4" seed="18"/><feColorMatrix values=".45 0 0 0 .1 .0 .7 0 0 .15 0 0 .35 0 .08 0 0 0 .42 0"/></filter>
+<filter id="oceanTexture"><feTurbulence type="fractalNoise" baseFrequency=".009 .018" numOctaves="3" seed="29"/><feColorMatrix type="matrix" values=".12 0 0 0 .02 0 .32 0 0 .12 0 0 .7 0 .22 0 0 0 .35 0"/></filter>
 <clipPath id="globe"><circle cx="500" cy="500" r="499"/></clipPath>
 </defs>
 <g clip-path="url(#globe)" fill="url(#landColor)" stroke="#b0d0a0" stroke-opacity=".17" stroke-width="3">
@@ -216,6 +248,7 @@ button:hover,button:active{transform:none!important}
 <path d="M766 655L797 638 826 654 842 681 825 703 793 700 778 679Z"/>
 </g>
 <g clip-path="url(#globe)" opacity=".6"><rect width="1000" height="1000" filter="url(#terrain)" opacity=".28"/></g>
+<g clip-path="url(#globe)" opacity=".13" style="mix-blend-mode:screen"><rect width="1000" height="1000" filter="url(#oceanTexture)"/></g>
 <path d="M70 88Q500 -75 930 80L1000 130Q500 -8 0 147Z" fill="url(#ice)" opacity=".75"/>
 <path d="M0 834Q230 785 420 849T1000 818L1000 1000H0Z" fill="url(#ice)" opacity=".72"/>
 </svg>
@@ -227,6 +260,10 @@ button:hover,button:active{transform:none!important}
 <path d="M-80 575C84 535 175 600 290 568S487 540 601 575 820 611 1090 550" stroke-width="23" opacity=".44"/>
 <path d="M-40 697C121 657 221 713 343 682S553 660 667 696 855 720 1040 678" stroke-width="15" opacity=".48"/>
 <path d="M145 126C190 180 225 193 270 194M622 151C672 188 701 194 753 184M130 770C190 742 235 746 279 761M683 806C729 773 766 781 811 792" stroke-width="20" opacity=".5"/>
+<path d="M42 290C102 263 145 269 185 287S257 306 296 285M344 257C388 243 414 251 450 270S513 288 551 270M592 298C641 278 680 286 719 304S793 319 845 295" stroke-width="8" opacity=".42"/>
+<path d="M92 455C148 433 190 441 224 455M264 474C314 454 354 465 387 482M574 457C618 438 660 446 697 466M728 491C771 471 815 478 856 495" stroke-width="6" opacity=".34"/>
+<path d="M-8 614C53 591 98 600 142 616S223 632 265 612M351 622C401 602 441 612 480 628S558 644 598 622M674 621C722 602 763 609 805 627S876 642 920 621" stroke-width="9" opacity=".3"/>
+<path d="M190 218C225 230 243 244 258 262M702 348C724 365 738 381 745 400M281 736C314 719 341 720 363 734M626 751C656 730 684 731 706 744" stroke-width="5" opacity=".28"/>
 </g></svg>
 </div>
 <div class="atmosphere"></div></div><span class="plate-label">PLANET APEX · LIVING UNIVERSE</span></aside></section><nav class="pa-quick-index" aria-label="PlanetApeX sections"><a href="#scripture"><small>01 / TEXT</small><strong>Bible study</strong><span>Read and compare passages</span></a><a href="#research"><small>02 / SOURCES</small><strong>Historical research</strong><span>Trace manuscripts and claims</span></a><a href="#analytics"><small>03 / INSIGHT</small><strong>Analytics</strong><span>Inspect session activity</span></a><a href="#garden"><small>04 / WORLD</small><strong>GardenApeX</strong><span>Observe the living simulation</span></a></nav>
