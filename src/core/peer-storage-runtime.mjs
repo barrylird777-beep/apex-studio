@@ -63,5 +63,24 @@ export async function initializePeerObjectStorage({
     authorizeNamespace: ({ remotePeerId, namespace }) =>
       Boolean(remotePeerId && Array.isArray(acl[namespace]) && acl[namespace].includes(remotePeerId))
   });
-  return Object.freeze({ enabled: true, store, handle });
+  let durabilityVerified = Object.keys(acl).length > 0;
+  for (const namespace of Object.keys(acl)) {
+    try {
+      const proof = await handle({
+        protocol: 'apex.cas.v1',
+        operation: 'storage.health',
+        namespace
+      }, { remotePeerId: acl[namespace][0] });
+      if (proof?.durable !== true || proof?.ownership !== 'peer-owned' ||
+          proof?.recoveryVerified !== true || proof?.restartRecoveryVerified !== true ||
+          proof?.atomicReferencesVerified !== true || !proof?.receipt || !proof?.receiptId) {
+        durabilityVerified = false;
+        break;
+      }
+    } catch {
+      durabilityVerified = false;
+      break;
+    }
+  }
+  return Object.freeze({ enabled: true, store, handle, durabilityVerified });
 }
