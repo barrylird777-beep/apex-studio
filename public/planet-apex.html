@@ -228,6 +228,74 @@ button:hover,button:active{transform:none!important}
 .pa-home-planet .clouds,
 .pa-home-planet .atmosphere{display:none!important}
 
+/* APEX LAW: PlanetApeX must expose its actual knowledge system, not only its globe. */
+html,body{
+  width:100%!important;height:auto!important;min-height:100%!important;
+  overflow-x:hidden!important;overflow-y:auto!important;
+  background:var(--paper)!important;
+}
+body:before{display:none!important}
+.apex-app-nav,.apex-skip-link,.apex-app-footer{display:flex!important}
+.apex-skip-link{display:block!important}
+.apex-app-nav{position:relative!important}
+main.apex-shell[data-apex-app="planetapex"]{
+  display:block!important;position:relative!important;z-index:1!important;
+  width:min(1240px,100%)!important;max-width:1240px!important;
+  height:auto!important;min-height:0!important;margin:0 auto!important;
+  padding:clamp(16px,3vw,34px) clamp(12px,3vw,30px) 48px!important;
+  overflow:visible!important;background:var(--paper)!important;
+}
+main[data-apex-app="planetapex"]>:not(.pa-home){display:block!important}
+main[data-apex-app="planetapex"]>.pa-home{
+  display:grid!important;position:relative!important;width:100%!important;height:auto!important;
+  margin:0!important;padding:clamp(18px,3vw,34px) 0 24px!important;
+  border-bottom:1px solid var(--line)!important;
+  grid-template-columns:minmax(0,1fr)!important;place-items:center!important;
+  gap:18px!important;background:transparent!important;
+}
+.pa-home>.pa-home-copy{display:block!important;order:2!important;width:100%!important}
+.pa-home>.pa-home-plate.pa-home-planet{
+  display:flex!important;position:relative!important;order:1!important;
+  width:100%!important;height:auto!important;max-width:520px!important;
+  min-height:0!important;margin:0!important;padding:0!important;
+  border:0!important;background:transparent!important;
+  align-items:center!important;justify-content:center!important;
+}
+.pa-home-planet .plate-label{display:block!important;color:var(--muted)!important}
+.pa-home-planet .planet-stage{
+  position:relative!important;width:min(74vw,390px)!important;height:auto!important;
+  aspect-ratio:1!important;max-width:calc(100vw - 36px)!important;
+  max-height:none!important;margin:0 auto!important;flex:none!important;
+}
+.pa-home-planet .planet{width:100%!important;height:100%!important;border-radius:50%!important}
+.pa-home-links{justify-content:flex-start!important}
+.pa-quick-index{display:grid!important}
+.pa-feature-grid{display:grid!important}
+.pa-feature{display:block!important}
+.pa-village{display:grid!important}
+.pa-storage{display:block!important}
+.apex-shell .grid{display:grid!important}
+.apex-shell .grid>.card{grid-column:span 6}
+.apex-shell .grid>.wide{grid-column:1/-1}
+.apex-app-footer{display:flex!important}
+@media(max-width:760px){
+  .apex-app-nav{display:flex!important}
+  main.apex-shell[data-apex-app="planetapex"]{padding:14px 12px 32px!important}
+  .pa-home{grid-template-columns:minmax(0,1fr)!important}
+  .pa-home-planet .planet-stage{width:min(78vw,310px)!important;max-width:calc(100vw - 30px)!important}
+  .pa-home>.pa-home-copy{order:2!important}
+  .pa-quick-index{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .pa-feature{grid-column:1/-1!important}
+  .pa-village{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .apex-shell .grid{grid-template-columns:minmax(0,1fr)!important}
+  .apex-shell .grid>.card{grid-column:1/-1!important}
+}
+@media(max-width:420px){
+  .pa-village{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .pa-home-planet .planet-stage{width:min(78vw,290px)!important}
+}
+
+
 </style>
 </head>
 <body>
