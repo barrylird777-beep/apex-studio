@@ -1,4 +1,4 @@
-"""Install APEX fail-closed environment guards before vLLM imports."""
+"""Install APEX fail-closed environment guards and register its loader early."""
 import os
 
 os.environ["HF_HUB_OFFLINE"] = "1"
@@ -7,8 +7,7 @@ os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 os.environ["APEX_REQUIRE_VLLM_PLUGIN"] = "1"
 
-# Do not monkey-patch AutoConfig/AutoTokenizer with incomplete BytesIO shims.
-# vLLM 0.10.2 resolves those before its model loader runs; APEX must provide
-# registered in-memory config/tokenizer adapters before claiming full memory-only
-# initialization. Until that adapter is installed, startup must not silently fall
-# back to Hugging Face or a model cache.
+# Import at interpreter startup so the custom loader registry is populated before
+# vLLM asks for the load format. This does not yet intercept earlier config/tokenizer
+# resolution; that stage must be implemented and tested before serving models.
+import apex_peer_cas  # noqa: F401,E402
