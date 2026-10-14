@@ -145,20 +145,6 @@ async function main() {
     await peerNode.stop().catch(() => {});
     return;
   }
-  await peerNode.start();
-  if (stopping) {
-    await peerNode.stop().catch(() => {});
-    return;
-  }
-  // node.start() has resolved; verify that libp2p actually bound a listen address.
-  // The current libp2p node API does not expose an isStarted() method.
-  const peerAddresses = peerNode.getMultiaddrs?.() || [];
-  runtimeReadiness.peerReady = peerAddresses.length > 0;
-  if (!runtimeReadiness.peerReady) {
-    throw new Error('libp2p start resolved without any listen address');
-  }
-  process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
-
   if (String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true') {
     const backendModule = String(process.env.APEX_PEER_STORAGE_BACKEND_MODULE || '').trim();
     if (!backendModule) throw new Error('APEX_PEER_STORAGE_BACKEND_MODULE is required when peer storage is enabled; no local fallback is permitted');
@@ -174,6 +160,20 @@ async function main() {
     peerStorageRuntime = await initializePeerObjectStorage({
       enabled: true, store, peerId: () => peerNode?.peerId?.toString?.() || ''
     });
+  await peerNode.start();
+  if (stopping) {
+    await peerNode.stop().catch(() => {});
+    return;
+  }
+  // node.start() has resolved; verify that libp2p actually bound a listen address.
+  // The current libp2p node API does not expose an isStarted() method.
+  const peerAddresses = peerNode.getMultiaddrs?.() || [];
+  runtimeReadiness.peerReady = peerAddresses.length > 0;
+  if (!runtimeReadiness.peerReady) {
+    throw new Error('libp2p start resolved without any listen address');
+  }
+  process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+
     const storageNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || 'KernelVision');
     const proof = await store.health?.({ namespace: storageNamespace, peerId: peerNode.peerId.toString() });
     runtimeReadiness.peerStorageVerified = proof?.durable === true &&
@@ -190,6 +190,8 @@ async function main() {
     }
   }
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, verified: runtimeReadiness.peerStorageVerified }));
+
+
 
   if (String(process.env.APEX_PEER_CAS_ENABLED || '').toLowerCase() === 'true') {
     const liveModelRuntime = await startPeerCasRuntime({ peerNode });
