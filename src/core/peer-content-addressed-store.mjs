@@ -314,6 +314,9 @@ export function createPeerObjectStorageHandler({
   if (!store || typeof store.putBytes !== 'function' || typeof store.getBytes !== 'function') {
     throw new TypeError('a peer-owned binary object backend with putBytes(hash, bytes) and getBytes(hash) is required');
   }
+  if (typeof store.readRef !== 'function' || typeof store.compareAndSwapRef !== 'function' || typeof store.listRefs !== 'function') {
+    throw new TypeError('peer CAS requires backend readRef, atomic compareAndSwapRef, and listRefs methods; object-only storage is not a sovereign system-of-record backend');
+  }
   if (!peerId) throw new TypeError('local peerId or peerId resolver is required');
   const resolvePeerId = () => String(typeof peerId === 'function' ? peerId() : peerId || '');
   if (typeof authorizeNamespace !== 'function') throw new TypeError('an explicit per-app namespace authorization policy is required');
@@ -325,9 +328,48 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['object.put', 'object.get'].includes(operation)) throw new Error('unsupported peer storage operation');
+    if (!['object.put', 'object.get', 'ref.get', 'ref.cas', 'ref.list'].includes(operation)) throw new Error('unsupported peer storage operation');
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
       throw new Error('peer storage namespace access denied');
+    }
+    const localPeerId = resolvePeerId();
+    if (!localPeerId) throw new Error('local peer identity is not ready');
+    if (operation === 'ref.get') {
+      if (!/^[A-Za-z0-9._:-]{1,180}$/.test(String(envelope.bucket || '')) ||
+          !/^[A-Za-z0-9._:-]{1,180}$/.test(String(envelope.key || ''))) throw new Error('invalid CAS reference name');
+      const ref = await store.readRef(envelope.namespace, String(envelope.bucket), String(envelope.key));
+      if (!ref) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, exists: false };
+      if (!/^[a-f0-9]{64}$/.test(String(ref.valueHash || '')) || !/^[a-f0-9]{64}$/.test(String(ref.refHash || ''))) {
+        throw new Error('peer backend returned malformed CAS reference metadata');
+      }
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, exists: true, valueHash: ref.valueHash, refHash: ref.refHash };
+    }
+    if (operation === 'ref.cas') {
+      if (!/^[A-Za-z0-9._:-]{1,180}$/.test(String(envelope.bucket || '')) ||
+          !/^[A-Za-z0-9._:-]{1,180}$/.test(String(envelope.key || '')) ||
+          !/^[a-f0-9]{64}$/.test(String(envelope.valueHash || '')) ||
+          !/^[a-f0-9]{64}$/.test(String(envelope.nextHash || '')) ||
+          (envelope.expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(envelope.expectedHash || '')))) {
+        throw new Error('invalid atomic CAS reference write request');
+      }
+      const result = await store.compareAndSwapRef(envelope.namespace, String(envelope.bucket), String(envelope.key), {
+        expectedHash: envelope.expectedHash ?? null,
+        valueHash: envelope.valueHash,
+        nextHash: envelope.nextHash
+      });
+      if (result?.applied === true && result.refHash === envelope.nextHash && result.valueHash === envelope.valueHash) {
+        return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, applied: true, refHash: result.refHash, valueHash: result.valueHash };
+      }
+      if (result?.conflict === true) {
+        return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, conflict: true, refHash: result.refHash || null };
+      }
+      throw new Error('peer backend did not confirm atomic CAS result');
+    }
+    if (operation === 'ref.list') {
+      if (!/^[A-Za-z0-9._:-]{1,180}$/.test(String(envelope.bucket || ''))) throw new Error('invalid CAS bucket name');
+      const refs = await store.listRefs(envelope.namespace, String(envelope.bucket));
+      if (!Array.isArray(refs)) throw new Error('peer backend returned an invalid CAS reference listing');
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs };
     }
     if (operation === 'object.put') {
       if (typeof envelope.bytesBase64 !== 'string' || !/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) {
@@ -348,8 +390,6 @@ export function createPeerObjectStorageHandler({
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
-      const localPeerId = resolvePeerId();
-      if (!localPeerId) throw new Error('local peer identity is not ready');
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
     }
     if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
@@ -360,8 +400,6 @@ export function createPeerObjectStorageHandler({
         value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
       throw new Error('persistent peer object failed integrity or namespace verification');
     }
-    const localPeerId = resolvePeerId();
-    if (!localPeerId) throw new Error('local peer identity is not ready');
     return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
   };
 }
