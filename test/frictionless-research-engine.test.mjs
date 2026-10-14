@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { assertSafeResearchUrl } from '../src/core/security/research-boundary.mjs';
 import {
   FrictionlessResearchEngine,
   identityFor,
@@ -166,4 +167,47 @@ test('parses RSS/Atom-style syndication records', () => {
   assert.equal(items.length, 1);
   assert.equal(items[0].title, 'Research release');
   assert.equal(items[0].url, 'https://example.org/a');
+});
+
+test('syndication fetch validates redirect destinations before following them', async () => {
+  const calls = [];
+  const engine = new FrictionlessResearchEngine({
+    validateUrl: async raw => {
+      const url = new URL(raw);
+      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname.endsWith('.localhost')) {
+        throw new Error('research URL targets a private or loopback address');
+      }
+      return url.toString();
+    },
+    fetch: async (url, options) => {
+      calls.push({ url, redirect: options.redirect });
+      return {
+        ok: false,
+        status: 302,
+        headers: { get(name) { return name.toLowerCase() === 'location' ? 'http://127.0.0.1/private' : null; } }
+      };
+    }
+  });
+
+  await assert.rejects(
+    engine.ingestSyndication('https://feeds.example.test/updates.xml'),
+    /private or loopback/
+  );
+  assert.equal(calls.length, 1, 'must reject the private redirect before a second fetch');
+  assert.equal(calls[0].redirect, 'manual', 'fetch must not follow redirects automatically');
+});
+
+
+test('research URL boundary rejects loopback, unspecified, mapped, link-local and reserved IPs', async () => {
+  for (const url of [
+    'http://0.0.0.0/private',
+    'http://127.0.0.1/private',
+    'http://192.0.2.1/documentation',
+    'http://[::]/private',
+    'http://[::ffff:127.0.0.1]/private',
+    'http://[fe80::1]/private',
+    'http://[fc00::1]/private'
+  ]) {
+    await assert.rejects(assertSafeResearchUrl(url), /private|loopback|reserved|link-local/i, url);
+  }
 });

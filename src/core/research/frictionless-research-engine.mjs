@@ -37,25 +37,47 @@ async function fetchJson(fetchImpl, url, options = {}) {
 }
 
 async function fetchText(fetchImpl, url, options = {}) {
-  const response = await fetchImpl(url, {
-    ...options,
-    headers: {
-      accept: 'text/plain,text/html,application/pdf,*/*',
-      'user-agent': options.userAgent || DEFAULT_USER_AGENT,
-      ...(options.headers || {})
-    }
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  const {
+    validateUrl = assertSafeResearchUrl,
+    maxBytes = DEFAULT_MAX_ARTIFACT_BYTES,
+    userAgent = DEFAULT_USER_AGENT,
+    ...requestOptions
+  } = options;
+  let currentUrl = await validateUrl(url);
+  let response;
+
+  // Validate every redirect target before making another request. Automatic
+  // redirect following could bypass the initial SSRF boundary and reach a
+  // private or link-local destination.
+  for (let redirects = 0; ; redirects++) {
+    response = await fetchImpl(currentUrl, {
+      ...requestOptions,
+      redirect: 'manual',
+      headers: {
+        accept: 'text/plain,text/html,application/pdf,*/*',
+        'user-agent': userAgent,
+        ...(requestOptions.headers || {})
+      }
+    });
+
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    if (redirects >= 3) throw new Error('research fetch exceeded redirect limit');
+    const location = response.headers.get?.('location');
+    if (!location) throw new Error('research redirect did not include a location');
+    currentUrl = await validateUrl(new URL(location, currentUrl).toString());
+  }
+
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${currentUrl}`);
   const contentLength = Number(response.headers.get?.('content-length') || 0);
-  if (contentLength > (options.maxBytes || DEFAULT_MAX_ARTIFACT_BYTES)) {
+  if (contentLength > maxBytes) {
     throw new Error('artifact exceeds configured size limit');
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > (options.maxBytes || DEFAULT_MAX_ARTIFACT_BYTES)) {
+  if (bytes.byteLength > maxBytes) {
     throw new Error('artifact exceeds configured size limit');
   }
   return {
-    url,
+    url: currentUrl,
     contentType: response.headers.get?.('content-type') || 'application/octet-stream',
     bytes,
     text: (() => {
@@ -153,6 +175,7 @@ export class FrictionlessResearchEngine {
     this.timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
     this.maxArtifactBytes = Number(options.maxArtifactBytes || DEFAULT_MAX_ARTIFACT_BYTES);
     this.localSynthesizer = options.localSynthesizer || null;
+    this.validateUrl = options.validateUrl || assertSafeResearchUrl;
   }
 
   async requestJson(url, options = {}) {
@@ -488,15 +511,16 @@ export class FrictionlessResearchEngine {
   }
 
   async ingestSyndication(url) {
-    const safeUrl = await assertSafeResearchUrl(url);
+    const safeUrl = await this.validateUrl(url);
     const result = await fetchText(this.fetch, safeUrl, {
+      validateUrl: this.validateUrl,
       userAgent: this.userAgent,
       maxBytes: this.maxArtifactBytes
     });
     return {
       source: safeUrl,
       retrievedAt: new Date().toISOString(),
-      items: parseRssItems(result.text, url)
+      items: parseRssItems(result.text, result.url)
     };
   }
 
@@ -504,8 +528,9 @@ export class FrictionlessResearchEngine {
     if (!artifact?.url || artifact.access !== 'open') {
       throw new Error('artifact is not marked open');
     }
-    const safeUrl = await assertSafeResearchUrl(artifact.url);
+    const safeUrl = await this.validateUrl(artifact.url);
     return fetchText(this.fetch, safeUrl, {
+      validateUrl: this.validateUrl,
       userAgent: this.userAgent,
       maxBytes: this.maxArtifactBytes
     });
