@@ -1,13 +1,14 @@
 services:
   vllm:
-    image: vllm/vllm-openai:latest
+    # Pin the engine API; update only alongside the APEX loader compatibility tests.
+    image: vllm/vllm-openai:v0.10.2
     ipc: host
     ports:
       - "8000:8000"
-    volumes:
-      - hf-cache:/root/.cache/huggingface
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
+      HF_HUB_OFFLINE: "1"
+      HF_DATASETS_OFFLINE: "1"
     command:
       - --model
       - ${MODEL:?Set MODEL}
@@ -27,5 +28,3 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-volumes:
-  hf-cache:
