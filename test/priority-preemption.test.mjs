@@ -107,3 +107,28 @@ test('checkpoint handlers must be paired', () => {
     /pause and resume handlers must be supplied together/
   );
 });
+
+test('new background jobs are also preempted while paid requests are queued', async () => {
+  const gate = createPriorityPreemption();
+  const events = [];
+  const makeHandlers = name => ({
+    pause: async () => { events.push('pause-' + name); return { resourceReleased: true, name }; },
+    resume: async () => { events.push('resume-' + name); }
+  });
+  gate.registerBackground('render-existing', child(), makeHandlers('existing'));
+  let finishFirst;
+  const first = gate.run(PRIORITY.PAID_INFERENCE, async () => {
+    events.push('paid-1-start');
+    await new Promise(resolve => { finishFirst = resolve; });
+    events.push('paid-1-end');
+  });
+  const second = gate.run(PRIORITY.PAID_INFERENCE, async () => { events.push('paid-2'); });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  gate.registerBackground('render-new', child(), makeHandlers('new'));
+  finishFirst();
+  await Promise.all([first, second]);
+  assert.deepEqual(events, [
+    'pause-existing', 'paid-1-start', 'paid-1-end',
+    'pause-new', 'paid-2', 'resume-existing', 'resume-new'
+  ]);
+});
