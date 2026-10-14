@@ -5,13 +5,15 @@ services:
       dockerfile: Dockerfile
     image: apex-vllm-peer-cas:0.10.2
     ipc: host
+    volumes:
+      - /tmp/apex_peer_cas.sock:/tmp/apex_peer_cas.sock
     ports:
       - "8000:8000"
     environment:
       HF_HUB_OFFLINE: "1"
       HF_DATASETS_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
-      APEX_PEER_CAS_BRIDGE: ${APEX_PEER_CAS_BRIDGE:-http://127.0.0.1:8765}
+      APEX_PEER_CAS_BRIDGE: ${APEX_PEER_CAS_BRIDGE:-unix:///tmp/apex_peer_cas.sock}
       APEX_PEER_CAS_TOKEN: ${APEX_PEER_CAS_TOKEN:?Set APEX_PEER_CAS_TOKEN}
       APEX_PEER_CAS_NAMESPACE: ${APEX_PEER_CAS_NAMESPACE:?Set APEX_PEER_CAS_NAMESPACE}
       APEX_MODEL_ID: ${APEX_MODEL_ID:?Set APEX_MODEL_ID}
