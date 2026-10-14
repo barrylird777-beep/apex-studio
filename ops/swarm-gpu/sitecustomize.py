@@ -11,3 +11,6 @@ os.environ["APEX_REQUIRE_VLLM_PLUGIN"] = "1"
 # vLLM asks for the load format. This does not yet intercept earlier config/tokenizer
 # resolution; that stage must be implemented and tested before serving models.
 import apex_peer_cas  # noqa: F401,E402
+
+import apex_transformers_memory
+apex_transformers_memory.install()
