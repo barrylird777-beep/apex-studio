@@ -15,6 +15,9 @@ test("all six canonical app surfaces expose working cross-app navigation", async
     const nav = html.match(/<nav class="apex-app-nav"[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(nav, app.name + " must expose the canonical app navigation");
     for (const name of canonicalNames) assert.ok(nav.includes(name), app.name + " is missing navigation for " + name);
+    for (const href of ["/kernel-vision.html", "/xshield.html", "/kernelodies.html", "/planet-apex.html", "/kash-korner.html", "/koin-kob.html"]) {
+      assert.ok(nav.includes('href="' + href + '"'), app.name + " app switcher is missing destination " + href);
+    }
   }
 });
 
