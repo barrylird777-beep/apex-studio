@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from '../src/core/apex-cbor.mjs';
 
 test('canonical CBOR round-trips nested app metadata and binary values', () => {
@@ -16,6 +17,15 @@ test('canonical CBOR map ordering is independent of input key insertion order', 
   const a = encodeCanonical({ z: 1, a: 2, longKey: 3 });
   const b = encodeCanonical({ longKey: 3, a: 2, z: 1 });
   assert.deepEqual(a, b);
+});
+
+test('equivalent objects produce identical CBOR bytes and SHA-256 content addresses', () => {
+  const first = encodeCanonical({ a: 1, b: 2 });
+  const second = encodeCanonical({ b: 2, a: 1 });
+  const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+  assert.deepEqual(first, second);
+  assert.equal(first.length, second.length);
+  assert.equal(hash(first), hash(second));
 });
 
 test('canonical CBOR rejects unsupported values and trailing bytes', () => {
