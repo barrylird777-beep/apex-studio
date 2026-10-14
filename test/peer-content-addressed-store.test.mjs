@@ -11,8 +11,10 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function memoryStore() {
   const objects = new Map();
+  const refs = new Map();
+  const refKey = (namespace, bucket, key) => [namespace, bucket, key].join('\\0');
   return {
-    objects,
+    objects, refs,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (digest(bytes) !== hash) throw new Error('memory peer store hash mismatch');
@@ -22,6 +24,28 @@ function memoryStore() {
     async getBytes(hash) {
       if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
       return Buffer.from(objects.get(hash));
+    },
+    async readRef(namespace, bucket, key) {
+      const ref = refs.get(refKey(namespace, bucket, key));
+      return ref ? { ...ref } : null;
+    },
+    async compareAndSwapRef(namespace, bucket, key, { expectedHash, valueHash, nextHash }) {
+      const id = refKey(namespace, bucket, key);
+      const current = refs.get(id);
+      if ((current?.refHash ?? null) !== expectedHash) {
+        return { applied: false, conflict: true, refHash: current?.refHash ?? null };
+      }
+      const next = { refHash: nextHash, valueHash };
+      refs.set(id, next);
+      return { applied: true, ...next };
+    },
+    async listRefs(namespace, bucket) {
+      const output = [];
+      for (const [id, ref] of refs) {
+        const [ns, b, key] = id.split('\\0');
+        if (ns === namespace && b === bucket) output.push({ key, ...ref });
+      }
+      return output.sort((a, b) => a.key.localeCompare(b.key));
     }
   };
 }
