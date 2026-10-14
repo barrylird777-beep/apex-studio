@@ -5,16 +5,14 @@ export const PRIORITY = Object.freeze({
   BACKGROUND_SWARM: 100
 });
 
-/**
- * Cooperative priority gate. A background job must implement a real checkpoint
- * and release its resource lease before paid work is allowed to start.
- * This deliberately does not use SIGSTOP/SIGCONT: those signals do not release
- * GPU allocations and cannot establish a safe render checkpoint.
- */
-export function createPriorityPreemption({ logger = console } = {}) {
+export function createPriorityPreemption({
+  logger = console,
+  checkpointTimeoutMs = 15000
+} = {}) {
   const background = new Map();
   let paidActive = 0;
   let paidWaiting = 0;
+  let paidTail = Promise.resolve();
 
   function registerBackground(jobId, child, { pause, resume } = {}) {
     if (!jobId || !child || typeof child.kill !== 'function') {
@@ -27,29 +25,64 @@ export function createPriorityPreemption({ logger = console } = {}) {
     };
   }
 
+  async function timedPause(jobId, entry) {
+    if (typeof entry.pause !== 'function') {
+      throw new Error('Cannot admit paid inference: background job ' + jobId + ' has no cooperative checkpoint/release handler');
+    }
+    let timer;
+    let timedOut = false;
+    const operation = Promise.resolve().then(() => entry.pause());
+    try {
+      const checkpoint = await Promise.race([
+        operation,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            timedOut = true;
+            reject(new Error('checkpoint timed out after ' + checkpointTimeoutMs + 'ms'));
+          }, checkpointTimeoutMs);
+        })
+      ]);
+      if (!checkpoint || checkpoint.resourceReleased !== true) {
+        throw new Error('checkpoint handler did not confirm resource release');
+      }
+      return checkpoint;
+    } catch (error) {
+      if (timedOut) {
+        // A late checkpoint must not strand a render paused after admission failed.
+        operation.then(async checkpoint => {
+          if (checkpoint?.resourceReleased === true) {
+            try { await entry.resume?.(checkpoint); }
+            catch (resumeError) { logger.error?.('[APEX PRIORITY] late checkpoint resume failed', jobId, String(resumeError)); }
+          }
+        }).catch(lateError => logger.warn?.('[APEX PRIORITY] late checkpoint failed', jobId, String(lateError)));
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function pauseBackground() {
     const paused = [];
-    for (const [jobId, entry] of background) {
-      const { child, pause } = entry;
-      if (child.exitCode !== null || child.signalCode !== null) continue;
-      if (typeof pause !== 'function') {
-        throw new Error('Cannot admit paid inference: background job ' + jobId + ' has no cooperative checkpoint/release handler');
-      }
-      try {
-        const checkpoint = await pause();
-        if (!checkpoint || checkpoint.resourceReleased !== true) {
-          throw new Error('checkpoint handler did not confirm resource release');
-        }
+    try {
+      for (const [jobId, entry] of background) {
+        const child = entry.child;
+        if (child.exitCode !== null || child.signalCode !== null) continue;
+        const checkpoint = await timedPause(jobId, entry);
         paused.push({ jobId, entry, checkpoint });
-      } catch (error) {
-        for (const item of paused.reverse()) {
-          try { await item.entry.resume?.(item.checkpoint); }
-          catch (resumeError) { logger.error?.('[APEX PRIORITY] checkpoint rollback failed', item.jobId, String(resumeError)); }
-        }
-        throw new Error('Cannot admit paid inference: background job ' + jobId + ' failed cooperative yield: ' + String(error?.message || error));
       }
+      return paused;
+    } catch (error) {
+      for (const item of paused.reverse()) {
+        try {
+          if (typeof item.entry.resume !== 'function') throw new Error('resume handler is missing');
+          await item.entry.resume(item.checkpoint);
+        } catch (resumeError) {
+          logger.error?.('[APEX PRIORITY] checkpoint rollback failed', item.jobId, String(resumeError));
+        }
+      }
+      throw new Error('Cannot admit paid inference: ' + String(error?.message || error));
     }
-    return paused;
   }
 
   async function resumeBackground(paused) {
@@ -72,18 +105,22 @@ export function createPriorityPreemption({ logger = console } = {}) {
       while (paidActive > 0 || paidWaiting > 0) await delay(25);
       return task();
     }
+
     paidWaiting += 1;
-    let paused;
+    let release;
+    const previous = paidTail;
+    paidTail = new Promise(resolve => { release = resolve; });
+    await previous;
+    let paused = [];
     try {
       paused = await pauseBackground();
-      paidActive += 1;
+      paidActive = 1;
+      return await task();
     } finally {
+      paidActive = 0;
       paidWaiting -= 1;
-    }
-    try { return await task(); }
-    finally {
-      paidActive -= 1;
-      if (paidActive === 0) await resumeBackground(paused);
+      try { await resumeBackground(paused); }
+      finally { release(); }
     }
   }
 
