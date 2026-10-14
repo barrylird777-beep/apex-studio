@@ -1,6 +1,5 @@
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { chmod } from 'node:fs/promises';
 import { createPeerModelBridgeServer } from '../../src/core/peer-model-bridge.mjs';
 
 const modulePath = process.env.APEX_PEER_CAS_RUNTIME_MODULE;
@@ -19,8 +18,7 @@ const bridge = createPeerModelBridgeServer({
   token,
   socketPath
 });
-const address = await bridge.listen();
-await chmod(socketPath, 0o600);
+await bridge.listen();
 process.stdout.write(JSON.stringify({
   status: 'listening',
   transport: 'unix-domain-socket',
