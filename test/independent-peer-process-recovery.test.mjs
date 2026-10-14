@@ -42,7 +42,7 @@ const server = createServer(async (req, res) => {
 });
 server.listen(0, '127.0.0.1', () => {
   const address = server.address();
-  process.stdout.write(JSON.stringify({ ready: true, port: address.port }) + '\\n');
+  process.stdout.write(JSON.stringify({ ready: true, port: address.port }) + '\n');
 });
 `;
 
