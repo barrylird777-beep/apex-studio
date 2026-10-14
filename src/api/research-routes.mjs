@@ -12,7 +12,7 @@ export function createResearchRouter(engine) {
   const requireResearchAuth = (req, res, next) => {
     const expected = process.env.APEX_RESEARCH_TOKEN || process.env.APEX_SHORTCUT_TOKEN;
     if (!expected) return res.status(503).json({ success: false, error: 'Research authorization is not configured' });
-    const supplied = req.get('x-apex-research-token') || req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\\s+/i, '');
+    const supplied = req.get('x-apex-research-token') || req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
     const a = Buffer.from(String(expected));
     const b = Buffer.from(String(supplied || ''));
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(401).json({ success: false, error: 'Unauthorized' });
