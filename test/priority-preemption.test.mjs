@@ -3,23 +3,36 @@ import assert from 'node:assert/strict';
 import { createPriorityPreemption, PRIORITY } from '../src/core/priority-preemption.mjs';
 
 function child() {
-  const signals = [];
-  return { signals, exitCode: null, signalCode: null, kill(signal) { signals.push(signal); return true; } };
+  return { exitCode: null, signalCode: null, kill() { throw new Error('signals must not be used'); } };
 }
 
-test('paid work pauses registered background children and resumes them after completion', async () => {
+test('paid work requires a checkpoint and resource-release acknowledgement, then resumes', async () => {
   const gate = createPriorityPreemption({ logger: { warn() {}, error() {} } });
   const ffmpeg = child();
-  gate.registerBackground('render-1', ffmpeg);
+  const events = [];
+  gate.registerBackground('render-1', ffmpeg, {
+    pause: async () => { events.push('checkpoint-and-release'); return { segment: 4, resourceReleased: true }; },
+    resume: async checkpoint => { events.push('resume-segment-' + checkpoint.segment); }
+  });
   const result = await gate.run(PRIORITY.PAID_INFERENCE, async () => {
-    assert.deepEqual(ffmpeg.signals, ['SIGSTOP']);
+    assert.deepEqual(events, ['checkpoint-and-release']);
     return 'inference-result';
   });
   assert.equal(result, 'inference-result');
-  assert.deepEqual(ffmpeg.signals, ['SIGSTOP', 'SIGCONT']);
+  assert.deepEqual(events, ['checkpoint-and-release', 'resume-segment-4']);
 });
 
-test('background work is rejected for unknown priorities and paid requests track activity', async () => {
+test('paid inference fails closed when a running background child cannot cooperatively yield', async () => {
+  const gate = createPriorityPreemption();
+  gate.registerBackground('render-unsafe', child());
+  await assert.rejects(
+    () => gate.run(PRIORITY.PAID_INFERENCE, async () => 'must-not-run'),
+    /no cooperative checkpoint\/release handler/
+  );
+  assert.equal(gate.status().paidActive, 0);
+});
+
+test('unknown priorities are rejected and paid activity is tracked', async () => {
   const gate = createPriorityPreemption();
   await assert.rejects(() => gate.run(9, async () => true), /unsupported execution priority/);
   const result = await gate.run(PRIORITY.PAID_INFERENCE, async () => gate.status().paidActive);
@@ -27,11 +40,10 @@ test('background work is rejected for unknown priorities and paid requests track
   assert.equal(gate.status().paidActive, 0);
 });
 
-test('exited children are not signalled', async () => {
+test('exited children are ignored', async () => {
   const gate = createPriorityPreemption();
   const exited = child();
   exited.exitCode = 0;
   gate.registerBackground('finished', exited);
   await gate.run(PRIORITY.PAID_INFERENCE, async () => true);
-  assert.deepEqual(exited.signals, []);
 });
