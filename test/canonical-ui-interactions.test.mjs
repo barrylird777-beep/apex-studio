@@ -130,8 +130,9 @@ test("PlanetApeX and Kernelodies lead with their canonical primary jobs", async 
   assert.ok(planet.includes('href="#garden"'));
   assert.ok(planet.includes('href="/special-search.html"'));
   const music = await readPublic("kernelodies.html");
-  assert.match(music, /Listen, discover, and build your music library/);
-  assert.match(music, /id="kernelodies-discovery"/);
+  assert.match(music, /<h1>Hear what moves you\.<\/h1>/);
+  assert.ok(music.includes('id="kd-query"'), "Kernelodies must expose its music search");
+  assert.ok(music.includes('id="your-library"'), "Kernelodies must expose the personal library");
 });
 
 test("XShield tabs switch panels and support keyboard navigation", async () => {
