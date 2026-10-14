@@ -192,6 +192,9 @@ test("all six canonical browser surfaces use the shared responsive UI system",as
     assert.ok(html.includes('href="/'+file+'"'),name+" must appear in the app switcher");
     assert.ok(html.includes('aria-current="page"'),name+" must identify the active app");
   }
+  const kash=await readFile(resolve(process.cwd(),"public/kash-korner.html"),"utf8");
+  assert.match(kash,/<h2>KashKorner Video Studio<\/h2>/,"the public video offer must use the canonical KashKorner name");
+  assert.doesNotMatch(kash,/KornKash Video Studio/,"superseded app branding must not return");
   const css=await readFile(resolve(process.cwd(),"public/apex-six-apps.css"),"utf8");
   assert.match(css,/prefers-reduced-motion/,"shared UI must respect reduced motion");
   assert.match(css,/focus-visible/,"shared UI must expose keyboard focus");
