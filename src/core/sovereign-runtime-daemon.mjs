@@ -1,4 +1,6 @@
 import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { verifyRemotePersistenceProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
@@ -14,6 +16,7 @@ import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
+import { startPeerCasRuntime } from './peer-cas-runtime.mjs';
 
 const storageMigration = await migrateSovereignStorage();
 console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
@@ -31,7 +34,9 @@ let timer;
 let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
+let modelBridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
+let peerStorageStore;
 const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, peerStorageVerified: false, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
@@ -43,6 +48,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
     throw new Error('unsupported sovereign envelope');
   }
   if (envelope.type === 'edge.heartbeat') return true;
+  if (!runtimeReadiness.peerStorageVerified) throw new Error('peer-owned storage is not verified; refusing work before sovereign storage readiness');
   if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
   if (envelope.type === 'durable.read') {
     return { accepted: true, replica: readSovereignPeerReplica(engine, envelope, { remotePeerId }) };
@@ -132,11 +138,6 @@ async function main() {
   runtimeReadiness.storageReady = true;
   await engine.ready();
   if (stopping) return;
-  peerStorageRuntime = await initializePeerObjectStorage({
-    peerId: () => peerNode?.peerId?.toString?.() || ''
-  });
-  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
-  if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
   if (stopping) return;
@@ -146,6 +147,31 @@ async function main() {
     await peerNode.stop().catch(() => {});
     return;
   }
+
+  // Configure the peer-owned backend before the node accepts inbound envelopes.
+  if (String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true') {
+    const configuredBackendModule = String(process.env.APEX_PEER_STORAGE_BACKEND_MODULE || '').trim();
+    const backendModule = configuredBackendModule
+      ? path.resolve(configuredBackendModule)
+      : new URL('./peer-owned-binary-backend.mjs', import.meta.url).pathname;
+    const moduleUrl = pathToFileURL(backendModule).href;
+    const backendFactory = await import(moduleUrl);
+    if (typeof backendFactory.createPeerOwnedBinaryBackend !== 'function') {
+      throw new Error('peer backend module must export createPeerOwnedBinaryBackend({ peerId, namespaceAcl })');
+    }
+    peerStorageStore = await backendFactory.createPeerOwnedBinaryBackend({
+      peerId: peerNode.peerId.toString(),
+      namespaceAcl: process.env.APEX_PEER_NAMESPACE_ACL || ''
+    });
+    peerStorageRuntime = await initializePeerObjectStorage({
+      enabled: true, store: peerStorageStore, peerId: () => peerNode?.peerId?.toString?.() || ''
+    });
+  }
+
+  if (!peerStorageRuntime.enabled) {
+    throw new Error('peer-owned storage is disabled; daemon refuses to accept work without verified peer storage');
+  }
+
   await peerNode.start();
   if (stopping) {
     await peerNode.stop().catch(() => {});
@@ -159,6 +185,33 @@ async function main() {
     throw new Error('libp2p start resolved without any listen address');
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+
+  if (peerStorageRuntime.enabled) {
+    const storageNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || 'KernelVision');
+    const proof = await peerStorageStore.health?.({ namespace: storageNamespace, peerId: peerNode.peerId.toString() });
+    runtimeReadiness.peerStorageVerified = proof?.durable === true &&
+      proof?.ownership === 'peer-owned' && proof?.restartRecoveryVerified === true &&
+      proof?.atomicReferencesVerified === true && proof?.peerId === peerNode.peerId.toString() &&
+      proof?.namespace === storageNamespace && Boolean(proof?.receipt) &&
+      typeof peerStorageStore.verifyDurabilityReceipt === 'function' &&
+      await peerStorageStore.verifyDurabilityReceipt(proof.receipt, {
+        namespace: storageNamespace, peerId: peerNode.peerId.toString(),
+        restartRecoveryVerified: true, atomicReferencesVerified: true
+      }) === true;
+    if (!runtimeReadiness.peerStorageVerified) {
+      throw new Error('peer-owned backend did not prove durable writes, atomic references, and restart recovery');
+    }
+  }
+  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, verified: runtimeReadiness.peerStorageVerified }));
+
+  if (String(process.env.APEX_PEER_CAS_ENABLED || '').toLowerCase() === 'true') {
+    const liveModelRuntime = await startPeerCasRuntime({ peerNode });
+    modelBridge = liveModelRuntime.bridge;
+    console.log('[APEX PEER-CAS MODEL BRIDGE]', JSON.stringify({
+      status: 'listening', namespace: liveModelRuntime.namespace, peerCount: liveModelRuntime.peers.length
+    }));
+  }
+  if (stopping) return;
   try {
     await verifyRemotePersistenceReadiness();
   } catch (error) {
@@ -337,6 +390,12 @@ async function shutdown(signal) {
   } catch (error) {
     process.exitCode = 1;
     console.error('[SOVEREIGN] offline identity commit failed', String(error?.message || error));
+  }
+  try {
+    if (modelBridge) await modelBridge.close();
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] Peer-CAS model bridge shutdown failed', String(error?.message || error));
   }
   try {
     if (edgeNode) await edgeNode.stop();
