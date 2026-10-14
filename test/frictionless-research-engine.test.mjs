@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { assertSafeResearchUrl } from '../src/core/security/research-boundary.mjs';
 import {
   FrictionlessResearchEngine,
   identityFor,
