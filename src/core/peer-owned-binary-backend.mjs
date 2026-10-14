@@ -78,6 +78,11 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           refId(value.namespace, value.key) + '.cbor' !== name ||
           !/^[a-f0-9]{64}$/.test(value.hash) || !Buffer.isBuffer(value.bytes) ||
           sha256(value.bytes) !== value.hash) throw new Error('peer CAS startup integrity failure: invalid reference ' + name);
+      const object = await readFile(path.join(objectsDir, value.hash + '.bin')).catch(error => {
+        if (error.code === 'ENOENT') throw new Error('peer CAS startup recovery failure: reference target is missing ' + value.hash);
+        throw error;
+      });
+      if (sha256(object) !== value.hash || !object.equals(value.bytes)) throw new Error('peer CAS startup integrity failure: reference target does not match immutable object ' + value.hash);
     }
     return true;
   }
@@ -122,6 +127,10 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       const bytes = Buffer.from(input);
       if (sha256(bytes) !== hash) throw new Error('reference payload hash mismatch');
       decodeCanonical(bytes);
+      // A ref may only point at a verified immutable object. Persist and verify
+      // the object before the atomic pointer update; an interrupted update can
+      // leave an unreferenced object, but never a ref to missing content.
+      await this.putBytes(hash, bytes);
       const id = refId(namespace, key);
       return withRefLock(path.join(refsDir, id + '.lock'), async () => {
         const current = await this.readRef(namespace, key);
