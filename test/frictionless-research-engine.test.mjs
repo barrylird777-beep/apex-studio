@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { assertSafeResearchUrl } from '../src/core/security/research-boundary.mjs';
 import {
   FrictionlessResearchEngine,
   identityFor,
@@ -195,4 +196,19 @@ test('syndication fetch validates redirect destinations before following them', 
   );
   assert.equal(calls.length, 1, 'must reject the private redirect before a second fetch');
   assert.equal(calls[0].redirect, 'manual', 'fetch must not follow redirects automatically');
+});
+
+
+test('research URL boundary rejects loopback, unspecified, mapped, link-local and reserved IPs', async () => {
+  for (const url of [
+    'http://0.0.0.0/private',
+    'http://127.0.0.1/private',
+    'http://192.0.2.1/documentation',
+    'http://[::]/private',
+    'http://[::ffff:127.0.0.1]/private',
+    'http://[fe80::1]/private',
+    'http://[fc00::1]/private'
+  ]) {
+    await assert.rejects(assertSafeResearchUrl(url), /private|loopback|reserved|link-local/i, url);
+  }
 });
