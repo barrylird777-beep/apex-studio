@@ -1,14 +1,11 @@
 import crypto from 'node:crypto';
 import https from 'node:https';
 import dns from 'node:dns';
+import { requireStripeSecret } from '../config/stripe.mjs';
 
 const STRIPE_API='https://api.stripe.com/v1';
 
-function requireSecret(){
-  const key=String(process.env.STRIPE_SECRET_KEY||'').trim();
-  if(!key) throw new Error('STRIPE_SECRET_KEY is not configured');
-  return key;
-}
+function requireSecret(){ return requireStripeSecret(); }
 function encode(value){ return Buffer.from(String(value??''),'utf8').toString('base64url'); }
 function decode(value){ return Buffer.from(String(value||''),'base64url').toString('utf8'); }
 function splitBriefForStripe(value,maxBytes=360){
