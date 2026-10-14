@@ -915,5 +915,36 @@ html.pa-world-immersive body{overflow-x:hidden}
 })();
 </script>
 
+
+<style id="pa-screen-fill-correction">
+/* Portrait phones must show a world larger than the viewport; pinch out reveals the full sphere. */
+.pa-home-planet.pa-world-immersive-host .planet{
+ width:max(100svh,100vw)!important;height:max(100svh,100vw)!important;
+}
+</style>
+<script id="pa-pinch-rotation-guard">
+(function(){
+ const stage=document.querySelector('.pa-home-planet.pa-world-immersive-host .planet-stage');
+ if(!stage)return;
+ let touches=new Map(),startDistance=0,startScale=1;
+ const globe=stage.querySelector('.planet');
+ function scale(){return parseFloat(globe.style.getPropertyValue('--pa-zoom'))||1}
+ function setScale(v){globe.style.setProperty('--pa-zoom',String(Math.max(.28,Math.min(3.2,v))))}
+ function dist(){const a=[...touches.values()];return a.length<2?0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}
+ stage.addEventListener('pointerdown',e=>{
+   if(e.pointerType!=='touch'||e.target.closest('button'))return;
+   touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+   if(touches.size===2){startDistance=dist();startScale=scale();e.stopImmediatePropagation();}
+ },true);
+ stage.addEventListener('pointermove',e=>{
+   if(e.pointerType!=='touch'||!touches.has(e.pointerId))return;
+   touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+   if(touches.size>=2){const d=dist();if(startDistance>0)setScale(startScale*d/startDistance);e.preventDefault();e.stopImmediatePropagation();}
+ },true);
+ function end(e){touches.delete(e.pointerId);if(touches.size<2)startDistance=0}
+ stage.addEventListener('pointerup',end,true);stage.addEventListener('pointercancel',end,true);
+})();
+</script>
+
 </body>
 </html>
