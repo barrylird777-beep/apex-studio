@@ -450,6 +450,65 @@ button{transition:none!important;transform:none!important}button:hover{transform
 ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-thumb{background:#4a493a;border-radius:2px}::-webkit-scrollbar-track{background:transparent}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
+<style>
+/* PERSONAL APP SHELL — PlanetApeX is a private workspace, not a marketing site. */
+:root{--pa-app-bg:#080d0e;--pa-app-panel:#111a1b;--pa-app-border:#263333;--pa-app-text:#e7eee8;--pa-app-muted:#9baaa5;--pa-app-gold:#d8bd83}
+html,body{background:var(--pa-app-bg)!important;color:var(--pa-app-text)!important}
+body:before{opacity:.3!important;background:radial-gradient(ellipse at 80% 0%,rgba(46,88,74,.2),transparent 45%)!important}
+.apex-app-nav,.apex-skip-link,.apex-app-footer{display:none!important}
+main.apex-shell[data-apex-app="planetapex"]{width:min(980px,100%)!important;max-width:980px!important;padding:0 14px 104px!important;margin:0 auto!important}
+#pa-personal-app-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 2px 13px;border-bottom:1px solid var(--pa-app-border)}
+#pa-personal-app-header .brand{display:flex;align-items:center;gap:10px;min-width:0}
+#pa-personal-app-header .mark{display:grid;place-items:center;width:36px;height:36px;border:1px solid #7e7252;border-radius:11px;color:var(--pa-app-gold);font:20px Georgia,serif;background:#171b16}
+#pa-personal-app-header strong{display:block;font-size:14px;letter-spacing:.01em}
+#pa-personal-app-header small{display:block;color:var(--pa-app-muted);font-size:10px;margin-top:2px}
+#pa-personal-app-header .private{white-space:nowrap;border:1px solid #2b4235;border-radius:99px;padding:6px 9px;color:#a8d0b3;font-size:9px;letter-spacing:.09em;text-transform:uppercase}
+.pa-home{grid-template-columns:minmax(0,1fr) 150px!important;align-items:center!important;gap:18px!important;text-align:left!important;padding:24px 0 22px!important;margin:0 0 22px!important}
+.pa-home-copy{order:1!important;max-width:none!important}
+.pa-home-planet{order:2!important;width:150px!important;max-width:150px!important}
+.pa-home-planet .planet-stage{width:140px!important;max-width:140px!important}
+.pa-home-label{font-size:9px!important;letter-spacing:.16em!important}
+.pa-home h1{font-size:clamp(28px,5vw,43px)!important;line-height:1.08!important;margin:10px 0!important;letter-spacing:-.03em!important}
+.pa-home .lead{font-size:13px!important;line-height:1.65!important;margin:0!important}
+.pa-home-links{justify-content:flex-start!important;margin-top:14px!important;gap:7px!important}
+.pa-home-links a{min-height:36px!important;padding:8px 11px!important;border-radius:8px!important;font-size:11px!important}
+.pa-quick-index{display:none!important}
+.pa-section-head{margin:12px 0 15px!important}
+.pa-section-head h2{font-size:24px!important}
+.pa-feature-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+.pa-feature{border-radius:12px!important;background:var(--pa-app-panel)!important}
+.pa-feature-head{padding:18px!important}
+.pa-feature-body{padding:18px!important}
+.pa-feature.pa-scripture{border:1px solid #655b42!important;border-top:2px solid var(--pa-app-gold)!important;background:linear-gradient(145deg,#1d1b15,#101514)!important}
+.pa-feature.pa-scripture .pa-feature-head{background:rgba(216,189,131,.04)!important}
+.pa-feature.pa-scripture .pa-feature-head h2{font-size:27px!important}
+.pa-feature.pa-research{border-top:2px solid #83b8d2!important}
+.pa-feature.pa-analytics{border-top:2px solid #cbb27d!important}
+.pa-feature.pa-garden{grid-column:auto!important}
+.pa-storage{margin-top:26px!important}
+.apex-shell .grid{grid-template-columns:minmax(0,1fr)!important}
+.apex-shell .grid>.card,.apex-shell .grid>.card.wide{grid-column:1/-1!important}
+#pa-personal-app-nav{position:fixed;z-index:100;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;width:min(560px,calc(100vw - 20px));padding:7px;border:1px solid #303e3c;border-radius:17px;background:rgba(8,14,15,.96);box-shadow:0 10px 38px #0008;backdrop-filter:blur(18px)}
+#pa-personal-app-nav a{display:flex;min-width:0;min-height:48px;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid transparent;border-radius:10px;text-decoration:none;color:#a8b7b0;font-size:9px;font-weight:700}
+#pa-personal-app-nav a .glyph{font-size:16px;line-height:1;color:#cbb783}
+#pa-personal-app-nav a[aria-current="page"]{border-color:#62573e;background:#25251c;color:#f2e4c2}
+#pa-personal-app-nav a[aria-current="page"] .glyph{color:#f0d49a}
+.pa-feature[hidden],#world-tools[hidden],#analytics[hidden]{display:none!important}
+#pa-personal-app-header .private:before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:#9ac9a8;margin:0 5px 1px 0}
+@media(max-width:600px){
+ main.apex-shell[data-apex-app="planetapex"]{padding:0 12px 100px!important}
+ #pa-personal-app-header{padding:12px 0}
+ .pa-home{grid-template-columns:minmax(0,1fr) 88px!important;gap:10px!important;padding:21px 0!important}
+ .pa-home-planet{width:88px!important;max-width:88px!important}
+ .pa-home-planet .planet-stage{width:84px!important;max-width:84px!important}
+ .pa-home h1{font-size:clamp(25px,7vw,36px)!important}
+ .pa-home .lead{font-size:12px!important}
+ .pa-home-links a{font-size:10px!important;padding:8px 9px!important}
+ #pa-personal-app-nav{bottom:max(6px,env(safe-area-inset-bottom));width:calc(100vw - 14px);padding:5px}
+ #pa-personal-app-nav a{min-height:46px;font-size:8px}
+}
+@media(max-width:370px){.pa-home{grid-template-columns:minmax(0,1fr)!important}.pa-home-planet{display:none!important}.pa-home-links a{flex:1 1 auto}}
+</style>
 </head>
 <body>
 
@@ -619,5 +678,43 @@ render();refresh();
 
 
 
+
+<script>
+(()=> {
+ const main=document.querySelector('main[data-apex-app="planetapex"]');
+ if(!main||document.getElementById('pa-personal-app-nav'))return;
+ const header=document.createElement('header');header.id='pa-personal-app-header';
+ header.innerHTML='<div class="brand"><span class="mark" aria-hidden="true">P</span><div><strong>PlanetApeX</strong><small>Personal knowledge universe</small></div></div><span class="private">Personal space</span>';
+ main.prepend(header);
+ const nav=document.createElement('nav');nav.id='pa-personal-app-nav';nav.setAttribute('aria-label','PlanetApeX workspace');
+ const tabs=[
+  {id:'home',label:'Home',glyph:'◉',target:'.pa-home'},
+  {id:'scripture',label:'Bible Study',glyph:'✧',target:'#scripture'},
+  {id:'research',label:'Research',glyph:'⌕',target:'#research'},
+  {id:'analytics',label:'Insights',glyph:'▥',target:'#analytics'},
+  {id:'garden',label:'GardenApeX',glyph:'♧',target:'#garden'}
+ ];
+ function activate(id,scroll=true){
+  const t=tabs.find(x=>x.id===id)||tabs[0];
+  tabs.forEach(x=>{const a=nav.querySelector('[data-tab="'+x.id+'"]');if(a)a.setAttribute('aria-current',x.id===t.id?'page':'false')});
+  if(scroll){const target=main.querySelector(t.target);if(target)target.scrollIntoView({behavior:'auto',block:'start'})}
+ }
+ tabs.forEach(t=>{const a=document.createElement('a');a.href=t.target;a.dataset.tab=t.id;a.innerHTML='<span class="glyph" aria-hidden="true">'+t.glyph+'</span><span>'+t.label+'</span>';a.addEventListener('click',e=>{e.preventDefault();activate(t.id);});nav.append(a)});
+ document.body.append(nav);
+ const originalLinks=main.querySelectorAll('.pa-home-links a');
+ originalLinks.forEach(a=>{
+  if(a.getAttribute('href')==='#garden')a.addEventListener('click',e=>{e.preventDefault();activate('garden')});
+  if(a.getAttribute('href')==='#scripture')a.addEventListener('click',e=>{e.preventDefault();activate('scripture')});
+ });
+ const observer=new IntersectionObserver(entries=>{
+  const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
+  if(!visible)return;
+  const id=visible.target.id==='scripture'?'scripture':visible.target.id==='research'?'research':visible.target.id==='analytics'?'analytics':visible.target.id==='garden'?'garden':'home';
+  tabs.forEach(x=>{const a=nav.querySelector('[data-tab="'+x.id+'"]');a.setAttribute('aria-current',x.id===id?'page':'false')});
+ },{rootMargin:'-15% 0px -55% 0px',threshold:[0,.15,.4,.65]});
+ ['scripture','research','analytics','garden'].forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el)});
+ nav.querySelector('[data-tab="home"]').setAttribute('aria-current','page');
+})();
+</script>
 </body>
 </html>
