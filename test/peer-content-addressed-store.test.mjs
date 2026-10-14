@@ -6,6 +6,7 @@ import {
   createPeerObjectStorageHandler
 } from '../src/core/peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
+import { createPeerCasAdapter } from '../src/core/peer-cas-adapter.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -337,4 +338,53 @@ test('single-domain durability policy does not require failure-domain labels', a
   const receipt = await client.putObject({ noDomainMapNeeded: true });
   assert.equal(receipt.replicas.length, 2);
   assert.deepEqual(await client.getObject(receipt.hash), { noDomainMapNeeded: true });
+});
+
+test('peer CAS adapter performs atomic reference create, read, update, and listing', async () => {
+  const mesh = makeMesh();
+  const cas = createPeerCasAdapter({
+    objectStore: mesh.client,
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    namespace: 'PlanetApeX',
+    replicaCount: 2
+  });
+  await cas.init();
+  const created = await cas.writeRef('waves', 'wave-1', { waveId: 'wave-1', status: 'DISPATCHED' }, { expectedHash: null });
+  assert.match(created.hash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(await cas.readRef('waves', 'wave-1'), {
+    value: { waveId: 'wave-1', status: 'DISPATCHED' },
+    hash: created.hash
+  });
+  await assert.rejects(
+    cas.writeRef('waves', 'wave-1', { status: 'stale-write' }, { expectedHash: null }),
+    error => error.code === 'CAS_CONFLICT'
+  );
+  const updated = await cas.writeRef('waves', 'wave-1', { waveId: 'wave-1', status: 'ACKNOWLEDGED' }, { expectedHash: created.hash });
+  assert.notEqual(updated.hash, created.hash);
+  assert.deepEqual(await cas.readRef('waves', 'wave-1'), {
+    value: { waveId: 'wave-1', status: 'ACKNOWLEDGED' },
+    hash: updated.hash
+  });
+  assert.deepEqual(await cas.listRefs('waves'), [{
+    key: 'wave-1',
+    hash: updated.hash,
+    value: { waveId: 'wave-1', status: 'ACKNOWLEDGED' }
+  }]);
+  assert.equal(mesh.stores.get('peer-a').refs.size, 2);
+  assert.equal(mesh.stores.get('peer-b').refs.size, 2);
+});
+
+test('peer CAS adapter fails closed when peer reference state diverges', async () => {
+  const mesh = makeMesh();
+  const cas = createPeerCasAdapter({
+    objectStore: mesh.client,
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    namespace: 'PlanetApeX',
+    replicaCount: 2
+  });
+  await cas.writeRef('waves', 'wave-1', { waveId: 'wave-1' }, { expectedHash: null });
+  mesh.stores.get('peer-b').refs.clear();
+  await assert.rejects(cas.listRefs('waves'), error => error.code === 'CAS_REPLICA_DIVERGENCE');
 });
