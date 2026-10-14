@@ -861,5 +861,38 @@ render();refresh();
 })();
 </script>
 
+
+<style id="pa-fullscreen-planet-scale">
+/* The globe is the primary experience, not a thumbnail beside the dashboard. */
+main[data-apex-app="planetapex"] .pa-home-planet{
+ width:100vw!important;max-width:none!important;position:relative;
+ margin-inline:calc(50% - 50vw)!important;padding:0!important;
+ gap:14px!important;overflow:visible!important;
+}
+main[data-apex-app="planetapex"] .pa-home-planet .planet-stage{
+ width:min(96vw,1000px)!important;max-width:none!important;
+ aspect-ratio:1!important;height:auto!important;flex:none!important;
+ margin:0 auto!important;
+}
+main[data-apex-app="planetapex"] .pa-home-planet .planet{
+ width:100%!important;height:100%!important;border-radius:50%!important;
+ box-shadow:inset -8vw -4vw 12vw 2vw rgba(0,0,0,.82),inset 1vw 1vw 3vw rgba(255,255,255,.3),0 0 3vw rgba(64,148,255,.22),0 0 9vw rgba(214,183,122,.12)!important;
+}
+main[data-apex-app="planetapex"] .pa-home-planet .pa-world-controls,
+main[data-apex-app="planetapex"] .pa-home-planet .pa-region-panel{
+ width:min(92vw,720px)!important;max-width:720px!important;
+}
+main[data-apex-app="planetapex"] .pa-home-planet .pa-region-pins{border-radius:50%;overflow:hidden}
+main[data-apex-app="planetapex"] .pa-home-copy{max-width:1000px!important;width:min(94vw,1000px)!important}
+@media(min-width:1000px){
+ main[data-apex-app="planetapex"] .pa-home-planet .planet-stage{width:min(78vw,1000px)!important}
+}
+@media(max-width:600px){
+ main[data-apex-app="planetapex"] .pa-home-planet{gap:10px!important}
+ main[data-apex-app="planetapex"] .pa-home-planet .planet-stage{width:96vw!important}
+ main[data-apex-app="planetapex"] .pa-home-planet .pa-world-controls{width:94vw!important}
+}
+</style>
+
 </body>
 </html>
