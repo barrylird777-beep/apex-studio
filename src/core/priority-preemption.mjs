@@ -13,10 +13,14 @@ export function createPriorityPreemption({
   let paidActive = 0;
   let paidWaiting = 0;
   let paidTail = Promise.resolve();
+  let heldPaused = null;
 
   function registerBackground(jobId, child, { pause, resume } = {}) {
     if (!jobId || !child || typeof child.kill !== 'function') {
       throw new TypeError('jobId and a child process handle are required');
+    }
+    if ((typeof pause === 'function') !== (typeof resume === 'function')) {
+      throw new TypeError('pause and resume handlers must be supplied together');
     }
     const entry = { child, pause, resume };
     background.set(String(jobId), entry);
@@ -113,14 +117,19 @@ export function createPriorityPreemption({
     await previous;
     let paused = [];
     try {
-      paused = await pauseBackground();
+      // Keep the background lane checkpointed across an already-queued paid task.
+      // This avoids resuming a swarm job for a few milliseconds between paid requests.
+      paused = heldPaused || await pauseBackground();
+      heldPaused = null;
       paidActive = 1;
       return await task();
     } finally {
       paidActive = 0;
       paidWaiting -= 1;
-      try { await resumeBackground(paused); }
-      finally { release(); }
+      try {
+        if (paidWaiting > 0) heldPaused = paused;
+        else await resumeBackground(paused);
+      } finally { release(); }
     }
   }
 
