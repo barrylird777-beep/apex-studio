@@ -56,8 +56,13 @@ async function issueLicense(env, claims) {
   const signature = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, key, signingInput));
   return "v1." + payload + "." + encode64(signature);
 }
+async function readJson(request) {
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > 8192) throw Object.assign(new Error("Request too large"), { status: 413 });
+  try { return JSON.parse(raw); } catch { throw Object.assign(new Error("Invalid JSON"), { status: 400 }); }
+}
 async function createCheckout(request, env, origin) {
-  const body = await request.json();
+  const body = await readJson(request);
   const product = PRODUCTS[body?.appId];
   if (!product || body?.entitlement !== product.entitlement) return json({ error: "Unknown premium operation" }, 400, origin);
   const priceId = env[product.priceEnv];
@@ -76,7 +81,7 @@ async function createCheckout(request, env, origin) {
   return json({ checkoutUrl: session.url, sessionId: session.id, appId: body.appId, entitlement: product.entitlement }, 200, origin);
 }
 async function issueFromPaidSession(request, env, origin) {
-  const body = await request.json();
+  const body = await readJson(request);
   const sessionId = body?.sessionId;
   if (typeof sessionId !== "string" || !/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionId)) return json({ error: "Invalid Checkout Session ID" }, 400, origin);
   const session = await stripeRequest(env, "checkout/sessions/" + encodeURIComponent(sessionId));
@@ -106,8 +111,7 @@ export default {
     if (request.method === "OPTIONS" && origin) return new Response(null, { status: 204, headers: { "access-control-allow-origin": origin, "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "content-type", "access-control-max-age": "600", vary: "Origin" } });
     if (!origin) return json({ error: "Origin not allowed" }, 403);
     if (request.method !== "POST" || !["/checkout", "/license"].includes(url.pathname)) return json({ error: "not found" }, 404, origin);
-    if (Number(request.headers.get("Content-Length") || 0) > 8192) return json({ error: "Request too large" }, 413, origin);
     try { return url.pathname === "/checkout" ? await createCheckout(request, env, origin) : await issueFromPaidSession(request, env, origin); }
-    catch (error) { return json({ error: String(error?.message || "billing request failed") }, 502, origin); }
+    catch (error) { return json({ error: String(error?.message || "billing request failed") }, Number(error?.status) || 502, origin); }
   }
 };
