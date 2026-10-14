@@ -168,6 +168,10 @@ async function main() {
     });
   }
 
+  if (!peerStorageRuntime.enabled) {
+    throw new Error('peer-owned storage is disabled; daemon refuses to accept work without verified peer storage');
+  }
+
   await peerNode.start();
   if (stopping) {
     await peerNode.stop().catch(() => {});
