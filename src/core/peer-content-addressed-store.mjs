@@ -335,6 +335,9 @@ export function createPeerObjectStorageHandler({
     return {
       durable: verified,
       ownership: verified ? 'peer-owned' : 'unverified',
+      recoveryVerified: verified,
+      restartRecoveryVerified: verified,
+      atomicReferencesVerified: verified,
       ...(verified && typeof proof.receiptId === 'string' && proof.receiptId ? { receiptId: proof.receiptId } : {})
     };
   };
