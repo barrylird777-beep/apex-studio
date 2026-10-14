@@ -137,6 +137,7 @@ async function main() {
   await engine.ready();
   if (stopping) return;
   peerStorageRuntime = await initializePeerObjectStorage({
+    enabled: false,
     peerId: () => peerNode?.peerId?.toString?.() || ''
   });
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
