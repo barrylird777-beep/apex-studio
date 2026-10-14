@@ -31,7 +31,13 @@ def _get(path: str) -> bytes:
         with urlopen(req, timeout=60) as response:
             if response.status != 200:
                 raise RuntimeError("Peer-CAS bridge returned non-200")
-            chunks = bytearray()\n            while True:\n                chunk = response.read(32 * 1024)\n                if not chunk:\n                    break\n                chunks.extend(chunk)\n            return bytes(chunks)
+            chunks = bytearray()
+            while True:
+                chunk = response.read(32 * 1024)
+                if not chunk:
+                    break
+                chunks.extend(chunk)
+            return bytes(chunks)
     except (HTTPError, URLError) as exc:
         raise RuntimeError("Peer-CAS retrieval failed closed") from exc
 
@@ -56,7 +62,8 @@ def manifest() -> dict:
     return value
 
 def file_bytes(item: dict) -> bytes:
-    query = urlencode({"model_id": MODEL_ID, "revision": REVISION})\n    data = _get("/v1/peer-cas/blobs/" + item["sha256"] + "?" + query)
+    query = urlencode({"model_id": MODEL_ID, "revision": REVISION})
+    data = _get("/v1/peer-cas/blobs/" + item["sha256"] + "?" + query)
     if len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise RuntimeError("Peer-CAS file integrity check failed")
     return data
