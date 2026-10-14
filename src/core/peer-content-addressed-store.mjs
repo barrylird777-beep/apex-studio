@@ -320,19 +320,24 @@ export function createPeerObjectStorageHandler({
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
   const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function';
-  const capacityReceipt = async () => {
-    if (!hasReferenceBackend || typeof store.health !== 'function') {
+  const capacityReceipt = async (namespace, expectedPeerId) => {
+    if (!hasReferenceBackend || typeof store.health !== 'function' ||
+        typeof store.verifyDurabilityReceipt !== 'function') {
       return { durable: false, ownership: 'unverified' };
     }
-    const proof = await store.health();
+    const proof = await store.health({ namespace, peerId: expectedPeerId });
     const verified = proof?.durable === true && proof?.ownership === 'peer-owned'
-      && proof?.restartRecoveryVerified === true && proof?.atomicReferencesVerified === true;
+      && proof?.restartRecoveryVerified === true && proof?.atomicReferencesVerified === true
+      && proof?.peerId === expectedPeerId && proof?.namespace === namespace
+      && proof?.receipt && await store.verifyDurabilityReceipt(proof.receipt, {
+        namespace, peerId: expectedPeerId, restartRecoveryVerified: true, atomicReferencesVerified: true
+      }) === true;
     return {
       durable: verified,
       ownership: verified ? 'peer-owned' : 'unverified',
       ...(verified && typeof proof.receiptId === 'string' && proof.receiptId ? { receiptId: proof.receiptId } : {})
     };
-  }
+  };
   const validHash = value => /^[a-f0-9]{64}$/.test(String(value || ''));
 
   return async function handlePeerObjectStorage(envelope, { remotePeerId = '' } = {}) {
@@ -350,7 +355,7 @@ export function createPeerObjectStorageHandler({
     if (!localPeerId) throw new Error('local peer identity is not ready');
 
     if (operation === 'storage.health') {
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt() };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt(envelope.namespace, localPeerId) };
     }
 
     if (operation === 'object.put') {
