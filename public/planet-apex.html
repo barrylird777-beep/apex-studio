@@ -216,6 +216,18 @@ button:hover,button:active{transform:none!important}
     0 0 48px 7px rgba(38,108,220,.14)!important;
 }
 
+
+/* Real Earth surface: NASA's VIIRS Blue Marble photograph, not vector land shapes. */
+.pa-home-planet .planet{
+  background:#000 url("https://images-assets.nasa.gov/image/PIA18033/PIA18033~orig.jpg") center center / 100% 100% no-repeat!important;
+  box-shadow:0 0 0 1px rgba(172,211,255,.28),0 0 30px 4px rgba(63,130,220,.18),0 0 72px 10px rgba(24,73,153,.12)!important;
+  overflow:hidden!important;
+}
+.pa-home-planet .planet:before,
+.pa-home-planet .land,
+.pa-home-planet .clouds,
+.pa-home-planet .atmosphere{display:none!important}
+
 </style>
 </head>
 <body>
