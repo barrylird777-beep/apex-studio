@@ -69,3 +69,13 @@ test('rejects unsafe asset paths before publishing any bundle', async () => {
     { path: '../weights.safetensors', bytes: Buffer.from('x') }
   ], { modelId: 'example/model', revision: 'r1' }), /invalid or duplicate/);
 });
+
+
+test('rejects SentencePiece-only bundles before publishing because the in-memory adapter requires tokenizer.json', async () => {
+  const store = memoryPeerCAS();
+  const unsupported = assets().filter(file => file.path !== 'tokenizer.json');
+  unsupported.push({ path: 'tokenizer.model', bytes: Buffer.from('sentencepiece bytes') });
+  await assert.rejects(publishPeerModelBundle(store, unsupported, {
+    modelId: 'model-a', revision: 'r1'
+  }), /tokenizer.json/);
+});
