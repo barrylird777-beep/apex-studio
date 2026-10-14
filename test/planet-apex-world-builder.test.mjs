@@ -6,47 +6,19 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("PlanetApeX world builder is wired to authenticated durable record endpoints", async () => {
+test("PlanetApeX opens on one realistic centered planet and nothing else", async () => {
   const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
-  assert.match(html, /\/api\/apex\/apps\/planet-apex\/status/);
-  assert.match(html, /\/api\/mobile\/apps\/planet-apex\/records\//);
-  assert.match(html, /\/api\/mobile\/apps\/planet-apex\/records["']/);
-  assert.match(html, /method:"PUT"/);
-  assert.match(html, /x-apex-shortcut-token/);
-  assert.match(html, /sessionStorage/);
-  assert.match(html, /Save world/);
-  assert.match(html, /Load by ID/);
-  assert.match(html, /List saved worlds/);
-  assert.doesNotMatch(html, /localStorage/);
-});
-
-test("PlanetApeX record IDs match the durable fabric's safe key format", async () => {
-  const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
-  assert.match(html, /function validId/);
-  assert.match(html, /!id\.includes\("\.\."\)/);
-});
-
-
-test("PlanetApeX canonical interface excludes the rejected Kornworld redesign and preserves core destinations", async () => {
-  const html = await fs.readFile(path.join(root, "public", "planet-apex.html"), "utf8");
-  assert.match(html, /<title>PlanetApeX — Universe, Scripture & Research<\/title>/);
+  assert.match(html, /<title>PlanetApeX<\/title>/);
+  assert.match(html, /html,body\{width:100%;height:100%;margin:0;overflow:hidden;background:#02050b\}/);
+  assert.match(html, /body\{display:grid;place-items:center/);
+  assert.match(html, /<main aria-label="PlanetApeX">/);
+  assert.match(html, /<div class="planet" role="img" aria-label="One large realistic blue planet, centered against deep black space">/);
+  assert.match(html, /class="land"/);
+  assert.match(html, /class="clouds"/);
+  assert.match(html, /class="atmosphere"/);
+  assert.match(html, /radial-gradient/);
+  assert.match(html, /feTurbulence/);
   assert.doesNotMatch(html, /kornworld|kw-command|kw-earth-photo|jpegPIA18033\.jpg/i);
-  assert.match(html, /class="[^"]*\bpa-home-planet\b/, "the realistic planet remains the centered visual centerpiece");
-  assert.match(html, /class="planet"/, "the planet visual must be present in the full study interface");
-  assert.match(html, /Study the text\./);
-  assert.match(html, /Trace the evidence\./);
-  assert.match(html, /GardenApeX/);
-  assert.match(html, /class="pa-quick-index"/);
-  assert.doesNotMatch(html, /kw-bottom-nav/);
-  assert.match(html, /id="analytics"/);
-  assert.match(html, /id="scripture"/);
-  assert.match(html, /id="research"/);
-  assert.match(html, /id="garden"/);
-  assert.match(html, /id="world-tools"/);
-  assert.match(html, /id="pa-life-toggle"/);
-  assert.match(html, /id="pa-life-step"/);
-  assert.match(html, /id="pa-life-reset"/);
-  assert.match(html, /id="save"/);
-  assert.match(html, /id="load"/);
-  assert.match(html, /id="list"/);
+  assert.doesNotMatch(html, /<nav\b|<button\b|<input\b|<h1\b|pa-quick-index|GardenApeX|Study the text|Trace the evidence/i);
+  assert.equal((html.match(/class="planet"/g) || []).length, 1, "only one planet is shown");
 });
