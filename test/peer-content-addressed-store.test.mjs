@@ -361,6 +361,9 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, context);
   assert.equal(health.durable, true);
   assert.equal(health.ownership, 'peer-owned');
+  assert.equal(health.recoveryVerified, true);
+  assert.equal(health.restartRecoveryVerified, true);
+  assert.equal(health.atomicReferencesVerified, true);
   assert.equal(health.receiptId, 'test-proof-1');
 
   const refBytes = Buffer.from('canonical reference bytes');
@@ -390,6 +393,7 @@ test('peer CAS never advertises durability for a volatile backend', async () => 
   const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, { remotePeerId: 'writer-peer' });
   assert.equal(health.durable, false);
   assert.equal(health.ownership, 'unverified');
+  assert.equal(health.recoveryVerified, false);
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
     /verified durable peer-owned storage/
