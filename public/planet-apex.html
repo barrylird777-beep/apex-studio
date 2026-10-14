@@ -915,5 +915,46 @@ html.pa-world-immersive body{overflow-x:hidden}
 })();
 </script>
 
+
+<style id="pa-viewport-fill-correction">
+/* At default scale, let the globe cover the viewport's longest dimension. Pinch inward reveals space. */
+.pa-home-planet.pa-world-immersive-host .planet{
+ width:max(100svh,100vw)!important;height:max(100svh,100vw)!important;
+}
+.pa-home-planet.pa-world-immersive-host .planet-stage{overscroll-behavior:contain}
+.pa-home-planet.pa-world-immersive-host .pa-region-pins{clip-path:none!important}
+</style>
+<script id="pa-pinch-drag-coordination">
+(function(){
+ const host=document.querySelector('.pa-home-planet'),stage=host&&host.querySelector('.planet-stage'),planet=stage&&stage.querySelector('.planet');
+ if(!host||!stage||!planet)return;
+ let pts=new Map(),pinchDistance=0,pinchZoom=1,pinching=false;
+ const readout=host.querySelector('.pa-world-readout');
+ const currentZoom=()=>parseFloat(planet.style.getPropertyValue('--pa-zoom'))||1;
+ function setZoom(z){z=Math.max(.25,Math.min(3.5,z));planet.style.setProperty('--pa-zoom',z.toFixed(2));if(readout)readout.textContent='World scale · '+Math.round(z*100)+'%'}
+ function dist(){const p=[...pts.values()];return p.length<2?0:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)}
+ stage.addEventListener('pointerdown',e=>{
+  if(e.target.closest('button'))return;
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size===2){pinching=true;pinchDistance=dist();pinchZoom=currentZoom();stage.classList.remove('pa-dragging');}
+ },true);
+ stage.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId))return;
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size>=2){if(!pinching){pinching=true;pinchDistance=dist();pinchZoom=currentZoom()}
+   if(pinchDistance>0)setZoom(pinchZoom*dist()/pinchDistance);
+   e.preventDefault();
+  }
+ },{capture:true,passive:false});
+ function up(e){pts.delete(e.pointerId);if(pts.size<2){pinching=false;pinchDistance=0}}
+ stage.addEventListener('pointerup',up,true);stage.addEventListener('pointercancel',up,true);stage.addEventListener('lostpointercapture',up,true);
+ // Keep the original one-finger drag, but prevent its handler from rotating during a two-finger pinch.
+ const oldMove=stage.onpointermove;
+ stage.addEventListener('pointermove',e=>{if(pinching)e.stopImmediatePropagation()},true);
+ // Start with the globe filling the viewport; pinch inward can reveal its full circular edge.
+ setZoom(1);
+})();
+</script>
+
 </body>
 </html>
