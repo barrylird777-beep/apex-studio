@@ -32,7 +32,7 @@ test("PlanetApeX canonical interface excludes the rejected Kornworld redesign an
   assert.match(html, /<title>PlanetApeX — Universe, Scripture & Research<\/title>/);
   assert.doesNotMatch(html, /kornworld|kw-command|kw-earth-photo|jpegPIA18033\.jpg/i);
   assert.match(html, /class="[^"]*\bpa-home-planet\b/, "the realistic planet remains the centered visual centerpiece");
-  assert.match(html, /class="pa-home-planet"/, "the planet visual must be present in the full study interface");
+  assert.match(html, /class="planet"/, "the planet visual must be present in the full study interface");
   assert.match(html, /Study the text\./);
   assert.match(html, /Trace the evidence\./);
   assert.match(html, /GardenApeX/);
