@@ -338,6 +338,7 @@ export function createPeerObjectStorageHandler({
       recoveryVerified: verified,
       restartRecoveryVerified: verified,
       atomicReferencesVerified: verified,
+      ...(verified ? { receipt: proof.receipt } : {}),
       ...(verified && typeof proof.receiptId === 'string' && proof.receiptId ? { receiptId: proof.receiptId } : {})
     };
   };
