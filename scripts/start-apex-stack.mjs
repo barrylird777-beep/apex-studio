@@ -2,9 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { migrateSovereignStorage } from "../src/core/sovereign-storage-migration.mjs";
 import { reportStorageFootprint } from "./report-storage-footprint.mjs";
-import { archiveLegacyPgdata } from "./archive-legacy-pgdata.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const apiScript = path.join(root, "server.mjs");
@@ -85,23 +83,6 @@ function finishIfStopped() {
 
 process.once("SIGTERM", () => stopAll(0, "SIGTERM"));
 process.once("SIGINT", () => stopAll(0, "SIGINT"));
-try {
-  const migration = await migrateSovereignStorage();
-  console.log("[APEX STACK] persistent sovereign storage ready", JSON.stringify({ migrated: migration.migrated, copiedFiles: migration.copied.length }));
-  if (String(process.env.APEX_ARCHIVE_LEGACY_PGDATA || "").toLowerCase() === "true") {
-    try {
-      const result = await archiveLegacyPgdata({ prune: String(process.env.APEX_PRUNE_LEGACY_PGDATA || "").toLowerCase() === "true" });
-      console.log("[APEX STACK] legacy PostgreSQL archive result", JSON.stringify(result));
-    } catch (error) {
-      // Archival failure must never delete the source or prevent the application from starting.
-      console.error("[APEX STACK] legacy PostgreSQL archive failed; source preserved", String(error?.stack || error));
-    }
-  }
-  console.log("[APEX STACK] read-only storage footprint", JSON.stringify(await reportStorageFootprint()));
-} catch (error) {
-  console.error("[APEX STACK] persistent sovereign storage migration failed closed", error);
-  process.exitCode = 1;
-  throw error;
-}
+console.log("[APEX STACK] supervisor will not migrate local storage or archive PostgreSQL data; runtime migration remains a separate legacy blocker.");
 startApi();
 startRuntime();
