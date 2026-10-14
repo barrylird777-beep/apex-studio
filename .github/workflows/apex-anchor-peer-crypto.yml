@@ -4,6 +4,8 @@ on:
     branches: ["apex-anchor-phase-1-monetization"]
     paths:
       - "public/apex-anchor-crypto.js"
+      - "public/apex-peer-encrypted-store.js"
+      - "test/apex-peer-encrypted-store.test.mjs"
       - "test/apex-anchor-crypto.test.mjs"
       - "public/apex-license-verify.js"
       - "test/apex-license-verify.test.mjs"
@@ -41,4 +43,4 @@ jobs:
           node-version: "22.x"
       - run: node --check edge/apex-signal-worker.mjs
       - run: node --check edge/apex-billing-worker.mjs
-      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs test/apex-billing-webhook.test.mjs test/apex-billing-flow.test.mjs
+      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-peer-encrypted-store.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs test/apex-billing-webhook.test.mjs test/apex-billing-flow.test.mjs
