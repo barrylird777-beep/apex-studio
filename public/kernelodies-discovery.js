@@ -51,6 +51,23 @@
       const meta = element("span", [item.genre, item.releaseDate ? String(item.releaseDate).slice(0, 10) : "", item.source || "Apple iTunes Search API"].filter(Boolean).join(" · "), "kl-track-meta");
       body.append(title, artist, meta);
       if (item.previewUrl) {
+        const playInPlayer = element("button", "Play in player");
+        playInPlayer.type = "button";
+        playInPlayer.style.marginTop = "8px";
+        playInPlayer.addEventListener("click", async () => {
+          const player = $("kl-global-audio");
+          if (!player) return;
+          player.src = item.previewUrl;
+          $("kl-now-title").textContent = item.title || "Untitled track";
+          $("kl-now-artist").textContent = item.artist || "Unknown artist";
+          try {
+            await player.play();
+            $("kd-status").textContent = "Now playing: " + (item.title || "Untitled track");
+          } catch (_error) {
+            $("kd-status").textContent = "Track loaded in the listening bar. Tap play to start.";
+          }
+        });
+        body.append(playInPlayer);
         const audio = element("audio");
         audio.controls = true;
         audio.preload = "none";
@@ -58,6 +75,7 @@
         audio.style.display = "block";
         audio.style.width = "100%";
         audio.style.marginTop = "8px";
+        audio.setAttribute("aria-label", "Preview " + (item.title || "track"));
         body.append(audio);
       }
       if (item.trackUrl) {
