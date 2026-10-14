@@ -343,9 +343,9 @@ export class PeerContentAddressedStore {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (results.length < this.replicaCount) {
-      const error = new Error('peer reference read did not reach the required verified replica count');
-      error.code = 'INSUFFICIENT_REPLICAS';
+    if (results.length === 0) {
+      const error = new Error('peer reference was not recoverable from any verified peer');
+      error.code = 'OBJECT_UNAVAILABLE';
       error.failures = failures;
       throw error;
     }
