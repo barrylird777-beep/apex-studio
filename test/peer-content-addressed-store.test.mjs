@@ -99,6 +99,29 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.equal(mesh.stores.get('peer-a').objects.get(result.hash).includes(Buffer.from('manuscript')), false);
 });
 
+test('peer CAS atomically replicates mutable references and recovers them from a surviving peer', async () => {
+  const mesh = makeMesh();
+  const manifest = { version: 1, app: 'PlanetApeX', projectId: 'project-1', assets: [{ id: 'cover', hash: 'a'.repeat(64) }] };
+  const saved = await mesh.client.writeRef('project-project-1', manifest);
+  assert.equal(saved.replicas.length, 2);
+  const restored = await mesh.client.readRef('project-project-1');
+  assert.deepEqual(restored.value, manifest);
+  assert.equal(restored.hash, saved.hash);
+  mesh.unavailable.add('peer-a');
+  assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
+});
+
+test('peer CAS refuses to choose between divergent mutable references', async () => {
+  const mesh = makeMesh();
+  await mesh.client.writeRef('project-project-2', { version: 1, app: 'PlanetApeX', assets: [] });
+  const store = mesh.stores.get('peer-b');
+  const conflicting = Buffer.from((await import('../src/core/apex-cbor.mjs')).encodeCanonical({ version: 1, app: 'PlanetApeX', assets: [{ id: 'unexpected' }] }));
+  const { createHash } = await import('node:crypto');
+  const hash = createHash('sha256').update(conflicting).digest('hex');
+  await store.writeRef('PlanetApeX', 'project-project-2', (await mesh.client.readRef('project-project-2')).hash, hash, conflicting).catch(() => {});
+  await assert.rejects(mesh.client.readRef('project-project-2'), error => error.code === 'REFERENCE_DIVERGENCE');
+});
+
 test('peer CAS fails closed when the configured replica count cannot be met', async () => {
   const mesh = makeMesh();
   mesh.unavailable.add('peer-b');
