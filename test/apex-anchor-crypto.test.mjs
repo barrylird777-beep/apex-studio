@@ -6,7 +6,7 @@ test("encrypted peer chunks round-trip and preserve integrity", async () => {
   const original = new Uint8Array(70001);
   for (let i = 0; i < original.length; i++) original[i] = (i * 31) % 251;
   const manifest = await encryptPeerObject({
-    namespace: "kernel-vision",
+    namespace: "KernelVision",
     secret: "test-only-secret-2026",
     data: original,
     chunkBytes: 16384
@@ -18,7 +18,7 @@ test("encrypted peer chunks round-trip and preserve integrity", async () => {
 
 test("wrong secret and tampered ciphertext are rejected", async () => {
   const manifest = await encryptPeerObject({
-    namespace: "kernelodies",
+    namespace: "Kernelodies",
     secret: "correct-test-secret",
     data: new TextEncoder().encode("APEX peer integrity test"),
     chunkBytes: 16384
