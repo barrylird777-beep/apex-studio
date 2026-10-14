@@ -42,9 +42,9 @@ test("every static app-page button has a corresponding script reference", async 
 
 test("dashboard browser Back and Forward events update the active page", async () => {
   const app = await readSource("src/App.tsx");
-  assert.match(app, /addEventListener\("popstate",\s*syncFromHistory\)/);
-  assert.match(app, /removeEventListener\("popstate",\s*syncFromHistory\)/);
-  assert.match(app, /pageForPath\(location\.pathname\)/);
+  assert.match(app, /addEventListener\("popstate",\s*sync\)/);
+  assert.match(app, /removeEventListener\("popstate",\s*sync\)/);
+  assert.match(app, /viewForPath\(location\.pathname\)/);
 });
 
 test("project dashboard reports failed mutations and prevents duplicate submissions", async () => {
