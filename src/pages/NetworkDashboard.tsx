@@ -52,11 +52,11 @@ function BrowserPeerTest(){
   const createPeer=()=>{
     if(pc.current)pc.current.close();
     channel.current=null;
-    const peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+    const peer=new RTCPeerConnection({iceServers:[]});
     pc.current=peer;
     peer.onconnectionstatechange=()=>setConnection(peer.connectionState);
     peer.ondatachannel=event=>attachChannel(event.channel);
-    peer.oniceconnectionstatechange=()=>{if(peer.iceConnectionState==="failed")setNote("ICE failed. This prototype has no TURN fallback; some NATs/firewalls will block direct connectivity.");};
+    peer.oniceconnectionstatechange=()=>{if(peer.iceConnectionState==="failed")setNote("ICE failed. Public STUN/TURN is disabled; direct host-candidate connectivity can fail behind NATs/firewalls.");};
     return peer;
   };
   const gather=async(peer:RTCPeerConnection)=>{
@@ -165,14 +165,14 @@ function BrowserPeerTest(){
   const close=()=>{pc.current?.close();pc.current=null;channel.current=null;setConnection("Closed");setChannelState("Closed");setPathType("Not measured");setNote("Peer connection closed. No background connection remains.");};
   useEffect(()=>{const id=window.setInterval(()=>setBufferedAmount(channel.current?.bufferedAmount??0),150);return()=>{window.clearInterval(id);pc.current?.close();};},[]);
   return <Card className="mt-6"><CardHeader><CardTitle>Browser-to-browser WebRTC proof</CardTitle></CardHeader><CardContent>
-    <p className="text-sm text-muted-foreground">Optional two-browser data-channel test with manual copy/paste signaling and a 1 MiB synthetic transfer. No media, jobs, files, or app data are routed through this prototype.</p>
+    <p className="text-sm text-muted-foreground">Direct-only two-browser data-channel test: no public STUN/TURN servers, manual copy/paste signaling, and a 1 MiB synthetic transfer. No media, jobs, files, or app data are routed through this prototype.</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Peer connection</div><b>{connection}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Data channel</div><b>{channelState}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Candidate path</div><b>{pathType}</b></div></div>
     <label className="mt-4 block text-sm font-medium" htmlFor="apex-webrtc-signal">Offer / answer JSON</label>
     <textarea id="apex-webrtc-signal" value={signal} onChange={e=>setSignal(e.target.value)} rows={5} autoCapitalize="off" spellCheck={false} className="mt-2 w-full rounded-lg border bg-background p-3 font-mono text-xs" placeholder="Generate an offer here, or paste the other browser's offer/answer." />
     <div className="mt-3 flex flex-wrap gap-2"><Button onClick={makeOffer} disabled={busy}>Create offer</Button><Button onClick={makeAnswer} disabled={busy}>Create answer from pasted offer</Button><Button onClick={applyAnswer} disabled={busy}>Apply pasted answer</Button><Button onClick={sendProbe} disabled={channelState!=="Open"||busy}>Send 16 KiB probe</Button><Button onClick={runTransfer} disabled={channelState!=="Open"||busy}>Transfer 1 MiB test</Button><Button onClick={close}>Disconnect</Button><Button onClick={async()=>{try{await navigator.clipboard.writeText(signal);setNote("Signaling JSON copied.");}catch{setNote("Clipboard unavailable. Select and copy the JSON manually.");}}} disabled={!signal}>Copy JSON</Button></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Payload bytes submitted</div><b>{sent.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Payload bytes received</div><b>{received.toLocaleString()}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Current send queue</div><b>{bufferedAmount.toLocaleString()} bytes</b><div className="text-xs text-muted-foreground">Threshold: 65,536 bytes</div></div></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Test transfer</div><b>{transferStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><b>{checksumStatus}</b></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Send rate (payload submission)</div><b>{transferRate}</b></div></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Sender SHA-256</div><code className="block break-all text-xs">{senderSha256||"Not generated"}</code></div><div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Receiver SHA-256</div><code className="block break-all text-xs">{receiverSha256||"Waiting for receiver"}</code></div></div><p role="status" className="mt-3 text-sm text-muted-foreground">{note}</p>
-    <p className="mt-2 text-xs text-muted-foreground">Security note: WebRTC encrypts data channels at the transport layer. This test does not establish libp2p peer identity, Noise authentication, mesh membership, or a production relay fallback. Never paste signaling JSON from an untrusted party.</p>
+    <p className="mt-2 text-xs text-muted-foreground">Security note: WebRTC encrypts data channels at the transport layer. This test uses no public STUN/TURN and does not establish sovereign DHT signaling, libp2p peer identity, Noise authentication, mesh membership, or a production relay path. Never paste signaling JSON from an untrusted party.</p>
   </CardContent></Card>;
 }
 
