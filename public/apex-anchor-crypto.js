@@ -5,6 +5,7 @@
 const VERSION = 1;
 const APP_NAMES = new Set(["PlanetApeX", "XShield", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"]);
 export const APEX_CHUNK_BYTES = 256 * 1024;
+export const APEX_MAX_OBJECT_BYTES = 64 * 1024 * 1024;
 
 function bytes(value) {
   if (value instanceof Uint8Array) return value;
@@ -31,6 +32,7 @@ export async function encryptPeerObject({ namespace, secret, data, chunkBytes = 
   if (!Number.isInteger(chunkBytes) || chunkBytes < 16384 || chunkBytes > APEX_CHUNK_BYTES) throw new RangeError("Invalid chunk size");
   const input = bytes(data);
   if (!input.byteLength) throw new TypeError("Empty objects are not accepted");
+  if (input.byteLength > APEX_MAX_OBJECT_BYTES) throw new RangeError("Object exceeds the 64 MiB in-memory encryption limit");
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await deriveKey(secret, salt);
   const count = Math.ceil(input.byteLength / chunkBytes);
@@ -45,7 +47,7 @@ export async function encryptPeerObject({ namespace, secret, data, chunkBytes = 
 }
 export async function decryptPeerObject({ manifest, secret }) {
   if (!manifest || manifest.version !== VERSION || manifest.algorithm !== "PBKDF2-SHA256/AES-256-GCM" || !Array.isArray(manifest.chunks)) throw new TypeError("Unsupported encrypted object manifest");
-  if (!APP_NAMES.has(manifest.namespace) || !Number.isInteger(manifest.totalBytes) || manifest.totalBytes < 1) throw new TypeError("Invalid encrypted object metadata");
+  if (!APP_NAMES.has(manifest.namespace) || !Number.isInteger(manifest.totalBytes) || manifest.totalBytes < 1 || manifest.totalBytes > APEX_MAX_OBJECT_BYTES) throw new TypeError("Invalid encrypted object metadata");
   const count = Math.ceil(manifest.totalBytes / manifest.chunkBytes);
   if (count !== manifest.chunks.length || count < 1 || count > 100000) throw new Error("Chunk count mismatch");
   const key = await deriveKey(secret, bytes(manifest.salt));
