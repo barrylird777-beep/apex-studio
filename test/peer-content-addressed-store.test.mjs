@@ -31,6 +31,24 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
   const handlers = new Map();
   for (const id of ids) {
     const store = memoryStore();
+    const refs = new Map();
+    store.readRef = async (namespace, key) => refs.get(namespace + ':' + key) ?? null;
+    store.writeRef = async (namespace, key, expectedHash, hash, bytes) => {
+      const refKey = namespace + ':' + key;
+      if ((refs.get(refKey)?.hash ?? null) !== expectedHash) throw new Error('reference compare-and-swap conflict');
+      refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
+      return { hash };
+    };
+    store.health = async ({ namespace, peerId }) => ({
+      durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
+      atomicReferencesVerified: true, peerId, namespace,
+      receipt: 'test-receipt-' + id + '-' + namespace,
+      receiptId: 'test-proof-' + id + '-' + namespace
+    });
+    store.verifyDurabilityReceipt = async (receipt, claims) =>
+      receipt === 'test-receipt-' + id + '-' + claims.namespace &&
+      claims.peerId === id && claims.namespace === 'PlanetApeX' &&
+      claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true;
     stores.set(id, store);
     handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024, authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' }));
   }
@@ -51,6 +69,23 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
   };
 }
 
+test('peer CAS refuses to count an object write from a volatile peer as durable', async () => {
+  const store = memoryStore();
+  const handler = createPeerObjectStorageHandler({
+    store, peerId: 'volatile-peer',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  const client = new PeerContentAddressedStore({
+    transport: { request: async (_peerId, envelope) => handler(envelope, { remotePeerId: 'writer-peer' }) },
+    peers: ['volatile-peer'], replicaCount: 1, namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7)
+  });
+  await assert.rejects(client.putObject({ mustNotBeCalledDurable: true }), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' &&
+    error.failures.some(failure => /unverified durability receipt/.test(failure.error))
+  );
+});
+
 test('peer CAS stores identical immutable bytes on independent peers and verifies receipts', async () => {
   const mesh = makeMesh();
   const value = { app: 'PlanetApeX', object: 'manuscript', version: 1 };
@@ -62,6 +97,29 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.equal(mesh.stores.get('peer-a').objects.has(result.hash), true);
   assert.equal(mesh.stores.get('peer-b').objects.has(result.hash), true);
   assert.equal(mesh.stores.get('peer-a').objects.get(result.hash).includes(Buffer.from('manuscript')), false);
+});
+
+test('peer CAS atomically replicates mutable references and recovers them from a surviving peer', async () => {
+  const mesh = makeMesh();
+  const manifest = { version: 1, app: 'PlanetApeX', projectId: 'project-1', assets: [{ id: 'cover', hash: 'a'.repeat(64) }] };
+  const saved = await mesh.client.writeRef('project-project-1', manifest);
+  assert.equal(saved.replicas.length, 2);
+  const restored = await mesh.client.readRef('project-project-1');
+  assert.deepEqual(restored.value, manifest);
+  assert.equal(restored.hash, saved.hash);
+  mesh.unavailable.add('peer-a');
+  assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
+});
+
+test('peer CAS refuses to choose between divergent mutable references', async () => {
+  const mesh = makeMesh();
+  await mesh.client.writeRef('project-project-2', { version: 1, app: 'PlanetApeX', assets: [] });
+  const store = mesh.stores.get('peer-b');
+  const conflicting = Buffer.from((await import('../src/core/apex-cbor.mjs')).encodeCanonical({ version: 1, app: 'PlanetApeX', assets: [{ id: 'unexpected' }] }));
+  const { createHash } = await import('node:crypto');
+  const hash = createHash('sha256').update(conflicting).digest('hex');
+  await store.writeRef('PlanetApeX', 'project-project-2', (await mesh.client.readRef('project-project-2')).hash, hash, conflicting).catch(() => {});
+  await assert.rejects(mesh.client.readRef('project-project-2'), error => error.code === 'REFERENCE_DIVERGENCE');
 });
 
 test('peer CAS fails closed when the configured replica count cannot be met', async () => {
@@ -312,4 +370,116 @@ test('single-replica durability policy does not require failure-domain labels', 
   const receipt = await client.putObject({ noDomainMapNeeded: true });
   assert.equal(receipt.replicas.length, 1);
   assert.deepEqual(await client.getObject(receipt.hash), { noDomainMapNeeded: true });
+});
+
+test('peer CAS protocol exposes durable health and atomic namespaced references only for verified peer-owned backends', async () => {
+  const objects = new Map();
+  const refs = new Map();
+  const durableStore = {
+    durable: true,
+    ownership: 'peer-owned',
+    async health({ namespace, peerId }) {
+      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, peerId, namespace, receipt: 'signed-test-receipt', receiptId: 'test-proof-1' };
+    },
+    async verifyDurabilityReceipt(receipt, claims) {
+      return receipt === 'signed-test-receipt' && claims.peerId === 'capacity-peer' &&
+        claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
+        claims.atomicReferencesVerified === true;
+    },
+    async putBytes(hash, input) {
+      const bytes = Buffer.from(input);
+      assert.equal(digest(bytes), hash);
+      objects.set(hash, bytes);
+      return { hash, bytes: bytes.length };
+    },
+    async getBytes(hash) {
+      if (!objects.has(hash)) throw Object.assign(new Error('not found'), { code: 'ENOENT' });
+      return Buffer.from(objects.get(hash));
+    },
+    async readRef(namespace, key) {
+      const value = refs.get(namespace + ':' + key);
+      return value ? { hash: value.hash, bytes: Buffer.from(value.bytes) } : null;
+    },
+    async writeRef(namespace, key, expectedHash, hash, input) {
+      const refKey = namespace + ':' + key;
+      const current = refs.get(refKey);
+      if ((current?.hash ?? null) !== expectedHash) throw new Error('reference compare-and-swap conflict');
+      const bytes = Buffer.from(input);
+      assert.equal(digest(bytes), hash);
+      refs.set(refKey, { hash, bytes });
+      return { hash };
+    }
+  };
+  const handler = createPeerObjectStorageHandler({
+    store: durableStore,
+    peerId: 'capacity-peer',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  const context = { remotePeerId: 'writer-peer' };
+  const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, context);
+  assert.equal(health.durable, true);
+  assert.equal(health.ownership, 'peer-owned');
+  assert.equal(health.recoveryVerified, true);
+  assert.equal(health.restartRecoveryVerified, true);
+  assert.equal(health.atomicReferencesVerified, true);
+  assert.equal(health.receiptId, 'test-proof-1');
+
+  const refBytes = Buffer.from('canonical reference bytes');
+  const hash = digest(refBytes);
+  const written = await handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context);
+  assert.equal(written.hash, hash);
+  assert.equal(written.durable, true);
+  const read = await handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context);
+  assert.equal(read.hash, hash);
+  assert.equal(Buffer.from(read.bytesBase64, 'base64').toString(), refBytes.toString());
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context),
+    /compare-and-swap conflict/
+  );
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'KashKorner', key: 'root' }, context),
+    /namespace access denied/
+  );
+});
+
+test('peer CAS never advertises durability for a volatile backend', async () => {
+  const handler = createPeerObjectStorageHandler({
+    store: memoryStore(),
+    peerId: 'volatile-peer',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, { remotePeerId: 'writer-peer' });
+  assert.equal(health.durable, false);
+  assert.equal(health.ownership, 'unverified');
+  assert.equal(health.recoveryVerified, false);
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
+    /verified durable peer-owned storage/
+  );
+});
+
+
+test('peer CAS rejects unverified durability claims even when backend self-labels as durable', async () => {
+  const store = {
+    ...memoryStore(),
+    durable: true,
+    ownership: 'peer-owned',
+    async health({ namespace, peerId }) {
+      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, namespace, peerId, receipt: 'forged', receiptId: 'untrusted' };
+    },
+    async readRef() { return null; },
+    async writeRef() { throw new Error('must not reach unverified reference backend'); }
+  };
+  const handler = createPeerObjectStorageHandler({
+    store,
+    peerId: 'capacity-peer',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, { remotePeerId: 'writer-peer' });
+  assert.equal(health.durable, false);
+  assert.equal(health.ownership, 'unverified');
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
+    /verified durable peer-owned storage/
+  );
 });
