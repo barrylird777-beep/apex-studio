@@ -1,0 +1,4 @@
+name = "apex-anchor-billing"
+main = "apex-billing-worker.mjs"
+compatibility_date = "2026-10-14"
+workers_dev = true
