@@ -59,7 +59,7 @@ import { createShieldApex } from './src/core/shield-apex.mjs';
 import { fetchWithRetry } from './src/core/fetch-with-retry.mjs';
 import { createApexSecurityHeaders, createHttpsOnlyRedirect, isCorsOriginAllowed } from './src/security/http-hardening.mjs';
 import { normalizeAutonomousAiPayload } from './src/security/ai-trust-boundary.mjs';
-import { createGuardedFetch, sanitizeOutboundPayload } from './src/security/sovereign-outbound-gateway.mjs';
+import { createGuardedFetch, sanitizeOutboundPayload, validateSovereignInferenceTarget } from './src/security/sovereign-outbound-gateway.mjs';
 import { createOwnerSessionToken, hasValidOwnerSession, isOwnerAuthConfigured, ownerSessionClearCookie, ownerSessionSetCookie, verifyOwnerPassword } from './src/security/owner-session-auth.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2171,14 +2171,19 @@ const outboundProviderHosts = [
 ];
 const guardedProviderFetch = createGuardedFetch(outboundProviderHosts);
 async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
-  const target = new URL(url);
+  const target = validateSovereignInferenceTarget(new URL(url));
   let fetchImpl = guardedProviderFetch;
+  const sovereignOnly = String(process.env.APEX_SOVEREIGN_INFERENCE_ONLY || '').toLowerCase() === 'true';
+  const trustedBases = [
+    process.env.APEX_SOVEREIGN_INFERENCE_BASE_URL,
+    process.env.APEX_VLLM_BASE_URL,
+    process.env.OLLAMA_BASE_URL
+  ].filter(Boolean).map(value => new URL(value));
+  const trustedOrigin = trustedBases.some(base => base.origin === target.origin);
   const ollamaBase = String(process.env.OLLAMA_BASE_URL || '').trim();
-  if (ollamaBase) {
-    const local = new URL(ollamaBase);
-    if (target.origin === local.origin && target.pathname.startsWith('/api/')) {
-      fetchImpl = (input, init = {}) => globalThis.fetch(input, { ...init, redirect: 'error' });
-    }
+  if ((sovereignOnly && (trustedOrigin || ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname))) ||
+      (ollamaBase && target.origin === new URL(ollamaBase).origin && target.pathname.startsWith('/api/'))) {
+    fetchImpl = (input, init = {}) => globalThis.fetch(input, { ...init, redirect: 'error' });
   }
   const guardedOptions = { ...options, redirect: 'error' };
   if (typeof guardedOptions.body === 'string') {
