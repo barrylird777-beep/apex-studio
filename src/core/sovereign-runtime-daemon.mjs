@@ -44,6 +44,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
     if (!peerStorageRuntime.enabled) throw new Error('peer object storage is disabled');
     return peerStorageRuntime.handle(envelope, { remotePeerId });
   }
+  if (!runtimeReadiness.peerStorageVerified) throw new Error('peer-owned storage is not verified; refusing work before sovereign storage readiness');
   if (!envelope || !['durable.accept', 'durable.read', 'edge.heartbeat'].includes(envelope.type)) {
     throw new Error('unsupported sovereign envelope');
   }
@@ -149,9 +150,11 @@ async function main() {
 
   // Configure the peer-owned backend before the node accepts inbound envelopes.
   if (String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true') {
-    const backendModule = String(process.env.APEX_PEER_STORAGE_BACKEND_MODULE || '').trim();
-    if (!backendModule) throw new Error('APEX_PEER_STORAGE_BACKEND_MODULE is required when peer storage is enabled; no local fallback is permitted');
-    const moduleUrl = pathToFileURL(path.resolve(backendModule)).href;
+    const configuredBackendModule = String(process.env.APEX_PEER_STORAGE_BACKEND_MODULE || '').trim();
+    const backendModule = configuredBackendModule
+      ? path.resolve(configuredBackendModule)
+      : new URL('./peer-owned-binary-backend.mjs', import.meta.url).pathname;
+    const moduleUrl = pathToFileURL(backendModule).href;
     const backendFactory = await import(moduleUrl);
     if (typeof backendFactory.createPeerOwnedBinaryBackend !== 'function') {
       throw new Error('peer backend module must export createPeerOwnedBinaryBackend({ peerId, namespaceAcl })');
