@@ -128,7 +128,83 @@ button{transition:none!important;transform:none!important}button:hover{transform
 ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-thumb{background:#4a5438;border-radius:2px}::-webkit-scrollbar-track{background:transparent}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
-</head><body><a class="apex-skip-link" href="#apex-main">Skip to Kernelodies content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" aria-current="page" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="kernelodies" id="apex-main" tabindex="-1"><header class="kl-topline"><div class="kl-brandline"><span class="kl-brand-disc" aria-hidden="true"></span><div><div class="kl-top-tag">APEX ANCHOR · THE EARS</div><h1 id="kl-title">Kernelodies</h1><p>Listen, discover, and build your music library.</p></div></div><div class="kl-top-actions"><a class="kl-search-pill" href="#kd-query">Search music</a></div></header><nav class="kl-chiprow" aria-label="Music sections"><a href="#kernelodies-discovery">For you</a><a href="#kd-results">Discover</a><a href="#kernelodies-library">Your library</a><a href="#kd-playlists">Playlists</a><a href="#tracks">Create music</a></nav><div class="kl-section-head"><div><h2>Find your next favorite</h2><p>Search songs and albums, preview available tracks, and save what you love.</p></div></div><div class="grid"><section class="card"><h2>Track Forge</h2><label>Content domain<select id="content-domain"><option value="bible">Bible</option><option value="korn">Jesus Freaks · 432 Hz only</option><option value="original">Original</option></select></label><p id="tuning-note">Bible content domain.</p><label>Title<input id="title" value="Apex Theme"></label><label>Prompt<textarea id="prompt" rows="4">cinematic dark-fantasy anime score, sacred atmosphere</textarea></label><button id="add">Create track concept</button><div id="tracks" aria-live="polite"></div><pre id="track-storage-status">Open Phone Control in this tab to connect the durable track library.</pre></section><section class="card"><h2>Runtime</h2><pre id="status">Checking…</pre></section><section class="card" id="kernelodies-discovery">
+
+<style id="kernelodies-listening-room-refresh">
+/* 2026-10-13: Kernelodies-specific listening-room hierarchy; behavior and data flows preserved. */
+body:has(main[data-apex-app="kernelodies"]){--kl-bg:#080a0b;--kl-panel:#111519;--kl-line:#283039;--kl-text:#f5f7fb;--kl-muted:#9aa6b4;--kl-green:#b9f56a;background:radial-gradient(70rem 34rem at 76% -12%,rgba(83,127,173,.18),transparent 64%),radial-gradient(45rem 24rem at 8% 16%,rgba(174,239,88,.075),transparent 65%),#080a0b;color:var(--kl-text)}
+body:has(main[data-apex-app="kernelodies"]) .apex-app-nav{border-bottom-color:#252d35;background:rgba(8,10,12,.91)!important;gap:17px;padding-top:12px;padding-bottom:12px}
+body:has(main[data-apex-app="kernelodies"]) .apex-app-brand-mark{border-radius:50%;box-shadow:0 0 22px rgba(185,245,106,.15)}
+body:has(main[data-apex-app="kernelodies"]) main{padding-top:30px!important}
+body:has(main[data-apex-app="kernelodies"]) .kl-topline{border:0;margin:0 0 25px;align-items:center}
+body:has(main[data-apex-app="kernelodies"]) .kl-brandline{gap:16px}
+body:has(main[data-apex-app="kernelodies"]) .kl-brand-disc{width:58px;height:58px;background:radial-gradient(circle at center,#0b0d0d 0 9%,#b9f56a 10% 13%,#242b30 14% 29%,#080a0b 30% 37%,#a9e957 38% 40%,#151a1e 41% 100%);border:1px solid #526344;box-shadow:0 0 0 5px rgba(185,245,106,.035),0 0 35px rgba(185,245,106,.1)}
+body:has(main[data-apex-app="kernelodies"]) .kl-top-tag{font-size:10px;letter-spacing:.19em;color:#c5f887}
+body:has(main[data-apex-app="kernelodies"]) .kl-brandline h1{font-size:clamp(32px,5vw,51px);letter-spacing:-.065em;font-weight:760}
+body:has(main[data-apex-app="kernelodies"]) .kl-brandline p{font-size:13px;margin-top:8px;color:#a4afbc}
+body:has(main[data-apex-app="kernelodies"]) .kl-search-pill{height:42px;width:min(28vw,270px);border-radius:999px;background:#11161a;border-color:#303a43;color:#d0d9e1}
+body:has(main[data-apex-app="kernelodies"]) .kl-chiprow{gap:9px;padding:0 0 22px;border-bottom:1px solid #242c32}
+body:has(main[data-apex-app="kernelodies"]) .kl-chiprow a{padding:9px 15px;border-radius:999px;border-color:#303a40;background:#11161a;color:#d1d9df;font-size:12px;transition:background .18s,border-color .18s}
+body:has(main[data-apex-app="kernelodies"]) .kl-chiprow a:first-child{background:#c4f77c;border-color:#c4f77c;color:#10160d}
+body:has(main[data-apex-app="kernelodies"]) .kl-section-head{margin:28px 0 14px}
+body:has(main[data-apex-app="kernelodies"]) .kl-section-head h2{font-size:clamp(22px,3vw,30px);letter-spacing:-.055em;font-weight:730}
+body:has(main[data-apex-app="kernelodies"]) .kl-section-head p{font-size:13px;color:#9ba8b5}
+body:has(main[data-apex-app="kernelodies"]) .grid{gap:15px}
+body:has(main[data-apex-app="kernelodies"]) .grid>.card{border:1px solid #29323a;border-radius:16px;background:linear-gradient(145deg,rgba(22,28,33,.96),rgba(12,15,18,.98));box-shadow:0 18px 45px rgba(0,0,0,.19);padding:21px}
+body:has(main[data-apex-app="kernelodies"]) #kernelodies-discovery{position:relative;overflow:hidden;background:radial-gradient(ellipse at 100% 0,rgba(128,174,92,.15),transparent 42%),linear-gradient(145deg,#172027,#0d1114 74%);border-color:#344149}
+body:has(main[data-apex-app="kernelodies"]) #kernelodies-discovery:before{content:"KERNELodies  /  MUSIC DISCOVERY";display:block;color:#c3f780;font-size:9px;font-weight:800;letter-spacing:.2em;margin-bottom:12px}
+body:has(main[data-apex-app="kernelodies"]) #kernelodies-discovery>h2{font-size:23px;letter-spacing:-.05em}
+body:has(main[data-apex-app="kernelodies"]) .grid>.card h2{font-size:18px;letter-spacing:-.04em;font-weight:720}
+body:has(main[data-apex-app="kernelodies"]) .grid>.card p{line-height:1.65;color:#a2aeba}
+body:has(main[data-apex-app="kernelodies"]) .kl-controls{grid-template-columns:minmax(0,1fr) 155px;gap:12px}
+body:has(main[data-apex-app="kernelodies"]) label{color:#c9d2dc;font-size:11px;letter-spacing:.015em}
+body:has(main[data-apex-app="kernelodies"]) :is(input,textarea,select){padding:12px 13px;background:#090d10;border:1px solid #303b44;border-radius:10px;color:#f4f7fa}
+body:has(main[data-apex-app="kernelodies"]) :is(input,textarea,select):focus{border-color:#b9f56a;box-shadow:0 0 0 3px rgba(185,245,106,.09);outline:0}
+body:has(main[data-apex-app="kernelodies"]) .apex-shell button{min-height:38px;padding:10px 15px;background:#c4f77c;border:1px solid #c4f77c;border-radius:999px;color:#10160d;font-weight:750}
+body:has(main[data-apex-app="kernelodies"]) .apex-shell button:hover:not(:disabled){background:#d8ffa0}
+body:has(main[data-apex-app="kernelodies"]) .track{padding:12px;border:1px solid #2a353c;border-radius:12px;background:linear-gradient(110deg,#10171b,#0b0f12);gap:13px}
+body:has(main[data-apex-app="kernelodies"]) .track img{width:68px;height:68px;border-radius:9px}
+body:has(main[data-apex-app="kernelodies"]) .track strong{font-size:13px;letter-spacing:-.015em}
+body:has(main[data-apex-app="kernelodies"]) .track span{color:#b0bbc5;line-height:1.5}
+body:has(main[data-apex-app="kernelodies"]) .track .kl-track-meta{color:#81909c;font-size:10px}
+body:has(main[data-apex-app="kernelodies"]) .track audio{accent-color:#c4f77c}
+body:has(main[data-apex-app="kernelodies"]) .apex-shell a{color:#c4f77c}
+body:has(main[data-apex-app="kernelodies"]) #kernelodies-library{background:linear-gradient(160deg,#171c20,#0e1215);border-color:#303a42}
+body:has(main[data-apex-app="kernelodies"]) #kernelodies-library h2{font-size:19px}
+body:has(main[data-apex-app="kernelodies"]) #kernelodies-library .track{align-items:flex-start}
+body:has(main[data-apex-app="kernelodies"]) #status,body:has(main[data-apex-app="kernelodies"]) #track-storage-status{line-height:1.65;color:#aab6c0}
+body:has(main[data-apex-app="kernelodies"]) pre{background:#090d10;border:1px solid #28323a;border-radius:10px;padding:13px;color:#9daeb9}
+body:has(main[data-apex-app="kernelodies"]) .kl-playerbar{grid-template-columns:minmax(0,1fr) minmax(110px,.7fr) minmax(0,1fr);padding:12px max(16px,calc((100vw - 1440px)/2));gap:18px;background:rgba(9,12,14,.94);border:1px solid #303a42;border-bottom:0;border-radius:18px 18px 0 0;box-shadow:0 -12px 45px rgba(0,0,0,.38);backdrop-filter:blur(24px);padding-bottom:max(12px,env(safe-area-inset-bottom))}
+body:has(main[data-apex-app="kernelodies"]) .kl-player-art{width:44px;height:44px;border-radius:10px;background:radial-gradient(circle at 35% 25%,#b9f56a,#33492d 48%,#151d20 80%);color:#0d120b}
+body:has(main[data-apex-app="kernelodies"]) .kl-player-now strong{font-size:12px;color:#f1f5f8}
+body:has(main[data-apex-app="kernelodies"]) .kl-player-now span{font-size:10px;color:#98a5af}
+body:has(main[data-apex-app="kernelodies"]) .apex-app-footer{border-color:#29323a;color:#788793}
+@media(max-width:850px){
+ body:has(main[data-apex-app="kernelodies"]) main{padding-top:21px!important}
+ body:has(main[data-apex-app="kernelodies"]) .grid{gap:12px}
+ body:has(main[data-apex-app="kernelodies"]) .grid>.card{padding:16px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-playerbar{grid-template-columns:minmax(0,1fr) auto;gap:10px}
+}
+@media(max-width:520px){
+ body:has(main[data-apex-app="kernelodies"]) main{padding-left:13px!important;padding-right:13px!important;padding-bottom:124px!important}
+ body:has(main[data-apex-app="kernelodies"]) .apex-app-nav{gap:13px;padding:10px 12px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-topline{align-items:flex-start;margin-bottom:18px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-brand-disc{width:43px;height:43px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-brandline{gap:11px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-brandline h1{font-size:31px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-brandline p{font-size:11px;max-width:190px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-search-pill{width:40px;min-width:40px;height:40px;padding:0;justify-content:center;font-size:0}
+ body:has(main[data-apex-app="kernelodies"]) .kl-chiprow{gap:7px;padding-bottom:17px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-chiprow a{padding:8px 12px;font-size:11px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-controls{grid-template-columns:minmax(0,1fr) 105px;gap:7px}
+ body:has(main[data-apex-app="kernelodies"]) .grid>.card{padding:14px;border-radius:13px}
+ body:has(main[data-apex-app="kernelodies"]) .track{gap:9px;padding:9px}
+ body:has(main[data-apex-app="kernelodies"]) .track img{width:56px;height:56px}
+ body:has(main[data-apex-app="kernelodies"]) .kl-playerbar{padding:9px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));border-radius:14px 14px 0 0}
+ body:has(main[data-apex-app="kernelodies"]) .kl-player-art{width:36px;height:36px}
+}
+@media(prefers-reduced-motion:reduce){body:has(main[data-apex-app="kernelodies"]) *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
+</head><body><a class="apex-skip-link" href="#apex-main">Skip to Kernelodies content</a><nav class="apex-app-nav" aria-label="Six canonical apps"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;font-weight:600;letter-spacing:.04em;color:#8e9bb0;margin-top:2px">SIX CANONICAL APPS</small></span></a><a href="/kernel-vision.html" title="THE EYES · Production & media studio">KernelVision</a><a href="/xshield.html" title="THE SHIELD · Security & privacy">XShield</a><a href="/kernelodies.html" aria-current="page" title="THE EARS · Music & discovery">Kernelodies</a><a href="/planet-apex.html" title="THE BRAIN · Scripture, research & universe">PlanetApeX</a><a href="/kash-korner.html" title="MONEY · Ledger & financial tools">KashKorner</a><a href="/koin-kob.html" title="ECONOMY · Markets & simulations">KoinKob</a></nav><script src="/api-auth-bridge.js"></script><main class="apex-shell" data-apex-app="kernelodies" id="apex-main" tabindex="-1"><header class="kl-topline"><div class="kl-brandline"><span class="kl-brand-disc" aria-hidden="true"></span><div><div class="kl-top-tag">APEX ANCHOR · THE EARS</div><h1 id="kl-title">Kernelodies</h1><p>Listen, discover, and build your music library.</p></div></div><div class="kl-top-actions"><a class="kl-search-pill" href="#kd-query">Search music</a></div></header><nav class="kl-chiprow" aria-label="Music sections"><a href="#kernelodies-discovery">For you</a><a href="#kd-results">Discover</a><a href="#kernelodies-library">Your library</a><a href="#kd-playlists">Playlists</a><a href="#tracks">Create music</a></nav><div class="kl-section-head"><div><h2>Find your next favorite</h2><p>Search songs and albums, preview available tracks, and save what you love.</p></div></div><div class="grid"><section class="card"><h2>Create your sound</h2><label>Content domain<select id="content-domain"><option value="bible">Bible</option><option value="korn">Jesus Freaks · 432 Hz only</option><option value="original">Original</option></select></label><p id="tuning-note">Bible content domain.</p><label>Title<input id="title" value="Apex Theme"></label><label>Prompt<textarea id="prompt" rows="4">cinematic dark-fantasy anime score, sacred atmosphere</textarea></label><button id="add">Create track concept</button><div id="tracks" aria-live="polite"></div><pre id="track-storage-status">Open Phone Control in this tab to connect the durable track library.</pre></section><section class="card"><h2>Connection status</h2><pre id="status">Checking…</pre></section><section class="card" id="kernelodies-discovery">
 <h2>Music Radar · Public Catalog</h2>
 <p>Search tracks and albums, listen to available previews, save discoveries in Kernelodies peer storage, and build local playlists. Spotify account sync is not configured here.</p>
 <div class="kl-controls">
