@@ -9,6 +9,7 @@ export function isSovereignRuntimeReady(identity, now = Date.now(), expectedInst
     && readiness?.storageReady === true
     && readiness?.peerReady === true
     && readiness?.remotePersistenceVerified === true
+    && readiness?.peerStorageVerified === true
     && readiness?.dispatchReady === true
     && /^[0-9a-f]{64}$/i.test(String(readiness?.remotePersistenceHash || ""));
 }
