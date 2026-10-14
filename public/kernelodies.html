@@ -1,195 +1,39 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#10100f">
-<meta name="description" content="Kernelodies — listen deeply, discover new music, and build your own library.">
-<title>Kernelodies — Music for your world</title>
-<link rel="stylesheet" href="/apex-six-apps.css">
-<link rel="stylesheet" href="/apex-ui-controls.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10100f"><meta name="description" content="Kernelodies — your music, your world. Listen, discover, collect.">
+<title>Kernelodies — Your world. Your sound.</title>
+<link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css">
 <style>
-:root{color-scheme:dark;--bg:#0b0c0b;--panel:#151715;--panel2:#1d201c;--line:#30342d;--ink:#f6f5ef;--muted:#a5a99e;--acid:#d8ff68;--acid2:#b9e64d;--violet:#b6a4ff;--radius:18px}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:86px}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;letter-spacing:-.01em}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(ellipse at 76% 0%,rgba(151,174,89,.09),transparent 35%),radial-gradient(ellipse at 5% 55%,rgba(117,99,178,.06),transparent 40%)}
-a{color:inherit;text-decoration:none}
-button,input,textarea,select{font:inherit}
-button{cursor:pointer}
-.apex-skip-link{position:absolute;left:-9999px}
-.apex-app-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:18px;overflow-x:auto;white-space:nowrap;padding:11px max(16px,calc((100vw - 1320px)/2));background:rgba(11,12,11,.92)!important;border-bottom:1px solid #282b25;backdrop-filter:blur(22px);scrollbar-width:none}
-.apex-app-nav::-webkit-scrollbar{display:none}
-.apex-app-nav a{color:#aeb2a7;font-size:11px}
-.apex-app-nav a[aria-current=page]{color:var(--acid);font-weight:800}
-.apex-app-nav .apex-app-brand{display:flex;align-items:center;gap:8px;margin-right:auto;color:#f5f6ef;font-size:12px}
-.apex-app-nav>a:not(.apex-app-brand){display:none}
-.kl-app-more{position:relative;flex:0 0 auto}
-.kl-app-more summary{list-style:none;cursor:pointer;color:#b9bdb2;border:1px solid #34382e;border-radius:999px;padding:8px 12px;font-size:11px}
-.kl-app-more summary::-webkit-details-marker{display:none}
-.kl-app-more[open] .kl-app-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:100;display:grid;min-width:180px;gap:0;padding:7px;border:1px solid #34382e;border-radius:14px;background:#171a15;box-shadow:0 16px 42px #0009}
-.kl-app-menu a{padding:11px 12px;border-radius:8px;color:#c8ccbf;font-size:12px}
-.kl-app-menu a:hover{background:#24291d;color:var(--acid)}
-.kl-more-tools{margin:28px 0 8px;border:1px solid #30342c;border-radius:18px;background:#121410}
-.kl-more-tools>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 19px;cursor:pointer;list-style:none;color:#e9ebdf;font-size:13px;font-weight:700}
-.kl-more-tools>summary::-webkit-details-marker{display:none}
-.kl-more-tools>summary span{color:#929888;font-size:11px;font-weight:500;text-align:right}
-.kl-more-tools[open]>summary{border-bottom:1px solid #30342c}
-.kl-more-tools .kl-section{margin:0;padding:18px;border:0}
-.apex-app-brand-mark{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:var(--acid);color:#11140b;font-weight:950}
-main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 160px!important}
-.kl-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0 25px}
-.kl-logo{display:flex;align-items:center;gap:12px;min-width:0}
-.kl-logo-mark{width:44px;height:44px;display:grid;place-items:center;border-radius:50%;color:#11140b;background:var(--acid);font-size:21px;font-weight:900;box-shadow:0 0 34px #d8ff6819}
-.kl-wordmark{font-size:27px;font-weight:850;letter-spacing:-.075em;line-height:1}
-.kl-tagline{font-size:11px;color:var(--muted);margin-top:5px}
-.kl-header-right{display:flex;align-items:center;gap:10px}
-.kl-avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#24271f;border:1px solid #424737;color:var(--acid);font-weight:800}
-.kl-welcome{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:30px 0 19px}
-.kl-eyebrow{font-size:10px;letter-spacing:.2em;text-transform:uppercase;font-weight:800;color:var(--acid)}
-.kl-welcome h1{font-size:clamp(32px,5vw,54px);letter-spacing:-.075em;line-height:.98;margin:10px 0 9px;font-weight:780}
-.kl-welcome p{margin:0;color:var(--muted);font-size:13px}
-.kl-search{display:flex;align-items:center;gap:10px;width:min(390px,45%);padding:0 15px;height:46px;border:1px solid #363a31;border-radius:999px;background:#151714;color:#8f9587}
-.kl-search span{font-size:19px}
-.kl-search input{width:100%;min-width:0;background:transparent;border:0;outline:0;color:var(--ink);font-size:12px}
-.kl-tabs{display:flex;gap:8px;overflow:auto;padding:2px 0 17px;border-bottom:1px solid #292c26;scrollbar-width:none}
-.kl-tabs a{flex:0 0 auto;padding:8px 14px;border-radius:999px;color:#b9bdb2;background:#161814;border:1px solid #2c3028;font-size:11px;font-weight:650}
-.kl-tabs a:first-child{background:var(--acid);border-color:var(--acid);color:#13170b}
-.kl-section{margin-top:28px}
-.kl-section-title{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:14px}
-.kl-section-title h2{font-size:21px;letter-spacing:-.055em;margin:0;font-weight:760}
-.kl-section-title p{margin:4px 0 0;color:var(--muted);font-size:12px}
-.kl-small-link{font-size:11px;color:var(--acid);font-weight:700}
-.kl-feature{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(280px,.88fr);min-height:300px;border:1px solid #3b4031;border-radius:24px;overflow:hidden;background:#151812;box-shadow:0 24px 80px #0005}
-.kl-feature-copy{padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;background:radial-gradient(ellipse at 12% 0%,#d8ff6812,transparent 55%),linear-gradient(135deg,#1a1d16,#11130f)}
-.kl-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #465032;border-radius:999px;color:var(--acid);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
-.kl-pill:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--acid);box-shadow:0 0 10px var(--acid)}
-.kl-feature h2{font-size:clamp(31px,4.5vw,54px);letter-spacing:-.075em;line-height:.97;margin:18px 0 12px;max-width:490px}
-.kl-feature p{font-size:13px;color:#aeb2a4;max-width:380px;margin:0 0 22px}
-.kl-actions{display:flex;gap:9px;flex-wrap:wrap}
-.kl-btn{min-height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--acid);background:var(--acid);color:#11140a;font-size:11px;font-weight:850;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-.kl-btn:hover{background:#e6ff9d}
-.kl-btn.secondary{background:#22251e;border-color:#3a4030;color:#e9ecdf}
-.kl-btn.secondary:hover{background:#2a2e23}
-.kl-art-stage{position:relative;min-height:280px;overflow:hidden;background:radial-gradient(ellipse at 50% 50%,#b2d55e 0,#687d3c 13%,#29351f 31%,#141a15 56%,#0c0e0b 78%)}
-.kl-art-stage:before{content:"";position:absolute;width:78%;aspect-ratio:1;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);background:repeating-radial-gradient(circle,#171a15 0 3px,#292e24 4px 5px,#0d100c 6px 9px);border:1px solid #71854b;box-shadow:0 0 0 14px #b9e64d08,0 0 70px #c6f56720}
-.kl-art-stage:after{content:"KERNEL\A ODIES";white-space:pre;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-12deg);font-size:clamp(31px,4vw,58px);font-weight:950;letter-spacing:-.1em;line-height:.8;text-align:center;color:#e2ff94;text-shadow:0 3px 20px #0b0e0a}
-.kl-art-note{position:absolute;z-index:2;left:18px;bottom:18px;font-size:9px;letter-spacing:.18em;color:#d5e5ba;text-transform:uppercase}
-.kl-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-.kl-tile{min-width:0}
-.kl-cover{position:relative;aspect-ratio:1/1;border-radius:15px;overflow:hidden;background:#20241b;border:1px solid #353a2d;margin-bottom:11px}
-.kl-cover:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 24%,#e3ffad,transparent 16%),linear-gradient(135deg,#56683c,#20271c 47%,#0c100c)}
-.kl-cover.c2:before{background:radial-gradient(circle at 66% 33%,#b6a4ff,transparent 17%),linear-gradient(145deg,#29253d,#14121e 60%,#0c0b12)}
-.kl-cover.c3:before{background:repeating-linear-gradient(135deg,#e4b66b 0 2px,#242018 2px 13px,#0d0e0c 13px 24px)}
-.kl-cover.c4:before{background:radial-gradient(ellipse at 50% 50%,#c6e7dc 0 8%,transparent 9%),repeating-radial-gradient(circle at 50% 50%,#1d4b43 0 8px,#0d1716 9px 17px)}
-.kl-cover-glyph{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(40px,6vw,72px);font-weight:950;letter-spacing:-.1em;color:#f2ffdf;mix-blend-mode:screen;text-shadow:0 5px 25px #0007}
-.kl-tile h3{font-size:13px;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.025em}
-.kl-tile p{font-size:11px;color:var(--muted);margin:0}
-.kl-card{min-width:0;border:1px solid #30342c;border-radius:18px;background:linear-gradient(145deg,#171a15,#11130f);padding:20px}
-.kl-card h2,.kl-card h3{margin:0 0 8px;font-size:17px;letter-spacing:-.045em}
-.kl-card>p{font-size:12px;color:var(--muted);margin:0 0 14px}
-.kl-two-col{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:14px;align-items:start}
-.kl-field-grid{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px}
-.kl-card label{display:block;font-size:11px;color:#c6c9bc;font-weight:650;margin:10px 0 5px}
-.kl-card input,.kl-card textarea,.kl-card select{width:100%;min-width:0;background:#0c0e0b;border:1px solid #363b30;border-radius:10px;color:#f3f5ea;padding:11px 12px;margin:6px 0 9px;font-size:12px}
-.kl-card textarea{resize:vertical}
-.kl-card input:focus,.kl-card textarea:focus,.kl-card select:focus{outline:2px solid #d8ff6870;border-color:var(--acid)}
-.kl-card button{font-size:11px;font-weight:800}
-.kl-card button:disabled{opacity:.5;cursor:wait}
-#kd-status,#kl-status,#track-storage-status,#tuning-note,#status{font-size:11px;color:#a5ad99;overflow-wrap:anywhere;line-height:1.6}
-#kd-results,#kd-saved,#kd-playlists,#tracks,#kl-tracks{display:grid;gap:9px;margin-top:13px}
-.track{display:flex;align-items:center;gap:12px;min-width:0;padding:11px;border:1px solid #30362b;border-radius:13px;background:#0e100d}
-.track[hidden]{display:none}
-.track img{flex:0 0 auto;object-fit:cover;width:70px;height:70px;border-radius:9px}
-.track>div{min-width:0;flex:1}
-.track strong{display:block;font-size:12px;line-height:1.4;overflow-wrap:anywhere;color:#f5f6ef}
-.track span{display:block;color:#b4b8aa;font-size:11px;margin-top:3px;overflow-wrap:anywhere}
-.track .kl-track-meta{font-size:10px;color:#8d9585}
-.track audio{display:block;width:100%;height:32px;margin-top:8px;accent-color:var(--acid)}
-.track button{margin:8px 5px 0 0;min-height:33px;padding:7px 12px;border-radius:999px;background:#25291f;border:1px solid #414834;color:var(--acid)}
-.track a{display:inline-block;font-size:10px;color:var(--acid);margin:8px 10px 0 0}
-.track button:hover{background:#343b28}
-.kl-runtime{margin-top:14px;border:1px solid #30342c;border-radius:14px;padding:13px 16px;color:#a5ad99;font-size:11px}
-.kl-runtime summary{cursor:pointer;font-weight:750}
-.kl-runtime pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;color:#a5ad99;background:#0b0d0a;padding:12px;border-radius:9px}
-.kl-playerbar{position:fixed;z-index:80;bottom:0;left:0;right:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,1.1fr) minmax(0,1fr);align-items:center;gap:18px;padding:12px max(14px,calc((100vw - 1320px)/2));padding-bottom:max(12px,env(safe-area-inset-bottom));background:rgba(16,18,15,.95);border-top:1px solid #3a4030;backdrop-filter:blur(24px);box-shadow:0 -12px 45px #0005}
-.kl-player-now{display:flex;align-items:center;gap:11px;min-width:0}
-.kl-player-art{width:46px;height:46px;flex:0 0 auto;display:grid;place-items:center;border-radius:10px;background:radial-gradient(circle at 35% 25%,#d8ff68,#5d7134 45%,#1b2116 80%);color:#12150c;font-size:21px;font-weight:900}
-.kl-player-now strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kl-player-now span{display:block;font-size:10px;color:#9ba292}
-.kl-player-center{min-width:0;text-align:center}
-#kl-global-audio{width:100%;height:34px;max-width:430px;accent-color:var(--acid)}
-.kl-player-right{text-align:right;color:#9ca28f;font-size:10px}
-.kl-player-right strong{display:block;color:var(--acid);font-size:10px;letter-spacing:.14em}
-.apex-app-footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#73796b;font-size:10px;margin-top:30px;border-top:1px solid #282c24;padding-top:15px}
-@media(max-width:900px){.kl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.kl-feature{grid-template-columns:minmax(0,1fr) minmax(220px,.8fr)}.kl-playerbar{grid-template-columns:minmax(0,1fr) minmax(150px,.9fr)}.kl-player-right{display:none}}
-@media(max-width:650px){main{padding:20px 14px 150px!important}.apex-app-nav{gap:13px;padding:10px 12px}.apex-app-nav a{font-size:10px}.apex-app-nav .apex-app-brand{margin-right:1px}.apex-app-brand-mark{width:25px;height:25px}.kl-header{margin-top:2px}.kl-wordmark{font-size:24px}.kl-logo-mark{width:38px;height:38px}.kl-tagline{font-size:10px}.kl-welcome{display:block;margin:25px 0 18px}.kl-welcome h1{font-size:38px}.kl-search{width:100%;margin-top:18px;height:44px}.kl-feature{grid-template-columns:1fr;min-height:0}.kl-feature-copy{padding:27px 23px}.kl-feature h2{font-size:40px}.kl-art-stage{min-height:205px;grid-row:1}.kl-art-stage:before{width:58%}.kl-art-stage:after{font-size:42px}.kl-section{margin-top:25px}.kl-grid{gap:17px 12px}.kl-cover{border-radius:12px}.kl-two-col{grid-template-columns:1fr}.kl-card{padding:16px}.kl-field-grid{grid-template-columns:minmax(0,1fr) 110px}.kl-playerbar{grid-template-columns:minmax(0,1fr) minmax(120px,.9fr);gap:10px;padding:9px 12px;padding-bottom:max(9px,env(safe-area-inset-bottom));}.kl-player-art{width:36px;height:36px}.kl-player-now strong{max-width:45vw}.kl-player-now span{max-width:45vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#kl-global-audio{height:30px}.kl-player-center{text-align:right}}
-@media(max-width:380px){.kl-wordmark{font-size:21px}.kl-logo{gap:8px}.kl-logo-mark{width:34px;height:34px}.kl-feature h2{font-size:34px}.kl-field-grid{grid-template-columns:1fr}.kl-grid{gap:15px 10px}.kl-playerbar{grid-template-columns:minmax(0,1fr) 112px;gap:7px;padding-left:9px;padding-right:9px}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+:root{color-scheme:dark;--bg:#0b0b0d;--panel:#17171b;--panel2:#222228;--line:#33333b;--ink:#f8f7fb;--muted:#a4a2ad;--lime:#d7ff62;--pink:#ff5e9b;--violet:#a78bfa;--r:20px}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:85px}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Display",Inter,sans-serif;letter-spacing:-.015em}body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(ellipse at 85% -5%,#a78bfa19,transparent 36%),radial-gradient(ellipse at 0% 45%,#d7ff620b,transparent 40%)}a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}button{cursor:pointer}.apex-skip-link{position:absolute;left:-9999px}
+.apex-app-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:15px;overflow:visible;padding:10px max(15px,calc((100vw - 1220px)/2));background:#0b0b0def!important;border-bottom:1px solid #29292f;backdrop-filter:blur(22px)}.apex-app-nav>a:not(.apex-app-brand){display:none}.apex-app-nav .apex-app-brand{display:flex;align-items:center;gap:8px;margin-right:auto;font-size:11px;color:#f7f6f1}.apex-app-brand-mark{display:grid;place-items:center;width:27px;height:27px;border-radius:9px;background:var(--lime);color:#10110b;font-weight:950}.kl-app-more{position:relative}.kl-app-more summary{list-style:none;border:1px solid #383840;border-radius:999px;padding:7px 12px;font-size:11px;color:#c7c5d0;cursor:pointer}.kl-app-more summary::-webkit-details-marker{display:none}.kl-app-more[open] .kl-app-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:100;display:grid;min-width:190px;padding:7px;background:#19191e;border:1px solid #393940;border-radius:14px;box-shadow:0 20px 55px #000b}.kl-app-menu a{padding:10px 12px;border-radius:8px;font-size:12px;color:#d0ced8}.kl-app-menu a:hover{background:#29292f;color:var(--lime)}
+main{width:min(1220px,100%);margin:auto;padding:25px clamp(14px,3vw,36px) 155px!important}.kl-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:5px 0 28px}.kl-logo{display:flex;align-items:center;gap:11px}.kl-logo-mark{width:43px;height:43px;display:grid;place-items:center;border-radius:14px;background:var(--lime);color:#10110b;font-size:23px;font-weight:900;box-shadow:0 0 35px #d7ff6218}.kl-wordmark{font-size:27px;font-weight:850;letter-spacing:-.08em;line-height:1}.kl-tagline{font-size:10px;color:var(--muted);margin-top:5px}.kl-header-right{display:flex;align-items:center;gap:9px}.kl-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #42434b;border-radius:999px;color:#d1cfd8;font-size:9px;letter-spacing:.13em;text-transform:uppercase;font-weight:800}.kl-pill:before{content:"";width:5px;height:5px;background:var(--lime);border-radius:50%;box-shadow:0 0 10px var(--lime)}.kl-avatar{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#292930;border:1px solid #41414a;color:var(--lime);font-weight:800}
+.kl-welcome{display:flex;align-items:end;justify-content:space-between;gap:22px;margin:22px 0 25px}.kl-eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:var(--lime);font-weight:850}.kl-welcome h1{font-size:clamp(36px,5.8vw,66px);line-height:.98;letter-spacing:-.085em;margin:12px 0;font-weight:820;max-width:700px}.kl-welcome p{color:var(--muted);margin:0;font-size:13px}.kl-search{display:flex;align-items:center;gap:10px;width:min(360px,43%);height:46px;padding:0 15px;background:#19191e;border:1px solid #36363e;border-radius:999px;color:#aaa8b4}.kl-search span{font-size:21px}.kl-search input{min-width:0;width:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:12px}.kl-tabs{display:flex;gap:23px;overflow:auto;border-bottom:1px solid #2b2b32;padding:0 2px 15px;margin-bottom:25px;scrollbar-width:none}.kl-tabs a{flex:0 0 auto;color:#aaa8b4;font-size:12px;font-weight:650}.kl-tabs a:first-child{color:var(--lime)}.kl-section{margin-top:30px}.kl-section-title{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:15px}.kl-section-title h2{font-size:23px;letter-spacing:-.06em;margin:0;font-weight:780}.kl-section-title p{margin:4px 0 0;font-size:12px;color:var(--muted)}.kl-small-link{font-size:9px;letter-spacing:.14em;color:var(--lime);font-weight:850;white-space:nowrap}
+.kl-feature{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(260px,.9fr);min-height:325px;overflow:hidden;border:1px solid #373740;border-radius:26px;background:#17171b;box-shadow:0 25px 90px #0005}.kl-feature-copy{padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;background:radial-gradient(ellipse at 0 0,#d7ff6210,transparent 60%),linear-gradient(140deg,#1c1c21,#121216)}.kl-feature-copy>.kl-pill{color:var(--lime);border-color:#4b5434}.kl-feature h2{font-size:clamp(36px,4.5vw,58px);letter-spacing:-.08em;line-height:.94;margin:18px 0 13px;max-width:520px}.kl-feature p{max-width:360px;color:#b5b3be;font-size:13px;margin:0 0 23px}.kl-actions{display:flex;gap:9px;flex-wrap:wrap}.kl-btn{min-height:43px;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;background:var(--lime);border:1px solid var(--lime);color:#14150d;font-size:11px;font-weight:850}.kl-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}.kl-btn.secondary{background:#26262d;border-color:#44444d;color:#f3f1f8}.kl-art-stage{position:relative;min-height:290px;overflow:hidden;background:radial-gradient(ellipse at 48% 48%,#ff8eb6 0,#a93e76 13%,#4d234a 30%,#191621 56%,#0d0d11 78%)}.kl-art-stage:before{content:"";position:absolute;width:78%;aspect-ratio:1;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-20deg);border-radius:50%;background:repeating-radial-gradient(circle,#111117 0 3px,#39303d 4px 6px,#16131b 7px 10px);border:1px solid #ff91bb;box-shadow:0 0 0 14px #ff5e9b0a,0 0 85px #ff5e9b26}.kl-art-stage:after{content:"KERNEL\A ODIES";white-space:pre;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg);font-size:clamp(38px,5vw,64px);line-height:.79;font-weight:950;letter-spacing:-.11em;text-align:center;color:#fff1f7;text-shadow:0 3px 25px #100912}.kl-art-note{position:absolute;z-index:2;left:19px;bottom:17px;font-size:9px;letter-spacing:.16em;color:#f6cfe0;text-transform:uppercase}
+.kl-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}.kl-tile{min-width:0}.kl-cover{position:relative;aspect-ratio:1;border-radius:16px;overflow:hidden;border:1px solid #373740;margin-bottom:10px;background:#202027;transition:transform .2s}.kl-tile:hover .kl-cover{transform:translateY(-3px)}.kl-cover:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 28% 23%,#e3ffad,transparent 17%),linear-gradient(135deg,#667d3c,#252c20 48%,#10110e)}.kl-cover.c2:before{background:radial-gradient(circle at 66% 33%,#c7a8ff,transparent 18%),linear-gradient(145deg,#3d315b,#171421 65%,#0c0b12)}.kl-cover.c3:before{background:repeating-linear-gradient(135deg,#efbd71 0 2px,#29221b 2px 13px,#0d0e0c 13px 24px)}.kl-cover.c4:before{background:radial-gradient(ellipse at center,#f2b4d4 0 8%,transparent 9%),repeating-radial-gradient(circle,#4a2445 0 8px,#111019 9px 17px)}.kl-cover-glyph{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(38px,5vw,65px);font-weight:950;letter-spacing:-.1em;color:#fff5f9;text-shadow:0 5px 25px #0009}.kl-tile h3{font-size:13px;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kl-tile p{font-size:11px;color:var(--muted);margin:0}
+.kl-card{min-width:0;border:1px solid #34343c;border-radius:19px;background:linear-gradient(145deg,#1a1a20,#131317);padding:20px}.kl-card h2,.kl-card h3{margin:0 0 7px;font-size:18px;letter-spacing:-.045em}.kl-card>p{font-size:12px;color:var(--muted);margin:0 0 14px}.kl-two-col{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:14px;align-items:start}.kl-field-grid{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:10px}.kl-card label{display:block;font-size:11px;color:#d0ced8;font-weight:650;margin:10px 0 5px}.kl-card input,.kl-card textarea,.kl-card select{width:100%;min-width:0;background:#0e0e12;border:1px solid #393941;border-radius:11px;color:#f6f4fb;padding:11px 12px;margin:6px 0 9px;font-size:12px}.kl-card textarea{resize:vertical}.kl-card input:focus,.kl-card textarea:focus,.kl-card select:focus{outline:2px solid #d7ff6260;border-color:var(--lime)}.kl-card button{font-size:11px;font-weight:800}.kl-card button:disabled{opacity:.5;cursor:wait}#kd-status,#kl-status,#track-storage-status,#tuning-note,#status{font-size:11px;color:#aaa9b5;overflow-wrap:anywhere;line-height:1.6}#kd-results,#kd-saved,#kd-playlists,#tracks,#kl-tracks{display:grid;gap:9px;margin-top:13px}.track{display:flex;align-items:center;gap:12px;min-width:0;padding:11px;border:1px solid #34343c;border-radius:14px;background:#111115}.track[hidden]{display:none}.track img{flex:0 0 auto;object-fit:cover;width:70px;height:70px;border-radius:10px}.track>div{min-width:0;flex:1}.track strong{display:block;font-size:12px;line-height:1.4;overflow-wrap:anywhere}.track span{display:block;color:#b9b7c2;font-size:11px;margin-top:3px;overflow-wrap:anywhere}.track .kl-track-meta{font-size:10px;color:#92909d}.track audio{display:block;width:100%;height:32px;margin-top:8px;accent-color:var(--lime)}.track button{margin:8px 5px 0 0;min-height:33px;padding:7px 12px;border-radius:999px;background:#292930;border:1px solid #45454f;color:var(--lime)}.track a{display:inline-block;font-size:10px;color:var(--lime);margin:8px 10px 0 0}.track button:hover{background:#373741}.kl-more-tools{margin:28px 0 8px;border:1px solid #34343c;border-radius:18px;background:#141418}.kl-more-tools>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 19px;cursor:pointer;list-style:none;font-size:13px;font-weight:750}.kl-more-tools>summary span+span{color:#aaa8b4;font-size:11px;font-weight:500;text-align:right}.kl-more-tools>summary::-webkit-details-marker{display:none}.kl-more-tools[open]>summary{border-bottom:1px solid #34343c}.kl-more-tools .kl-section{margin:0;padding:18px;border:0}.kl-runtime{margin-top:14px;border:1px solid #34343c;border-radius:14px;padding:13px 16px;color:#aaa9b5;font-size:11px}.kl-runtime summary{cursor:pointer;font-weight:750}.kl-runtime pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;color:#aaa9b5;background:#0b0b0e;padding:12px;border-radius:9px}.kl-playerbar{position:fixed;z-index:80;bottom:0;left:0;right:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,1.1fr) minmax(0,1fr);align-items:center;gap:18px;padding:11px max(14px,calc((100vw - 1220px)/2));padding-bottom:max(11px,env(safe-area-inset-bottom));background:#15151aef;border-top:1px solid #393941;backdrop-filter:blur(24px);box-shadow:0 -12px 45px #0007}.kl-player-now{display:flex;align-items:center;gap:11px;min-width:0}.kl-player-art{width:45px;height:45px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;background:radial-gradient(circle at 35% 25%,#ffb5d2,#963e78 45%,#251328 80%);color:white;font-size:21px;font-weight:900}.kl-player-now strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kl-player-now span{display:block;font-size:10px;color:var(--muted)}.kl-player-center{min-width:0;text-align:center}#kl-global-audio{width:100%;height:34px;max-width:430px;accent-color:var(--lime)}.kl-player-right{text-align:right;color:#aaa8b4;font-size:10px}.kl-player-right strong{display:block;color:var(--lime);font-size:10px;letter-spacing:.14em}.apex-app-footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#777582;font-size:10px;margin-top:30px;border-top:1px solid #2b2b32;padding-top:15px}
+@media(max-width:850px){.kl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.kl-feature{grid-template-columns:minmax(0,1fr) minmax(220px,.8fr)}.kl-playerbar{grid-template-columns:minmax(0,1fr) minmax(150px,.9fr)}.kl-player-right{display:none}}@media(max-width:620px){main{padding:19px 14px 145px!important}.apex-app-nav{padding:9px 12px;gap:10px}.kl-header{margin-top:1px}.kl-wordmark{font-size:24px}.kl-logo-mark{width:38px;height:38px}.kl-tagline{font-size:10px}.kl-welcome{display:block;margin:24px 0 22px}.kl-welcome h1{font-size:43px;max-width:420px}.kl-search{width:100%;margin-top:18px;height:45px}.kl-feature{grid-template-columns:1fr;min-height:0}.kl-art-stage{min-height:210px;grid-row:1}.kl-art-stage:before{width:58%}.kl-art-stage:after{font-size:43px}.kl-feature-copy{padding:26px 22px}.kl-feature h2{font-size:41px}.kl-section{margin-top:26px}.kl-grid{gap:16px 12px}.kl-cover{border-radius:13px}.kl-two-col{grid-template-columns:1fr}.kl-card{padding:16px}.kl-field-grid{grid-template-columns:minmax(0,1fr) 112px}.kl-playerbar{grid-template-columns:minmax(0,1fr) minmax(112px,.85fr);gap:9px;padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom))}.kl-player-art{width:36px;height:36px}.kl-player-now strong{max-width:43vw}.kl-player-now span{max-width:43vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#kl-global-audio{height:30px}.kl-player-center{text-align:right}}@media(max-width:380px){.kl-wordmark{font-size:21px}.kl-logo{gap:8px}.kl-logo-mark{width:34px;height:34px}.kl-feature h2{font-size:35px}.kl-field-grid{grid-template-columns:1fr}.kl-playerbar{grid-template-columns:minmax(0,1fr) 108px;gap:7px;padding-left:8px;padding-right:8px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style>
-<script src="/apex-six-apps.js" defer></script>
-<script src="/apex-ui-controls.js" defer></script>
-</head>
-<body>
+<script src="/apex-six-apps.js" defer></script><script src="/apex-ui-controls.js" defer></script>
+</head><body>
 <a class="apex-skip-link" href="#apex-main">Skip to Kernelodies</a>
-<nav class="apex-app-nav" aria-label="APEX app switcher">
-<a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR</span></a>
-<details class="kl-app-more"><summary>APEX apps ▾</summary><div class="kl-app-menu">
-<a href="/kernel-vision.html">KernelVision · Studio</a><a href="/xshield.html">XShield · Privacy</a><a href="/planet-apex.html">PlanetApeX · Research</a><a href="/kash-korner.html">KashKorner · Money</a><a href="/kernelodies.html" aria-current="page">Kernelodies · Music</a><a href="/koin-kob.html">KoinKob · Economy</a>
-</div></details>
-</nav>
+<nav class="apex-app-nav" aria-label="APEX app switcher"><a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR</span></a><details class="kl-app-more"><summary>APEX apps ▾</summary><div class="kl-app-menu"><a href="/kernel-vision.html">KernelVision · Studio</a><a href="/xshield.html">XShield · Privacy</a><a href="/planet-apex.html">PlanetApeX · Research</a><a href="/kash-korner.html">KashKorner · Money</a><a href="/kernelodies.html" aria-current="page">Kernelodies · Music</a><a href="/koin-kob.html">KoinKob · Economy</a></div></details></nav>
 <script src="/api-auth-bridge.js"></script>
 <main id="apex-main" class="apex-shell" data-apex-app="kernelodies" tabindex="-1">
-<header class="kl-header">
-  <a class="kl-logo" href="#top" aria-label="Kernelodies home"><span class="kl-logo-mark">♫</span><span><span class="kl-wordmark">kernelodies</span><span class="kl-tagline" style="display:block">Your world. Your sound.</span></span></a>
-  <div class="kl-header-right"><span class="kl-pill">THE EARS</span><span class="kl-avatar" aria-label="Your music space">K</span></div>
-</header>
-<section class="kl-welcome" id="top">
-  <div><div class="kl-eyebrow">A little louder. A little closer.</div><h1>Hear what moves you.</h1><p>Discover something new. Keep what stays with you.</p></div>
-  <label class="kl-search" aria-label="Search music"><span>⌕</span><input id="kd-query" maxlength="160" value="" placeholder="Songs, artists, albums, moods…"><input type="hidden" id="kd-entity" value="song"></label>
-</section>
-<nav class="kl-tabs" aria-label="Music navigation"><a href="#home">Home</a><a href="#discover">Search</a><a href="#your-library">Library</a></nav>
-<section id="home" class="kl-section">
-  <div class="kl-section-title"><div><h2>Made for your ears</h2><p>A listening space that feels like yours.</p></div><span class="kl-small-link">KERNELodies ORIGINAL</span></div>
-  <div class="kl-feature">
-    <div class="kl-feature-copy"><span class="kl-pill">Find your next obsession</span><h2>Press play.<br>Leave the world behind.</h2><p>From heavy riffs to quiet moments, follow your sound wherever it takes you.</p><div class="kl-actions"><button id="kl-feature-search" class="kl-btn" type="button">Explore music <span aria-hidden="true">↗</span></button><a class="kl-btn secondary" href="#your-library">Open my library</a></div></div>
-    <div class="kl-art-stage" role="img" aria-label="Original Kernelodies record-inspired artwork"><span class="kl-art-note">Listen without limits</span></div>
-  </div>
-</section>
-<section id="discover" class="kl-section">
-  <div class="kl-section-title"><div><h2>Search</h2><p>Find songs, albums, and artists.</p></div><span class="kl-small-link">01 / DISCOVER</span></div>
-  <div class="kl-card">
-    <div class="kl-field-grid"><label>Search the catalog<input id="kd-query-visible" maxlength="160" placeholder="Artist, track, album, genre…"></label><label>Explore<select id="kd-entity-visible"><option value="song">Tracks</option><option value="album">Albums</option></select></label></div>
-    <button id="kd-search" class="kl-btn" type="button">Search music</button>
-    <p id="kd-status" role="status" aria-live="polite">Search the public catalog to get started. Saving music requires your connected Kernelodies access.</p>
-    <div id="kd-results"></div>
-  </div>
-</section>
-<section id="your-library" class="kl-section">
-  <div class="kl-section-title"><div><h2>Library</h2><p>Your saved music and playlists.</p></div><span class="kl-small-link">02 / LIBRARY</span></div>
-  <div class="kl-two-col">
-    <section id="kernelodies-library" class="kl-card"></section>
-    <section class="kl-card" aria-labelledby="saved-heading"><h2 id="saved-heading">Saved discoveries</h2><p>Tracks and albums you want to come back to.</p><button id="kd-refresh-saved" class="kl-btn secondary" type="button">Refresh collection</button><div id="kd-saved"></div><hr style="border:0;border-top:1px solid #30342c;margin:22px 0"><h3 id="playlists">Your playlists</h3><label>Playlist name<input id="kd-playlist-title" maxlength="100" value="After Hours"></label><button id="kd-build-playlist" class="kl-btn" type="button">Build from saved music</button><div id="kd-playlists"></div></section>
-  </div>
-</section>
-<details id="make-music" class="kl-more-tools"><summary><span>More of your Kernelodies</span><span>Creation tools and advanced features +</span></summary><section class="kl-section">
-  <div class="kl-section-title"><div><h2>Make something that moves you</h2><p>Shape a musical idea into a track concept.</p></div><span class="kl-small-link">03 / CREATE</span></div>
-  <section class="kl-card">
-    <div class="kl-field-grid"><label>Creation lane<select id="content-domain"><option value="original">Original music</option><option value="bible">Bible-inspired</option><option value="korn">Jesus Freaks · 432 Hz only</option></select></label><label>Track title<input id="title" maxlength="160" value="Apex Theme"></label></div>
-    <label>Describe the sound<textarea id="prompt" rows="3" placeholder="Mood, instruments, energy, story…">cinematic dark-fantasy score, warm analog synths, sacred atmosphere</textarea></label>
-    <p id="tuning-note">Original music concept.</p><button id="add" class="kl-btn" type="button">Save track concept</button><p id="track-storage-status" role="status">Connect to save concepts to the shared Kernelodies library.</p><div id="tracks" aria-live="polite"></div>
-  </section>
-</section></details>
-<details class="kl-runtime"><summary>Technical connection details</summary><p>Optional diagnostics for the Kernelodies service.</p><pre id="status">Checking service status…</pre></details>
-<footer class="apex-app-footer"><span>KERNELodies · THE EARS OF APEX</span><span>Listen · Discover · Collect · Create</span></footer>
-</main>
-<aside class="kl-playerbar" aria-label="Persistent music player">
-  <div class="kl-player-now"><div class="kl-player-art" aria-hidden="true">♫</div><div><strong id="kl-now-title">Your next track goes here</strong><span id="kl-now-artist">Search music to start listening</span></div></div>
-  <div class="kl-player-center"><audio id="kl-global-audio" controls preload="none" aria-label="Now playing"></audio></div>
-  <div class="kl-player-right"><strong>YOUR SOUNDTRACK</strong><span>Kernelodies listening room</span></div>
-</aside>
-<script src="/kernelodies-library.js"></script>
-<script src="/kernelodies-discovery.js"></script>
+<header class="kl-header"><a class="kl-logo" href="#top" aria-label="Kernelodies home"><span class="kl-logo-mark">♫</span><span><span class="kl-wordmark">kernelodies</span><span class="kl-tagline" style="display:block">Your world. Your sound.</span></span></a><div class="kl-header-right"><span class="kl-pill">THE EARS OF APEX</span><span class="kl-avatar" aria-label="Your music space">K</span></div></header>
+<section class="kl-welcome" id="top"><div><div class="kl-eyebrow">Your soundtrack starts here</div><h1>Find your kind of loud.</h1><p>New discoveries. All-time favorites. One home for your sound.</p></div><label class="kl-search" aria-label="Search music"><span>⌕</span><input id="kd-query" maxlength="160" placeholder="Songs, artists, albums, moods…"><input type="hidden" id="kd-entity" value="song"></label></section>
+<nav class="kl-tabs" aria-label="Music navigation"><a href="#home">For you</a><a href="#discover">Search</a><a href="#your-library">Your library</a></nav>
+<section id="home" class="kl-section"><div class="kl-section-title"><div><h2>In your rotation</h2><p>A listening space built around the music that hits.</p></div><span class="kl-small-link">KERNELodies ORIGINAL</span></div><div class="kl-feature"><div class="kl-feature-copy"><span class="kl-pill">Meet your next favorite</span><h2>Press play.<br>Feel everything.</h2><p>From deep cuts to new obsessions, follow the sound wherever it takes you.</p><div class="kl-actions"><button id="kl-feature-search" class="kl-btn" type="button">Discover music ↗</button><a class="kl-btn secondary" href="#your-library">Open library</a></div></div><div class="kl-art-stage" role="img" aria-label="Kernelodies original record-inspired artwork"><span class="kl-art-note">Independent by design · Always yours</span></div></div></section>
+<section class="kl-section"><div class="kl-section-title"><div><h2>Pick a mood</h2><p>Four directions. Infinite rabbit holes.</p></div></div><div class="kl-grid"><a class="kl-tile" href="#discover" data-mood="Alternative"><div class="kl-cover"><span class="kl-cover-glyph">A</span></div><h3>Alternative energy</h3><p>Left of the ordinary</p></a><a class="kl-tile" href="#discover" data-mood="Electronic"><div class="kl-cover c2"><span class="kl-cover-glyph">✳</span></div><h3>After hours</h3><p>Electronic · atmospheric</p></a><a class="kl-tile" href="#discover" data-mood="Rock"><div class="kl-cover c3"><span class="kl-cover-glyph">〰</span></div><h3>Turn it up</h3><p>Rock · heavy rotation</p></a><a class="kl-tile" href="#discover" data-mood="Ambient"><div class="kl-cover c4"><span class="kl-cover-glyph">◉</span></div><h3>Find your stillness</h3><p>Ambient · deep focus</p></a></div></section>
+<section id="discover" class="kl-section"><div class="kl-section-title"><div><h2>Search music</h2><p>Look up tracks and albums in the available public catalog.</p></div><span class="kl-small-link">01 / DISCOVER</span></div><div class="kl-card"><div class="kl-field-grid"><label>What are you looking for?<input id="kd-query-visible" maxlength="160" placeholder="Artist, track, album, genre…"></label><label>Browse<select id="kd-entity-visible"><option value="song">Tracks</option><option value="album">Albums</option></select></label></div><button id="kd-search" class="kl-btn" type="button">Search music</button><p id="kd-status" role="status" aria-live="polite">Search the catalog to find your next listen. Saving requires connected Kernelodies access.</p><div id="kd-results"></div></div></section>
+<section id="your-library" class="kl-section"><div class="kl-section-title"><div><h2>Your library</h2><p>Your saved music, collected in one place.</p></div><span class="kl-small-link">02 / COLLECTION</span></div><div class="kl-two-col"><section id="kernelodies-library" class="kl-card"></section><section class="kl-card" aria-labelledby="saved-heading"><h2 id="saved-heading">Saved for later</h2><p>Return to tracks and albums that stayed with you.</p><button id="kd-refresh-saved" class="kl-btn secondary" type="button">Refresh collection</button><div id="kd-saved"></div><hr style="border:0;border-top:1px solid #34343c;margin:22px 0"><h3 id="playlists">Your playlists</h3><label>Playlist name<input id="kd-playlist-title" maxlength="100" value="After Hours"></label><button id="kd-build-playlist" class="kl-btn" type="button">Build from saved music</button><div id="kd-playlists"></div></section></div></section>
+<details id="make-music" class="kl-more-tools"><summary><span>More of your Kernelodies</span><span>Creation tools and advanced features ＋</span></summary><section class="kl-section"><div class="kl-section-title"><div><h2>Make something that moves you</h2><p>Keep the advanced creative tools tucked away until you want them.</p></div><span class="kl-small-link">03 / CREATE</span></div><section class="kl-card"><div class="kl-field-grid"><label>Creation lane<select id="content-domain"><option value="original">Original music</option><option value="bible">Bible-inspired</option><option value="korn">Jesus Freaks · 432 Hz only</option></select></label><label>Track title<input id="title" maxlength="160" value="Apex Theme"></label></div><label>Describe the sound<textarea id="prompt" rows="3" placeholder="Mood, instruments, energy, story…">cinematic dark-fantasy score, warm analog synths, sacred atmosphere</textarea></label><p id="tuning-note">Original music concept.</p><button id="add" class="kl-btn" type="button">Save track concept</button><p id="track-storage-status" role="status">Connect to save concepts to the shared Kernelodies library.</p><div id="tracks" aria-live="polite"></div></section></section></details>
+<details class="kl-runtime"><summary>Service diagnostics</summary><p>Optional technical status for troubleshooting.</p><pre id="status">Checking service status…</pre></details>
+<footer class="apex-app-footer"><span>KERNELodies · THE EARS OF APEX</span><span>Listen · Discover · Collect · Create</span></footer></main>
+<aside class="kl-playerbar" aria-label="Persistent music player"><div class="kl-player-now"><div class="kl-player-art" aria-hidden="true">♫</div><div><strong id="kl-now-title">Your next track goes here</strong><span id="kl-now-artist">Search music to start listening</span></div></div><div class="kl-player-center"><audio id="kl-global-audio" controls preload="none" aria-label="Now playing"></audio></div><div class="kl-player-right"><strong>YOUR SOUNDTRACK</strong><span>Kernelodies listening room</span></div></aside>
+<script src="/kernelodies-library.js"></script><script src="/kernelodies-discovery.js"></script>
 <script>
 const $=id=>document.getElementById(id),tokenKey="apex.phone.sessionToken";let concepts=[];
 function headers(){const token=sessionStorage.getItem(tokenKey)||"";if(!token)throw new Error("Open Phone Control in this tab and enter your control token first.");return{"x-apex-shortcut-token":token,"content-type":"application/json"}}
@@ -204,8 +48,7 @@ $("kl-feature-search").addEventListener("click",()=>{$("kd-query").value="Korn";
 $("kd-query-visible").addEventListener("input",e=>{$("kd-query").value=e.target.value});
 $("kd-entity-visible").addEventListener("change",e=>{$("kd-entity").value=e.target.value});
 $("kd-query-visible").addEventListener("keydown",e=>{if(e.key==="Enter")$("kd-search").click()});
-$("kd-query").addEventListener("input",e=>{const v=e.target.value;$("kd-query-visible").value=v});
+$("kd-query").addEventListener("input",e=>{$("kd-query-visible").value=e.target.value});
+document.querySelectorAll("[data-mood]").forEach(el=>el.addEventListener("click",()=>{const q=el.dataset.mood;$("kd-query").value=q;$("kd-query-visible").value=q;$("kd-entity").value="song";$("kd-entity-visible").value="song";setTimeout(()=>$("kd-search").click(),0)}));
 updateTuning();checkStatus();loadConcepts();
-</script>
-</body>
-</html>
+</script></body></html>
