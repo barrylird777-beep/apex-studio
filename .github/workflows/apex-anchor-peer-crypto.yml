@@ -1,4 +1,4 @@
-name: APEX ANCHOR Peer Crypto
+name: APEX ANCHOR Peer and Billing Security
 on:
   push:
     branches: ["apex-anchor-phase-1-monetization"]
@@ -10,6 +10,9 @@ on:
       - "edge/apex-signal-worker.mjs"
       - "edge/wrangler.toml"
       - "test/apex-signal-ticket.test.mjs"
+      - "edge/apex-billing-worker.mjs"
+      - "edge/billing-wrangler.toml"
+      - "test/apex-billing-webhook.test.mjs"
       - ".github/workflows/apex-anchor-peer-crypto.yml"
   pull_request:
     paths:
@@ -20,12 +23,15 @@ on:
       - "edge/apex-signal-worker.mjs"
       - "edge/wrangler.toml"
       - "test/apex-signal-ticket.test.mjs"
+      - "edge/apex-billing-worker.mjs"
+      - "edge/billing-wrangler.toml"
+      - "test/apex-billing-webhook.test.mjs"
       - ".github/workflows/apex-anchor-peer-crypto.yml"
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  peer-crypto:
+  peer-and-billing-security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,4 +39,5 @@ jobs:
         with:
           node-version: "22.x"
       - run: node --check edge/apex-signal-worker.mjs
-      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs
+      - run: node --check edge/apex-billing-worker.mjs
+      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs test/apex-billing-webhook.test.mjs
