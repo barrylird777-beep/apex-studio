@@ -82,8 +82,8 @@ export function getSovereignBootstrapPeers(value = process.env.APEX_BOOTSTRAP_PE
     }
     try { parseMultiaddr(address); }
     catch { throw new Error('Invalid literal-IP sovereign bootstrap multiaddr'); }
-    if (!/\/(?:tcp|udp)\/\d+(?:\/p2p\/[^/]+)?$/.test(address)) {
-      throw new Error('Bootstrap multiaddr must end in a TCP/UDP port and optional peer ID');
+    if (!/\/tcp\/\d+(?:\/p2p\/[^/]+)?$/.test(address)) {
+      throw new Error('Bootstrap multiaddr must end in a TCP port and optional peer ID');
     }
   }
   return entries;
