@@ -72,7 +72,7 @@ if (process.env.APEX_QUIESCE_LEGACY_FOUNDATION === 'true') {
 
   try {
     await waitForHealth();
-    console.log('[railway-start] Pure-WAL mode; startup orchestration runs no database migrations');
+    console.log('[railway-start] legacy foundation remains quiesced; no database migrations are run');
   } catch (error) {
     console.error('[railway-start] startup orchestration failed', error);
     if (!serverExited) server.kill('SIGTERM');
