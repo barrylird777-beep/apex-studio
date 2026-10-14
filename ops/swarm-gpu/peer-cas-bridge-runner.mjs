@@ -1,10 +1,11 @@
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { chmod } from 'node:fs/promises';
 import { createPeerModelBridgeServer } from '../../src/core/peer-model-bridge.mjs';
 
 const modulePath = process.env.APEX_PEER_CAS_RUNTIME_MODULE;
 const token = process.env.APEX_PEER_CAS_TOKEN;
-const port = Number(process.env.APEX_PEER_CAS_BRIDGE_PORT || 8765);
+const socketPath = process.env.APEX_PEER_CAS_SOCKET || '/tmp/apex_peer_cas.sock';
 if (!modulePath || !token) throw new Error('runtime module and bridge token are required');
 const absolute = path.resolve(modulePath);
 const runtime = await import(pathToFileURL(absolute).href);
@@ -16,15 +17,14 @@ const bridge = createPeerModelBridgeServer({
   store: context?.store,
   authorizeModel: context?.authorizeModel,
   token,
-  host: '127.0.0.1',
-  port
+  socketPath
 });
 const address = await bridge.listen();
+await chmod(socketPath, 0o600);
 process.stdout.write(JSON.stringify({
   status: 'listening',
-  transport: 'loopback-http-socket',
-  host: address.address,
-  port: address.port,
+  transport: 'unix-domain-socket',
+  socketPath,
   namespace: context.store.namespace
 }) + '\n');
 
