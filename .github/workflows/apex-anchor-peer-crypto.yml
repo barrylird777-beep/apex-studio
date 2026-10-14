@@ -5,6 +5,10 @@ on:
     paths:
       - "public/apex-anchor-crypto.js"
       - "test/apex-anchor-crypto.test.mjs"
+      - "public/apex-license-verify.js"
+      - "test/apex-license-verify.test.mjs"
+      - "public/apex-license-verify.js"
+      - "test/apex-license-verify.test.mjs"
       - ".github/workflows/apex-anchor-peer-crypto.yml"
   pull_request:
     paths:
@@ -22,4 +26,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-      - run: node --test test/apex-anchor-crypto.test.mjs
+      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs
