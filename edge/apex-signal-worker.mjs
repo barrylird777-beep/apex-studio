@@ -9,7 +9,7 @@ const decode64 = value => Uint8Array.from(atob(value.replace(/-/g, "+").replace(
 const validId = value => typeof value === "string" && /^[A-Za-z0-9_-]{8,80}$/.test(value);
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 
-async function verifyTicket(ticket, publicKeyBase64, now = Math.floor(Date.now() / 1000)) {
+export async function verifyApexSignalTicket(ticket, publicKeyBase64, now = Math.floor(Date.now() / 1000)) {
   if (typeof ticket !== "string" || ticket.length > 2048) throw new Error("Invalid signaling ticket");
   const [version, payload, signature, extra] = ticket.split(".");
   if (version !== "v1" || !payload || !signature || extra !== undefined) throw new Error("Malformed signaling ticket");
@@ -33,7 +33,7 @@ export default {
     if (url.pathname !== "/signal" || request.method !== "GET") return json({ error: "not found" }, 404);
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return json({ error: "WebSocket upgrade required" }, 426);
     try {
-      const claims = await verifyTicket(url.searchParams.get("ticket"), env.APEX_SIGNAL_PUBLIC_KEY);
+      const claims = await verifyApexSignalTicket(url.searchParams.get("ticket"), env.APEX_SIGNAL_PUBLIC_KEY);
       if (url.searchParams.get("app") !== claims.appId || url.searchParams.get("room") !== claims.roomId) return json({ error: "ticket scope mismatch" }, 403);
       const id = env.APEX_SIGNAL_ROOMS.idFromName(claims.appId + ":" + claims.roomId);
       const headers = new Headers(request.headers);
@@ -58,6 +58,7 @@ export class ApexSignalRoom {
     const expiresAt = Number(request.headers.get("x-apex-exp"));
     if (!APP_IDS.has(appId) || !validId(roomId) || !validId(peerId) || !Number.isSafeInteger(expiresAt) || expiresAt <= Math.floor(Date.now() / 1000)) return new Response("Invalid relay scope", { status: 403 });
     const sockets = this.ctx.getWebSockets();
+    if (sockets.length >= 8) return new Response("Room is full", { status: 429 });
     if (sockets.some(socket => socket.deserializeAttachment()?.peerId === peerId)) return new Response("Peer ID already connected", { status: 409 });
     const pair = new WebSocketPair();
     const client = pair[0], server = pair[1];
