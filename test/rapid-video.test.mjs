@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {buildRapidCheckoutMetadata,buildRapidCheckoutParams,decodeRapidCheckoutMetadata,verifyRapidStripeSignature} from '../src/payments/stripe-rapid.mjs';
+import {requireStripeSecret} from '../src/config/stripe.mjs';
 
 test('Rapid checkout metadata round-trips full brief',()=>{
   const brief='Line one\nLine two — cinematic hook. '.repeat(140);
@@ -75,4 +76,26 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(page, /body\.result\.storyboard/);
   assert.ok(server.includes("/api/rapid/assets/:id"));
   assert.doesNotMatch(server, /app\.get\('\/rapid-video\.html', \(_req, res\) => res\.redirect\(308, '\/teevee-buyer\.html'\)\)/);
+});
+
+test('Stripe checkout rejects secret keys that do not match STRIPE_MODE', () => {
+  const previous = {
+    key: process.env.STRIPE_SECRET_KEY,
+    mode: process.env.STRIPE_MODE
+  };
+  try {
+    process.env.STRIPE_MODE = 'test';
+    process.env.STRIPE_SECRET_KEY = 'sk_live_not-for-test';
+    assert.throws(() => requireStripeSecret(), /does not match STRIPE_MODE=test/);
+    process.env.STRIPE_MODE = 'live';
+    process.env.STRIPE_SECRET_KEY = 'sk_test_not-for-live';
+    assert.throws(() => requireStripeSecret(), /does not match STRIPE_MODE=live/);
+    process.env.STRIPE_SECRET_KEY = 'sk_live_correct-mode';
+    assert.equal(requireStripeSecret(), 'sk_live_correct-mode');
+  } finally {
+    if (previous.key === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = previous.key;
+    if (previous.mode === undefined) delete process.env.STRIPE_MODE;
+    else process.env.STRIPE_MODE = previous.mode;
+  }
 });
