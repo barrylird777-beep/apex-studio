@@ -52,8 +52,8 @@ export async function publishPeerModelBundle(store, inputFiles, {
   }
   if (!seen.has('config.json') ||
       !files.some(file => file.path.endsWith('.safetensors')) ||
-      !(seen.has('tokenizer.json') || seen.has('tokenizer.model'))) {
-    throw new Error('bundle requires config.json, Safetensors weights, and tokenizer.json or tokenizer.model');
+      !seen.has('tokenizer.json')) {
+    throw new Error('bundle requires config.json, Safetensors weights, and tokenizer.json; SentencePiece-only tokenizer.model bundles are not supported by the in-memory adapter');
   }
 
   const storedFiles = [];
@@ -123,8 +123,8 @@ export async function fetchPeerModelBundle(store, { modelId, revision, authorize
   }
   if (totalBytes !== manifest.totalBytes || !output.has('config.json') ||
       ![...output.keys()].some(path => path.endsWith('.safetensors')) ||
-      !(output.has('tokenizer.json') || output.has('tokenizer.model'))) {
-    throw new Error('reconstructed model bundle does not match its manifest');
+      !output.has('tokenizer.json')) {
+    throw new Error('reconstructed model bundle does not match its manifest or lacks supported tokenizer.json');
   }
   return Object.freeze({ manifest, manifestHash: found.hash, files: output });
 }
