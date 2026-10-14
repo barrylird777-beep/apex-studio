@@ -1,0 +1,25 @@
+name: APEX ANCHOR Peer Crypto
+on:
+  push:
+    branches: ["apex-anchor-phase-1-monetization"]
+    paths:
+      - "public/apex-anchor-crypto.js"
+      - "test/apex-anchor-crypto.test.mjs"
+      - ".github/workflows/apex-anchor-peer-crypto.yml"
+  pull_request:
+    paths:
+      - "public/apex-anchor-crypto.js"
+      - "test/apex-anchor-crypto.test.mjs"
+      - ".github/workflows/apex-anchor-peer-crypto.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  peer-crypto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: node --test test/apex-anchor-crypto.test.mjs
