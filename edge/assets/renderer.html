@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090a0b">
+<meta name="description" content="KernelVision browser-based cinematic reel renderer.">
+<title>KernelVision Render Lab · APEX ANCHOR</title>
+<link rel="stylesheet" href="/renderer.css">
+<script type="module" src="/renderer.js"></script>
+</head>
+<body>
+<header class="top"><a href="/studio" class="brand">APEX ANCHOR <span> / KERNELVISION</span></a><span class="badge">CLIENT-SIDE RENDER LAB</span></header>
+<main>
+<section class="intro">
+<p class="eyebrow">THE EYES · PRODUCTION</p>
+<h1>Turn a thought into<br><em>a cinematic reel.</em></h1>
+<p class="lead">Your text is rendered in this browser. The signaling and billing edge never receives your creative payload. Free preview and export are available without an account.</p>
+</section>
+<section class="layout">
+<div class="panel editor">
+<p class="eyebrow">01 / CREATIVE BRIEF</p>
+<label for="title">Title</label>
+<input id="title" maxlength="90" value="MAKE THE STORY REAL">
+<label for="subtitle">Supporting line</label>
+<textarea id="subtitle" maxlength="220" rows="3">Every world starts with one impossible idea.</textarea>
+<label for="mood">Visual direction</label>
+<select id="mood"><option value="tungsten">Tungsten cinema</option><option value="midnight">Midnight blue</option><option value="ember">Ember glow</option><option value="forest">Forest signal</option></select>
+<div class="actions">
+<button id="preview" class="secondary">Refresh preview</button>
+<button id="free-export">Export free reel · 720p / 5 sec</button>
+</div>
+<div id="status" class="status" role="status" aria-live="polite">Ready. Your brief stays in this browser.</div>
+</div>
+<div class="panel preview-panel">
+<div class="preview-head"><div><p class="eyebrow">02 / LIVE FRAME</p><h2>Portrait composition</h2></div><span id="mode" class="badge">FREE MODE</span></div>
+<canvas id="stage" width="360" height="640" aria-label="Live reel preview"></canvas>
+<p class="small">Video export requires MediaRecorder and canvas capture support in this browser. If unsupported, the still preview can be saved as PNG.</p>
+</div>
+</section>
+<section class="premium">
+<div><p class="eyebrow">03 / ADVANCED PIPELINE</p><h2>Premium vertical render</h2><p>Unlock 1080 × 1920 output, a 15-second sequence, and premium motion pacing. Rendering stays client-side; the paid token only unlocks the advanced profile.</p></div>
+<div class="premium-actions">
+<button id="buy">Unlock advanced render</button>
+<label for="restore-session">Restore purchase with Checkout Session ID</label>
+<input id="restore-session" placeholder="cs_live_… or cs_test_…">
+<button id="restore" class="secondary">Verify purchase</button>
+<button id="premium-export" disabled>Export premium reel · 1080p / 15 sec</button>
+</div>
+</section>
+<footer><span>APEX ANCHOR · KERNELVISION</span><span>Browser storage is not a backup. Download finished work.</span></footer>
+</main>
+</body>
+</html>
