@@ -7,9 +7,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
-from urllib.parse import quote, urlencode
+import http.client
+import socket
+from urllib.parse import quote, urlencode, urlsplit
 
 NAMESPACE = os.environ.get("APEX_PEER_CAS_NAMESPACE", "")
 MODEL_ID = os.environ.get("APEX_MODEL_ID", "")
@@ -20,15 +20,36 @@ TOKEN = os.environ.get("APEX_PEER_CAS_TOKEN", "")
 def _require_env():
     if not all((NAMESPACE, MODEL_ID, REVISION, BRIDGE, TOKEN)):
         raise RuntimeError("APEX Peer-CAS bridge, token, namespace, model ID and revision are required")
-    if not BRIDGE.startswith("https://") and not BRIDGE.startswith("http://127.0.0.1:"):
-        raise RuntimeError("Peer-CAS bridge must use HTTPS or loopback HTTP")
+    if not BRIDGE.startswith("https://") and not BRIDGE.startswith("http://127.0.0.1:") and not BRIDGE.startswith("unix:///"):
+        raise RuntimeError("Peer-CAS bridge must use HTTPS, loopback HTTP, or a Unix-domain socket")
+
+class _UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, socket_path: str, timeout: int = 60):
+        super().__init__("localhost", timeout=timeout)
+        self.socket_path = socket_path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(self.socket_path)
+
 
 def _get(path: str) -> bytes:
     _require_env()
-    req = Request(BRIDGE + path, headers={"Authorization": "Bearer " + TOKEN,
-                                          "Accept": "application/octet-stream"})
+    headers = {"Authorization": "Bearer " + TOKEN,
+               "Accept": "application/octet-stream", "Connection": "close"}
     try:
-        with urlopen(req, timeout=60) as response:
+        if BRIDGE.startswith("unix:///"):
+            socket_path = BRIDGE[len("unix://"):]
+            connection = _UnixHTTPConnection(socket_path)
+            connection.request("GET", path, headers=headers)
+            response = connection.getresponse()
+        else:
+            parts = urlsplit(BRIDGE)
+            connection = http.client.HTTPSConnection(parts.hostname, parts.port, timeout=60) if parts.scheme == "https" else http.client.HTTPConnection(parts.hostname, parts.port, timeout=60)
+            connection.request("GET", path, headers=headers)
+            response = connection.getresponse()
+        try:
             if response.status != 200:
                 raise RuntimeError("Peer-CAS bridge returned non-200")
             chunks = bytearray()
@@ -38,7 +59,10 @@ def _get(path: str) -> bytes:
                     break
                 chunks.extend(chunk)
             return bytes(chunks)
-    except (HTTPError, URLError) as exc:
+        finally:
+            response.close()
+            connection.close()
+    except (OSError, http.client.HTTPException) as exc:
         raise RuntimeError("Peer-CAS retrieval failed closed") from exc
 
 def manifest() -> dict:
