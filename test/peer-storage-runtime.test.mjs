@@ -77,3 +77,25 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     /namespace access denied/
   );
 });
+
+test('peer blob chunking round-trips payloads larger than the 32 KiB object envelope', async () => {
+  const stores = new Map([['storage-a', binaryMemoryStore()], ['storage-b', binaryMemoryStore()]]);
+  const runtimes = new Map();
+  for (const [id, store] of stores) {
+    runtimes.set(id, await initializePeerObjectStorage({
+      enabled: true, store, namespaceAcl: 'PlanetApeX=writer-peer',
+      peerId: () => id
+    }));
+  }
+  const client = new PeerContentAddressedStore({
+    transport: { request: async (id, envelope) => runtimes.get(id).handle(envelope, { remotePeerId: 'writer-peer' }) },
+    peers: [...stores.keys()], replicaCount: 2,
+    namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 41)
+  });
+  const source = Buffer.from(Array.from({ length: 96 * 1024 }, (_, i) => i % 251));
+  const manifest = await client.putBlob(source, { chunkSize: 8 * 1024 });
+  assert.ok(manifest.chunkCount > 1);
+  assert.equal(manifest.totalBytes, source.length);
+  assert.deepEqual(await client.getBlob(manifest.hash), source);
+  for (const store of stores.values()) assert.ok(store.objects.size > manifest.chunkCount);
+});
