@@ -3,8 +3,9 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { chmod } from 'node:fs/promises';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const CANONICAL_APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
 const safeId = value => typeof value === 'string' && value.length <= 256 &&
-  value.split('/').every(part => /^[A-Za-z0-9._-]{1,128}$/.test(part));
+  value.split('/').every(part => part !== '.' && part !== '..' && /^[A-Za-z0-9._-]{1,128}$/.test(part));
 
 /**
  * Loopback-only, in-memory HTTP/IPC adapter from vLLM to an already-authorized
@@ -14,6 +15,9 @@ const safeId = value => typeof value === 'string' && value.length <= 256 &&
 export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765, socketPath = '' } = {}) {
   if (!store || typeof store.readRef !== 'function' || typeof store.getBlob !== 'function') {
     throw new TypeError('live PeerContentAddressedStore is required');
+  }
+  if (!CANONICAL_APPS.has(store.namespace)) {
+    throw new TypeError('Peer-CAS bridge requires exactly one canonical app namespace');
   }
   if (typeof authorizeModel !== 'function') throw new TypeError('model authorization policy is required');
   if (typeof token !== 'string' || token.length < 32) throw new TypeError('bridge token must be at least 32 characters');
