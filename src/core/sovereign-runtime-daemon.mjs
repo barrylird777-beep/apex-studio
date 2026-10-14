@@ -36,6 +36,7 @@ let cycleFailed = false;
 let bridge;
 let modelBridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
+let peerStorageStore;
 const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, peerStorageVerified: false, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
@@ -145,6 +146,8 @@ async function main() {
     await peerNode.stop().catch(() => {});
     return;
   }
+
+  // Configure the peer-owned backend before the node accepts inbound envelopes.
   if (String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true') {
     const backendModule = String(process.env.APEX_PEER_STORAGE_BACKEND_MODULE || '').trim();
     if (!backendModule) throw new Error('APEX_PEER_STORAGE_BACKEND_MODULE is required when peer storage is enabled; no local fallback is permitted');
@@ -153,13 +156,15 @@ async function main() {
     if (typeof backendFactory.createPeerOwnedBinaryBackend !== 'function') {
       throw new Error('peer backend module must export createPeerOwnedBinaryBackend({ peerId, namespaceAcl })');
     }
-    const store = await backendFactory.createPeerOwnedBinaryBackend({
+    peerStorageStore = await backendFactory.createPeerOwnedBinaryBackend({
       peerId: peerNode.peerId.toString(),
       namespaceAcl: process.env.APEX_PEER_NAMESPACE_ACL || ''
     });
     peerStorageRuntime = await initializePeerObjectStorage({
-      enabled: true, store, peerId: () => peerNode?.peerId?.toString?.() || ''
+      enabled: true, store: peerStorageStore, peerId: () => peerNode?.peerId?.toString?.() || ''
     });
+  }
+
   await peerNode.start();
   if (stopping) {
     await peerNode.stop().catch(() => {});
@@ -174,14 +179,15 @@ async function main() {
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
 
+  if (peerStorageRuntime.enabled) {
     const storageNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || 'KernelVision');
-    const proof = await store.health?.({ namespace: storageNamespace, peerId: peerNode.peerId.toString() });
+    const proof = await peerStorageStore.health?.({ namespace: storageNamespace, peerId: peerNode.peerId.toString() });
     runtimeReadiness.peerStorageVerified = proof?.durable === true &&
       proof?.ownership === 'peer-owned' && proof?.restartRecoveryVerified === true &&
       proof?.atomicReferencesVerified === true && proof?.peerId === peerNode.peerId.toString() &&
       proof?.namespace === storageNamespace && Boolean(proof?.receipt) &&
-      typeof store.verifyDurabilityReceipt === 'function' &&
-      await store.verifyDurabilityReceipt(proof.receipt, {
+      typeof peerStorageStore.verifyDurabilityReceipt === 'function' &&
+      await peerStorageStore.verifyDurabilityReceipt(proof.receipt, {
         namespace: storageNamespace, peerId: peerNode.peerId.toString(),
         restartRecoveryVerified: true, atomicReferencesVerified: true
       }) === true;
@@ -190,8 +196,6 @@ async function main() {
     }
   }
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, verified: runtimeReadiness.peerStorageVerified }));
-
-
 
   if (String(process.env.APEX_PEER_CAS_ENABLED || '').toLowerCase() === 'true') {
     const liveModelRuntime = await startPeerCasRuntime({ peerNode });
