@@ -77,6 +77,7 @@ test('sovereign readiness requires fresh lease, peer, dispatch, and verified rem
       storageReady: true,
       peerReady: true,
       remotePersistenceVerified: true,
+      peerStorageVerified: true,
       dispatchReady: true,
       remotePersistenceHash: 'a'.repeat(64)
     }
@@ -85,6 +86,7 @@ test('sovereign readiness requires fresh lease, peer, dispatch, and verified rem
   assert.equal(isSovereignRuntimeReady(identity, 5000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remotePersistenceVerified: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerStorageVerified: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000, instanceId), false);
 });
 

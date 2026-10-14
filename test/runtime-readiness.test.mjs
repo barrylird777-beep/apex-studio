@@ -16,10 +16,14 @@ test('sovereign readiness requires every runtime gate and a live lease', () => {
       peerReady: true,
       remotePersistenceVerified: true,
       remotePersistenceHash: hash,
+      peerStorageVerified: true,
       dispatchReady: true
     }
   };
   assert.equal(isSovereignRuntimeReady(identity, 4000, instanceId), true);
+  const legacyReadiness = { ...identity, readiness: { ...identity.readiness } };
+  delete legacyReadiness.readiness.peerStorageVerified;
+  assert.equal(isSovereignRuntimeReady(legacyReadiness, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady(identity, 4000, instanceId, true), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, leaseExpiresAt: 30000, lastSeenAt: new Date(1000).toISOString() }, 20000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, instanceId: 'old-generation' }, 4000, instanceId), false);
@@ -28,6 +32,7 @@ test('sovereign readiness requires every runtime gate and a live lease', () => {
   assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remotePersistenceVerified: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerStorageVerified: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remotePersistenceHash: 'bad' } }, 4000, instanceId), false);
 });
 
