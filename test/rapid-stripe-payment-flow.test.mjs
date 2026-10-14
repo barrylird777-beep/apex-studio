@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import express from 'express';
-import { createStripeRouter } from '../src/routes/stripe.mjs';
+import { createRapidStripeWebhookHandler } from '../src/routes/stripe.mjs';
 import { buildRapidCheckoutMetadata, buildRapidCheckoutParams } from '../src/payments/stripe-rapid.mjs';
 
 const WEBHOOK_SECRET = 'whsec_apex_test_only';
@@ -43,7 +43,7 @@ function makeEvent({ orderId = 'test-order-1', paymentStatus = 'paid', amount = 
 
 async function withWebhookServer(options, run) {
   const app = express();
-  app.use('/api/stripe', createStripeRouter(options));
+  app.post('/api/rapid/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), createRapidStripeWebhookHandler(options));
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -59,7 +59,7 @@ async function withWebhookServer(options, run) {
 
 async function postEvent(baseUrl, event, signatureOverride) {
   const rawBody = JSON.stringify(event);
-  return fetch(baseUrl + '/api/stripe/rapid/webhook', {
+  return fetch(baseUrl + '/api/rapid/stripe/webhook', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
