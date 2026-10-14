@@ -71,7 +71,23 @@ const configuredMaxEnvelopeBytes = Number(process.env.APEX_PEER_MAX_ENVELOPE_BYT
 const MAX_ENVELOPE_BYTES = Number.isFinite(configuredMaxEnvelopeBytes)
   ? Math.min(1024 * 1024, Math.max(1024, Math.floor(configuredMaxEnvelopeBytes)))
   : 65536;
-const bootstrapPeers = () => (process.env.APEX_BOOTSTRAP_PEERS || '').split(',').map(x => x.trim()).filter(Boolean);
+export function getSovereignBootstrapPeers(value = process.env.APEX_BOOTSTRAP_PEERS || '') {
+  const entries = String(value).split(',').map(x => x.trim()).filter(Boolean);
+  for (const address of entries) {
+    if (!address.startsWith('/ip4/') && !address.startsWith('/ip6/')) {
+      throw new Error('Sovereign bootstrap peers must use literal /ip4 or /ip6 multiaddrs; DNS bootstrap is disabled');
+    }
+    if (/\/(?:dns|dns4|dns6|dnsaddr)\//i.test(address)) {
+      throw new Error('DNS-based bootstrap addresses are disabled');
+    }
+    try { parseMultiaddr(address); }
+    catch { throw new Error('Invalid literal-IP sovereign bootstrap multiaddr'); }
+    if (!/\/(?:tcp|udp)\/\d+(?:\/p2p\/[^/]+)?$/.test(address)) {
+      throw new Error('Bootstrap multiaddr must end in a TCP/UDP port and optional peer ID');
+    }
+  }
+  return entries;
+}
 const allowedPeerIds = () => new Set((process.env.APEX_ALLOWED_PEER_IDS || '').split(',').map(x => x.trim()).filter(Boolean));
 const isAllowedPeer = peerId => allowedPeerIds().has(String(peerId || ''));
 const boundedPositiveInteger = (value, fallback, min, max) => {
@@ -265,7 +281,7 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     streamMuxers: [yamux()],
     peerDiscovery: [
       mdns({ interval: 5000 }),
-      ...(bootstrapPeers().length ? [bootstrap({ list: bootstrapPeers() })] : [])
+      ...(getSovereignBootstrapPeers().length ? [bootstrap({ list: getSovereignBootstrapPeers() })] : [])
     ],
     services: {
       identify: identify(),
