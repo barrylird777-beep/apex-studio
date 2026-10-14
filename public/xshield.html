@@ -13,6 +13,26 @@ body{background:radial-gradient(ellipse at 14% 0%,rgba(32,68,120,.34),transparen
 main{max-width:1180px;padding:30px 18px 46px}
 .card{background:linear-gradient(145deg,rgba(19,28,44,.96),rgba(10,15,25,.97));border-color:#29374b;box-shadow:0 18px 46px rgba(0,0,0,.2)}
 button{background:linear-gradient(100deg,#234e86,#49367d);border-color:#4d6da4}
+
+/* XShield — quiet, high-contrast security operations surface */
+:root{color-scheme:dark;--shield-green:#b8e36a;--shield-red:#e88b84;--shield-line:#29332d}
+body{background:radial-gradient(ellipse at 50% 0%,rgba(80,118,65,.13),transparent 45%),#080b09;color:#e8eee8}
+a{color:#c4e98a}
+.top{border-color:#28332b}
+.eyebrow{color:#8f9f91;letter-spacing:.17em}
+h1{letter-spacing:-.055em;font-weight:650}
+.card{background:linear-gradient(145deg,#111713,#0b0f0c);border:1px solid var(--shield-line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.metric{font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.good{color:var(--shield-green)}.bad{color:var(--shield-red)}
+.xshield-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}
+.xshield-tabs{display:flex;gap:4px;padding:4px;border:1px solid #2a342c;background:#090d0a;border-radius:7px}
+.xshield-tabs button{width:auto;background:transparent;border-color:transparent;color:#a9b5aa;border-radius:4px;padding:8px 12px}
+.xshield-tabs button[aria-selected=true]{background:#263326;color:#e4f2d4;border-color:#3b5039}
+#xshield-refresh,button{border-radius:5px}
+#xshield-refresh{width:auto;background:#18231a;border-color:#3b563d;color:#d6edc6}
+pre{background:#080b09;border:1px solid #202a22;border-radius:6px;padding:12px}
+@media(max-width:600px){main{padding:22px 13px 36px}.xshield-controls>*{max-width:100%}}
+
 </style>
 <link rel="stylesheet" href="/apex-six-apps.css"><link rel="stylesheet" href="/apex-ui-controls.css"><script src="/apex-six-apps.js" defer></script><style>
 .xshield-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0 14px}.xshield-tabs{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;padding:7px;border:1px solid var(--apex-line);border-radius:15px;background:rgba(7,12,20,.7)}
