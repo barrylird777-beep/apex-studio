@@ -100,6 +100,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health" && request.method === "GET") return json({ service: "apex-anchor-billing", status: "ready", database: false });
+    if (url.pathname === "/public-key" && request.method === "GET") {
+      const origin = allowedOrigin(request, env);
+      if (!origin) return json({ error: "Origin not allowed" }, 403);
+      if (!env.APEX_LICENSE_PUBLIC_KEY) return json({ error: "License public key is not configured" }, 503, origin);
+      return json({ algorithm: "Ed25519", publicKey: env.APEX_LICENSE_PUBLIC_KEY }, 200, origin);
+    }
     if (url.pathname === "/webhook" && request.method === "POST") {
       const rawBody = await request.text();
       const valid = await verifyStripeWebhook(rawBody, request.headers.get("Stripe-Signature"), env.STRIPE_WEBHOOK_SECRET);
