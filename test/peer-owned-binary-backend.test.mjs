@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { createPeerOwnedBinaryBackend } from '../src/core/peer-owned-binary-backend.mjs';
 
@@ -71,4 +71,32 @@ test('receipt is bound to peer and namespace; missing owner root fails closed', 
   delete process.env.APEX_PEER_OWNED_STORAGE_ROOT;
   await assert.rejects(createPeerOwnedBinaryBackend({ peerId: 'peer-owner', namespaceAcl: 'PlanetApeX=writer-peer' }), /must explicitly name peer-owned/);
   process.env.APEX_PEER_OWNED_STORAGE_ROOT = saved;
+});
+
+
+test('durability receipt rejects validly signed mismatched or weakened claims', async t => {
+  const { backend } = await fixture(t);
+  const key = Buffer.from(process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64, 'base64');
+  const sign = claims => {
+    const body = encodeCanonical(claims);
+    return { body: body.toString('base64'), mac: createHmac('sha256', key).update(body).digest('base64') };
+  };
+  const expected = {
+    version: 1, peerId: 'peer-owner', namespace: 'PlanetApeX', ownership: 'peer-owned',
+    durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true
+  };
+  assert.equal(await backend.verifyDurabilityReceipt(sign(expected), expected), true);
+  for (const weakened of [
+    { ...expected, version: 2 },
+    { ...expected, peerId: 'other-peer' },
+    { ...expected, namespace: 'XShield' },
+    { ...expected, ownership: 'coordinator-cache' },
+    { ...expected, durable: false },
+    { ...expected, atomicReferencesVerified: false },
+    { ...expected, restartRecoveryVerified: false }
+  ]) {
+    assert.equal(await backend.verifyDurabilityReceipt(sign(weakened), expected), false);
+  }
+  const valid = sign(expected);
+  assert.equal(await backend.verifyDurabilityReceipt(valid, { ...expected, namespace: 'KashKorner' }), false);
 });
