@@ -199,6 +199,10 @@ test("all six canonical browser surfaces use the shared responsive UI system",as
   assert.match(css,/prefers-reduced-motion/,"shared UI must respect reduced motion");
   assert.match(css,/focus-visible/,"shared UI must expose keyboard focus");
   assert.match(css,/overflow-x:auto/,"app switcher must remain usable on narrow screens");
+  const root=await readFile(resolve(process.cwd(),"public/index.html"),"utf8");
+  assert.match(root,/APEX visual law: keep the main workspace still/,"PlanetApeX root must keep the restrained visual treatment");
+  assert.match(root,/animation:none!important;transition:none!important/,"PlanetApeX root must not animate interface elements");
+  assert.match(root,/button:hover,button:active\{transform:none!important/,"PlanetApeX controls must not pulse or scale");
 });
 
 
