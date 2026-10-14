@@ -178,17 +178,17 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
 
 test("all six canonical browser surfaces use the shared responsive UI system",async()=>{
   const surfaces=[
-    ["KernelVision","kernel-vision.html"],
-    ["XShield","xshield.html"],
-    ["Kernelodies","kernelodies.html"],
-    ["PlanetApeX","planet-apex.html"],
-    ["KashKorner","kash-korner.html"],
-    ["KoinKob","koin-kob.html"]
+    ["KernelVision","kernel-vision.html","kernelvision"],
+    ["XShield","xshield.html","xshield"],
+    ["Kernelodies","kernelodies.html","kernelodies"],
+    ["PlanetApeX","planet-apex.html","planetapex"],
+    ["KashKorner","kash-korner.html","kashkorner"],
+    ["KoinKob","koin-kob.html","koinkob"]
   ];
-  for(const [name,file] of surfaces){
+  for(const [name,file,theme] of surfaces){
     const html=await readFile(resolve(process.cwd(),"public",file),"utf8");
     assert.match(html,/<link rel="stylesheet" href="\/apex-six-apps\.css">/,name+" must load the shared UI");
-    assert.match(html,new RegExp('data-apex-app="[^"]+"'),name+" must expose an app-specific theme");
+    assert.ok(html.includes('data-apex-app="'+theme+'"'),name+" must use its own canonical visual theme");
     assert.ok(html.includes('href="/'+file+'"'),name+" must appear in the app switcher");
     for (const [, canonicalFile] of surfaces) {
       assert.ok(html.includes('href="/'+canonicalFile+'"'), name+" app switcher must include "+canonicalFile);
