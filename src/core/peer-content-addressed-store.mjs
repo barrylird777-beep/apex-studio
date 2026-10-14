@@ -315,6 +315,93 @@ export class PeerContentAddressedStore {
     error.failures = failures;
     throw error;
   }
+
+  async readRef(key) {
+    if (typeof key !== 'string' || !key || key.length > 512) throw new TypeError('invalid peer reference key');
+    const results = [];
+    const failures = [];
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.get',
+          namespace: this.namespace, key
+        });
+        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('peer reference read failed namespace or durability receipt verification');
+        }
+        if (response.hash === null) {
+          results.push({ peerId, hash: null, value: null });
+          continue;
+        }
+        const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
+        if (!/^[a-f0-9]{64}$/.test(String(response.hash || '')) ||
+            bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) {
+          throw new Error('peer reference content failed hash verification');
+        }
+        results.push({ peerId, hash: response.hash, value: decodeCanonical(bytes) });
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (results.length < this.replicaCount) {
+      const error = new Error('peer reference read did not reach the required verified replica count');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.failures = failures;
+      throw error;
+    }
+    const hashes = new Set(results.map(result => result.hash));
+    if (hashes.size !== 1) {
+      const error = new Error('peer reference replicas disagree; refusing to select a potentially stale manifest');
+      error.code = 'REFERENCE_DIVERGENCE';
+      error.hashes = results.map(result => ({ peerId: result.peerId, hash: result.hash }));
+      throw error;
+    }
+    const first = results[0];
+    return first.hash === null ? null : { value: first.value, hash: first.hash };
+  }
+
+  async writeRef(key, value, { expectedHash = null } = {}) {
+    if (typeof key !== 'string' || !key || key.length > 512) throw new TypeError('invalid peer reference key');
+    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) {
+      throw new TypeError('invalid expected peer reference hash');
+    }
+    const bytes = encodeCanonical(value);
+    if (bytes.length > this.maxObjectBytes) throw new Error('peer reference exceeds the safe single-envelope limit');
+    const hash = sha256(bytes);
+    const receipts = [];
+    const failures = [];
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.cas',
+          namespace: this.namespace, key, expectedHash, hash,
+          bytesBase64: bytes.toString('base64')
+        });
+        if (response.namespace !== this.namespace || response.hash !== hash ||
+            !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
+        }
+        receipts.push({
+          peerId, hash, receiptId: response.receiptId,
+          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
+        });
+        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
+        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
+    if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
+      const error = new Error('peer reference update did not satisfy required replica count and independent failure-domain policy');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = receipts.length;
+      error.failures = failures;
+      throw error;
+    }
+    return { hash, replicas: receipts.map(receipt => receipt.peerId), receipts };
+  }
 }
 
 /**
