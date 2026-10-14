@@ -166,6 +166,25 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clam
 @media(max-width:700px){.pa-home{grid-template-columns:minmax(0,1fr);gap:12px;padding-top:20px}.pa-home-planet{display:flex;grid-template-columns:none;padding:0}.pa-home-planet .planet-stage{width:min(78vw,310px)}.pa-home-copy{order:2}.pa-home h1{font-size:clamp(38px,10vw,58px)}}
 @media(prefers-reduced-motion:reduce){.pa-home-planet *{animation:none!important;transition:none!important}}
 
+/* PlanetApeX: single still planet, full-screen mobile-first view. Canonical feature markup remains intact. */
+html,body{width:100%;height:100%;min-height:100%;margin:0;background:#02050a!important;overflow:hidden!important}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,rgba(13,35,62,.45),transparent 68%);z-index:0}
+.apex-app-nav,.apex-skip-link,.apex-app-footer{display:none!important}
+main.apex-shell[data-apex-app="planetapex"]{position:relative;z-index:1;width:100vw!important;max-width:none!important;height:100svh!important;min-height:100svh!important;margin:0!important;padding:0!important;display:grid;place-items:center;overflow:hidden;background:transparent!important}
+main[data-apex-app="planetapex"]>:not(.pa-home){display:none!important}
+main[data-apex-app="planetapex"]>.pa-home{display:grid!important;position:relative;width:100%;height:100%;margin:0;padding:0!important;border:0!important;grid-template-columns:1fr!important;place-items:center!important;gap:0!important;background:transparent!important}
+.pa-home>.pa-home-copy{display:none!important}
+.pa-home>.pa-home-plate.pa-home-planet{display:flex!important;position:relative;width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;align-items:center!important;justify-content:center!important}
+.pa-home-planet .plate-label,.pa-home-planet>strong,.pa-home-planet>p{display:none!important}
+.pa-home-planet .planet-stage{position:relative!important;width:min(94vmin,1000px)!important;height:auto!important;aspect-ratio:1!important;max-width:calc(100vw - 12px)!important;max-height:calc(100svh - 12px)!important;margin:0!important;flex:none!important}
+.pa-home-planet .planet{width:100%!important;height:100%!important;border-radius:50%!important;background-color:#06162b!important;box-shadow:inset -7vmin -4vmin 12vmin 2vmin rgba(0,0,0,.96),inset 1.6vmin 1.2vmin 4vmin rgba(220,242,255,.22),0 0 2px 1px rgba(135,199,255,.8),0 0 18px 4px rgba(76,158,255,.28),0 0 72px 10px rgba(35,112,225,.17)!important;transform:none!important}
+.pa-home-planet .planet:before{background:radial-gradient(ellipse at 29% 22%,rgba(255,255,255,.42),transparent 16%),radial-gradient(ellipse at 44% 42%,transparent 39%,rgba(0,5,17,.22) 67%,rgba(0,0,0,.97) 100%),linear-gradient(108deg,rgba(255,255,255,.18),transparent 28%,transparent 57%,rgba(0,0,0,.78) 100%)!important}
+.pa-home-planet .land{filter:drop-shadow(0 0 2px rgba(145,210,166,.45)) saturate(1.12)!important}
+.pa-home-planet .clouds{opacity:.5!important;mix-blend-mode:screen!important}
+.pa-home-planet .atmosphere{box-shadow:inset 0 0 0 2px rgba(166,220,255,.32),0 0 0 2px rgba(95,174,255,.34),0 0 30px 8px rgba(57,143,255,.22)!important}
+*{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+button:hover,button:active{transform:none!important}
+@media(max-width:700px){.pa-home-planet .planet-stage{width:min(94vmin,calc(100vw - 12px))!important;max-width:calc(100vw - 12px)!important}.pa-home-planet{display:flex!important}}
 </style>
 </head>
 <body>
