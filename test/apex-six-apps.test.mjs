@@ -190,6 +190,9 @@ test("all six canonical browser surfaces use the shared responsive UI system",as
     assert.match(html,/<link rel="stylesheet" href="\/apex-six-apps\.css">/,name+" must load the shared UI");
     assert.match(html,new RegExp('data-apex-app="[^"]+"'),name+" must expose an app-specific theme");
     assert.ok(html.includes('href="/'+file+'"'),name+" must appear in the app switcher");
+    for (const [, canonicalFile] of surfaces) {
+      assert.ok(html.includes('href="/'+canonicalFile+'"'), name+" app switcher must include "+canonicalFile);
+    }
     assert.ok(html.includes('aria-current="page"'),name+" must identify the active app");
   }
   const kash=await readFile(resolve(process.cwd(),"public/kash-korner.html"),"utf8");
