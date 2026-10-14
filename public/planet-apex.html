@@ -861,5 +861,59 @@ render();refresh();
 })();
 </script>
 
+
+<style id="pa-fullscreen-world">
+html.pa-world-immersive,html.pa-world-immersive body{margin:0;min-height:100%;background:#02060b}
+html.pa-world-immersive body{overflow-x:hidden}
+.pa-home-planet.pa-world-immersive-host{position:static!important}
+.pa-home-planet.pa-world-immersive-host .planet-stage{position:fixed!important;inset:0!important;width:100vw!important;height:100svh!important;max-width:none!important;aspect-ratio:auto!important;margin:0!important;z-index:1000!important;overflow:hidden!important;border-radius:0!important;background:radial-gradient(ellipse at center,#071827 0%,#02060b 65%,#000 100%)}
+.pa-home-planet.pa-world-immersive-host .planet{position:absolute!important;width:min(100svh,100vw)!important;height:min(100svh,100vw)!important;max-width:none!important;left:50%!important;top:50%!important;margin:0!important;transform:translate(-50%,-50%) perspective(900px) rotateX(var(--pa-tilt,0deg)) rotateY(var(--pa-spin,0deg)) scale(var(--pa-zoom,1))!important;transform-origin:center!important;transition:box-shadow .18s ease!important}
+.pa-home-planet.pa-world-immersive-host .pa-world-controls{position:fixed!important;z-index:1002!important;left:50%!important;bottom:max(12px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;width:max-content!important;max-width:calc(100vw - 20px)!important;background:rgba(5,12,19,.86)!important;backdrop-filter:blur(16px);border-color:rgba(210,190,132,.32)!important}
+.pa-home-planet.pa-world-immersive-host .pa-region-panel{position:fixed!important;z-index:1002!important;left:12px!important;bottom:86px!important;width:min(320px,calc(100vw - 24px))!important;max-height:30svh!important;overflow:auto!important;background:rgba(5,12,19,.82)!important;backdrop-filter:blur(16px)}
+.pa-home-planet.pa-world-immersive-host .pa-region-pins{position:fixed!important;inset:0!important;z-index:1001!important;pointer-events:none!important}
+.pa-home-planet.pa-world-immersive-host .pa-region-pin{pointer-events:auto!important}
+.pa-home-planet.pa-world-immersive-host .pa-region-pin{font-size:clamp(10px,2.8vw,13px)!important;max-width:31vw!important}
+.pa-home-planet.pa-world-immersive-host .pa-world-controls button{min-height:44px!important;min-width:44px!important}
+.pa-home-planet.pa-world-immersive-host .pa-world-readout{display:none!important}
+@media(max-width:520px){.pa-home-planet.pa-world-immersive-host .pa-region-panel{bottom:78px!important;left:8px!important;width:calc(100vw - 16px)!important;max-height:23svh!important}.pa-home-planet.pa-world-immersive-host .pa-region-panel p{margin:5px 0!important;font-size:12px!important}.pa-home-planet.pa-world-immersive-host .pa-region-actions button{font-size:12px!important;padding:7px!important}}
+@media(prefers-reduced-motion:reduce){.pa-home-planet.pa-world-immersive-host .planet{transition:none!important}}
+</style>
+<script id="pa-fullscreen-pinch">
+(function(){
+ const host=document.querySelector('.pa-home-planet'),stage=host&&host.querySelector('.planet-stage'),planet=stage&&stage.querySelector('.planet');
+ if(!host||!stage||!planet)return;
+ document.documentElement.classList.add('pa-world-immersive');host.classList.add('pa-world-immersive-host');
+ stage.setAttribute('role','application');stage.setAttribute('aria-label','Full-screen interactive PlanetApeX. Drag to rotate, pinch to zoom.');
+ let points=new Map(),pinchStart=0,zoomStart=1,pinching=false;
+ const readout=host.querySelector('.pa-world-readout');
+ function zoomValue(){return parseFloat(planet.style.getPropertyValue('--pa-zoom'))||1}
+ function applyZoom(z){z=Math.max(.28,Math.min(3.2,z));planet.style.setProperty('--pa-zoom',z.toFixed(2));if(readout)readout.textContent='World scale · '+Math.round(z*100)+'%'}
+ stage.addEventListener('pointerdown',e=>{
+   if(e.target.closest('button'))return;
+   points.set(e.pointerId,{x:e.clientX,y:e.clientY});
+   if(points.size===2){pinching=true;pinchStart=distance();zoomStart=zoomValue();stage.classList.remove('pa-dragging');}
+ },{passive:true});
+ stage.addEventListener('pointermove',e=>{
+   if(!points.has(e.pointerId))return;
+   points.set(e.pointerId,{x:e.clientX,y:e.clientY});
+   if(points.size>=2){pinching=true;const d=distance();if(pinchStart>0)applyZoom(zoomStart*d/pinchStart);e.preventDefault();}
+ },{passive:false});
+ function distance(){const a=Array.from(points.values());return a.length<2?0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}
+ function release(e){points.delete(e.pointerId);if(points.size<2){pinching=false;pinchStart=0}}
+ stage.addEventListener('pointerup',release);stage.addEventListener('pointercancel',release);
+ stage.addEventListener('lostpointercapture',release);
+ // Native touch pinch uses the same zoom scale; suppress browser page zoom only while touching the world.
+ stage.style.touchAction='none';
+ const controls=host.querySelector('.pa-world-controls');
+ if(controls){
+  const plus=controls.querySelector('[data-world="plus"]'),minus=controls.querySelector('[data-world="minus"]'),reset=controls.querySelector('[data-world="reset"]');
+  if(plus)plus.addEventListener('click',()=>applyZoom(zoomValue()+.18));
+  if(minus)minus.addEventListener('click',()=>applyZoom(zoomValue()-.18));
+  if(reset)reset.addEventListener('click',()=>{applyZoom(1);planet.style.setProperty('--pa-spin','0deg');planet.style.setProperty('--pa-tilt','-8deg');});
+ }
+ applyZoom(1);
+})();
+</script>
+
 </body>
 </html>
