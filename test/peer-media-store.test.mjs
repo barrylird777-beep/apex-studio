@@ -39,6 +39,16 @@ function setup() {
   return { media: createPeerMediaStore({ peerStores }), peerStores };
 }
 
+test('peer media store accepts a single isolated canonical app namespace', async () => {
+  const peerStores = { KernelVision: makePeerStore('KernelVision') };
+  const media = createPeerMediaStore({ peerStores, apps: ['KernelVision'] });
+  assert.deepEqual(media.apps, ['KernelVision']);
+  const saved = await media.saveAsset('KernelVision', 'project-1', 'asset-1', Buffer.from('studio media'));
+  assert.equal((await media.getAsset('KernelVision', 'project-1', 'asset-1')).bytes.toString(), 'studio media');
+  assert.equal(saved.app, 'KernelVision');
+  assert.throws(() => createPeerMediaStore({ peerStores, apps: ['KernelVision', 'KernelVision'] }), /unique subset/);
+});
+
 test('peer media store persists and verifies binary media', async () => {
   const { media } = setup();
   const input = Buffer.from([0, 1, 2, 3, 0, 255, 128]);
