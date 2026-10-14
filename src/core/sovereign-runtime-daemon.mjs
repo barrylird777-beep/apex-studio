@@ -12,11 +12,11 @@ import { retryWalStartup } from './wal-startup-retry.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
-import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
 
-const storageMigration = await migrateSovereignStorage();
-console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
+// Legacy storage migration is deliberately not run by the runtime. Recovery and
+// migration must be an explicit, separately verified operation; startup must not
+// copy, rewrite, or create local durable state as a side effect.
 const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));

@@ -23,6 +23,16 @@ const checks = [
     ],
   },
   {
+    area: 'mesh engine',
+    file: 'src/core/sovereign-mesh-engine.mjs',
+    forbidden: [
+      ['filesystem persistence import', /node:fs/],
+      ['local or hosted fallback adapter import', /content-addressed-store|remote-content-addressed-store/],
+      ['legacy WAL migration path', /apex-ring-wal|migrated-v1|JSON.parse/],
+      ['implicit storage backend fallback', /new ContentAddressedStore|new RemoteContentAddressedStore/],
+    ],
+  },
+  {
     area: 'storage primitive',
     file: 'src/core/content-addressed-store.mjs',
     forbidden: [
