@@ -31,6 +31,24 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
   const handlers = new Map();
   for (const id of ids) {
     const store = memoryStore();
+    const refs = new Map();
+    store.readRef = async (namespace, key) => refs.get(namespace + ':' + key) ?? null;
+    store.writeRef = async (namespace, key, expectedHash, hash, bytes) => {
+      const refKey = namespace + ':' + key;
+      if ((refs.get(refKey)?.hash ?? null) !== expectedHash) throw new Error('reference compare-and-swap conflict');
+      refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
+      return { hash };
+    };
+    store.health = async ({ namespace, peerId }) => ({
+      durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
+      atomicReferencesVerified: true, peerId, namespace,
+      receipt: 'test-receipt-' + id + '-' + namespace,
+      receiptId: 'test-proof-' + id + '-' + namespace
+    });
+    store.verifyDurabilityReceipt = async (receipt, claims) =>
+      receipt === 'test-receipt-' + id + '-' + claims.namespace &&
+      claims.peerId === id && claims.namespace === 'PlanetApeX' &&
+      claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true;
     stores.set(id, store);
     handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024, authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' }));
   }
@@ -50,6 +68,23 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
   };
 }
+
+test('peer CAS refuses to count an object write from a volatile peer as durable', async () => {
+  const store = memoryStore();
+  const handler = createPeerObjectStorageHandler({
+    store, peerId: 'volatile-peer',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  const client = new PeerContentAddressedStore({
+    transport: { request: async (_peerId, envelope) => handler(envelope, { remotePeerId: 'writer-peer' }) },
+    peers: ['volatile-peer'], replicaCount: 1, namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7)
+  });
+  await assert.rejects(client.putObject({ mustNotBeCalledDurable: true }), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' &&
+    error.failures.some(failure => /unverified durability receipt/.test(failure.error))
+  );
+});
 
 test('peer CAS stores identical immutable bytes on independent peers and verifies receipts', async () => {
   const mesh = makeMesh();
