@@ -59,7 +59,7 @@ test("sovereign peer identity is persisted with private permissions and survives
 
 test("sovereign bootstrap accepts literal IP multiaddrs and rejects DNS names", () => {
   assert.deepEqual(getSovereignBootstrapPeers("/ip4/192.0.2.10/tcp/9000"), [
-    "/ip4/192.0.2.10/tcp/9000/p2p/12D3KooWExample"
+    "/ip4/192.0.2.10/tcp/9000"
   ]);
   assert.throws(() => getSovereignBootstrapPeers("/dns4/bootstrap.example/tcp/9000"), /literal/);
   assert.throws(() => getSovereignBootstrapPeers("bootstrap.example:9000"), /literal/);
