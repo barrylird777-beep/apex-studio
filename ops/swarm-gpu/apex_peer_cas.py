@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen\nfrom urllib.parse import quote, urlencode
 
 NAMESPACE = os.environ.get("APEX_PEER_CAS_NAMESPACE", "")
 MODEL_ID = os.environ.get("APEX_MODEL_ID", "")
@@ -35,7 +35,7 @@ def _get(path: str) -> bytes:
         raise RuntimeError("Peer-CAS retrieval failed closed") from exc
 
 def manifest() -> dict:
-    raw = _get("/v1/peer-cas/models/" + MODEL_ID + "/" + REVISION + "/manifest")
+    raw = _get("/v1/peer-cas/models/" + quote(MODEL_ID, safe="") + "/" + quote(REVISION, safe="") + "/manifest")
     value = json.loads(raw)
     if value.get("namespace") != NAMESPACE or value.get("model_id") != MODEL_ID or value.get("revision") != REVISION:
         raise RuntimeError("Peer-CAS manifest identity or namespace mismatch")
@@ -55,7 +55,7 @@ def manifest() -> dict:
     return value
 
 def file_bytes(item: dict) -> bytes:
-    data = _get("/v1/peer-cas/blobs/" + item["sha256"])
+    query = urlencode({"model_id": MODEL_ID, "revision": REVISION})\n    data = _get("/v1/peer-cas/blobs/" + item["sha256"] + "?" + query)
     if len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise RuntimeError("Peer-CAS file integrity check failed")
     return data
