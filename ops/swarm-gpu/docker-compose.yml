@@ -13,6 +13,15 @@ services:
       HF_HUB_OFFLINE: "1"
       HF_DATASETS_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      VLLM_NO_USAGE_STATS: "1"
+      DO_NOT_TRACK: "1"
+      WANDB_DISABLED: "true"
+      RAY_USAGE_STATS_ENABLED: "0"
+      PIP_NO_INDEX: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONDONTWRITEBYTECODE: "1"
       APEX_PEER_CAS_BRIDGE: ${APEX_PEER_CAS_BRIDGE:-unix:///tmp/apex_peer_cas.sock}
       APEX_PEER_CAS_TOKEN: ${APEX_PEER_CAS_TOKEN:?Set APEX_PEER_CAS_TOKEN}
       APEX_PEER_CAS_NAMESPACE: ${APEX_PEER_CAS_NAMESPACE:?Set APEX_PEER_CAS_NAMESPACE}
@@ -34,6 +43,8 @@ services:
       - --max-model-len
       - ${MAX_MODEL_LEN:-32768}
       - --enable-prefix-caching
+      - --distributed-executor-backend
+      - mp
     deploy:
       resources:
         reservations:
