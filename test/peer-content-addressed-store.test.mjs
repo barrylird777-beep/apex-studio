@@ -321,8 +321,13 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   const durableStore = {
     durable: true,
     ownership: 'peer-owned',
-    async health() {
-      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, receiptId: 'test-proof-1' };
+    async health({ namespace, peerId }) {
+      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, peerId, namespace, receipt: 'signed-test-receipt', receiptId: 'test-proof-1' };
+    },
+    async verifyDurabilityReceipt(receipt, claims) {
+      return receipt === 'signed-test-receipt' && claims.peerId === 'capacity-peer' &&
+        claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
+        claims.atomicReferencesVerified === true;
     },
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
