@@ -50,3 +50,4 @@ RUN python -c "import pathlib, shutil, importlib.util; paths=['/usr/bin/apt','/u
 
 # Re-check loader registration after package-manager removal.
 RUN python -c "import apex_peer_cas; from vllm.model_executor.model_loader import get_model_loader; from vllm.config.load import LoadConfig; get_model_loader(LoadConfig(load_format='apex_peer_cas')); import apex_transformers_memory; apex_transformers_memory.install()"
+RUN python -c "import importlib.util, pathlib, shutil; assert importlib.util.find_spec('pip') is None, 'pip module remains in runtime image'; assert all(shutil.which(x) is None for x in ('apt','apt-get','pip','pip3','npm','npx')), 'package manager executable remains in PATH'"
