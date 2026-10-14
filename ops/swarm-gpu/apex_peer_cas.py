@@ -30,7 +30,7 @@ def _get(path: str) -> bytes:
         with urlopen(req, timeout=60) as response:
             if response.status != 200:
                 raise RuntimeError("Peer-CAS bridge returned non-200")
-            return response.read()
+            chunks = bytearray()\n            while True:\n                chunk = response.read(32 * 1024)\n                if not chunk:\n                    break\n                chunks.extend(chunk)\n            return bytes(chunks)
     except (HTTPError, URLError) as exc:
         raise RuntimeError("Peer-CAS retrieval failed closed") from exc
 
