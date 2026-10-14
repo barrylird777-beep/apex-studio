@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mjs';
+import { decodeCanonical } from '../src/core/apex-cbor.mjs';
 
 function binaryMemoryStore() {
   const objects = new Map();
@@ -65,6 +66,12 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
   const storedBytes = store.objects.get(receipt.hash);
   assert.equal(Buffer.isBuffer(storedBytes), true);
   assert.equal(storedBytes.includes(Buffer.from('unpublished manuscript')), false);
+  // Durable peer objects are canonical binary CBOR envelopes, never JSON records.
+  const encryptedEnvelope = decodeCanonical(storedBytes);
+  assert.equal(encryptedEnvelope.version, 1);
+  assert.equal(encryptedEnvelope.algorithm, 'aes-256-gcm');
+  assert.equal(encryptedEnvelope.namespace, 'PlanetApeX');
+  assert.throws(() => JSON.parse(storedBytes.toString('utf8')));
   await assert.rejects(
     runtime.handle({ protocol: 'apex.cas.v1', operation: 'object.get', namespace: 'PlanetApeX', hash: receipt.hash }, { remotePeerId: 'unlisted-peer' }),
     /namespace access denied/

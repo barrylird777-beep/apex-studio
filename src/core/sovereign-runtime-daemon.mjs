@@ -32,7 +32,7 @@ let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
-const runtimeReadiness = { storageReady: false, peerReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
+const runtimeReadiness = { storageReady: false, peerReady: false, peerStorageReady: false, remoteWalVerified: false, remoteWalSequence: null, remoteWalHash: null, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (envelope?.protocol === 'apex.cas.v1') {
@@ -138,7 +138,10 @@ async function main() {
   peerStorageRuntime = await initializePeerObjectStorage({
     peerId: () => peerNode?.peerId?.toString?.() || ''
   });
-  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
+  // The legacy mesh engine is still the active durable store. Do not let its
+  // readiness be mistaken for federated peer-storage readiness.
+  runtimeReadiness.peerStorageReady = false;
+  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, peerStorageReady: false, reason: 'production peer-owned binary backend and replicated write/read probe are not wired', authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled' }));
   if (stopping) return;
   const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
   if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
@@ -216,7 +219,7 @@ async function main() {
   if (stopping) return;
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
-  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.peerStorageReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady;
   console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
     status: readinessReady ? 'online' : 'starting',
     readiness: { ...runtimeReadiness, ready: readinessReady },
@@ -251,7 +254,7 @@ async function publishRuntimeIdentity(status = 'online') {
   const publicPeerAddress = buildPublicPeerAddress(peerId);
   const readiness = {
     ...runtimeReadiness,
-    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.peerStorageReady && runtimeReadiness.remoteWalVerified && runtimeReadiness.dispatchReady
   };
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
