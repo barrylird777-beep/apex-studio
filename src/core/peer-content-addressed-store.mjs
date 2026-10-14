@@ -352,7 +352,10 @@ export function createPeerObjectStorageHandler({
       recoveryVerified: verified,
       restartRecoveryVerified: verified,
       atomicReferencesVerified: verified,
-      ...(verified && typeof proof.receiptId === 'string' && proof.receiptId ? { receiptId: proof.receiptId } : {})
+      ...(verified ? {
+        receipt: proof.receipt,
+        ...(typeof proof.receiptId === 'string' && proof.receiptId ? { receiptId: proof.receiptId } : {})
+      } : {})
     };
   };
   const validHash = value => /^[a-f0-9]{64}$/.test(String(value || ''));
