@@ -47,3 +47,35 @@ test('exited children are ignored', async () => {
   gate.registerBackground('finished', exited);
   await gate.run(PRIORITY.PAID_INFERENCE, async () => true);
 });
+
+test('a stalled cooperative checkpoint times out instead of hanging paid admission', async () => {
+  const gate = createPriorityPreemption({ checkpointTimeoutMs: 15, logger: { warn() {}, error() {} } });
+  const ffmpeg = child();
+  gate.registerBackground('stalled-render', ffmpeg, {
+    pause: () => new Promise(() => {}),
+    resume: async () => {}
+  });
+  await assert.rejects(
+    () => gate.run(PRIORITY.PAID_INFERENCE, async () => 'must-not-run'),
+    /checkpoint timed out/
+  );
+  assert.equal(gate.status().paidActive, 0);
+  assert.equal(gate.status().paidWaiting, 0);
+});
+
+test('paid inference requests are serialized around the shared execution lane', async () => {
+  const gate = createPriorityPreemption();
+  const events = [];
+  let finishFirst;
+  const first = gate.run(PRIORITY.PAID_INFERENCE, async () => {
+    events.push('first-start');
+    await new Promise(resolve => { finishFirst = resolve; });
+    events.push('first-end');
+  });
+  const second = gate.run(PRIORITY.PAID_INFERENCE, async () => { events.push('second-start'); });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.deepEqual(events, ['first-start']);
+  finishFirst();
+  await Promise.all([first, second]);
+  assert.deepEqual(events, ['first-start', 'first-end', 'second-start']);
+});
