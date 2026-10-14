@@ -44,7 +44,18 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
   if (signingSecret.length < 32 || signingSecret.toString('base64') !== process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64) {
     throw new Error('APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 must be canonical base64 containing at least 32 secret bytes');
   }
-  const acl = namespaceAcl && typeof namespaceAcl === 'object' ? namespaceAcl : null;
+  let acl = namespaceAcl && typeof namespaceAcl === 'object' ? namespaceAcl : null;
+  if (typeof namespaceAcl === 'string' && namespaceAcl.trim()) {
+    acl = Object.create(null);
+    for (const entry of namespaceAcl.split(';')) {
+      const split = entry.indexOf('=');
+      if (split < 1) throw new Error('namespace ACL must use AppName=peer-a,peer-b entries');
+      const app = entry.slice(0, split).trim();
+      const ids = entry.slice(split + 1).split(',').map(value => value.trim()).filter(Boolean);
+      if (!app || !ids.length || Object.hasOwn(acl, app)) throw new Error('invalid or duplicate namespace ACL entry');
+      acl[app] = ids;
+    }
+  }
   if (!acl || !Object.keys(acl).length) throw new Error('explicit namespace ACL is required');
   const objectsDir = path.join(root, 'objects');
   const refsDir = path.join(root, 'refs');
@@ -119,8 +130,6 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           error.code = 'REFERENCE_CONFLICT';
           throw error;
         }
-        const object = await this.getBytes(hash);
-        if (!object.equals(bytes)) throw new Error('reference target object is not present and verified on this peer');
         await durableWrite(path.join(refsDir, id + '.cbor'), encodeCanonical({ namespace, key, hash, bytes }));
         const saved = await this.readRef(namespace, key);
         if (!saved || saved.hash !== hash || !saved.bytes.equals(bytes)) throw new Error('peer CAS atomic reference read-back failed');
