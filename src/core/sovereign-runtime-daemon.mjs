@@ -248,7 +248,7 @@ async function main() {
   if (stopping) return;
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
-  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady;
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.peerStorageVerified && runtimeReadiness.dispatchReady;
   console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
     status: readinessReady ? 'online' : 'starting',
     readiness: { ...runtimeReadiness, ready: readinessReady },
@@ -283,7 +283,7 @@ async function publishRuntimeIdentity(status = 'online') {
   const publicPeerAddress = buildPublicPeerAddress(peerId);
   const readiness = {
     ...runtimeReadiness,
-    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.peerStorageVerified && runtimeReadiness.dispatchReady
   };
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
