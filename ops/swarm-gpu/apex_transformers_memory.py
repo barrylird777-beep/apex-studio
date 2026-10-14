@@ -7,11 +7,17 @@ _cache = None
 _installed = False
 
 def _assets():
+    """Fetch only tokenizer/config metadata; never preload weight shards."""
     global _cache
     with _lock:
         if _cache is None:
-            from apex_peer_cas import model_files
-            _cache = model_files()
+            from apex_peer_cas import manifest, file_bytes
+            value = manifest()
+            metadata = [item for item in value["files"]
+                        if not item["path"].endswith(".safetensors")]
+            _cache = {item["path"]: file_bytes(item) for item in metadata}
+            if "config.json" not in _cache or "tokenizer.json" not in _cache:
+                raise RuntimeError("Peer-CAS requires config.json and tokenizer.json for in-memory Transformers")
         return _cache
 
 def install():
