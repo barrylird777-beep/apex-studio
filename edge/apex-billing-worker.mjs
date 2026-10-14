@@ -71,8 +71,8 @@ async function createCheckout(request, env, origin) {
   form.set("mode", "payment");
   form.set("line_items[0][price]", priceId);
   form.set("line_items[0][quantity]", "1");
-  form.set("success_url", origin + "/billing/success?session_id={CHECKOUT_SESSION_ID}");
-  form.set("cancel_url", origin + "/billing/cancel");
+  form.set("success_url", origin + "/studio?session_id={CHECKOUT_SESSION_ID}");
+  form.set("cancel_url", origin + "/studio?cancelled=1");
   form.set("metadata[appId]", body.appId);
   form.set("metadata[entitlement]", product.entitlement);
   form.set("metadata[productId]", priceId);
@@ -99,6 +99,7 @@ async function issueFromPaidSession(request, env, origin) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if ((url.pathname === "/" || url.pathname === "/studio") && request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(new Request(new URL("/renderer.html", request.url), request));
     if (url.pathname === "/health" && request.method === "GET") return json({ service: "apex-anchor-billing", status: "ready", database: false });
     if (url.pathname === "/public-key" && request.method === "GET") {
       const origin = allowedOrigin(request, env);
