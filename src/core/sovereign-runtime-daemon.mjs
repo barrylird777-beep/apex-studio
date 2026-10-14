@@ -174,10 +174,17 @@ async function main() {
     peerStorageRuntime = await initializePeerObjectStorage({
       enabled: true, store, peerId: () => peerNode?.peerId?.toString?.() || ''
     });
-    const proof = await store.health?.({ namespace: 'KernelVision', peerId: peerNode.peerId.toString() });
+    const storageNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || 'KernelVision');
+    const proof = await store.health?.({ namespace: storageNamespace, peerId: peerNode.peerId.toString() });
     runtimeReadiness.peerStorageVerified = proof?.durable === true &&
       proof?.ownership === 'peer-owned' && proof?.restartRecoveryVerified === true &&
-      proof?.atomicReferencesVerified === true;
+      proof?.atomicReferencesVerified === true && proof?.peerId === peerNode.peerId.toString() &&
+      proof?.namespace === storageNamespace && Boolean(proof?.receipt) &&
+      typeof store.verifyDurabilityReceipt === 'function' &&
+      await store.verifyDurabilityReceipt(proof.receipt, {
+        namespace: storageNamespace, peerId: peerNode.peerId.toString(),
+        restartRecoveryVerified: true, atomicReferencesVerified: true
+      }) === true;
     if (!runtimeReadiness.peerStorageVerified) {
       throw new Error('peer-owned backend did not prove durable writes, atomic references, and restart recovery');
     }
