@@ -2,7 +2,6 @@
 const APP_IDS = new Set(["planet-apex", "xshield", "kernel-vision", "koin-kob", "kash-korner", "kernelodies"]);
 const MAX_TOKEN_SECONDS = 7 * 24 * 60 * 60;
 const decode64 = value => Uint8Array.from(atob(value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4)), c => c.charCodeAt(0));
-const encode64 = value => btoa(String.fromCharCode(...value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 const validField = (value, max = 120) => typeof value === "string" && value.length > 0 && value.length <= max && !/[\r\n]/.test(value);
 
 export async function verifyApexLicense({ token, publicKeyBase64, expectedAppId, nowSeconds = Math.floor(Date.now() / 1000) }) {
@@ -21,8 +20,4 @@ export async function verifyApexLicense({ token, publicKeyBase64, expectedAppId,
   const issuedAt = Number(issuedRaw), expiresAt = Number(expiresRaw);
   if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt) || issuedAt > nowSeconds + 60 || expiresAt <= nowSeconds || expiresAt <= issuedAt || expiresAt - issuedAt > MAX_TOKEN_SECONDS) throw new Error("Entitlement expired or outside allowed lifetime");
   return Object.freeze({ issuer: fields[0], appId, entitlement, issuedAt, expiresAt, productId, checkoutSessionId });
-}
-export function encodeApexLicensePayload(fields) {
-  if (!Array.isArray(fields) || fields.length !== 7 || fields.some(value => !validField(String(value)))) throw new TypeError("Seven valid entitlement fields are required");
-  return encode64(new TextEncoder().encode(fields.map(String).join("\n")));
 }
