@@ -10,13 +10,16 @@ const safeId = value => typeof value === 'string' && value.length <= 256 &&
  * PeerContentAddressedStore. It never persists model bytes or proxies providers.
  * The hosting daemon must pass its live store and app-specific authorization.
  */
-export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765 } = {}) {
+export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765, socketPath = '' } = {}) {
   if (!store || typeof store.readRef !== 'function' || typeof store.getBlob !== 'function') {
     throw new TypeError('live PeerContentAddressedStore is required');
   }
   if (typeof authorizeModel !== 'function') throw new TypeError('model authorization policy is required');
   if (typeof token !== 'string' || token.length < 32) throw new TypeError('bridge token must be at least 32 characters');
-  if (host !== '127.0.0.1' && host !== '::1') throw new Error('model bridge must bind to loopback only');
+  if (!socketPath && host !== '127.0.0.1' && host !== '::1') throw new Error('model bridge must bind to loopback only');
+  if (socketPath && (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..'))) {
+    throw new Error('Unix socket path must be a safe path under /tmp');
+  }
   const expected = Buffer.from(token);
   const send = (res, status, body, type = 'application/json') => {
     res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -67,6 +70,8 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
     }
   });
   return { server, listen: () => new Promise((resolve, reject) => {
-    server.once('error', reject); server.listen(port, host, () => resolve(server.address()));
+    server.once('error', reject);
+    if (socketPath) server.listen(socketPath, () => resolve({ socketPath }));
+    else server.listen(port, host, () => resolve(server.address()));
   }), close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())) };
 }
