@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -22,7 +22,7 @@ jobs:
           mkdir -p dist
           ditto -c -k --sequesterRsrc --keepParent build/Build/Products/Release-iphoneos/ApexURLFilter.app dist/ApexURLFilter-unsigned.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ApexURLFilter-iOS26-unsigned
           path: dist/ApexURLFilter-unsigned.zip
