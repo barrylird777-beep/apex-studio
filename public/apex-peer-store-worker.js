@@ -76,8 +76,9 @@ async function status() {
     openDb()
   ]);
   const tx = db.transaction(STORE_NAME, 'readonly');
+  const done = transactionDone(tx);
   const count = await requestResult(tx.objectStore(STORE_NAME).count());
-  await transactionDone(tx);
+  await done;
   const quota = Number.isFinite(estimate.quota) ? estimate.quota : null;
   const usage = Number.isFinite(estimate.usage) ? estimate.usage : null;
   return {
@@ -119,8 +120,9 @@ async function get({ namespace, hash }) {
   if (typeof hash !== 'string' || !HASH_RE.test(hash)) throw new TypeError('invalid SHA-256 content address');
   const db = await openDb();
   const tx = db.transaction(STORE_NAME, 'readonly');
+  const done = transactionDone(tx);
   const record = await requestResult(tx.objectStore(STORE_NAME).get(namespace + ':' + hash));
-  await transactionDone(tx);
+  await done;
   if (!record) throw new Error('peer object not found');
   const bytes = asBytes(record.bytes);
   if (await sha256(bytes) !== hash) throw new Error('stored object failed hash verification');
