@@ -3,204 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080d12">
-<meta name="description" content="PlanetApeX — Bible study, research, analytics, and the GardenApeX living universe.">
-<title>PlanetApeX — Universe, Scripture & Research</title>
-<!-- PlanetApeX canonical interface. -->
-<link rel="stylesheet" href="/apex-six-apps.css">
-<link rel="stylesheet" href="/apex-ui-controls.css">
-<script src="/apex-six-apps.js" defer></script>
-<script src="/apex-ui-controls.js" defer></script>
+<meta name="theme-color" content="#02050b">
+<meta name="description" content="PlanetApeX">
+<title>PlanetApeX</title>
 <style>
-:root{color-scheme:light;--paper:#e9e5dc;--paper-hi:#f5f2eb;--ink:#1d292b;--muted:#697572;--line:#c8c9bd;--forest:#274b43;--forest-2:#3b6658;--brass:#9c7740;--night:#152c30;--white:#fbfaf6;--red:#8b554b}
 *{box-sizing:border-box}
-html{background:var(--paper);scroll-behavior:smooth}
-body{margin:0;min-width:320px;overflow-x:hidden;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-body:has(main[data-apex-app="planetapex"]){--apex-bg:var(--paper);--apex-line:var(--line);--apex-accent:var(--forest);background:var(--paper);color:var(--ink)}
-a{color:var(--forest);text-underline-offset:3px}
-a:hover{color:#172f29}
-button,input,select,textarea{font:inherit}
-.apex-skip-link{position:absolute;left:12px;top:-90px;z-index:20;background:var(--night);color:white;padding:10px 14px}
-.apex-skip-link:focus{top:12px}
-.apex-app-nav{position:relative!important;inset:auto!important;z-index:1!important;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;margin:0!important;padding:10px max(14px,calc((100vw - 1240px)/2));border:0;border-bottom:1px solid #c8c9bd;border-radius:0!important;background:#f5f2eb!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;scrollbar-width:none}
-.apex-app-nav::-webkit-scrollbar{display:none}
-.apex-app-brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;margin-right:12px!important;padding:0 14px 0 0!important;border:0!important;border-right:1px solid var(--line)!important;color:var(--ink)!important;text-decoration:none;font-size:11px!important;letter-spacing:.08em;font-weight:850;white-space:nowrap}
-.apex-app-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:50%!important;background:var(--forest)!important;color:#f5f2eb!important;font-family:Georgia,serif;font-size:17px!important}
-.apex-app-nav a:not(.apex-app-brand){flex:0 0 auto;min-height:38px;display:flex;align-items:center;padding:7px 10px;border:1px solid transparent;border-radius:4px!important;color:#5d6b66!important;font-size:11px!important;font-weight:650;text-decoration:none;white-space:nowrap}
-.apex-app-nav a[aria-current=page]{background:#e2e8df!important;border-color:#a8b8aa!important;color:#203d34!important;box-shadow:none!important}
-main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clamp(20px,4vw,48px) clamp(14px,3.5vw,34px) 50px}
-.apex-shell h1,.apex-shell h2,.apex-shell h3{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.035em;text-wrap:balance}
-.apex-shell h1{font-size:clamp(40px,7vw,78px);line-height:.98;margin:12px 0 18px}
-.apex-shell h2{font-size:clamp(23px,3.5vw,34px);line-height:1.12;margin:0 0 12px}
-.apex-shell h3{font-size:20px;line-height:1.2}
-.apex-shell p{margin:0 0 13px}
-.apex-shell .eyebrow,.kicker{font-size:10px;line-height:1.4;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--brass)}
-.apex-shell .lead{max-width:660px;font-size:clamp(16px,2vw,19px);line-height:1.7;color:#4d5b56}
-.apex-shell .hint,.muted{font-size:12px;line-height:1.6;color:var(--muted)}
-.apex-shell .card,.apex-shell .panel{min-width:0;padding:clamp(17px,2.8vw,28px);border:1px solid var(--line);border-radius:5px;background:var(--paper-hi);box-shadow:none;overflow-wrap:anywhere}
-.apex-shell .card:hover,.apex-shell .panel:hover{transform:none;border-color:#a7b1a4}
-.apex-shell button,.apex-shell input,.apex-shell select,.apex-shell textarea{min-width:0;max-width:100%;border:1px solid #b6bcb1;border-radius:3px;background:#fbfaf6;color:var(--ink);padding:11px 12px;box-shadow:none}
-.apex-shell input,.apex-shell select,.apex-shell textarea{display:block;width:100%;margin:6px 0 14px;font-size:16px;min-height:46px}
-.apex-shell label{display:block;font-size:12px;font-weight:750;color:#42534c}
-.apex-shell button{min-height:44px;cursor:pointer;font-size:12px;font-weight:750;background:var(--forest);border-color:var(--forest);color:#fff;transition:none!important}
-.apex-shell button:hover:not(:disabled){background:#1c3932;transform:none;filter:none}
-.apex-shell button:disabled{opacity:.45;cursor:not-allowed}
-.apex-shell :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--brass);outline-offset:3px}
-.apex-shell .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.apex-shell .row>*{min-width:0;max-width:100%}
-.apex-shell .row button{flex:1 1 135px}
-.apex-shell .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
-.apex-shell .grid>.card{grid-column:span 6}
-.apex-shell .grid>.wide{grid-column:1/-1}
-.apex-shell pre{max-width:100%;max-height:min(42vh,360px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;border:1px solid #c8c9bd;background:#eeece4;color:#35443f;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
-.apex-shell .good{color:#276a4b}.apex-shell .bad{color:#9a3e37}
-.apex-app-footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:34px;padding-top:15px;border-top:1px solid var(--line);font-size:11px;color:#6c7771}
-.pa-masthead{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(200px,.75fr);gap:24px;align-items:end;padding:clamp(24px,5vw,52px) 0 28px;border-bottom:1px solid #bfc4b8}
-.pa-masthead-copy{max-width:720px}
-.pa-masthead .edition{display:flex;gap:10px;align-items:center;font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;color:var(--forest)}
-.pa-masthead .edition:before{content:"";width:26px;height:1px;background:var(--brass)}
-.pa-masthead h1 span{color:var(--forest)}
-.pa-index{justify-self:end;width:100%;max-width:300px;padding:17px 18px;border-left:2px solid var(--brass);background:#deded3}
-.pa-index strong{display:block;font:500 18px Georgia,serif;margin-bottom:8px}
-.pa-index a{display:block;padding:6px 0;border-bottom:1px solid #c5c7bb;color:#40534b;text-decoration:none;font-size:12px}
-.pa-index a:last-child{border-bottom:0}
-.pa-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:34px 0 14px}
-.pa-section-head .number{font:italic 17px Georgia,serif;color:var(--brass)}
-.pa-feature-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
-.pa-feature{grid-column:span 6;min-width:0;border:1px solid var(--line);background:var(--paper-hi)}
-.pa-feature-head{padding:18px 20px 14px;border-bottom:1px solid var(--line)}
-.pa-feature-body{padding:20px}
-.pa-feature-tag{font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;color:var(--brass)}
-.pa-feature h2{margin:8px 0 10px}
-.pa-analytics{background:#e1e7df}
-.pa-analytics .pa-feature-head{border-color:#c3cec2}
-.pa-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0}
-.pa-metric{padding:12px 10px;border-top:2px solid var(--forest);background:#f2f3ec}
-.pa-metric strong{display:block;font:500 clamp(24px,4vw,34px)/1.1 Georgia,serif;color:var(--forest);font-variant-numeric:tabular-nums}
-.pa-metric small{display:block;margin-top:6px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#67746b}
-.pa-bars{display:grid;gap:11px;margin:18px 0}
-.pa-bar-row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;align-items:center;font-size:11px;color:#526158}
-.pa-bar{height:5px;background:#cbd4c8;overflow:hidden}
-.pa-bar span{display:block;height:100%;width:var(--w);background:var(--forest)}
-.pa-scripture{background:#eee5d2;color:#3d3427}
-.pa-scripture .pa-feature-head{border-color:#d6c8ac}
-.pa-scripture .pa-feature-body{font-family:Georgia,"Times New Roman",serif}
-.pa-scripture blockquote{margin:8px 0 10px;padding-left:16px;border-left:2px solid var(--brass);font-size:clamp(22px,3vw,31px);line-height:1.45}
-.pa-scripture .citation{font:11px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#786b54}
-.pa-scripture details{margin-top:18px;border-top:1px solid #d6c8ac;padding-top:12px}
-.pa-scripture summary{cursor:pointer;font:700 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#625039}
-.pa-scripture details p{margin-top:12px;font:14px/1.7 Georgia,serif}
-.pa-research{background:#e4e6e1}
-.pa-research .pa-feature-head{border-color:#c5cbc2}
-.pa-source-list{display:grid;gap:0;margin-top:15px}
-.pa-source{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;padding:12px 0;border-top:1px solid #cbd0c7}
-.pa-source .index{font:italic 15px Georgia,serif;color:var(--brass)}
-.pa-source strong{display:block;font-size:13px;color:#2f423b}
-.pa-source small{display:block;margin-top:3px;font-size:12px;line-height:1.5;color:#65716a}
-.pa-text-link{display:inline-flex;align-items:center;gap:9px;margin-top:14px;font-size:12px;font-weight:800;text-decoration:none}
-.pa-garden{grid-column:1/-1;border-color:#294a40;background:#172b26;color:#edf1e7}
-.pa-garden .pa-feature-head{padding:clamp(20px,4vw,32px);border-color:#38564a;background:#203a32}
-.pa-garden .pa-feature-tag{color:#d0b47a}
-.pa-garden .pa-feature-head h2{font-size:clamp(29px,4vw,43px)}
-.pa-garden .pa-feature-head p{max-width:670px;color:#c3d0c6}
-.pa-garden .pa-feature-body{padding:clamp(16px,3vw,26px)}
-.pa-world-status{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:15px;color:#b9cbbd;font-size:11px}
-.pa-live-dot{display:inline-flex;align-items:center;gap:7px;text-transform:uppercase;letter-spacing:.1em;font-size:9px;font-weight:800}
-.pa-live-dot:before{content:"";width:6px;height:6px;border-radius:50%;background:#a9c49b}
-.pa-village{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
-.pa-korn{min-width:0;padding:13px 10px;border:1px solid #3b5b4e;background:#1c342d}
-.pa-korn .face{display:grid;place-items:center;width:34px;height:34px;margin-bottom:16px;border:1px solid #658071;border-radius:50%;font:16px Georgia,serif;color:#e1c48a}
-.pa-korn strong{display:block;font:500 18px Georgia,serif;color:#f1f0e5}
-.pa-korn small{display:block;margin-top:5px;font-size:11px;line-height:1.4;color:#b8c9bc}
-.pa-korn .mood{font-size:10px;color:#d1b77e;text-transform:capitalize}
-.pa-garden .hint{color:#b8c9bc}
-.pa-garden button{background:#d8dfd0;color:#1d3a30;border-color:#d8dfd0}
-.pa-garden button:hover:not(:disabled){background:#fff}
-.pa-garden-feed{display:grid;gap:6px;max-height:150px;overflow:auto;margin:17px 0 0;padding:0;list-style:none;color:#c5d3c8;font-size:12px}
-.pa-garden-feed li{padding:8px 10px;border-left:2px solid #718c75;background:#ffffff08}
-.pa-storage{margin-top:36px}
-.pa-storage-intro{max-width:650px;color:var(--muted)}
-.pa-storage .card{background:#f3f0e8}
-.pa-storage .card h2{font-size:23px}
-.pa-storage .card .hint{margin-top:8px}
-.pa-record-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
-.pa-record-links a{font-size:12px;font-weight:750}
-@media(max-width:760px){
- .apex-app-nav{padding:8px 10px!important;gap:4px}
- .apex-app-brand{margin-right:5px!important;padding-right:9px!important;font-size:10px!important}
- .apex-app-nav a:not(.apex-app-brand){padding:7px 9px;font-size:10px!important}
- main.apex-shell{padding:18px 13px 35px}
- .pa-masthead{grid-template-columns:1fr;gap:20px;padding:30px 0 23px}
- .pa-index{justify-self:stretch;max-width:none}
- .pa-feature{grid-column:1/-1}
- .pa-village{grid-template-columns:repeat(3,minmax(0,1fr))}
- .apex-shell .grid{grid-template-columns:minmax(0,1fr);gap:10px}
- .apex-shell .grid>.card{grid-column:1/-1}
- .pa-section-head{margin-top:28px}
-}
-@media(max-width:420px){
- .pa-village{grid-template-columns:repeat(2,minmax(0,1fr))}
- .pa-metrics{gap:5px}
- .pa-metric{padding:10px 7px}
- .pa-metric small{font-size:8px;letter-spacing:.04em}
- .pa-bar-row{grid-template-columns:82px minmax(0,1fr)}
- .apex-shell .row button{flex-basis:100%}
-}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
-
-/* PlanetApeX observatory */
-.pa-home{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.7fr);gap:24px;align-items:center;padding:clamp(28px,5vw,60px) 0 30px;border-bottom:1px solid var(--line)}.pa-home-label{font-size:10px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--brass)}.pa-home h1{margin:18px 0 14px;font-size:clamp(42px,7vw,76px);line-height:.96;letter-spacing:-.06em}.pa-home h1 span{color:var(--forest)}.pa-home .lead{max-width:590px}.pa-home-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}.pa-home-links a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 13px;border:1px solid var(--line);border-radius:4px;color:var(--ink);background:var(--paper-hi);font-size:12px;font-weight:750;text-decoration:none}.pa-home-links a:first-child{background:var(--forest);border-color:var(--forest);color:#fff}.pa-home-plate{min-width:0;padding:20px;border:1px solid var(--line);background:var(--paper-hi)}.pa-orbit-art{display:block;width:100%;max-height:230px;margin:0 auto 12px}.pa-home-plate .plate-label{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}.pa-home-plate strong{display:block;margin:7px 0;font:500 22px Georgia,serif}.pa-home-plate p{margin:0;font-size:12px;line-height:1.65;color:var(--muted)}.pa-quick-index{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 32px;border-bottom:1px solid var(--line)}.pa-quick-index a{min-width:0;padding:14px 12px;border-right:1px solid var(--line);color:var(--ink);text-decoration:none}.pa-quick-index a:last-child{border-right:0}.pa-quick-index small{display:block;margin-bottom:5px;font-size:9px;letter-spacing:.12em;color:var(--brass)}.pa-quick-index strong{display:block;font-size:12px}.pa-quick-index span{display:block;margin-top:4px;font-size:10px;color:var(--muted);line-height:1.45}@media(max-width:700px){.pa-home{grid-template-columns:1fr;gap:20px;padding:30px 0 23px}.pa-home-plate{display:grid;grid-template-columns:100px minmax(0,1fr);gap:0 14px;align-items:center;padding:13px}.pa-orbit-art{grid-row:span 2;margin:0}.pa-home-plate strong{font-size:18px}.pa-quick-index{grid-template-columns:repeat(2,minmax(0,1fr))}.pa-quick-index a{border-bottom:1px solid var(--line)}.pa-quick-index a:nth-child(2){border-right:0}.pa-quick-index a:nth-child(n+3){border-bottom:0}}
-/* Canonical centered planet centerpiece; keep the study and simulation tools below it. */
-.pa-home{grid-template-columns:minmax(0,1fr);justify-items:center;gap:10px;text-align:center;padding-top:clamp(20px,4vw,42px)}
-.pa-home-copy{order:2;max-width:900px}
-.pa-home-planet{order:1;width:100%;max-width:520px;padding:0;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
-.pa-home .lead{margin-inline:auto}
-.pa-home-links{justify-content:center}
-.pa-home-planet .planet-stage{position:relative;width:min(68vw,400px);aspect-ratio:1;display:grid;place-items:center;isolation:isolate;margin:0 auto}
-.pa-home-planet .planet{position:relative;width:100%;height:100%;border-radius:50%;overflow:hidden;background:radial-gradient(ellipse at 31% 22%,rgba(255,255,255,.96) 0,rgba(255,255,255,.48) 2%,rgba(255,255,255,0) 12%),radial-gradient(ellipse at 28% 26%,#6eb6dc 0%,#2878a8 18%,#0b3d69 42%,#061b3b 66%,#010713 100%);box-shadow:inset -44px -28px 95px 38px rgba(0,0,0,.94),inset 15px 12px 34px rgba(255,255,255,.32),0 0 24px 2px rgba(74,151,255,.16),0 0 70px 12px rgba(31,102,191,.12);transform:translateZ(0)}
-.pa-home-planet .planet:before{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(ellipse at 34% 31%,rgba(164,219,245,.5),transparent 24%),radial-gradient(ellipse at 47% 47%,transparent 38%,rgba(1,8,25,.32) 72%,rgba(0,0,0,.9) 100%),linear-gradient(108deg,rgba(255,255,255,.22),transparent 25%,transparent 61%,rgba(0,0,0,.7) 100%);z-index:3;pointer-events:none}
-.pa-home-planet .land{position:absolute;inset:0;width:100%;height:100%;z-index:1;filter:drop-shadow(0 0 3px rgba(108,186,135,.35))}
-.pa-home-planet .clouds{position:absolute;inset:-1%;width:102%;height:102%;z-index:2;opacity:.42;mix-blend-mode:screen}
-.pa-home-planet .atmosphere{position:absolute;inset:-1.5%;border-radius:50%;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(130,202,255,.22),0 0 0 2px rgba(78,160,255,.18),0 0 26px 5px rgba(57,143,255,.15);z-index:4}
-.pa-home-planet .plate-label{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
-@media(max-width:700px){.pa-home{grid-template-columns:minmax(0,1fr);gap:12px;padding-top:20px}.pa-home-planet{display:flex;grid-template-columns:none;padding:0}.pa-home-planet .planet-stage{width:min(78vw,310px)}.pa-home-copy{order:2}.pa-home h1{font-size:clamp(38px,10vw,58px)}}
-@media(prefers-reduced-motion:reduce){.pa-home-planet *{animation:none!important;transition:none!important}}
-
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#02050b}
+body{display:grid;place-items:center;min-height:100svh}
+main{width:100%;height:100%;display:grid;place-items:center}
+.planet{position:relative;width:min(91vmin,820px);height:min(91vmin,820px);border-radius:50%;overflow:hidden;isolation:isolate;background:radial-gradient(ellipse at 27% 22%,#a8e0f4 0,#5ca6d0 8%,#1c689f 27%,#0c3e70 49%,#051a3c 72%,#010610 100%);box-shadow:inset -65px -28px 100px 22px #000e,inset 18px 8px 35px #ffffff52,0 0 24px #378edc35,0 0 85px #2679d02b}
+.planet:before{content:"";position:absolute;inset:0;border-radius:50%;z-index:3;background:radial-gradient(ellipse at 27% 24%,#fff5 0,transparent 22%),linear-gradient(105deg,#fff2 0%,transparent 29%,#0000 52%,#000b 100%),radial-gradient(ellipse at 50% 50%,transparent 48%,#0007 77%,#000e 100%);pointer-events:none}
+.land,.clouds{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;pointer-events:none}
+.land{z-index:1}
+.clouds{z-index:2;opacity:.42;mix-blend-mode:screen}
+.atmosphere{position:absolute;inset:-1.1%;border-radius:50%;z-index:4;pointer-events:none;box-shadow:inset 0 0 0 2px #9edaff48,0 0 0 2px #5cb9ff2b,0 0 27px #398eff22}
+@media(min-aspect-ratio:1/1){.planet{width:min(91vh,91vw,820px);height:min(91vh,91vw,820px)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-
-<a class="apex-skip-link" href="#apex-main">Skip to PlanetApeX content</a>
-<nav class="apex-app-nav" aria-label="Six canonical apps">
-<a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR<small style="display:block;font-size:9px;letter-spacing:.08em;color:#78857c;margin-top:2px">SIX CANONICAL APPS</small></span></a>
-<a href="/kernel-vision.html" title="Production and media studio">KernelVision</a><a href="/xshield.html" title="Security and privacy">XShield</a><a href="/kernelodies.html" title="Music and discovery">Kernelodies</a><a href="/planet-apex.html" aria-current="page" title="Scripture, research and universe">PlanetApeX</a><a href="/kash-korner.html" title="Financial tools">KashKorner</a><a href="/koin-kob.html" title="Markets and simulations">KoinKob</a>
-</nav>
-<script src="/api-auth-bridge.js"></script>
-<main class="apex-shell" data-apex-app="planetapex" aria-label="PlanetApeX study and research" id="apex-main" tabindex="-1"><section class="pa-home" aria-labelledby="planet-apex-title"><div class="pa-home-copy"><div class="pa-home-label">PlanetApeX · Knowledge &amp; discovery</div><h1 id="planet-apex-title">Study the text.<br><span>Trace the evidence.</span></h1><p class="lead">A connected workspace for Bible study, historical research, analytical tools, and GardenApeX—the living universe.</p><div class="pa-home-links"><a href="/bible-study-room.html">Open Bible Study ↗</a><a href="/special-search.html">Search sources ↗</a><a href="#garden">Enter GardenApeX ↓</a></div></div><aside class="pa-home-plate pa-home-planet" aria-label="PlanetApeX realistic planet centerpiece"><div class="planet-stage" role="img" aria-label="A realistic blue planet with continents, oceans, cloud bands, and a thin atmosphere"><div class="planet" role="img" aria-label="A large, realistic blue planet with continents, oceans, cloud bands, and a thin atmosphere">
-<svg class="land" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+<main aria-label="PlanetApeX">
+<div class="planet" role="img" aria-label="One large realistic blue planet centered against deep black space">
+<svg class="land" viewBox="0 0 1000 1000" aria-hidden="true">
 <defs>
-<linearGradient id="landColor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a6c994"/><stop offset=".36" stop-color="#668e68"/><stop offset=".7" stop-color="#385f4e"/><stop offset="1" stop-color="#203f3c"/></linearGradient>
-<linearGradient id="ice" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e5f3ef"/><stop offset="1" stop-color="#a8d1dc"/></linearGradient>
-<filter id="terrain"><feTurbulence type="fractalNoise" baseFrequency=".013 .024" numOctaves="4" seed="18"/><feColorMatrix values=".45 0 0 0 .1 .0 .7 0 0 .15 0 0 .35 0 .08 0 0 0 .42 0"/></filter>
-<clipPath id="globe"><circle cx="500" cy="500" r="499"/></clipPath>
+<clipPath id="globe"><circle cx="500" cy="500" r="498"/></clipPath>
+<linearGradient id="landColor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b5d79b"/><stop offset=".38" stop-color="#6caa77"/><stop offset=".72" stop-color="#3f815e"/><stop offset="1" stop-color="#174d45"/></linearGradient>
+<filter id="terrain"><feTurbulence type="fractalNoise" baseFrequency=".018" numOctaves="3" seed="12"/><feColorMatrix values=".6 0 0 0 .15 0 .8 0 0 .2 0 0 .5 0 .12 0 0 0 .28 0"/></filter>
+<linearGradient id="ice" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e5f7ff"/><stop offset="1" stop-color="#8fc8e4" stop-opacity=".05"/></linearGradient>
 </defs>
-<g clip-path="url(#globe)" fill="url(#landColor)" stroke="#b0d0a0" stroke-opacity=".17" stroke-width="3">
-<path d="M80 205L118 164 169 151 203 119 256 111 285 137 321 131 352 165 389 180 400 215 378 244 344 255 326 284 295 294 280 329 250 344 236 381 210 396 190 374 176 337 147 314 139 276 108 254 88 231Z"/>
-<path d="M231 389L264 370 293 383 313 413 306 444 322 469 313 504 295 532 288 570 270 607 257 649 232 690 215 674 207 637 188 610 183 571 163 541 170 502 190 476 196 438 215 416Z"/>
-<path d="M401 173L440 145 484 151 514 174 552 181 576 206 566 233 535 242 514 268 483 274 466 299 438 286 419 254 394 236 388 205Z"/>
-<path d="M433 306L470 287 506 299 530 330 548 363 543 403 523 434 511 470 491 503 478 544 451 577 427 561 419 524 397 496 393 460 374 433 379 395 398 365 404 337Z"/>
-<path d="M535 224L581 199 627 203 663 185 705 197 742 218 773 244 811 256 836 289 827 320 797 332 779 360 744 367 724 393 687 399 669 424 640 415 626 388 597 379 576 349 550 331 543 296 521 267Z"/>
-<path d="M659 429L695 405 731 419 752 450 771 481 765 518 742 548 726 583 699 608 677 590 672 557 650 530 644 494 628 467 639 444Z"/>
-<path d="M804 405L831 389 858 402 873 427 861 451 838 455 820 438Z"/>
-<path d="M338 730L370 711 400 723 421 750 408 780 382 790 362 773Z"/>
-<path d="M500 667L534 650 570 663 601 688 622 721 615 754 587 773 559 764 536 739 510 718Z"/>
-<path d="M766 655L797 638 826 654 842 681 825 703 793 700 778 679Z"/>
+<g clip-path="url(#globe)">
+<g fill="url(#landColor)" stroke="#b4d99b" stroke-opacity=".32" stroke-width="5">
+<path d="M115 205L151 161 206 147 242 112 300 124 328 159 373 172 400 213 382 250 354 266 342 303 309 324 299 362 263 381 248 421 216 438 204 477 174 462 156 428 132 408 117 367 91 345 84 301 101 266 93 231Z"/>
+<path d="M258 451L289 429 326 439 350 466 370 510 366 551 347 592 334 633 305 668 285 650 276 617 253 588 244 554 228 523 235 485Z"/>
+<path d="M424 179L465 158 501 170 516 199 499 224 469 230 446 215Z"/>
+<path d="M457 305L492 280 529 290 548 318 578 329 599 359 626 374 637 407 621 434 595 443 583 477 552 490 533 520 505 533 482 510 462 481 441 458 427 423 409 399 414 367 436 345Z"/>
+<path d="M519 237L557 211 601 205 638 184 681 194 717 215 748 239 782 251 811 280 806 309 781 326 766 352 735 362 714 385 682 393 660 417 637 408 622 383 594 373 574 347 550 329 540 298Z"/>
+<path d="M660 430L693 408 726 421 748 450 766 480 762 515 742 547 725 579 700 607 679 589 673 556 653 529 646 494 630 467 640 445Z"/>
+<path d="M803 405L830 390 856 402 871 427 859 450 838 454 819 438Z"/>
+<path d="M338 731L369 712 400 724 421 750 408 780 382 790 362 773Z"/>
+<path d="M500 667L534 650 569 664 600 689 620 721 614 753 586 772 559 764 536 739 510 718Z"/>
+<path d="M765 655L796 639 825 654 841 681 825 702 793 700 778 679Z"/>
 </g>
-<g clip-path="url(#globe)" opacity=".6"><rect width="1000" height="1000" filter="url(#terrain)" opacity=".28"/></g>
-<path d="M70 88Q500 -75 930 80L1000 130Q500 -8 0 147Z" fill="url(#ice)" opacity=".75"/>
+<rect width="1000" height="1000" filter="url(#terrain)" opacity=".22" style="mix-blend-mode:soft-light"/>
+<path d="M70 88Q500 -75 930 80L1000 130Q500 -8 0 147Z" fill="url(#ice)" opacity=".8"/>
 <path d="M0 834Q230 785 420 849T1000 818L1000 1000H0Z" fill="url(#ice)" opacity=".72"/>
+</g>
 </svg>
-<svg class="clouds" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+<svg class="clouds" viewBox="0 0 1000 1000" aria-hidden="true">
 <defs><filter id="softCloud"><feGaussianBlur stdDeviation="8"/></filter><clipPath id="cloudClip"><circle cx="500" cy="500" r="498"/></clipPath></defs>
 <g clip-path="url(#cloudClip)" fill="none" stroke="#e1f3ff" stroke-linecap="round" filter="url(#softCloud)">
 <path d="M-80 260C80 204 156 274 256 241S421 218 509 249 686 281 805 226 1008 222 1090 264" stroke-width="26" opacity=".6"/>
@@ -208,127 +57,10 @@ main.apex-shell{width:min(1240px,100%);max-width:1240px;margin:auto;padding:clam
 <path d="M-80 575C84 535 175 600 290 568S487 540 601 575 820 611 1090 550" stroke-width="23" opacity=".44"/>
 <path d="M-40 697C121 657 221 713 343 682S553 660 667 696 855 720 1040 678" stroke-width="15" opacity=".48"/>
 <path d="M145 126C190 180 225 193 270 194M622 151C672 188 701 194 753 184M130 770C190 742 235 746 279 761M683 806C729 773 766 781 811 792" stroke-width="20" opacity=".5"/>
-</g></svg>
+</g>
+</svg>
+<div class="atmosphere"></div>
 </div>
-<div class="atmosphere"></div></div><span class="plate-label">PLANET APEX · LIVING UNIVERSE</span></aside></section><nav class="pa-quick-index" aria-label="PlanetApeX sections"><a href="#scripture"><small>01 / TEXT</small><strong>Bible study</strong><span>Read and compare passages</span></a><a href="#research"><small>02 / SOURCES</small><strong>Historical research</strong><span>Trace manuscripts and claims</span></a><a href="#analytics"><small>03 / INSIGHT</small><strong>Analytics</strong><span>Inspect session activity</span></a><a href="#garden"><small>04 / WORLD</small><strong>GardenApeX</strong><span>Observe the living simulation</span></a></nav>
-
-
-<section id="analytics">
-<div class="pa-section-head"><h2>World intelligence</h2><span class="number">01 / Signals</span></div>
-<div class="pa-feature-grid">
-<article class="pa-feature pa-analytics">
-<div class="pa-feature-head"><span class="pa-feature-tag">Session observatory</span><h2>A living system, in view.</h2><p class="hint">Activity generated by the GardenApeX simulation in this open session.</p></div>
-<div class="pa-feature-body"><div class="pa-metrics"><div class="pa-metric"><strong id="pa-pop">6</strong><small>Inhabitants</small></div><div class="pa-metric"><strong id="pa-actions">0</strong><small>Life events</small></div><div class="pa-metric"><strong id="pa-bonds">6</strong><small>Social ties</small></div></div>
-<div class="pa-bars"><div class="pa-bar-row"><span>Discovery</span><div class="pa-bar"><span id="pa-bar-explore" style="--w:42%"></span></div></div><div class="pa-bar-row"><span>Community</span><div class="pa-bar"><span id="pa-bar-social" style="--w:68%"></span></div></div><div class="pa-bar-row"><span>Craft &amp; care</span><div class="pa-bar"><span id="pa-bar-care" style="--w:54%"></span></div></div></div><p class="hint">Session measurements only. No external analytics service is contacted.</p></div>
-</article>
-<article class="pa-feature pa-scripture" id="scripture">
-<div class="pa-feature-head"><span class="pa-feature-tag">Scripture room</span><h2>Read slowly. Look closely.</h2><p class="hint">A quiet starting point for study and reflection.</p></div>
-<div class="pa-feature-body"><blockquote>“And the light shineth in darkness; and the darkness comprehended it not.”</blockquote><p class="citation">JOHN 1:5 · KING JAMES VERSION</p><details><summary>Study notes · John 1:1–5</summary><p>The opening of John connects the Word with life and light. Read the surrounding passage before drawing conclusions, and note how the image of light develops across the text.</p></details><a class="pa-text-link" href="/bible-study-room.html">Enter the Bible Study Room <span aria-hidden="true">↗</span></a></div>
-</article>
-<article class="pa-feature pa-research" id="research">
-<div class="pa-feature-head"><span class="pa-feature-tag">Historical research</span><h2>Claims meet their sources.</h2><p class="hint">Follow the evidence across manuscripts, material culture, and historical records.</p></div>
-<div class="pa-feature-body"><div class="pa-source-list"><div class="pa-source"><span class="index">I.</span><div><strong>Manuscripts &amp; textual witnesses</strong><small>Compare wording, dating, provenance, and catalog records.</small></div></div><div class="pa-source"><span class="index">II.</span><div><strong>Archaeology &amp; cultural context</strong><small>Distinguish excavated evidence from later interpretation.</small></div></div><div class="pa-source"><span class="index">III.</span><div><strong>Source verification</strong><small>Trace claims back to archives, catalogs, and publications.</small></div></div></div><a class="pa-text-link" href="/special-search.html">Open Special Search <span aria-hidden="true">↗</span></a></div>
-</article>
-<article class="pa-feature pa-garden" id="garden">
-<div class="pa-feature-head"><span class="pa-feature-tag">GardenApeX · The living universe</span><h2>Life does not wait for a command.</h2><p>Six inhabitants, their own needs, temperaments, routines, and relationships. Observe the village as its day unfolds. This is a running simulation—not a claim of sentience.</p></div>
-<div class="pa-feature-body"><div class="pa-world-status"><span class="pa-live-dot" id="pa-world-indicator">World active</span><span id="pa-life-status" role="status">The village is active. Events run while this page remains open.</span></div>
-<div class="pa-village" id="pa-village" aria-live="polite">
-<div class="pa-korn"><span class="face">O</span><strong>Ori</strong><small>Checking the garden</small></div><div class="pa-korn"><span class="face">M</span><strong>Mira</strong><small>Trading fruit</small></div><div class="pa-korn"><span class="face">T</span><strong>Tavi</strong><small>Exploring the creek</small></div><div class="pa-korn"><span class="face">N</span><strong>Nemi</strong><small>Repairing a bridge</small></div><div class="pa-korn"><span class="face">K</span><strong>Koro</strong><small>Visiting a friend</small></div><div class="pa-korn"><span class="face">S</span><strong>Seli</strong><small>Resting near home</small></div>
-</div><div class="row" style="margin-top:18px"><button id="pa-life-toggle" type="button" aria-pressed="true">Pause world</button><button id="pa-life-step" type="button">Observe next moment</button><button id="pa-life-reset" type="button">Begin a new day</button></div><ul class="pa-garden-feed" id="pa-life-feed"><li>The day begins; the village stirs.</li></ul></div>
-</article>
-</div>
-</section>
-<section class="pa-storage" id="world-tools">
-<div class="pa-section-head"><h2>World records</h2><span class="number">05 / Builder &amp; archive</span></div>
-<p class="pa-storage-intro">Create and inspect world records using the configured shared storage service. Changes remain in this page until saved. Existing records are protected from accidental overwrite.</p>
-<div class="grid">
-<section class="card"><span class="kicker">01 / Define</span><h2>World builder</h2><label for="pid">World ID</label><input id="pid" value="earth" autocomplete="off"><label for="pname">World name</label><input id="pname" value="PlanetApeX" autocomplete="off"><div class="row"><button id="world" type="button">Create world</button><button id="region" type="button" disabled>Add region</button><button id="entity" type="button" disabled>Add entity</button></div><p class="hint">IDs may contain letters, numbers, dots, underscores, colons, and hyphens.</p></section>
-<section class="card"><span class="kicker">02 / Shared storage</span><h2>Save or recover</h2><label for="token">Control token</label><input id="token" type="password" autocomplete="off" placeholder="Server-configured control token"><p class="hint">Used only for requests in this browser tab. Do not enter your account password.</p><div class="row"><button id="save" type="button" disabled>Save world</button><button id="load" type="button">Load by ID</button><button id="list" type="button">List saved worlds</button></div><label for="saved">Saved worlds</label><select id="saved"><option value="">Load the list first</option></select><div id="storageStatus" class="hint" role="status">Not connected to durable storage yet.</div></section>
-<section class="card"><span class="kicker">03 / Service health</span><h2>Runtime status</h2><pre id="status">Checking service…</pre><button id="refresh" type="button">Refresh status</button></section>
-<section class="card"><span class="kicker">04 / Current record</span><h2>World state</h2><pre id="worldState">No world created.</pre></section>
-<section class="card wide"><span class="kicker">05 / Record index</span><h2>Saved world records</h2><pre id="records">Choose “List saved worlds” to inspect durable records.</pre><div class="pa-record-links"><a href="#garden">Return to GardenApeX ↗</a><a href="/api/apex/apps">Canonical six-app registry ↗</a></div></section>
-</div>
-</section>
-<footer class="apex-app-footer"><span>APEX ANCHOR · PlanetApeX</span><span>Scripture · Research · Living universe</span></footer>
 </main>
-<script>
-const $=id=>document.getElementById(id);
-const tokenKey="apexPlanetApexControlToken";
-let planet=null;let loadedExistingRecord=false;
-function currentToken(){return $("token").value.trim()||sessionStorage.getItem(tokenKey)||""}
-function headers(){const token=currentToken();if(!token)throw Error("Enter the control token configured on the server.");sessionStorage.setItem(tokenKey,token);return {"x-apex-shortcut-token":token,"content-type":"application/json","accept":"application/json"}}
-async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})},cache:"no-store"});let body;try{body=await response.json()}catch{body={}}if(!response.ok)throw Error(body.error||("HTTP "+response.status));return body}
-function setStorage(message,ok=true){$("storageStatus").textContent=message;$("storageStatus").className=ok?"hint good":"hint bad"}
-function validId(id){return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(id)&&!id.includes("..")}
-function render(){const has=!!planet;$("region").disabled=!has;$("entity").disabled=!has;$("save").disabled=!has;$("worldState").textContent=has?JSON.stringify(planet,null,2):"No world created."}
-function addRegion(){const n=planet.regions.length+1;planet.regions.push({id:"region-"+n,name:"Region "+n,type:"region",state:{}});render()}
-function addEntity(){const n=planet.entities.length+1;planet.entities.push({id:"entity-"+n,kind:"entity",name:"Entity "+n,regionId:planet.regions[0]?.id??null,state:{}});render()}
-$("world").onclick=()=>{const id=$("pid").value.trim(),name=$("pname").value.trim();if(!validId(id)||!name){setStorage("Enter a valid world ID and a world name.",false);return}planet={id,name,state:{},regions:[],entities:[],createdAt:new Date().toISOString()};loadedExistingRecord=false;$("pid").value=id;$("pname").value=name;render();setStorage("World created in this page. Save it to make it durable.",true)}
-$("region").onclick=addRegion;$("entity").onclick=addEntity;
-$("save").onclick=async()=>{try{if(!planet)throw Error("Create or load a world first.");if(!validId(planet.id))throw Error("World ID is invalid for durable storage.");if(!loadedExistingRecord){try{await api("/api/mobile/apps/planet-apex/records/"+encodeURIComponent(planet.id));throw Error("A record with this ID already exists. Load it before editing so existing work is not overwritten.");}catch(error){if(!String(error.message).includes("HTTP 404")&&!String(error.message).includes("Record not found"))throw error;}}const data=await api("/api/mobile/apps/planet-apex/records/"+encodeURIComponent(planet.id),{method:"PUT",body:JSON.stringify(planet)});planet=data.record||planet;loadedExistingRecord=true;render();setStorage("Saved durably: "+data.id+" · "+data.storage,true);await listRecords()}catch(e){setStorage("SAVE FAILED: "+e.message,false)}}
-$("load").onclick=async()=>{try{const id=$("pid").value.trim();if(!validId(id))throw Error("Enter a valid world ID.");const data=await api("/api/mobile/apps/planet-apex/records/"+encodeURIComponent(id));planet=data.record||data;loadedExistingRecord=true;$("pid").value=planet.id;$("pname").value=planet.name||"PlanetApeX";render();setStorage("Loaded durable record: "+id+" · "+data.storage,true)}catch(e){setStorage("LOAD FAILED: "+e.message,false)}}
-async function listRecords(){const data=await api("/api/mobile/apps/planet-apex/records");const rows=Array.isArray(data.records)?data.records:[];$("saved").replaceChildren(new Option(rows.length?"Choose a saved world":"No saved worlds",""));for(const row of rows){const record=row.record||row;const option=new Option((record.name||row.id||"Untitled")+" ("+(row.id||record.id||"?")+")",row.id||record.id);$("saved").add(option)}$("records").textContent=JSON.stringify(rows.map(row=>({id:row.id,name:row.record?.name,regions:row.record?.regions?.length||0,entities:row.record?.entities?.length||0,storage:row.storage})),null,2);setStorage("Found "+rows.length+" durable world record(s).",true)}
-$("list").onclick=async()=>{try{await listRecords()}catch(e){setStorage("LIST FAILED: "+e.message,false)}}
-$("saved").onchange=()=>{const id=$("saved").value;if(id){$("pid").value=id;$("load").click()}}
-async function refresh(){try{const r=await fetch("/api/apex/apps/planet-apex/status",{headers:{accept:"application/json"},cache:"no-store"});const body=await r.json();if(!r.ok)throw Error("HTTP "+r.status);$("status").textContent=JSON.stringify(body,null,2)}catch(e){$("status").textContent="Runtime unavailable: "+e.message}}
-$("refresh").onclick=refresh;
-const storedToken=sessionStorage.getItem(tokenKey);if(storedToken)$("token").value=storedToken;
-render();refresh();
-</script>
-<script>
-(()=> {
- const inhabitants=[
-  {name:"Ori",face:"O",need:"tend",trait:"careful",friend:"Mira",mood:"focused"},
-  {name:"Mira",face:"M",need:"trade",trait:"curious",friend:"Ori",mood:"hopeful"},
-  {name:"Tavi",face:"T",need:"explore",trait:"restless",friend:"Seli",mood:"curious"},
-  {name:"Nemi",face:"N",need:"repair",trait:"patient",friend:"Koro",mood:"steady"},
-  {name:"Koro",face:"K",need:"visit",trait:"social",friend:"Nemi",mood:"warm"},
-  {name:"Seli",face:"S",need:"rest",trait:"observant",friend:"Tavi",mood:"calm"}
- ];
- const acts=[
-  ["tend","checks seedlings and waters the terrace","care"],
-  ["trade","offers gathered fruit at the market","social"],
-  ["explore","follows a stream beyond the bridge","explore"],
-  ["repair","tightens the woven bridge supports","care"],
-  ["visit","stops by a friend's home to share news","social"],
-  ["rest","rests beneath the root-lanterns and listens","care"],
-  ["observe","notices a new pattern in the night insects","explore"],
-  ["craft","makes a small tool from riverstone","care"],
-  ["help","helps a neighbor carry supplies home","social"],
-  ["wander","takes a different path through the village","explore"]
- ];
- let count=0,paused=false,day=1,turn=0;
- function act(){
-  turn++;
-  const k=inhabitants[Math.floor(Math.random()*inhabitants.length)];
-  const choices=acts.filter(a=>a[0]===k.need||Math.random()<.25);
-  const chosen=choices[Math.floor(Math.random()*choices.length)]||acts[turn%acts.length];
-  k.mood=["curious","content","thoughtful","hopeful","focused","calm"][Math.floor(Math.random()*6)];
-  if(Math.random()<.35)k.need=["tend","trade","explore","repair","visit","rest"][Math.floor(Math.random()*6)];
-  count++;
-  const card=document.querySelector('[data-korn="'+k.name+'"]');
-  if(card){const detail=card.querySelector(".detail");if(detail)detail.textContent=chosen[1];const mood=card.querySelector(".mood");if(mood)mood.textContent=k.mood}
-  const feed=$("pa-life-feed"),li=document.createElement("li");li.textContent="Day "+day+" · "+k.name+" "+chosen[1]+".";feed.prepend(li);while(feed.children.length>8)feed.lastElementChild.remove();
-  $("pa-actions").textContent=count;$("pa-bonds").textContent=inhabitants.filter(x=>x.friend).length;
-  $("pa-bar-explore").style.setProperty("--w",(20+Math.min(70,turn*7%70))+"%");
-  $("pa-bar-social").style.setProperty("--w",(25+Math.min(65,turn*11%65))+"%");
-  $("pa-bar-care").style.setProperty("--w",(30+Math.min(60,turn*5%60))+"%");
- }
- function render(){
-  $("pa-village").replaceChildren();
-  inhabitants.forEach(k=>{const card=document.createElement("div");card.className="pa-korn";card.dataset.korn=k.name;const face=document.createElement("span");face.className="face";face.textContent=k.face;const name=document.createElement("strong");name.textContent=k.name;const detail=document.createElement("small");detail.className="detail";detail.textContent=k.need+" · "+k.trait;const mood=document.createElement("small");mood.className="mood";mood.textContent=k.mood;card.append(face,name,detail,mood);$("pa-village").append(card)});
- }
- $("pa-life-toggle").addEventListener("click",()=>{paused=!paused;$("pa-life-toggle").textContent=paused?"Resume world":"Pause world";$("pa-life-toggle").setAttribute("aria-pressed",String(!paused));$("pa-life-status").textContent=paused?"The village is paused.":"The village is active. Events run while this page remains open.";$("pa-world-indicator").textContent=paused?"World paused":"World active"});
- $("pa-life-step").addEventListener("click",act);
- $("pa-life-reset").addEventListener("click",()=>{day++;turn=0;count=0;inhabitants.forEach((k,i)=>{k.need=["tend","trade","explore","repair","visit","rest"][i];k.mood="curious"});$("pa-actions").textContent="0";$("pa-life-feed").replaceChildren();const li=document.createElement("li");li.textContent="Day "+day+" begins. Each Korn starts with a different intention.";$("pa-life-feed").append(li);render()});
- render();setInterval(()=>{if(!paused)act()},4200);
-})();
-</script>
-
-
-
-
-
-
 </body>
 </html>
