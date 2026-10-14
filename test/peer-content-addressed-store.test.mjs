@@ -6,7 +6,6 @@ import {
   createPeerObjectStorageHandler
 } from '../src/core/peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
-import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
