@@ -22,6 +22,24 @@ function get(path, authorization = `Bearer ${token}`) {
   });
 }
 
+test('bridge rejects non-canonical app namespaces and dot-segment model identities', async () => {
+  assert.throws(() => createPeerModelBridgeServer({
+    store: { namespace: 'shared', readRef: async () => null, getBlob: async () => Buffer.alloc(0) },
+    authorizeModel: async () => true, token, socketPath
+  }), /canonical app namespace/);
+
+  const store = { namespace: 'KernelVision', readRef: async () => null, getBlob: async () => Buffer.alloc(0) };
+  const bridge = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath });
+  try {
+    await bridge.listen();
+    const result = await get('/v1/peer-cas/models/%2E%2E/r1/manifest');
+    assert.equal(result.status, 400);
+  } finally {
+    await bridge.close();
+    await unlink(socketPath).catch(() => {});
+  }
+});
+
 test('Unix socket bridge requires auth and serves only authorized, verified Peer-CAS bytes', async () => {
   const store = {
     namespace: 'KernelVision',
