@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
-const validId = value => typeof value === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(value);
+const validId = value => typeof value === 'string' && value.length <= 256 &&\n  value.split('/').every(part => /^[A-Za-z0-9._-]{1,128}$/.test(part));
 const validHash = value => /^[a-f0-9]{64}$/.test(String(value || ''));
 const MAX_FILE_BYTES = 32 * 1024 ** 3;
 const MAX_BUNDLE_BYTES = 64 * 1024 ** 3;
-const MAX_FILES = 4096;
+const MAX_FILES = 512;
 
 function safePath(value) {
   return typeof value === 'string' && value.length <= 512 &&
