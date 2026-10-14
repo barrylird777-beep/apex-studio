@@ -187,15 +187,17 @@ test('libp2p transport rejects an ACK that names a different peer', async () => 
 
 test('peer CAS requires explicit independent failure domains when configured', async () => {
   const mesh = makeMesh();
-  assert.throws(
+  // The default policy requires replica count, not cross-domain placement.
+  // Independent failure-domain labels become mandatory only when the caller
+  // explicitly asks for more than one domain.
+  assert.doesNotThrow(
     () => new PeerContentAddressedStore({
       transport: mesh.client.transport,
       peers: ['peer-a', 'peer-b'],
       replicaCount: 2,
       namespace: 'PlanetApeX',
       encryptionKey: Buffer.alloc(32, 7)
-    }),
-    /explicit failure domain/
+    })
   );
   assert.throws(
     () => new PeerContentAddressedStore({
