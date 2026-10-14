@@ -13,7 +13,7 @@
  *   APEX_EXPORT_DIR (default: ./railway-bucket-export)
  *
  * This never deletes or mutates source objects. Use a fresh, empty export directory.
- * Object keys are percent-encoded in the TSV manifest; bytes are stored under objects/.
+ * Object keys are percent-encoded in the TSV manifest; bytes are stored under SHA-256-of-key paths in objects/.
  */
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
@@ -53,7 +53,7 @@ try {
 await mkdir(objectsRoot, { recursive: true });
 const manifest = path.join(outputRoot, 'inventory.tsv');
 const metadataFile = path.join(outputRoot, 'metadata.tsv');
-await writeFile(manifest, 'key_percent_encoded\tsize_bytes\tlisted_etag\tsha256\n', { flag: 'wx' });
+await writeFile(manifest, 'key_percent_encoded\texport_path\tsize_bytes\tlisted_etag\tsha256\n', { flag: 'wx' });
 await writeFile(metadataFile, 'key_percent_encoded\tcontent_type\tcache_control\tcontent_encoding\tcontent_language\tcontent_disposition\texpires\tstorage_class\tuser_metadata\n', { flag: 'wx' });
 
 const client = new S3Client({
@@ -64,18 +64,17 @@ const client = new S3Client({
 });
 const tsv = (value) => String(value ?? '').replaceAll('\\', '\\\\').replaceAll('\t', '\\t').replaceAll('\r', '\\r').replaceAll('\n', '\\n');
 const enc = (key) => encodeURIComponent(key);
-const safeObjectPath = (key) => {
-  const parts = key.split('/');
-  const resolved = path.resolve(objectsRoot, ...parts);
-  if (resolved !== objectsRoot && !resolved.startsWith(objectsRoot + path.sep)) {
-    throw new Error('Object key escaped export directory; refusing to write it');
-  }
-  return resolved;
+const objectLocation = (key) => {
+  // Hashing the key avoids traversal, separator, trailing-slash, and long-filename problems.
+  const keyHash = createHash('sha256').update(key, 'utf8').digest('hex');
+  const relative = path.posix.join(keyHash.slice(0, 2), keyHash);
+  return { relative, absolute: path.join(objectsRoot, keyHash.slice(0, 2), keyHash) };
 };
 const writeObject = async (entry) => {
   const key = entry.Key;
   if (typeof key !== 'string') throw new Error('Listed object has no key');
-  const destination = safeObjectPath(key);
+  const location = objectLocation(key);
+  const destination = location.absolute;
   await mkdir(path.dirname(destination), { recursive: true });
   const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   if (!response.Body) throw new Error('Object body missing: ' + enc(key));
@@ -93,7 +92,7 @@ const writeObject = async (entry) => {
   if (Number.isFinite(entry.Size) && actual !== entry.Size) {
     throw new Error('Size mismatch for ' + enc(key) + ': expected ' + entry.Size + ', got ' + actual);
   }
-  await appendFile(manifest, [enc(key), actual, tsv(entry.ETag), digest].join('\t') + '\n');
+  await appendFile(manifest, [enc(key), location.relative, actual, tsv(entry.ETag), digest].join('\t') + '\n');
   const userMetadata = Object.entries(response.Metadata || {}).sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => k + '=' + v).join(';');
   await appendFile(metadataFile, [
