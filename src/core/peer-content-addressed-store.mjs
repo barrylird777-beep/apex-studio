@@ -319,18 +319,50 @@ export function createPeerObjectStorageHandler({
   if (typeof authorizeNamespace !== 'function') throw new TypeError('an explicit per-app namespace authorization policy is required');
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
+  const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function';
+  const capacityReceipt = async (namespace, expectedPeerId) => {
+    if (!hasReferenceBackend || typeof store.health !== 'function' ||
+        typeof store.verifyDurabilityReceipt !== 'function') {
+      return { durable: false, ownership: 'unverified', recoveryVerified: false, restartRecoveryVerified: false, atomicReferencesVerified: false };
+    }
+    const proof = await store.health({ namespace, peerId: expectedPeerId });
+    const verified = proof?.durable === true && proof?.ownership === 'peer-owned'
+      && proof?.restartRecoveryVerified === true && proof?.atomicReferencesVerified === true
+      && proof?.peerId === expectedPeerId && proof?.namespace === namespace
+      && proof?.receipt && await store.verifyDurabilityReceipt(proof.receipt, {
+        namespace, peerId: expectedPeerId, restartRecoveryVerified: true, atomicReferencesVerified: true
+      }) === true;
+    return {
+      durable: verified,
+      ownership: verified ? 'peer-owned' : 'unverified',
+      recoveryVerified: verified,
+      restartRecoveryVerified: verified,
+      atomicReferencesVerified: verified,
+      ...(verified && typeof proof.receiptId === 'string' && proof.receiptId ? { receiptId: proof.receiptId } : {})
+    };
+  };
+  const validHash = value => /^[a-f0-9]{64}$/.test(String(value || ''));
 
   return async function handlePeerObjectStorage(envelope, { remotePeerId = '' } = {}) {
     if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['object.put', 'object.get'].includes(operation)) throw new Error('unsupported peer storage operation');
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas'].includes(operation)) {
+      throw new Error('unsupported peer storage operation');
+    }
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
       throw new Error('peer storage namespace access denied');
     }
+    const localPeerId = resolvePeerId();
+    if (!localPeerId) throw new Error('local peer identity is not ready');
+
+    if (operation === 'storage.health') {
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt(envelope.namespace, localPeerId) };
+    }
+
     if (operation === 'object.put') {
-      if (typeof envelope.bytesBase64 !== 'string' || !/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) {
+      if (typeof envelope.bytesBase64 !== 'string' || !validHash(envelope.hash)) {
         throw new Error('invalid peer object write request');
       }
       const bytes = Buffer.from(envelope.bytesBase64, 'base64');
@@ -348,20 +380,50 @@ export function createPeerObjectStorageHandler({
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
-      const localPeerId = resolvePeerId();
-      if (!localPeerId) throw new Error('local peer identity is not ready');
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes, ...await capacityReceipt(envelope.namespace, localPeerId) };
     }
-    if (!/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) throw new Error('invalid peer object read request');
-    const bytes = Buffer.from(await store.getBytes(envelope.hash));
-    let value;
-    try { value = decodeCanonical(bytes); } catch { throw new Error('persistent peer object is not valid canonical CBOR'); }
-    if (sha256(bytes) !== envelope.hash || value?.namespace !== envelope.namespace ||
-        value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
-      throw new Error('persistent peer object failed integrity or namespace verification');
+
+    if (operation === 'object.get') {
+      if (!validHash(envelope.hash)) throw new Error('invalid peer object read request');
+      const bytes = Buffer.from(await store.getBytes(envelope.hash));
+      let value;
+      try { value = decodeCanonical(bytes); } catch { throw new Error('persistent peer object is not valid canonical CBOR'); }
+      if (sha256(bytes) !== envelope.hash || value?.namespace !== envelope.namespace ||
+          value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
+        throw new Error('persistent peer object failed integrity or namespace verification');
+      }
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId) };
     }
-    const localPeerId = resolvePeerId();
-    if (!localPeerId) throw new Error('local peer identity is not ready');
-    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64') };
+
+    const capacity = await capacityReceipt(envelope.namespace, localPeerId);
+    if (capacity.durable !== true || capacity.ownership !== 'peer-owned') {
+      throw new Error('peer reference operations require verified durable peer-owned storage with restart recovery');
+    }
+    if (typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512) {
+      throw new Error('invalid peer reference key');
+    }
+    if (operation === 'ref.get') {
+      const current = await store.readRef(envelope.namespace, envelope.key);
+      if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
+      const bytes = Buffer.from(current.bytes);
+      if (!validHash(current.hash) || sha256(bytes) !== current.hash) {
+        throw new Error('peer reference failed integrity verification');
+      }
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...capacity };
+    }
+
+    if (envelope.expectedHash !== null && !validHash(envelope.expectedHash)) {
+      throw new Error('invalid expected peer reference hash');
+    }
+    if (!validHash(envelope.hash) || typeof envelope.bytesBase64 !== 'string') {
+      throw new Error('invalid peer reference write request');
+    }
+    const bytes = Buffer.from(envelope.bytesBase64, 'base64');
+    if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) {
+      throw new Error('peer reference write failed size, encoding, or hash verification');
+    }
+    const saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
+    if (!saved || saved.hash !== envelope.hash) throw new Error('peer reference backend did not confirm atomic reference update');
+    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...capacity };
   };
 }
