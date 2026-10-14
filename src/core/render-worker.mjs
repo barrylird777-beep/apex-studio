@@ -60,7 +60,14 @@ export class RenderWorker{
     return await new Promise((resolve,reject)=>{
       const child=spawn(this.ffmpegPath,args,{cwd:process.cwd(),stdio:["ignore","pipe","pipe"]});
       this.running.set(job.id,child);
-      const unregisterPriorityChild = apexPriorityPreemption.registerBackground(job.id, child);
+      const unregisterPriorityChild = apexPriorityPreemption.registerBackground(job.id, child, {
+        pause: typeof plan.yieldForPriority === "function"
+          ? () => plan.yieldForPriority({ job, child, output })
+          : undefined,
+        resume: typeof plan.resumeFromPriorityCheckpoint === "function"
+          ? checkpoint => plan.resumeFromPriorityCheckpoint({ job, checkpoint })
+          : undefined
+      });
       let stdout="",stderr="",progress={};
       child.stdout.on("data",b=>stdout+=b.toString());
       child.stderr.on("data",b=>{
