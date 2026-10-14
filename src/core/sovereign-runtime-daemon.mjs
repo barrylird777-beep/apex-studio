@@ -14,6 +14,8 @@ import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
+import { createPeerStorageAssembly } from './peer-storage-assembly.mjs';
+import { createPeerStorageIpcServer } from './peer-storage-ipc.mjs';
 
 const storageMigration = await migrateSovereignStorage();
 console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
@@ -31,8 +33,10 @@ let timer;
 let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
-let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
-const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, dispatchReady: false };
+let peerStorageAssembly;
+let peerStorageIpc;
+let peerStorageRuntime = { enabled: false, durabilityVerified: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
+const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, peerStorageVerified: false, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (envelope?.protocol === 'apex.cas.v1') {
@@ -159,6 +163,37 @@ async function main() {
     throw new Error('libp2p start resolved without any listen address');
   }
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
+  const peerStorageEnabled = String(process.env.APEX_STORAGE_MODE || '').toLowerCase() === 'peer' ||
+    String(process.env.APEX_PEER_STORAGE_ENABLED || '').toLowerCase() === 'true';
+  if (peerStorageEnabled) {
+    peerStorageAssembly = await createPeerStorageAssembly({ peerNode });
+    peerStorageRuntime = await initializePeerObjectStorage({
+      enabled: true,
+      store: peerStorageAssembly.backend,
+      namespaceAcl: process.env.APEX_PEER_NAMESPACE_ACL || '',
+      peerId: () => peerNode?.peerId?.toString?.() || ''
+    });
+    const token = String(process.env.APEX_PEER_STORAGE_BRIDGE_TOKEN || '');
+    peerStorageIpc = createPeerStorageIpcServer({ mediaStore: peerStorageAssembly.mediaStore, token });
+    const address = await peerStorageIpc.listen();
+    runtimeReadiness.peerStorageVerified = peerStorageRuntime.durabilityVerified === true;
+    console.log('[SOVEREIGN PEER STORAGE BRIDGE]', JSON.stringify({
+      enabled: true, host: address.address, port: address.port,
+      protocol: 'binary-cbor-loopback', auth: 'shared-secret',
+      apps: peerStorageAssembly.mediaStore.apps,
+      durabilityVerified: runtimeReadiness.peerStorageVerified
+    }));
+  } else {
+    peerStorageRuntime = await initializePeerObjectStorage({
+      enabled: false, peerId: () => peerNode?.peerId?.toString?.() || ''
+    });
+    runtimeReadiness.peerStorageVerified = false;
+  }
+  console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({
+    enabled: peerStorageRuntime.enabled,
+    authorization: peerStorageRuntime.enabled ? 'explicit-per-app-acl' : 'disabled',
+    durabilityVerified: peerStorageRuntime.durabilityVerified === true
+  }));
   try {
     await verifyRemotePersistenceReadiness();
   } catch (error) {
@@ -345,6 +380,13 @@ async function shutdown(signal) {
   } catch (error) {
     process.exitCode = 1;
     console.error('[SOVEREIGN] edge shutdown failed', String(error?.message || error));
+  }
+  try {
+    if (peerStorageIpc) await peerStorageIpc.close();
+    shutdownEvidence.peerStorageBridgeStopped = true;
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] peer storage bridge shutdown failed', String(error?.message || error));
   }
   try {
     if (peerNode) await peerNode.stop();
