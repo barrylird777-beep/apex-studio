@@ -6,7 +6,6 @@ import { tcp } from '@libp2p/tcp';
 import { noise } from '@libp2p/noise';
 import { ping } from '@libp2p/ping';
 import { yamux } from '@libp2p/yamux';
-import { mdns } from '@libp2p/mdns';
 import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
@@ -280,7 +279,6 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
     connectionEncrypters: [noise()],
     streamMuxers: [yamux()],
     peerDiscovery: [
-      mdns({ interval: 5000 }),
       ...(getSovereignBootstrapPeers().length ? [bootstrap({ list: getSovereignBootstrapPeers() })] : [])
     ],
     services: {
