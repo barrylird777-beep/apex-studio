@@ -66,10 +66,11 @@ export function createPriorityPreemption({
     }
   }
 
-  async function pauseBackground() {
+  async function pauseBackground(skipEntries = new Set()) {
     const paused = [];
     try {
       for (const [jobId, entry] of background) {
+        if (skipEntries.has(entry)) continue;
         const child = entry.child;
         if (child.exitCode !== null || child.signalCode !== null) continue;
         const checkpoint = await timedPause(jobId, entry);
@@ -119,7 +120,12 @@ export function createPriorityPreemption({
     try {
       // Keep the background lane checkpointed across an already-queued paid task.
       // This avoids resuming a swarm job for a few milliseconds between paid requests.
-      paused = heldPaused || await pauseBackground();
+      if (heldPaused) {
+        const alreadyPaused = new Set(heldPaused.map(item => item.entry));
+        paused = [...heldPaused, ...await pauseBackground(alreadyPaused)];
+      } else {
+        paused = await pauseBackground();
+      }
       heldPaused = null;
       paidActive = 1;
       return await task();
