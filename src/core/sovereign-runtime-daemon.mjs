@@ -32,7 +32,7 @@ let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
-const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, dispatchReady: false };
+const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, peerStorageVerified: false, dispatchReady: false };
 
 async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   if (envelope?.protocol === 'apex.cas.v1') {
@@ -213,7 +213,7 @@ async function main() {
   if (stopping) return;
   runtimeReadiness.dispatchReady = true;
   await publishRuntimeIdentity('online');
-  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady;
+  const readinessReady = runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.peerStorageVerified && runtimeReadiness.dispatchReady;
   console.log('[*] APEX SOVEREIGN RUNTIME STARTED', JSON.stringify({
     status: readinessReady ? 'online' : 'starting',
     readiness: { ...runtimeReadiness, ready: readinessReady },
@@ -248,7 +248,7 @@ async function publishRuntimeIdentity(status = 'online') {
   const publicPeerAddress = buildPublicPeerAddress(peerId);
   const readiness = {
     ...runtimeReadiness,
-    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.dispatchReady
+    ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.peerStorageVerified && runtimeReadiness.dispatchReady
   };
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
   await apexPureStore.put('sovereign_runtime', 'identity', {
