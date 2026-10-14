@@ -16,6 +16,7 @@ test('sovereign readiness requires every runtime gate and a live lease', () => {
       peerReady: true,
       remotePersistenceVerified: true,
       remotePersistenceHash: hash,
+      peerStorageVerified: true,
       dispatchReady: true
     }
   };
@@ -28,6 +29,7 @@ test('sovereign readiness requires every runtime gate and a live lease', () => {
   assert.equal(isSovereignRuntimeReady({ ...identity, status: 'starting' }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerReady: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remotePersistenceVerified: false } }, 4000, instanceId), false);
+  assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, peerStorageVerified: false } }, 4000, instanceId), false);
   assert.equal(isSovereignRuntimeReady({ ...identity, readiness: { ...identity.readiness, remotePersistenceHash: 'bad' } }, 4000, instanceId), false);
 });
 
