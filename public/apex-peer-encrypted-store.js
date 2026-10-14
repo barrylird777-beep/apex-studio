@@ -1,7 +1,7 @@
 /* Encrypted object adapter for public/apex-peer-store-worker.js.
  * Binary APXM manifests avoid a JSON system-of-record. Browser writes are not durable receipts.
  */
-import { encryptPeerObject, decryptPeerObject, sha256Hex, APEX_CHUNK_BYTES } from "./apex-anchor-crypto.js";
+import { encryptPeerObject, decryptPeerObject, sha256Hex, APEX_CHUNK_BYTES, APEX_MAX_OBJECT_BYTES } from "./apex-anchor-crypto.js";
 const APPS = ["PlanetApeX", "XShield", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"];
 const MAGIC = [0x41, 0x50, 0x58, 0x4d];
 const HEADER_BYTES = 34;
@@ -31,7 +31,7 @@ export function decodeEncryptedManifest(value) {
   const namespace = APPS[input[5] - 1];
   const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
   const chunkBytes = view.getUint32(22, false), totalBytes = view.getUint32(26, false), count = view.getUint32(30, false);
-  if (!namespace || chunkBytes < 16384 || chunkBytes > APEX_CHUNK_BYTES || !totalBytes || !count || count > 100000 || input.byteLength !== HEADER_BYTES + count * CHUNK_META_BYTES || Math.ceil(totalBytes / chunkBytes) !== count) throw new Error("Invalid APXM manifest dimensions");
+  if (!namespace || chunkBytes < 16384 || chunkBytes > APEX_CHUNK_BYTES || !totalBytes || totalBytes > APEX_MAX_OBJECT_BYTES || !count || count > 100000 || input.byteLength !== HEADER_BYTES + count * CHUNK_META_BYTES || Math.ceil(totalBytes / chunkBytes) !== count) throw new Error("Invalid APXM manifest dimensions");
   const chunks = [];
   let offset = HEADER_BYTES, sum = 0;
   for (let index = 0; index < count; index++) {
@@ -48,6 +48,13 @@ export function decodeEncryptedManifest(value) {
 }
 export async function storeEncryptedObject({ call, namespace, secret, data, chunkBytes = APEX_CHUNK_BYTES }) {
   if (typeof call !== "function") throw new TypeError("Peer worker call function is required");
+  const inputBytes = data instanceof ArrayBuffer ? data.byteLength : ArrayBuffer.isView(data) ? data.byteLength : 0;
+  if (!inputBytes || inputBytes > APEX_MAX_OBJECT_BYTES) throw new RangeError("Peer object must be between 1 byte and 64 MiB");
+  const capacity = await call({ type: "STATUS" });
+  if (!Number.isFinite(capacity?.estimatedAvailableBytes)) throw new Error("Browser quota estimate unavailable; refusing an unverified capacity claim");
+  const chunkCount = Math.ceil(inputBytes / chunkBytes);
+  const estimatedRequired = inputBytes + chunkCount * 16 + HEADER_BYTES + chunkCount * CHUNK_META_BYTES;
+  if (capacity.estimatedAvailableBytes < estimatedRequired) throw new Error("Insufficient estimated browser quota for encrypted object");
   const encrypted = await encryptPeerObject({ namespace, secret, data, chunkBytes });
   const chunkHashes = [];
   for (const chunk of encrypted.chunks) {
@@ -59,7 +66,7 @@ export async function storeEncryptedObject({ call, namespace, secret, data, chun
   const manifestHash = await sha256Hex(manifestBytes);
   const result = await call({ type: "PUT", namespace, hash: manifestHash, bytes: manifestBytes.buffer });
   if (result?.readbackVerified !== true) throw new Error("Peer worker did not verify manifest read-back");
-  return Object.freeze({ namespace, manifestHash, totalBytes: encrypted.totalBytes, chunkCount: chunkHashes.length, chunkHashes, writeVerified: true, recoveryVerified: false, durable: false });
+  return Object.freeze({ namespace, manifestHash, totalBytes: encrypted.totalBytes, chunkCount: chunkHashes.length, chunkHashes, estimatedAvailableBytesBeforeWrite: capacity.estimatedAvailableBytes, writeVerified: true, recoveryVerified: false, durable: false });
 }
 export async function retrieveEncryptedObject({ call, namespace, secret, manifestHash }) {
   if (typeof call !== "function") throw new TypeError("Peer worker call function is required");
