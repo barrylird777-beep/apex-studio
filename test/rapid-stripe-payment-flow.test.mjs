@@ -148,7 +148,7 @@ test('Stripe paid checkout webhook fails closed when the durable queue is unavai
 });
 
 
-test('Rapid Video checkout leaves payment methods to Stripe dynamic configuration and keeps the $25 price', () => {
+test('Rapid Video checkout offers US bank debit and card fallback at the $25 price', () => {
   const params = buildRapidCheckoutParams({
     orderId: 'low-fee-order',
     name: 'Buyer',
@@ -163,6 +163,7 @@ test('Rapid Video checkout leaves payment methods to Stripe dynamic configuratio
   assert.equal(params.get('line_items[0][price_data][currency]'), 'usd');
   assert.equal(params.get('line_items[0][price_data][unit_amount]'), '2500');
   assert.equal(params.get('line_items[0][quantity]'), '1');
-  assert.equal(params.has('payment_method_types[0]'), false);
-  assert.equal(params.has('payment_method_types[1]'), false);
+  assert.equal(params.get('payment_method_types[0]'), 'us_bank_account');
+  assert.equal(params.get('payment_method_types[1]'), 'card');
+  assert.equal(params.get('payment_method_options[us_bank_account][verification_method]'), 'automatic');
 });
