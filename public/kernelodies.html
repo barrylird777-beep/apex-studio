@@ -113,6 +113,7 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
 @media(max-width:650px){main{padding:20px 14px 150px!important}.apex-app-nav{gap:13px;padding:10px 12px}.apex-app-nav a{font-size:10px}.apex-app-nav .apex-app-brand{margin-right:1px}.apex-app-brand-mark{width:25px;height:25px}.kl-header{margin-top:2px}.kl-wordmark{font-size:24px}.kl-logo-mark{width:38px;height:38px}.kl-tagline{font-size:10px}.kl-welcome{display:block;margin:25px 0 18px}.kl-welcome h1{font-size:38px}.kl-search{width:100%;margin-top:18px;height:44px}.kl-feature{grid-template-columns:1fr;min-height:0}.kl-feature-copy{padding:27px 23px}.kl-feature h2{font-size:40px}.kl-art-stage{min-height:205px;grid-row:1}.kl-art-stage:before{width:58%}.kl-art-stage:after{font-size:42px}.kl-section{margin-top:25px}.kl-grid{gap:17px 12px}.kl-cover{border-radius:12px}.kl-two-col{grid-template-columns:1fr}.kl-card{padding:16px}.kl-field-grid{grid-template-columns:minmax(0,1fr) 110px}.kl-playerbar{grid-template-columns:minmax(0,1fr) minmax(120px,.9fr);gap:10px;padding:9px 12px;padding-bottom:max(9px,env(safe-area-inset-bottom));}.kl-player-art{width:36px;height:36px}.kl-player-now strong{max-width:45vw}.kl-player-now span{max-width:45vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#kl-global-audio{height:30px}.kl-player-center{text-align:right}}
 @media(max-width:380px){.kl-wordmark{font-size:21px}.kl-logo{gap:8px}.kl-logo-mark{width:34px;height:34px}.kl-feature h2{font-size:34px}.kl-field-grid{grid-template-columns:1fr}.kl-grid{gap:15px 10px}.kl-playerbar{grid-template-columns:minmax(0,1fr) 112px;gap:7px;padding-left:9px;padding-right:9px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+ .kl-create-tools{margin-top:14px}.kl-create-tools>section{margin-top:8px}.kl-tabs a{padding:8px 17px}.kl-tabs{gap:7px}
 </style>
 <script src="/apex-six-apps.js" defer></script>
 <script src="/apex-ui-controls.js" defer></script>
@@ -138,7 +139,7 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
   <div><div class="kl-eyebrow">A little louder. A little closer.</div><h1>Hear what moves you.</h1><p>Discover something new. Keep what stays with you.</p></div>
   <label class="kl-search" aria-label="Search music"><span>⌕</span><input id="kd-query" maxlength="160" value="" placeholder="Songs, artists, albums, moods…"><input type="hidden" id="kd-entity" value="song"></label>
 </section>
-<nav class="kl-tabs" aria-label="Music navigation"><a href="#home">Listen now</a><a href="#discover">Discover</a><a href="#your-library">Your library</a><a href="#playlists">Playlists</a><a href="#make-music">Create</a></nav>
+<nav class="kl-tabs" aria-label="Music navigation"><a href="#home">Home</a><a href="#discover">Search</a><a href="#your-library">Library</a></nav>
 <section id="home" class="kl-section">
   <div class="kl-section-title"><div><h2>Made for your ears</h2><p>A listening space that feels like yours.</p></div><span class="kl-small-link">KERNELodies ORIGINAL</span></div>
   <div class="kl-feature">
@@ -162,14 +163,14 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
     <section class="kl-card" aria-labelledby="saved-heading"><h2 id="saved-heading">Saved discoveries</h2><p>Tracks and albums you want to come back to.</p><button id="kd-refresh-saved" class="kl-btn secondary" type="button">Refresh collection</button><div id="kd-saved"></div><hr style="border:0;border-top:1px solid #30342c;margin:22px 0"><h3 id="playlists">Your playlists</h3><label>Playlist name<input id="kd-playlist-title" maxlength="100" value="After Hours"></label><button id="kd-build-playlist" class="kl-btn" type="button">Build from saved music</button><div id="kd-playlists"></div></section>
   </div>
 </section>
-<section id="make-music" class="kl-section">
+<details class="kl-runtime kl-create-tools"><summary>Create music</summary><section id="make-music" class="kl-section">
   <div class="kl-section-title"><div><h2>Make something that moves you</h2><p>Shape a musical idea into a track concept.</p></div><span class="kl-small-link">03 / CREATE</span></div>
   <section class="kl-card">
     <div class="kl-field-grid"><label>Creation lane<select id="content-domain"><option value="original">Original music</option><option value="bible">Bible-inspired</option><option value="korn">Jesus Freaks · 432 Hz only</option></select></label><label>Track title<input id="title" maxlength="160" value="Apex Theme"></label></div>
     <label>Describe the sound<textarea id="prompt" rows="3" placeholder="Mood, instruments, energy, story…">cinematic dark-fantasy score, warm analog synths, sacred atmosphere</textarea></label>
     <p id="tuning-note">Original music concept.</p><button id="add" class="kl-btn" type="button">Save track concept</button><p id="track-storage-status" role="status">Connect to save concepts to the shared Kernelodies library.</p><div id="tracks" aria-live="polite"></div>
   </section>
-</section>
+</section></details>
 <details class="kl-runtime"><summary>Technical connection details</summary><p>Optional diagnostics for the Kernelodies service.</p><pre id="status">Checking service status…</pre></details>
 <footer class="apex-app-footer"><span>KERNELodies · THE EARS OF APEX</span><span>Listen · Discover · Collect · Create</span></footer>
 </main>
