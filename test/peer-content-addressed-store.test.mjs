@@ -396,3 +396,29 @@ test('peer CAS never advertises durability for a volatile backend', async () => 
     /verified durable peer-owned storage/
   );
 });
+
+
+test('peer CAS rejects unverified durability claims even when backend self-labels as durable', async () => {
+  const store = {
+    ...memoryStore(),
+    durable: true,
+    ownership: 'peer-owned',
+    async health({ namespace, peerId }) {
+      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, namespace, peerId, receipt: 'forged', receiptId: 'untrusted' };
+    },
+    async readRef() { return null; },
+    async writeRef() { throw new Error('must not reach unverified reference backend'); }
+  };
+  const handler = createPeerObjectStorageHandler({
+    store,
+    peerId: 'capacity-peer',
+    authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX'
+  });
+  const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, { remotePeerId: 'writer-peer' });
+  assert.equal(health.durable, false);
+  assert.equal(health.ownership, 'unverified');
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
+    /verified durable peer-owned storage/
+  );
+});
