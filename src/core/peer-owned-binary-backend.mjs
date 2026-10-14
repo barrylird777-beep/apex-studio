@@ -153,14 +153,25 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     },
     async verifyDurabilityReceipt(receipt, claims) {
       try {
+        if (!receipt || typeof receipt.body !== 'string' || typeof receipt.mac !== 'string' ||
+            !claims || typeof claims.peerId !== 'string' || typeof claims.namespace !== 'string') return false;
         const body = Buffer.from(receipt.body, 'base64');
         const mac = Buffer.from(receipt.mac, 'base64');
-        const expected = createHmac('sha256', signingSecret).update(body).digest();
-        return mac.length === expected.length && timingSafeEqual(mac, expected) &&
-          decodeCanonical(body).peerId === claims.peerId &&
-          decodeCanonical(body).namespace === claims.namespace &&
-          decodeCanonical(body).restartRecoveryVerified === true &&
-          decodeCanonical(body).atomicReferencesVerified === true;
+        if (body.toString('base64') !== receipt.body || mac.toString('base64') !== receipt.mac) return false;
+        const expectedMac = createHmac('sha256', signingSecret).update(body).digest();
+        if (mac.length !== expectedMac.length || !timingSafeEqual(mac, expectedMac)) return false;
+        const signed = decodeCanonical(body);
+        const required = {
+          version: 1,
+          peerId: claims.peerId,
+          namespace: claims.namespace,
+          ownership: 'peer-owned',
+          durable: true,
+          atomicReferencesVerified: true,
+          restartRecoveryVerified: true
+        };
+        return Object.entries(required).every(([key, value]) => signed[key] === value) &&
+          Object.entries(claims).every(([key, value]) => signed[key] === value);
       } catch { return false; }
     }
   });
