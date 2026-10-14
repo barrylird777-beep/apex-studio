@@ -1,16 +1,39 @@
 services:
   vllm:
-    image: vllm/vllm-openai:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: apex-vllm-peer-cas:0.10.2
     ipc: host
+    volumes:
+      - /tmp/apex_peer_cas.sock:/tmp/apex_peer_cas.sock
     ports:
       - "8000:8000"
-    volumes:
-      - hf-cache:/root/.cache/huggingface
     environment:
-      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HUB_OFFLINE: "1"
+      HF_DATASETS_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      VLLM_NO_USAGE_STATS: "1"
+      DO_NOT_TRACK: "1"
+      WANDB_DISABLED: "true"
+      RAY_USAGE_STATS_ENABLED: "0"
+      PIP_NO_INDEX: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONDONTWRITEBYTECODE: "1"
+      APEX_PEER_CAS_BRIDGE: ${APEX_PEER_CAS_BRIDGE:-unix:///tmp/apex_peer_cas.sock}
+      APEX_PEER_CAS_TOKEN: ${APEX_PEER_CAS_TOKEN:?Set APEX_PEER_CAS_TOKEN}
+      APEX_PEER_CAS_NAMESPACE: ${APEX_PEER_CAS_NAMESPACE:?Set APEX_PEER_CAS_NAMESPACE}
+      APEX_MODEL_ID: ${APEX_MODEL_ID:?Set APEX_MODEL_ID}
+      APEX_MODEL_REVISION: ${APEX_MODEL_REVISION:?Set APEX_MODEL_REVISION}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.92}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-32768}
     command:
       - --model
-      - ${MODEL:?Set MODEL}
+      - ${APEX_MODEL_ID:?Set APEX_MODEL_ID}
+      - --load-format
+      - apex_peer_cas
       - --host
       - 0.0.0.0
       - --port
@@ -20,6 +43,8 @@ services:
       - --max-model-len
       - ${MAX_MODEL_LEN:-32768}
       - --enable-prefix-caching
+      - --distributed-executor-backend
+      - mp
     deploy:
       resources:
         reservations:
@@ -27,5 +52,3 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-volumes:
-  hf-cache:

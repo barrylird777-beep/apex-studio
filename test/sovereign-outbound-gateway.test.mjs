@@ -7,6 +7,7 @@ import {
   createSovereignLlmGateway,
   sanitizeOutboundPayload,
   validateProviderTarget,
+  validateSovereignInferenceTarget,
   validateOutboundTarget,
   createGuardedFetch,
   hashStagedChange,
@@ -138,4 +139,34 @@ test("central outbound guard rejects unapproved hosts, insecure URLs, and redire
   const result = await guarded("https://api.openai.com/v1/responses", { method: "POST" });
   assert.equal(result.options.redirect, "error");
   assert.throws(() => guarded("https://attacker.invalid/", {}), /HTTPS host allowlist/);
+});
+
+
+test("sovereign inference mode blocks external AI hosts", () => {
+  assert.throws(
+    () => validateSovereignInferenceTarget("https://api.openai.com/v1/chat/completions", {
+      enabled: true,
+      trustedBases: ["http://127.0.0.1:8000/v1"]
+    }),
+    error => error.code === "SOVEREIGN_INFERENCE_TARGET_BLOCKED"
+  );
+});
+
+test("sovereign inference mode allows configured peer-hosted inference origin", () => {
+  const target = validateSovereignInferenceTarget("https://10.8.0.4:8443/v1/chat/completions", {
+    enabled: true,
+    trustedBases: ["https://10.8.0.4:8443/v1"]
+  });
+  assert.equal(target.origin, "https://10.8.0.4:8443");
+});
+
+test("sovereign inference mode allows loopback engine and rejects malformed URLs", () => {
+  assert.equal(
+    validateSovereignInferenceTarget("http://127.0.0.1:8000/v1/chat/completions", { enabled: true }).hostname,
+    "127.0.0.1"
+  );
+  assert.throws(
+    () => validateSovereignInferenceTarget("not-a-url", { enabled: true }),
+    error => error.code === "INVALID_INFERENCE_URL"
+  );
 });
