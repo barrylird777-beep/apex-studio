@@ -31,6 +31,12 @@ export function verifySovereignRecord(record) {
  */
 export class SovereignMeshEngine {
   constructor(storageDir = DEFAULT_STORAGE_DIR, { cas = null, remoteMode = undefined } = {}) {
+    // Peer-only is an explicit fail-closed cutover mode. It must never silently
+    // select local disk, the legacy WAL, or provider-backed CAS as a substitute.
+    const storageMode = String(process.env.APEX_STORAGE_MODE || "").trim().toLowerCase();
+    if (storageMode === "peer-only" && !cas) {
+      throw new Error("APEX_STORAGE_MODE=peer-only requires an injected peer-owned CAS backend; no local, WAL, JSON-marker, or hosted-provider fallback is permitted");
+    }
     this.storageDir = path.resolve(storageDir);
     this.legacyLogPath = path.join(this.storageDir, "apex-ring-wal.ndjson");
     this.migrationFile = path.join(this.storageDir, ".sovereign-cas-migrated-v1.json");
