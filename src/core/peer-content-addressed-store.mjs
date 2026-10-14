@@ -323,7 +323,7 @@ export function createPeerObjectStorageHandler({
   const capacityReceipt = async (namespace, expectedPeerId) => {
     if (!hasReferenceBackend || typeof store.health !== 'function' ||
         typeof store.verifyDurabilityReceipt !== 'function') {
-      return { durable: false, ownership: 'unverified' };
+      return { durable: false, ownership: 'unverified', recoveryVerified: false, restartRecoveryVerified: false, atomicReferencesVerified: false };
     }
     const proof = await store.health({ namespace, peerId: expectedPeerId });
     const verified = proof?.durable === true && proof?.ownership === 'peer-owned'
