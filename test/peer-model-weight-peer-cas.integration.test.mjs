@@ -58,7 +58,7 @@ function mesh() {
   return { store, unavailable, objects };
 }
 
-test('model weights transfer through real peer CAS, verify integrity, and survive one peer loss', async () => {
+test('model weights transfer through peer CAS with in-memory peer transport, verify integrity, and survive simulated peer loss', async () => {
   const network = mesh();
   const source = Buffer.alloc(24 * 1024, 73);
   const manifest = await publishPeerModelWeights(network.store, source, {
