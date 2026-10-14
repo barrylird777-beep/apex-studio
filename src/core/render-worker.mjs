@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { now } from "./id.mjs";
+import { apexPriorityPreemption } from "./priority-preemption.mjs";
 import { runRenderQC, requireRenderQC } from "./validation/render-qc.mjs";
 
 function parseProgress(line){
@@ -59,14 +60,23 @@ export class RenderWorker{
     return await new Promise((resolve,reject)=>{
       const child=spawn(this.ffmpegPath,args,{cwd:process.cwd(),stdio:["ignore","pipe","pipe"]});
       this.running.set(job.id,child);
+      const unregisterPriorityChild = apexPriorityPreemption.registerBackground(job.id, child, {
+        pause: typeof plan.yieldForPriority === "function"
+          ? () => plan.yieldForPriority({ job, child, output })
+          : undefined,
+        resume: typeof plan.resumeFromPriorityCheckpoint === "function"
+          ? checkpoint => plan.resumeFromPriorityCheckpoint({ job, checkpoint })
+          : undefined
+      });
       let stdout="",stderr="",progress={};
       child.stdout.on("data",b=>stdout+=b.toString());
       child.stderr.on("data",b=>{
         const s=b.toString();stderr+=s;
         for(const line of s.split(/\r?\n/)){const p=parseProgress(line);if(p)progress[p.key]=p.value;}
       });
-      child.once("error",error=>{this.running.delete(job.id);reject(error)});
+      child.once("error",error=>{unregisterPriorityChild();this.running.delete(job.id);reject(error)});
       child.once("close",(code,signal)=>{
+        unregisterPriorityChild();
         this.running.delete(job.id);
         const result={jobId:job.id,ok:code===0,code,signal,output:code===0?output:null,startedAt,finishedAt:now(),progress,stdout:stdout.slice(-4000),stderr:stderr.slice(-8000)};
         if (code !== 0) return reject(Object.assign(new Error("FFmpeg exited with code "+code),{result}));
