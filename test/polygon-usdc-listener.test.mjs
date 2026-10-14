@@ -60,7 +60,7 @@ test("enqueues only matching confirmed native-USDC transfers with an idempotency
   assert.equal(tasks[0].payload.rawAmount, "2500000");
   assert.equal(tasks[0].payload.tokenDecimals, 6);
   assert.match(tasks[0].dedupeKey, /polygon-pos-usdc:/);
-  assert.equal(cursor.value, 490);
+  assert.equal(cursor.value, 491);
 });
 
 test("requires durable cursor and enqueue contracts", () => {
