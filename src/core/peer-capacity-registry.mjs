@@ -65,7 +65,7 @@ export class PeerCapacityRegistry {
         if (replica) {
           replica.availability = 'unverified';
           replica.recoverySessionId = null;
-          replica.state = 'readback_verified';
+          if (replica.state !== 'readback_verified') replica.state = 'session_changed';
         }
       }
     }
