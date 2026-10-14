@@ -32,7 +32,7 @@ test('bridge rejects non-canonical app namespaces and dot-segment model identiti
   const bridge = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath });
   try {
     await bridge.listen();
-    const result = await get('/v1/peer-cas/models/%2E%2E/r1/manifest');
+    const result = await get('/v1/peer-cas/models/model%2F../r1/manifest');
     assert.equal(result.status, 400);
   } finally {
     await bridge.close();
