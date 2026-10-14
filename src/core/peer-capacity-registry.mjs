@@ -151,9 +151,14 @@ export class PeerCapacityRegistry {
   verifyRecovery({ peerId, sessionId, namespace, hash, proofHash } = {}) {
     this.expire();
     const record = this.getRecord(namespace, hash);
-    const replica = this.getReplica(record, peerId, sessionId);
-    if (replica.state !== 'readback_verified') throw new Error('restart-recovery proof is out of order');
-    if (sessionId === replica.sessionId) throw new Error('recovery proof must come from a new browser session');
+    peerId = required(peerId, 'peerId');
+    sessionId = required(sessionId, 'sessionId');
+    const replica = record.replicas.get(peerId);
+    const peer = this.peers.get(peerId);
+    if (!replica || replica.state !== 'readback_verified') throw new Error('restart-recovery proof is out of order');
+    if (!peer || peer.sessionId !== sessionId || sessionId === replica.sessionId) {
+      throw new Error('recovery proof must come from the peer\'s new active browser session');
+    }
     if (proofHash !== hash) {
       replica.state = 'verification_failed';
       replica.availability = 'unavailable';
