@@ -53,7 +53,13 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
         if (!file) return send(res, 404, 'blob not in authorized bundle');
         const bytes = Buffer.from(await store.getBlob(file.blobManifestHash));
         if (bytes.length !== file.size || hash(bytes) !== file.sha256) throw new Error('peer blob integrity failure');
-        res.writeHead(200, { 'content-type': 'application/octet-stream', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });\n        for (let offset = 0; offset < bytes.length; offset += 32 * 1024) {\n          if (!res.write(bytes.subarray(offset, Math.min(offset + 32 * 1024, bytes.length)))) {\n            await new Promise(resolve => res.once('drain', resolve));\n          }\n        }\n        return res.end();
+        res.writeHead(200, { 'content-type': 'application/octet-stream', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+        for (let offset = 0; offset < bytes.length; offset += 32 * 1024) {
+          if (!res.write(bytes.subarray(offset, Math.min(offset + 32 * 1024, bytes.length)))) {
+            await new Promise(resolve => res.once('drain', resolve));
+          }
+        }
+        return res.end();
       }
       return send(res, 404, 'not found');
     } catch {
