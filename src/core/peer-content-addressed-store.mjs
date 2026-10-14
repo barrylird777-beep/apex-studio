@@ -325,9 +325,44 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['object.put', 'object.get'].includes(operation)) throw new Error('unsupported peer storage operation');
+    if (!['object.put', 'object.get', 'ref.health', 'ref.get', 'ref.cas', 'ref.list'].includes(operation)) throw new Error('unsupported peer storage operation');
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
       throw new Error('peer storage namespace access denied');
+    }
+    if (operation.startsWith('ref.')) {
+      if (typeof store.readRef !== 'function' || typeof store.writeRef !== 'function' ||
+          typeof store.listRefs !== 'function') {
+        throw new Error('peer-owned binary backend does not implement atomic namespaced CAS refs');
+      }
+      const localPeerId = resolvePeerId();
+      if (!localPeerId) throw new Error('local peer identity is not ready');
+      const base = { accepted: true, peerId: localPeerId, namespace: envelope.namespace, operation };
+      if (operation === 'ref.health') {
+        return { ...base, ready: true, capabilities: ['ref.get', 'ref.cas', 'ref.list'], atomicCompareAndSwap: true };
+      }
+      const segment = value => /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(String(value || '')) && !String(value).includes('..');
+      if (!segment(envelope.collection) || (operation !== 'ref.list' && !segment(envelope.key))) {
+        throw new Error('invalid peer CAS ref collection or key');
+      }
+      if (operation === 'ref.get') {
+        const ref = await store.readRef(envelope.namespace, envelope.collection, envelope.key);
+        return { ...base, found: Boolean(ref), ref: ref ? { hash: ref.hash, value: ref.value } : null };
+      }
+      if (operation === 'ref.list') {
+        const refs = await store.listRefs(envelope.namespace, envelope.collection);
+        if (!Array.isArray(refs)) throw new Error('peer CAS backend returned an invalid ref listing');
+        return { ...base, refs: refs.map(ref => ({ key: ref.key, hash: ref.hash, value: ref.value })) };
+      }
+      if (envelope.expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(envelope.expectedHash || ''))) {
+        throw new Error('invalid expectedHash for peer CAS compare-and-swap');
+      }
+      const saved = await store.writeRef(envelope.namespace, envelope.collection, envelope.key, envelope.value, {
+        expectedHash: envelope.expectedHash ?? null
+      });
+      if (!saved || !/^[a-f0-9]{64}$/.test(String(saved.hash || ''))) {
+        throw new Error('peer CAS backend did not return a verified ref hash');
+      }
+      return { ...base, hash: saved.hash, receipt: saved.receipt || null };
     }
     if (operation === 'object.put') {
       if (typeof envelope.bytesBase64 !== 'string' || !/^[a-f0-9]{64}$/.test(String(envelope.hash || ''))) {
