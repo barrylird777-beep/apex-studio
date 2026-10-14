@@ -43,11 +43,45 @@ export async function createPeerStorageBackend({ peerId, peerNode, env = process
     throw new Error('upstream peer did not prove durable peer-owned storage capacity');
   }
 
+  const localPeerId = String(peerId || peerNode.peerId?.toString?.() || '');
+  const verifyUpstreamCapability = async () => {
+    const result = await request({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: app });
+    if (result.peerId !== upstreamPeerId || result.namespace !== app ||
+        result.durable !== true || result.ownership !== 'peer-owned' ||
+        result.recoveryVerified !== true || result.restartRecoveryVerified !== true ||
+        result.atomicReferencesVerified !== true || !result.receipt || !result.receiptId) {
+      throw new Error('upstream peer did not return a verified peer-owned recovery receipt');
+    }
+    return result;
+  };
+
   return Object.freeze({
     durable: true,
     ownership: 'peer-owned',
     recoveryVerified: true,
     upstreamPeerId,
+    async health({ namespace, peerId: expectedPeerId } = {}) {
+      if (namespace !== app || expectedPeerId !== localPeerId) {
+        return { durable: false, ownership: 'unverified', peerId: expectedPeerId, namespace, restartRecoveryVerified: false, atomicReferencesVerified: false };
+      }
+      const proof = await verifyUpstreamCapability();
+      return {
+        durable: true,
+        ownership: 'peer-owned',
+        peerId: expectedPeerId,
+        namespace,
+        restartRecoveryVerified: true,
+        atomicReferencesVerified: true,
+        receiptId: proof.receiptId,
+        receipt: { upstreamPeerId, namespace: app, receiptId: proof.receiptId, receipt: proof.receipt }
+      };
+    },
+    async verifyDurabilityReceipt(receipt, claims = {}) {
+      return Boolean(receipt && receipt.upstreamPeerId === upstreamPeerId &&
+        receipt.namespace === app && receipt.receiptId && receipt.receipt &&
+        claims.peerId === localPeerId && claims.namespace === app &&
+        claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true);
+    },
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (!/^[a-f0-9]{64}$/.test(String(hash)) || sha256(bytes) !== hash) {
