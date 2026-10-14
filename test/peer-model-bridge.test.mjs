@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { request } from 'node:http';
-import { unlink } from 'node:fs/promises';
+import { unlink, stat } from 'node:fs/promises';
 import { createPeerModelBridgeServer } from '../src/core/peer-model-bridge.mjs';
 
 const token = 'test-only-bridge-token-that-is-long-enough';
@@ -42,6 +42,7 @@ test('Unix socket bridge requires auth and serves only authorized, verified Peer
 
   try {
     await bridge.listen();
+    assert.equal((await stat(socketPath)).mode & 0o777, 0o600, 'socket permissions must be restrictive before listen resolves');
     const denied = await get('/v1/peer-cas/models/test-model/r1/manifest', 'Bearer wrong-token');
     assert.equal(denied.status, 401);
 
