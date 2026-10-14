@@ -72,3 +72,31 @@ test('receipt is bound to peer and namespace; missing owner root fails closed', 
   await assert.rejects(createPeerOwnedBinaryBackend({ peerId: 'peer-owner', namespaceAcl: 'PlanetApeX=writer-peer' }), /must explicitly name peer-owned/);
   process.env.APEX_PEER_OWNED_STORAGE_ROOT = saved;
 });
+
+
+test('reference publication persists its immutable target before acknowledging CAS', async t => {
+  const { root, backend } = await fixture(t);
+  const bytes = encodeCanonical({ mustExistBeforeReference: true });
+  const id = hash(bytes);
+  await backend.writeRef('PlanetApeX', 'target-check', null, id, bytes);
+  assert.deepEqual(await backend.getBytes(id), bytes);
+  const restarted = await createPeerOwnedBinaryBackend({ peerId: 'peer-owner', namespaceAcl: 'PlanetApeX=writer-peer' });
+  assert.deepEqual(await restarted.readRef('PlanetApeX', 'target-check'), { hash: id, bytes });
+});
+
+test('durability receipt verification rejects signed claims from another namespace or weakened claims', async t => {
+  const { backend } = await fixture(t);
+  const proof = await backend.health({ namespace: 'PlanetApeX', peerId: 'peer-owner' });
+  assert.equal(await backend.verifyDurabilityReceipt(proof.receipt, {
+    namespace: 'PlanetApeX', peerId: 'peer-owner',
+    restartRecoveryVerified: true, atomicReferencesVerified: true
+  }), true);
+  assert.equal(await backend.verifyDurabilityReceipt(proof.receipt, {
+    namespace: 'KashKorner', peerId: 'peer-owner',
+    restartRecoveryVerified: true, atomicReferencesVerified: true
+  }), false);
+  assert.equal(await backend.verifyDurabilityReceipt(proof.receipt, {
+    namespace: 'PlanetApeX', peerId: 'peer-owner',
+    restartRecoveryVerified: false, atomicReferencesVerified: true
+  }), false);
+});
