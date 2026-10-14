@@ -79,3 +79,31 @@ test('paid inference requests are serialized around the shared execution lane', 
   await Promise.all([first, second]);
   assert.deepEqual(events, ['first-start', 'first-end', 'second-start']);
 });
+
+test('background jobs remain paused across consecutive queued paid requests', async () => {
+  const gate = createPriorityPreemption();
+  const events = [];
+  gate.registerBackground('render-queued', child(), {
+    pause: async () => { events.push('pause'); return { segment: 8, resourceReleased: true }; },
+    resume: async () => { events.push('resume'); }
+  });
+  let finishFirst;
+  const first = gate.run(PRIORITY.PAID_INFERENCE, async () => {
+    events.push('paid-1-start');
+    await new Promise(resolve => { finishFirst = resolve; });
+    events.push('paid-1-end');
+  });
+  const second = gate.run(PRIORITY.PAID_INFERENCE, async () => { events.push('paid-2'); });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  finishFirst();
+  await Promise.all([first, second]);
+  assert.deepEqual(events, ['pause', 'paid-1-start', 'paid-1-end', 'paid-2', 'resume']);
+});
+
+test('checkpoint handlers must be paired', () => {
+  const gate = createPriorityPreemption();
+  assert.throws(
+    () => gate.registerBackground('bad-pair', child(), { pause: async () => ({ resourceReleased: true }) }),
+    /pause and resume handlers must be supplied together/
+  );
+});
