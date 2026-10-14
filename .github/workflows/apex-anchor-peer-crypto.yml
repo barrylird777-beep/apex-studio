@@ -13,6 +13,7 @@ on:
       - "edge/apex-billing-worker.mjs"
       - "edge/billing-wrangler.toml"
       - "test/apex-billing-webhook.test.mjs"
+      - "test/apex-billing-flow.test.mjs"
       - ".github/workflows/apex-anchor-peer-crypto.yml"
   pull_request:
     paths:
@@ -40,4 +41,4 @@ jobs:
           node-version: "22.x"
       - run: node --check edge/apex-signal-worker.mjs
       - run: node --check edge/apex-billing-worker.mjs
-      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs test/apex-billing-webhook.test.mjs
+      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs test/apex-billing-webhook.test.mjs test/apex-billing-flow.test.mjs
