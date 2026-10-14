@@ -7,6 +7,9 @@ on:
       - "test/apex-anchor-crypto.test.mjs"
       - "public/apex-license-verify.js"
       - "test/apex-license-verify.test.mjs"
+      - "edge/apex-signal-worker.mjs"
+      - "edge/wrangler.toml"
+      - "test/apex-signal-ticket.test.mjs"
       - ".github/workflows/apex-anchor-peer-crypto.yml"
   pull_request:
     paths:
@@ -14,6 +17,9 @@ on:
       - "test/apex-anchor-crypto.test.mjs"
       - "public/apex-license-verify.js"
       - "test/apex-license-verify.test.mjs"
+      - "edge/apex-signal-worker.mjs"
+      - "edge/wrangler.toml"
+      - "test/apex-signal-ticket.test.mjs"
       - ".github/workflows/apex-anchor-peer-crypto.yml"
   workflow_dispatch:
 permissions:
@@ -26,4 +32,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs
+      - run: node --check edge/apex-signal-worker.mjs
+      - run: node --test test/apex-anchor-crypto.test.mjs test/apex-license-verify.test.mjs test/apex-signal-ticket.test.mjs
