@@ -22,7 +22,20 @@ button{cursor:pointer}
 .apex-app-nav::-webkit-scrollbar{display:none}
 .apex-app-nav a{color:#aeb2a7;font-size:11px}
 .apex-app-nav a[aria-current=page]{color:var(--acid);font-weight:800}
-.apex-app-nav .apex-app-brand{display:flex;align-items:center;gap:8px;margin-right:12px;color:#f5f6ef;font-size:12px}
+.apex-app-nav .apex-app-brand{display:flex;align-items:center;gap:8px;margin-right:auto;color:#f5f6ef;font-size:12px}
+.apex-app-nav>a:not(.apex-app-brand){display:none}
+.kl-app-more{position:relative;flex:0 0 auto}
+.kl-app-more summary{list-style:none;cursor:pointer;color:#b9bdb2;border:1px solid #34382e;border-radius:999px;padding:8px 12px;font-size:11px}
+.kl-app-more summary::-webkit-details-marker{display:none}
+.kl-app-more[open] .kl-app-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:100;display:grid;min-width:180px;gap:0;padding:7px;border:1px solid #34382e;border-radius:14px;background:#171a15;box-shadow:0 16px 42px #0009}
+.kl-app-menu a{padding:11px 12px;border-radius:8px;color:#c8ccbf;font-size:12px}
+.kl-app-menu a:hover{background:#24291d;color:var(--acid)}
+.kl-more-tools{margin:28px 0 8px;border:1px solid #30342c;border-radius:18px;background:#121410}
+.kl-more-tools>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 19px;cursor:pointer;list-style:none;color:#e9ebdf;font-size:13px;font-weight:700}
+.kl-more-tools>summary::-webkit-details-marker{display:none}
+.kl-more-tools>summary span{color:#929888;font-size:11px;font-weight:500;text-align:right}
+.kl-more-tools[open]>summary{border-bottom:1px solid #30342c}
+.kl-more-tools .kl-section{margin:0;padding:18px;border:0}
 .apex-app-brand-mark{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:var(--acid);color:#11140b;font-weight:950}
 main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 160px!important}
 .kl-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0 25px}
@@ -119,14 +132,11 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
 </head>
 <body>
 <a class="apex-skip-link" href="#apex-main">Skip to Kernelodies</a>
-<nav class="apex-app-nav" aria-label="Six canonical apps">
+<nav class="apex-app-nav" aria-label="APEX app switcher">
 <a class="apex-app-brand" href="/apps"><span class="apex-app-brand-mark">A</span><span>APEX ANCHOR</span></a>
-<a href="/kernel-vision.html" title="The eyes · Production and media studio">KernelVision</a>
-<a href="/xshield.html" title="The shield · Security and privacy">XShield</a>
-<a href="/kernelodies.html" aria-current="page" title="The ears · Music">Kernelodies</a>
-<a href="/planet-apex.html" title="The brain · Scripture and research">PlanetApeX</a>
-<a href="/kash-korner.html" title="Money · Financial tools">KashKorner</a>
-<a href="/koin-kob.html" title="Economy · Markets and simulations">KoinKob</a>
+<details class="kl-app-more"><summary>APEX apps ▾</summary><div class="kl-app-menu">
+<a href="/kernel-vision.html">KernelVision · Studio</a><a href="/xshield.html">XShield · Privacy</a><a href="/planet-apex.html">PlanetApeX · Research</a><a href="/kash-korner.html">KashKorner · Money</a><a href="/koin-kob.html">KoinKob · Economy</a>
+</div></details>
 </nav>
 <script src="/api-auth-bridge.js"></script>
 <main id="apex-main" class="apex-shell" data-apex-app="kernelodies" tabindex="-1">
@@ -138,7 +148,7 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
   <div><div class="kl-eyebrow">A little louder. A little closer.</div><h1>Hear what moves you.</h1><p>Discover something new. Keep what stays with you.</p></div>
   <label class="kl-search" aria-label="Search music"><span>⌕</span><input id="kd-query" maxlength="160" value="" placeholder="Songs, artists, albums, moods…"><input type="hidden" id="kd-entity" value="song"></label>
 </section>
-<nav class="kl-tabs" aria-label="Music navigation"><a href="#home">Listen now</a><a href="#discover">Discover</a><a href="#your-library">Your library</a><a href="#playlists">Playlists</a><a href="#make-music">Create</a></nav>
+<nav class="kl-tabs" aria-label="Music navigation"><a href="#home">Home</a><a href="#discover">Search</a><a href="#your-library">Library</a></nav>
 <section id="home" class="kl-section">
   <div class="kl-section-title"><div><h2>Made for your ears</h2><p>A listening space that feels like yours.</p></div><span class="kl-small-link">KERNELodies ORIGINAL</span></div>
   <div class="kl-feature">
@@ -147,7 +157,7 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
   </div>
 </section>
 <section id="discover" class="kl-section">
-  <div class="kl-section-title"><div><h2>Find your frequency</h2><p>Search tracks and albums, preview music, save discoveries.</p></div><span class="kl-small-link">01 / DISCOVER</span></div>
+  <div class="kl-section-title"><div><h2>Search</h2><p>Find songs, albums, and artists.</p></div><span class="kl-small-link">01 / DISCOVER</span></div>
   <div class="kl-card">
     <div class="kl-field-grid"><label>Search the catalog<input id="kd-query-visible" maxlength="160" placeholder="Artist, track, album, genre…"></label><label>Explore<select id="kd-entity-visible"><option value="song">Tracks</option><option value="album">Albums</option></select></label></div>
     <button id="kd-search" class="kl-btn" type="button">Search music</button>
@@ -156,20 +166,20 @@ main{width:min(1320px,100%);margin:0 auto;padding:28px clamp(14px,3.3vw,42px) 16
   </div>
 </section>
 <section id="your-library" class="kl-section">
-  <div class="kl-section-title"><div><h2>Your music, all yours</h2><p>Bring your tracks together and make this space your own.</p></div><span class="kl-small-link">02 / LIBRARY</span></div>
+  <div class="kl-section-title"><div><h2>Library</h2><p>Your saved music and playlists.</p></div><span class="kl-small-link">02 / LIBRARY</span></div>
   <div class="kl-two-col">
     <section id="kernelodies-library" class="kl-card"></section>
     <section class="kl-card" aria-labelledby="saved-heading"><h2 id="saved-heading">Saved discoveries</h2><p>Tracks and albums you want to come back to.</p><button id="kd-refresh-saved" class="kl-btn secondary" type="button">Refresh collection</button><div id="kd-saved"></div><hr style="border:0;border-top:1px solid #30342c;margin:22px 0"><h3 id="playlists">Your playlists</h3><label>Playlist name<input id="kd-playlist-title" maxlength="100" value="After Hours"></label><button id="kd-build-playlist" class="kl-btn" type="button">Build from saved music</button><div id="kd-playlists"></div></section>
   </div>
 </section>
-<section id="make-music" class="kl-section">
+<details id="make-music" class="kl-more-tools"><summary><span>More of your Kernelodies</span><span>Creation tools and advanced features +</span></summary><section class="kl-section">
   <div class="kl-section-title"><div><h2>Make something that moves you</h2><p>Shape a musical idea into a track concept.</p></div><span class="kl-small-link">03 / CREATE</span></div>
   <section class="kl-card">
     <div class="kl-field-grid"><label>Creation lane<select id="content-domain"><option value="original">Original music</option><option value="bible">Bible-inspired</option><option value="korn">Jesus Freaks · 432 Hz only</option></select></label><label>Track title<input id="title" maxlength="160" value="Apex Theme"></label></div>
     <label>Describe the sound<textarea id="prompt" rows="3" placeholder="Mood, instruments, energy, story…">cinematic dark-fantasy score, warm analog synths, sacred atmosphere</textarea></label>
     <p id="tuning-note">Original music concept.</p><button id="add" class="kl-btn" type="button">Save track concept</button><p id="track-storage-status" role="status">Connect to save concepts to the shared Kernelodies library.</p><div id="tracks" aria-live="polite"></div>
   </section>
-</section>
+</section></details>
 <details class="kl-runtime"><summary>Technical connection details</summary><p>Optional diagnostics for the Kernelodies service.</p><pre id="status">Checking service status…</pre></details>
 <footer class="apex-app-footer"><span>KERNELodies · THE EARS OF APEX</span><span>Listen · Discover · Collect · Create</span></footer>
 </main>
