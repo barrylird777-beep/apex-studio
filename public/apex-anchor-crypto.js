@@ -3,6 +3,7 @@
  * Persisted peer bytes must be ciphertext; this module does not claim durability.
  */
 const VERSION = 1;
+const APP_NAMES = new Set(["PlanetApeX", "XShield", "KernelVision", "KoinKob", "KashKorner", "Kernelodies"]);
 export const APEX_CHUNK_BYTES = 256 * 1024;
 
 function bytes(value) {
@@ -26,7 +27,7 @@ async function deriveKey(secret, salt) {
   return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 310000 }, material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 export async function encryptPeerObject({ namespace, secret, data, chunkBytes = APEX_CHUNK_BYTES }) {
-  if (!/^[a-z0-9-]{2,40}$/.test(namespace || "")) throw new TypeError("Invalid namespace");
+  if (!APP_NAMES.has(namespace)) throw new TypeError("Invalid canonical app namespace");
   if (!Number.isInteger(chunkBytes) || chunkBytes < 16384 || chunkBytes > APEX_CHUNK_BYTES) throw new RangeError("Invalid chunk size");
   const input = bytes(data);
   if (!input.byteLength) throw new TypeError("Empty objects are not accepted");
@@ -44,7 +45,7 @@ export async function encryptPeerObject({ namespace, secret, data, chunkBytes = 
 }
 export async function decryptPeerObject({ manifest, secret }) {
   if (!manifest || manifest.version !== VERSION || manifest.algorithm !== "PBKDF2-SHA256/AES-256-GCM" || !Array.isArray(manifest.chunks)) throw new TypeError("Unsupported encrypted object manifest");
-  if (!/^[a-z0-9-]{2,40}$/.test(manifest.namespace || "") || !Number.isInteger(manifest.totalBytes) || manifest.totalBytes < 1) throw new TypeError("Invalid encrypted object metadata");
+  if (!APP_NAMES.has(manifest.namespace) || !Number.isInteger(manifest.totalBytes) || manifest.totalBytes < 1) throw new TypeError("Invalid encrypted object metadata");
   const count = Math.ceil(manifest.totalBytes / manifest.chunkBytes);
   if (count !== manifest.chunks.length || count < 1 || count > 100000) throw new Error("Chunk count mismatch");
   const key = await deriveKey(secret, bytes(manifest.salt));
