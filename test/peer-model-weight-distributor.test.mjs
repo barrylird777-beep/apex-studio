@@ -11,14 +11,14 @@ function peerStore(namespace = 'KernelVision') {
     namespace,
     async putBlob(bytes) {
       const copy = Buffer.from(bytes);
-      const hash = sha256(copy);
-      blobs.set(hash, copy);
-      return { namespace, hash: 'a'.repeat(64), contentSha256: hash, totalBytes: copy.length, chunkCount: 2 };
+      const contentHash = sha256(copy);
+      const manifestHash = sha256(Buffer.concat([Buffer.from(namespace), copy]));
+      blobs.set(manifestHash, copy);
+      return { namespace, hash: manifestHash, contentSha256: contentHash, totalBytes: copy.length, chunkCount: 1 };
     },
-    async getBlob() {
-      const value = [...blobs.values()][0];
-      if (!value) throw new Error('peer object unavailable');
-      return Buffer.from(value);
+    async getBlob(manifestHash) {
+      if (!blobs.has(manifestHash)) throw new Error('peer object unavailable');
+      return Buffer.from(blobs.get(manifestHash));
     }
   };
 }
