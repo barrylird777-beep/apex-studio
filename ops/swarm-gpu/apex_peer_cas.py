@@ -83,18 +83,27 @@ try:
     class ApexPeerCASModelLoader(BaseModelLoader):
         def __init__(self, load_config: LoadConfig):
             super().__init__(load_config)
-            self._files = None
+            self._manifest = None
 
         def download_model(self, model_config: ModelConfig) -> None:
-            self._files = model_files()
+            value = manifest()
+            paths = {item["path"] for item in value["files"]}
+            if "config.json" not in paths or "tokenizer.json" not in paths or not any(
+                path.endswith(".safetensors") for path in paths
+            ):
+                raise RuntimeError("Peer-CAS bundle lacks config, tokenizer, or Safetensors assets")
+            self._manifest = value
 
         def load_weights(self, model: nn.Module, model_config: ModelConfig) -> None:
-            files = self._files or model_files()
+            value = self._manifest or manifest()
+            shards = sorted((item for item in value["files"] if item["path"].endswith(".safetensors")),
+                            key=lambda item: item["path"])
             def tensors():
-                for name in sorted(k for k in files if k.endswith(".safetensors")):
-                    state = safetensors_load(files[name])
+                for item in shards:
+                    state = safetensors_load(file_bytes(item))
                     for key, tensor in state.items():
                         yield key, tensor
+                    del state
             model.load_weights(tensors())
 except ImportError as exc:
     # Importing this module outside the pinned vLLM image is supported for
