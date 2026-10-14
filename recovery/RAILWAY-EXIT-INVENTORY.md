@@ -60,3 +60,23 @@ The peer service has peer identity/bootstrap/allowed-peer/object-store variables
 - Proven: repository source is hosted on GitHub; the listed Railway resources and configurations exist in the inventory response.
 - Not proven: that either unmounted volume is empty; that the bucket is empty; that all objects have been copied; that secrets are recoverable from this OAuth connection; or that the mesh can run without Railway.
 - No Railway resource was deleted, no volume was mounted, and no credentials were reset during this capture.
+
+
+## Additional runtime evidence captured after the initial inventory
+
+Recent deployment history shows that a build from main commit `c71eba8bc2470e9ca8d220d4216571566d3189c2` (`Add browser peer object storage and phone diagnostics`) did build and start on 2026-10-14. The deployment ID was `62c36ba3-8b65-462d-9c84-69daaec4f4f7`. Build logs show Vite completed and Railway's `/health` check succeeded. Runtime logs then showed peer stream opens and heartbeat acknowledgements, **but** repeated `Access Denied` errors followed; Railway sent SIGTERM at approximately 03:50:39 UTC and the deployment was subsequently marked `REMOVED`. This is evidence of a brief running process, not a healthy durable storage system.
+
+The peer deployment `9ccd108f-6cf2-4edf-80b5-86a53a1017e5` also logged peer heartbeats/acknowledgements, then repeated `Access Denied` failures. Its shutdown evidence reported:
+- reconcile: `scanned=0, persisted=0, acknowledged=0`
+- offline identity commit failed with `Access Denied`
+- peer stopped; runtime did not prove a successful final storage write.
+
+Worker logs repeatedly report queue polling timeouts and eventually `Remote worker API 503: Access Denied`. One worker deployment's recorded failure stage was `PRE_DEPLOY_COMMAND`, with the pre-deploy command exceeding 600 seconds.
+
+### Export utility committed to this recovery branch
+
+`scripts/export-railway-bucket.mjs` is a read-only S3-compatible bucket exporter. It paginates object listings, downloads each object, checks its byte count, computes SHA-256 while streaming, and writes plain TSV inventories and a completion marker. It requires the bucket's endpoint/name/credentials as environment variables; no credentials are committed. It has not been run against the live bucket because the connected Railway integration withholds the secret key values.
+
+### Current extraction boundary
+
+The connected Railway integration exposes resource inventory and logs but does not expose raw volume bytes, deployment image archives, or readable bucket credentials. It cannot directly copy the two unmounted volumes or enumerate/download bucket objects from this session. The exporter is prepared, but a successful export still requires a trusted execution environment with authorized bucket credentials. Do not mark this recovery complete until actual object counts, sizes, checksums, and an independent second copy have been verified.
