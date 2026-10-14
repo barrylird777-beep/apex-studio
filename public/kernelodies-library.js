@@ -2,8 +2,8 @@
   const root = document.getElementById("kernelodies-library");
   if (!root) return;
   root.innerHTML = `
-    <h2>TheQuietDesk · Kernelodies Library</h2>
-    <p>Independent music listening, starting with the relaxing Bible-study experience. No streaming account is required.</p>
+    <h2>Your music library</h2>
+    <p>Your personal collection for imported audio, quiet listening, and music you keep.</p>
     <p>Imported audio is preserved byte-for-byte; this library does not retune or certify 432 Hz. Jesus Freaks productions must satisfy the 432 Hz canon before release.</p>
     <label>Storage mode
       <select id="kl-mode">
