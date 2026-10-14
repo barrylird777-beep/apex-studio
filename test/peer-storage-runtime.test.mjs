@@ -59,6 +59,23 @@ test('peer object storage requires an injected binary backend and canonical expl
 
 test('opt-in runtime stores encrypted bytes through an injected backend and enforces namespace ACL', async () => {
   const store = binaryMemoryStore();
+  const refs = new Map();
+  store.readRef = async (namespace, key) => refs.get(namespace + ':' + key) ?? null;
+  store.writeRef = async (namespace, key, expectedHash, hash, bytes) => {
+    const refKey = namespace + ':' + key;
+    if ((refs.get(refKey)?.hash ?? null) !== expectedHash) throw new Error('reference compare-and-swap conflict');
+    refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
+    return { hash };
+  };
+  store.health = async ({ namespace, peerId }) => ({
+    durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
+    atomicReferencesVerified: true, peerId, namespace,
+    receipt: 'signed-test-receipt', receiptId: 'peer-proof-runtime'
+  });
+  store.verifyDurabilityReceipt = async (receipt, claims) =>
+    receipt === 'signed-test-receipt' && claims.peerId === 'storage-peer' &&
+    claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
+    claims.atomicReferencesVerified === true;
   const runtime = await initializePeerObjectStorage({
     enabled: true,
     store,
