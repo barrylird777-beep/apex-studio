@@ -46,8 +46,11 @@ export function createPeerCasAdapter({ objectStore, transport, peers, namespace,
             !/^[a-f0-9]{64}$/.test(String(response.refHash || ''))) {
           throw new Error('peer returned an invalid CAS reference');
         }
-        const value = await objectStore.getObject(response.valueHash);
-        return { value, hash: response.refHash };
+        const wrapped = await objectStore.getObject(response.valueHash);
+        if (!wrapped || wrapped.kind !== 'apex.cas-ref-value.v1' || wrapped.namespace !== namespace) {
+          throw new Error('CAS reference value failed namespace or type validation');
+        }
+        return { value: wrapped.value, hash: response.refHash };
       } catch (error) {
         if (error?.code === 'ENOENT' || error?.code === 'REF_NOT_FOUND') continue;
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
