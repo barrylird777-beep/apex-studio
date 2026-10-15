@@ -10,7 +10,7 @@ import { buildTimelineFfmpegPlan, OUTPUT_PRESETS } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, getPeerAsset, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
@@ -2110,16 +2110,20 @@ app.get('/korn-knob', async (_req, res) => {
 });
 // Serve the canonical Rapid Video Oracle-to-Forge production surface directly.
 app.use(express.static(path.join(__dirname, 'public')));
-// Persistent SE-X assets are served through a dedicated static mount. The
-// storage module validates all filenames before they are written, while
-// Express prevents traversal outside STORAGE_DIR when serving them.
-app.use('/files', express.static(STORAGE_DIR, {
-  fallthrough: false,
-  dotfiles: 'deny',
-  index: false,
-  redirect: false,
-  maxAge: '1h'
-}));
+// Binary assets are resolved only through the authenticated app-scoped peer CAS.
+// The former local /files static mount is intentionally disabled.
+app.get('/api/peer-assets/:hash', async (req, res) => {
+  try {
+    const bytes = await getPeerAsset(String(req.params.hash || ''));
+    res.set('content-type', 'application/octet-stream');
+    res.set('content-length', String(bytes.length));
+    res.set('cache-control', 'private, max-age=31536000, immutable');
+    res.set('etag', '"' + String(req.params.hash) + '"');
+    res.send(bytes);
+  } catch {
+    res.status(503).json({ error: 'peer asset unavailable; local fallback is disabled' });
+  }
+});
 
 // Bounded retry for transient upstream gateway failures. Provider routing below
 // still escalates to the next eligible swarm node when the final response fails.
