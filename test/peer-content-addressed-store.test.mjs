@@ -506,3 +506,15 @@ test('peer CAS uses only verified RAM cache entries and fetches peer sources con
   assert.equal(mesh.client.cacheSnapshot().hits, 1);
   assert.ok(mesh.client.cacheSnapshot().bytes > 0);
 });
+
+test('peer storage runtime rejects plaintext mutable references', async () => {
+  const mesh = makeMesh();
+  const bytes = encodeCanonical({ secret: 'must-not-be-plaintext' });
+  await assert.rejects(
+    mesh.handlers.get('peer-a')({
+      protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX',
+      key: 'plaintext-attempt', expectedHash: null, hash: digest(bytes), bytesBase64: bytes.toString('base64')
+    }, { remotePeerId: 'writer-peer' }),
+    /encryption/
+  );
+});
