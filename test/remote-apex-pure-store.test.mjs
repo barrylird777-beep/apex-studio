@@ -265,6 +265,6 @@ test("peer-only startup never replays a coordinator-local WAL", async () => {
     await store.init();
     const imported = await remote.readRef("state", store.refKey("legacy", "wal-record"));
     assert.equal(imported, null, "peer-only startup must not replay local WAL records");
-    assert.equal((await wal.snapshot()).records.length, 1, "the source WAL remains untouched");
+    assert.equal((await wal.snapshot()).ring.length, 1, "the source WAL remains untouched");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
