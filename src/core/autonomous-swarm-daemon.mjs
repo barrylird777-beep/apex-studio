@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ApexPureStore } from './apex-pure-store.mjs';
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 export function createAutonomousSwarmDaemon({ pollMs = 1000, maxBackoffMs = 30000,
   handler = async () => {}, workerId = process.env.APEX_SWARM_WORKER_ID || 'apex-swarm-' + randomUUID() } = {}) {
   const store = new ApexPureStore();
@@ -30,20 +28,25 @@ export function createAutonomousSwarmDaemon({ pollMs = 1000, maxBackoffMs = 3000
       const jobs = await store.claim({ workerId, limit: 1, leaseMs: 30000 });
       if (jobs.length) {
         const job = jobs[0];
+        let result;
         try {
-          const result = await handler(job.payload, job);
+          result = await handler(job.payload, job);
           const completed = await store.transition(job.id, 'complete', {
             leaseToken: job.leaseToken, leaseFence: job.leaseFence, result
           });
           if (!completed) throw new Error('swarm job lease was lost before completion');
           failures = 0;
-          await recordEvent('completed', { id: job.id, type: job.type, resultCid: job.resultCid || null });
         } catch (error) {
           failures++;
           await store.transition(job.id, 'fail', {
             leaseToken: job.leaseToken, leaseFence: job.leaseFence, error
           });
           await recordEvent('failed', { id: job.id, type: job.type, error: String(error?.message || error) });
+          result = undefined;
+        }
+        if (result !== undefined) {
+          const completedJob = store.jobs().find(item => String(item.id) === String(job.id));
+          await recordEvent('completed', { id: job.id, type: job.type, resultCid: completedJob?.resultCid || null });
         }
       } else {
         failures = 0;
