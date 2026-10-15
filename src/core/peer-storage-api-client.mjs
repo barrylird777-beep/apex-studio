@@ -37,7 +37,9 @@ export class PeerStorageApiClient {
   constructor({ app = process.env.APEX_APP_NAMESPACE, token = undefined,
     socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock',
     chunkSize = Number(process.env.APEX_PEER_STORAGE_CHUNK_BYTES || 8 * 1024 * 1024),
-    maxAssetBytes = Number(process.env.APEX_PEER_STORAGE_MAX_ASSET_BYTES || 1024 * 1024 * 1024) } = {}) {
+    maxAssetBytes = Number(process.env.APEX_PEER_STORAGE_MAX_ASSET_BYTES || 1024 * 1024 * 1024),
+    cacheTtlMs = Number(process.env.APEX_PEER_STORAGE_CACHE_TTL_MS || 15000),
+    cacheMaxBytes = Number(process.env.APEX_PEER_STORAGE_CACHE_MAX_BYTES || 32 * 1024 * 1024) } = {}) {
     const configuredApp = String(process.env.APEX_APP_NAMESPACE || '');
     if (!APPS.has(configuredApp) || app !== configuredApp) {
       throw new TypeError('API process must use its configured canonical app namespace; per-request app switching is forbidden');
@@ -53,14 +55,60 @@ export class PeerStorageApiClient {
     if (!Number.isSafeInteger(maxAssetBytes) || maxAssetBytes < 1 || maxAssetBytes > 8 * 1024 * 1024 * 1024) {
       throw new TypeError('maximum peer asset size must be between 1 byte and 8 GiB');
     }
+    if (!Number.isSafeInteger(cacheTtlMs) || cacheTtlMs < 0 || cacheTtlMs > 300000) {
+      throw new TypeError('verified RAM cache TTL must be between 0 and 300000 milliseconds');
+    }
+    if (!Number.isSafeInteger(cacheMaxBytes) || cacheMaxBytes < 0 || cacheMaxBytes > 256 * 1024 * 1024) {
+      throw new TypeError('verified RAM cache must be between 0 and 256 MiB');
+    }
     Object.defineProperties(this, {
       namespace: { value: configuredApp, enumerable: true },
       app: { value: configuredApp, enumerable: true },
       token: { value: token },
       socketPath: { value: socketPath, enumerable: true },
       chunkSize: { value: chunkSize, enumerable: true },
-      maxAssetBytes: { value: maxAssetBytes, enumerable: true }
+      maxAssetBytes: { value: maxAssetBytes, enumerable: true },
+      cacheTtlMs: { value: cacheTtlMs, enumerable: true },
+      cacheMaxBytes: { value: cacheMaxBytes, enumerable: true }
     });
+    // Disposable immutable-object cache only: never used for mutable refs or as durable state.
+    this.verifiedAssetCache = new Map();
+    this.verifiedAssetCacheBytes = 0;
+    this.cacheMetrics = { hits: 0, misses: 0, evictions: 0, expirations: 0 };
+  }
+
+  #cacheGet(hash) {
+    const entry = this.verifiedAssetCache.get(hash);
+    if (!entry) { this.cacheMetrics.misses++; return null; }
+    if (this.cacheTtlMs === 0 || entry.expiresAt <= Date.now() ||
+        createHash('sha256').update(entry.bytes).digest('hex') !== hash) {
+      this.verifiedAssetCache.delete(hash);
+      this.verifiedAssetCacheBytes -= entry.bytes.length;
+      if (entry.expiresAt <= Date.now()) this.cacheMetrics.expirations++;
+      else this.cacheMetrics.evictions++;
+      this.cacheMetrics.misses++;
+      return null;
+    }
+    this.verifiedAssetCache.delete(hash);
+    this.verifiedAssetCache.set(hash, entry);
+    this.cacheMetrics.hits++;
+    return Buffer.from(entry.bytes);
+  }
+
+  #cachePut(hash, bytes) {
+    if (!this.cacheMaxBytes || !this.cacheTtlMs || bytes.length > this.cacheMaxBytes) return;
+    const old = this.verifiedAssetCache.get(hash);
+    if (old) { this.verifiedAssetCacheBytes -= old.bytes.length; this.verifiedAssetCache.delete(hash); }
+    while (this.verifiedAssetCache.size && this.verifiedAssetCacheBytes + bytes.length > this.cacheMaxBytes) {
+      const oldestKey = this.verifiedAssetCache.keys().next().value;
+      const oldest = this.verifiedAssetCache.get(oldestKey);
+      this.verifiedAssetCache.delete(oldestKey);
+      this.verifiedAssetCacheBytes -= oldest.bytes.length;
+      this.cacheMetrics.evictions++;
+    }
+    const copy = Buffer.from(bytes);
+    this.verifiedAssetCache.set(hash, { bytes: copy, expiresAt: Date.now() + this.cacheTtlMs });
+    this.verifiedAssetCacheBytes += copy.length;
   }
 
   async init() { await this.listRefs('system'); return this; }
@@ -186,6 +234,8 @@ export class PeerStorageApiClient {
 
   async getBlob(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new TypeError('invalid asset hash');
+    const cached = this.#cacheGet(hash);
+    if (cached) return cached;
     const ref = await this.readRef('asset-manifests', hash);
     if (!ref?.value || !['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(ref.value.kind) ||
         ref.value.namespace !== this.namespace || ref.value.sha256 !== hash ||
@@ -278,6 +328,8 @@ export class PeerStorageApiClient {
     if (total !== ref.value.bytes || digest.digest('hex') !== hash) {
       throw new Error('reconstructed peer asset failed integrity verification');
     }
-    return Buffer.concat(parts, total);
+    const assembled = Buffer.concat(parts, total);
+    this.#cachePut(hash, assembled);
+    return Buffer.from(assembled);
   }
 }
