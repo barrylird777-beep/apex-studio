@@ -44,7 +44,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
     throw new Error('unsupported sovereign envelope');
   }
   if (envelope.type === 'edge.heartbeat') return true;
-  if (!runtimeReadiness.peerStorageVerified) throw new Error('peer-owned storage is not verified; refusing work before sovereign storage readiness');
+  if (!runtimeReadiness.storageReady || !runtimeReadiness.peerStorageVerified) throw new Error('peer CAS quorum and peer-owned storage are not verified; refusing work before sovereign storage readiness');
   if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
   if (envelope.type === 'durable.read') {
     return { accepted: true, replica: readSovereignPeerReplica(engine, envelope, { remotePeerId }) };
