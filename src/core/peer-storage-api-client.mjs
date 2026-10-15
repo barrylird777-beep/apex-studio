@@ -33,17 +33,23 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
 
 /** Fixed app identity: callers cannot change the app namespace per operation. */
 export class PeerStorageApiClient {
-  constructor({ app = process.env.APEX_APP_NAMESPACE, token = process.env['APEX_PEER_STORAGE_API_TOKEN_' + String(app || '').toUpperCase()],
+  constructor({ app = process.env.APEX_APP_NAMESPACE, token = undefined,
     socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock' } = {}) {
-    if (!APPS.has(app)) throw new TypeError('APEX_APP_NAMESPACE must name one canonical app');
+    const configuredApp = String(process.env.APEX_APP_NAMESPACE || '');
+    if (!APPS.has(configuredApp) || app !== configuredApp) {
+      throw new TypeError('API process must use its configured canonical app namespace; per-request app switching is forbidden');
+    }
+    token = token || process.env['APEX_PEER_STORAGE_API_TOKEN_' + configuredApp.toUpperCase()];
     if (typeof token !== 'string' || token.length < 32) throw new TypeError('app-scoped peer storage bridge token must be at least 32 characters');
     if (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..')) {
       throw new TypeError('peer storage bridge socket must be a safe path under /tmp');
     }
-    this.namespace = app;
-    this.app = app;
-    this.token = token;
-    this.socketPath = socketPath;
+    Object.defineProperties(this, {
+      namespace: { value: configuredApp, enumerable: true },
+      app: { value: configuredApp, enumerable: true },
+      token: { value: token },
+      socketPath: { value: socketPath, enumerable: true }
+    });
   }
 
   async init() { await this.listRefs('system'); return this; }
