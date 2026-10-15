@@ -45,6 +45,29 @@ test('peer-owned binary backend survives backend re-instantiation and verifies C
   }), true);
 });
 
+test('durable peer CAS serializes competing transaction prepares for one reference', async t => {
+  const { backend } = await fixture(t);
+  const proposals = [
+    { transactionId: 'concurrent-durable-a', value: { writer: 'a' } },
+    { transactionId: 'concurrent-durable-b', value: { writer: 'b' } }
+  ].map(proposal => {
+    const bytes = encodeCanonical(proposal.value);
+    return { ...proposal, bytes, hash: hash(bytes) };
+  });
+  const outcomes = await Promise.allSettled(proposals.map(proposal => backend.prepareRef({
+    transactionId: proposal.transactionId, namespace: 'PlanetApeX', key: 'single-writer-ref',
+    expectedHash: null, hash: proposal.hash, bytes: proposal.bytes, participants: ['peer-owner']
+  })));
+  const winners = outcomes.flatMap((outcome, index) => outcome.status === 'fulfilled' ? [proposals[index]] : []);
+  assert.equal(winners.length, 1, 'only one transaction may reserve a reference from the same expected head');
+  const winner = winners[0];
+  assert.equal((await backend.decideRefCommit(winner.transactionId, ['peer-owner'])).state, 'commit-decided');
+  assert.equal((await backend.commitPreparedRef(winner.transactionId)).state, 'committed');
+  const current = await backend.readRef('PlanetApeX', 'single-writer-ref');
+  assert.equal(current.hash, winner.hash);
+  assert.deepEqual(current.bytes, winner.bytes);
+});
+
 test('durable CAS commit decision survives backend restart and rolls the reference forward', async t => {
   const { root, options, backend } = await fixture(t);
   const bytes = encodeCanonical({ value: 'recover-after-decision' });
