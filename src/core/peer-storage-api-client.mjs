@@ -81,7 +81,11 @@ export class PeerStorageApiClient {
     if (!buffer.length) throw new TypeError('cannot store an empty asset');
     const digest = createHash('sha256').update(buffer).digest('hex');
     const existing = await this.readRef('asset-manifests', digest);
-    if (existing?.value?.sha256 === digest && existing.value.bytes === buffer.length) {
+    if (existing?.value?.kind === 'apex.api.asset-manifest.v1' &&
+        existing.value.namespace === this.namespace && existing.value.sha256 === digest &&
+        existing.value.bytes === buffer.length) {
+      const recovered = await this.getBlob(digest);
+      if (!recovered.equals(buffer)) throw new Error('existing peer asset failed deduplication integrity verification');
       return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, deduplicated: true };
     }
     const chunks = [];
