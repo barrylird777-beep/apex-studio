@@ -42,6 +42,8 @@ jobs:
         run: npm run check:canonical
       - name: KernelVision episode smoke
         run: npm run smoke:kernelvision-episode
+      - name: Local CAS fast-path benchmark (synthetic RAM only)
+        run: npm run bench:local-cas
       - name: Pure-WAL test suite
         run: npm test
       - name: Release audit
