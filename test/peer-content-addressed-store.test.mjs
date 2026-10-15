@@ -530,3 +530,30 @@ test('a contradictory authenticated object hash aborts the entire write', async 
     error.code === 'CONTRADICTORY_REPLICA' && error.peerId === 'peer-b'
   );
 });
+
+
+test('immutable reads fail closed when any authenticated replica contradicts the requested content hash', async () => {
+  const mesh = makeMesh();
+  const written = await mesh.client.putObject({ integrity: 'immutable' });
+  const original = mesh.transport.request.bind(mesh.transport);
+  mesh.transport.request = async (peerId, envelope, options) => {
+    const response = await original(peerId, envelope, options);
+    if (peerId === 'peer-b' && envelope.operation === 'object.get') {
+      return { ...response, hash: 'f'.repeat(64) };
+    }
+    return response;
+  };
+  await assert.rejects(mesh.client.getObject(written.hash), error =>
+    error.code === 'CONTRADICTORY_REPLICA' && error.peerId === 'peer-b'
+  );
+});
+
+test('reference reads require configured replica quorum even when one peer has a valid signed stale view', async () => {
+  const mesh = makeMesh();
+  const written = await mesh.client.putObject({ root: 'canonical' });
+  await mesh.client.writeRef('main', { objectHash: written.hash }, { expectedHash: null });
+  mesh.unavailable.add('peer-b');
+  await assert.rejects(mesh.client.readRef('main'), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
+});
