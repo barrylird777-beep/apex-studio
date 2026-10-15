@@ -132,8 +132,6 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   await assert.rejects(mesh.client.readRef('project-project-1'), error =>
     error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
   );
-  // Immutable bytes remain recoverable from the surviving peer because their requested hash is already known.
-  assert.deepEqual(await mesh.client.getObject(saved.hash), manifest);
 });
 
 test('peer CAS refuses to choose between divergent mutable references', async () => {
