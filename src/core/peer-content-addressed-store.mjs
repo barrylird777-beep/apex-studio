@@ -17,7 +17,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), verifyDurabilityReceipt = null, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000, commitReference = null, verifyCommitCertificate = null, requireBftConsensus = false, membershipEpoch = Number(process.env.APEX_PEER_CAS_MEMBERSHIP_EPOCH || 0) } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, maxBlobBytes = Number(process.env.APEX_PEER_CAS_MAX_BLOB_BYTES || 1073741824), maxBlobChunks = Number(process.env.APEX_PEER_CAS_MAX_BLOB_CHUNKS || 131072), namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), verifyDurabilityReceipt = null, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000, commitReference = null, verifyCommitCertificate = null, requireBftConsensus = false, membershipEpoch = Number(process.env.APEX_PEER_CAS_MEMBERSHIP_EPOCH || 0) } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -32,6 +32,12 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.maxBlobBytes = Number(maxBlobBytes);
+    this.maxBlobChunks = Number(maxBlobChunks);
+    if (!Number.isSafeInteger(this.maxBlobBytes) || this.maxBlobBytes < 1 || this.maxBlobBytes > 2 * 1024 * 1024 * 1024 ||
+        !Number.isSafeInteger(this.maxBlobChunks) || this.maxBlobChunks < 1 || this.maxBlobChunks > 131072) {
+      throw new TypeError('blob limits must allow 1 byte–2 GiB and 1–131072 chunks');
+    }
     this.writeConcurrency = Number(writeConcurrency);
     this.verifyDurabilityReceipt = verifyDurabilityReceipt;
     this.commitReference = commitReference;
@@ -286,7 +292,9 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(size) || size < 1 || size > 8 * 1024) {
       throw new TypeError('chunkSize must be between 1 byte and 8 KiB for the current peer envelope ceiling');
     }
+    if (blob.length > this.maxBlobBytes) throw Object.assign(new Error('blob exceeds the configured bounded in-memory assembly limit'), { code: 'BLOB_TOO_LARGE', maxBlobBytes: this.maxBlobBytes, bytes: blob.length });
     const chunkCount = Math.ceil(blob.length / size);
+    if (chunkCount > this.maxBlobChunks) throw Object.assign(new Error('blob requires more chunks than the configured manifest bound'), { code: 'BLOB_CHUNK_LIMIT', maxBlobChunks: this.maxBlobChunks, chunkCount });
     const chunks = new Array(chunkCount);
     const configuredPutConcurrency = Number(process.env.APEX_PEER_CAS_PUT_CONCURRENCY || 8);
     const putConcurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredPutConcurrency) ? configuredPutConcurrency : 8));
@@ -358,7 +366,7 @@ export class PeerContentAddressedStore {
   async getBlob(manifestHash) {
     const manifest = await this.getObject(manifestHash);
     if (!manifest || !['apex.blob-manifest.v1', 'apex.blob-manifest.v2'].includes(manifest.kind) ||
-        !Number.isSafeInteger(manifest.totalBytes) || manifest.totalBytes < 0 ||
+        !Number.isSafeInteger(manifest.totalBytes) || manifest.totalBytes < 0 || manifest.totalBytes > this.maxBlobBytes ||
         manifest.namespace !== this.namespace ||
         !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || ''))) {
       throw new Error('invalid or cross-namespace blob manifest');
@@ -413,11 +421,15 @@ export class PeerContentAddressedStore {
     } else {
       throw new Error('unsupported or malformed blob manifest version');
     }
-    if (!Array.isArray(descriptors) || descriptors.some(item => !item ||
+    if (!Array.isArray(descriptors) || descriptors.length > this.maxBlobChunks || descriptors.some(item => !item ||
         !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
         !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
         !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')))) {
       throw new Error('invalid blob chunk reference');
+    }
+    const declaredChunkBytes = descriptors.reduce((sum, item) => sum + item.bytes, 0);
+    if (!Number.isSafeInteger(declaredChunkBytes) || declaredChunkBytes !== manifest.totalBytes) {
+      throw new Error('blob manifest chunk lengths do not equal its declared total byte length');
     }
     const configuredConcurrency = Number(process.env.APEX_PEER_CAS_FETCH_CONCURRENCY || 8);
     const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
