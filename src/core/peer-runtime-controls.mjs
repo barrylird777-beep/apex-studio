@@ -3,6 +3,7 @@ import { encodeCanonical } from './apex-cbor.mjs';
 
 const APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
 const ACTIONS = new Set(['read', 'write', 'delete', 'claim', 'publish', 'delegate']);
+const MAX_CAPABILITY_TTL_MS = 5 * 60 * 1000;
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const canonicalBytes = value => encodeCanonical(value);
 const cidFor = value => sha256(canonicalBytes(value));
@@ -21,8 +22,10 @@ function stableRules(rules) {
     a.action.localeCompare(b.action) || Number(a.allow) - Number(b.allow));
 }
 
-export function createAccessTensor({ version = 1, rules = [], quotas = {} } = {}) {
-  if (version !== 1) throw new TypeError('unsupported access tensor version');
+export function createAccessTensor({ version = 1, parentCid = null, rules = [], quotas = {} } = {}) {
+  if (!Number.isSafeInteger(version) || version < 1 || (parentCid != null && !/^[a-f0-9]{64}$/.test(String(parentCid))) || (version > 1 && parentCid == null)) {
+    throw new TypeError('access tensor versions after the first must name a valid parent CID');
+  }
   const normalized = stableRules(rules);
   const seen = new Set();
   for (const rule of normalized) {
@@ -43,12 +46,12 @@ export function createAccessTensor({ version = 1, rules = [], quotas = {} } = {}
     }
     boundedQuotas[app] = Object.freeze(normalizedQuota);
   }
-  const tensor = Object.freeze({ kind: 'apex.access-tensor.v1', version, rules: normalized, quotas: Object.freeze(boundedQuotas) });
+  const tensor = Object.freeze({ kind: 'apex.access-tensor.v1', version, ...(parentCid ? { parentCid } : {}), rules: normalized, quotas: Object.freeze(boundedQuotas) });
   return Object.freeze({ tensor, cid: cidFor(tensor) });
 }
 
 export function evaluateAccessTensor(tensor, { app, action, path, usage = {} } = {}) {
-  if (!tensor || tensor.kind !== 'apex.access-tensor.v1' || tensor.version !== 1 ||
+  if (!tensor || tensor.kind !== 'apex.access-tensor.v1' || !Number.isSafeInteger(tensor.version) || tensor.version < 1 ||
       !APPS.has(app) || !ACTIONS.has(action) || !safePath(path)) return Object.freeze({ allowed: false, reason: 'invalid-request' });
   // Most-specific path rule wins. Deny is the default; wildcard matching is intentionally absent.
   const matches = tensor.rules.filter(rule => rule.app === app && rule.action === action &&
@@ -107,19 +110,19 @@ function verifyEnvelope(envelope, { kind, publicKey, now = Date.now(), maxAgeMs 
 export function mintCapability({ issuerApp, subjectApp, path, actions, expiresAt, privateKey, nonce = randomUUID() } = {}) {
   if (!APPS.has(issuerApp) || !APPS.has(subjectApp) || !safePath(path) ||
       !Array.isArray(actions) || !actions.length || actions.some(action => !ACTIONS.has(action)) ||
-      !Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) throw new TypeError('invalid scoped capability request');
+      !Number.isSafeInteger(expiresAt) || expiresAt <= Date.now() || expiresAt - Date.now() > MAX_CAPABILITY_TTL_MS) throw new TypeError('invalid or overlong scoped capability request');
   return signEnvelope('apex.cross-app-capability.v1', {
     issuerApp, subjectApp, path, actions: [...new Set(actions)].sort(), expiresAt, nonce, createdAt: Date.now()
   }, privateKey);
 }
 
 export function verifyCapability(capability, { publicKey, subjectApp, action, path, now = Date.now(), isRevoked = () => false } = {}) {
-  if (!verifyEnvelope(capability, { kind: 'apex.cross-app-capability.v1', publicKey, now, maxAgeMs: 24 * 60 * 60 * 1000 })) return false;
+  if (!verifyEnvelope(capability, { kind: 'apex.cross-app-capability.v1', publicKey, now, maxAgeMs: MAX_CAPABILITY_TTL_MS })) return false;
   const p = capability.payload;
   return APPS.has(p.issuerApp) && p.subjectApp === subjectApp && APPS.has(subjectApp) &&
     ACTIONS.has(action) && Array.isArray(p.actions) && p.actions.includes(action) &&
     safePath(path) && (path === p.path || path.startsWith(p.path + '/')) &&
-    Number.isSafeInteger(p.expiresAt) && p.expiresAt > now && typeof p.nonce === 'string' && !isRevoked(p.nonce);
+    Number.isSafeInteger(p.expiresAt) && p.expiresAt > now && p.expiresAt - Number(p.createdAt) <= MAX_CAPABILITY_TTL_MS && typeof p.nonce === 'string' && !isRevoked(p.nonce);
 }
 
 export function createSignedHeartbeat({ peerId, hardwareRootCid, privateKey, createdAt = Date.now() } = {}) {
@@ -159,7 +162,8 @@ export class ConnectionTrustSessions {
         typeof verifyCredential !== 'function' || typeof verifyAttestation !== 'function') {
       throw new TypeError('connection, credential fingerprint, and independent credential/attestation verifiers are required');
     }
-    if (connection.closed === true || !await verifyCredential(connection) || !await verifyAttestation(attestation, connection)) {
+    if (connection.closed === true || !await verifyCredential(connection, { credentialFingerprint }) ||
+        !await verifyAttestation(attestation, connection, { credentialFingerprint })) {
       throw new Error('connection trust elevation failed closed');
     }
     const session = Object.freeze({ credentialFingerprint, elevatedAt: Date.now(), attestationCid: cidFor(attestation) });
