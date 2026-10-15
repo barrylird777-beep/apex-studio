@@ -57,6 +57,14 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     }
   }
   if (!acl || !Object.keys(acl).length) throw new Error('explicit namespace ACL is required');
+  const assertNamespace = namespace => {
+    if (typeof namespace !== 'string' || !Object.hasOwn(acl, namespace) ||
+        !Array.isArray(acl[namespace]) || acl[namespace].length === 0) {
+      const error = new Error('peer CAS namespace is not authorized by the explicit owner ACL');
+      error.code = 'NAMESPACE_DENIED';
+      throw error;
+    }
+  };
   const objectsDir = path.join(root, 'objects');
   const refsDir = path.join(root, 'refs');
   await mkdir(objectsDir, { recursive: true, mode: 0o700 });
@@ -116,6 +124,8 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       return bytes;
     },
     async readRef(namespace, key) {
+      assertNamespace(namespace);
+      if (typeof key !== 'string' || !key || key.length > 512) throw new Error('invalid peer CAS reference key');
       const file = path.join(refsDir, refId(namespace, key) + '.cbor');
       let bytes;
       try { bytes = await readFile(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
@@ -124,6 +134,11 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       return { hash: value.hash, bytes: Buffer.from(value.bytes) };
     },
     async writeRef(namespace, key, expectedHash, hash, input) {
+      assertNamespace(namespace);
+      if (typeof key !== 'string' || !key || key.length > 512) throw new Error('invalid peer CAS reference key');
+      if (expectedHash !== null && (typeof expectedHash !== 'string' || !/^[a-f0-9]{64}$/.test(expectedHash))) {
+        throw new Error('invalid expected reference hash');
+      }
       const bytes = Buffer.from(input);
       if (sha256(bytes) !== hash) throw new Error('reference payload hash mismatch');
       decodeCanonical(bytes);
@@ -146,7 +161,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       });
     },
     async listRefs(namespace) {
-      if (typeof namespace !== 'string' || !namespace) throw new Error('explicit reference namespace is required');
+      assertNamespace(namespace);
       const names = await readdir(refsDir);
       const refs = [];
       for (const name of names) {
