@@ -77,7 +77,10 @@ test('peer API bridge requires auth and keeps app references in separate stores'
     const own = await request(socketPath, tokens.KernelVision, { app: 'KernelVision', operation: 'readRef',
       args: { namespace: 'state', key: 'item-1' } });
     assert.equal(own.body.result.value.marker, 'only-kernelvision');
-    const client = new PeerStorageApiClient({ app: 'KernelVision', token: tokens.KernelVision, socketPath });
+    const previousApp = process.env.APEX_APP_NAMESPACE;
+    process.env.APEX_APP_NAMESPACE = 'KernelVision';
+    const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath });
+    if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
     await assert.rejects(client.writeRef('state', 'item-1', { marker: 'stale' }, { expectedHash: '0'.repeat(64) }),
       error => error.code === 'CAS_CONFLICT');
     const crossAppCredential = await request(socketPath, tokens.KernelVision, { app: 'XShield', operation: 'readRef',
@@ -102,7 +105,10 @@ test('API client chunks and verifies large binary assets through peer bridge', a
   const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
   try {
     await bridge.listen();
-    const client = new PeerStorageApiClient({ app: 'KernelVision', token: tokens.KernelVision, socketPath });
+    const previousApp = process.env.APEX_APP_NAMESPACE;
+    process.env.APEX_APP_NAMESPACE = 'KernelVision';
+    const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath });
+    if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
     const input = Buffer.alloc(1024 * 1024 + 37);
     for (let i = 0; i < input.length; i++) input[i] = i % 251;
     const stored = await client.putBlob(input);
