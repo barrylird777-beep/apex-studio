@@ -351,29 +351,53 @@ export class PeerContentAddressedStore {
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
     const failures = [];
-    for (const peerId of this.peers) {
+    let contradiction = null;
+    const outcomes = await Promise.all(this.peers.map(async peerId => {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1',
-          operation: 'object.get',
-          namespace: this.namespace,
-          hash
+          protocol: 'apex.cas.v1', operation: 'object.get',
+          namespace: this.namespace, hash
         });
+        if (response.namespace !== this.namespace ||
+            (typeof response.hash === 'string' && /^[a-f0-9]{64}$/.test(response.hash) && response.hash !== hash)) {
+          const error = new Error('authenticated peer returned a contradictory immutable object hash or namespace');
+          error.code = 'CONTRADICTORY_REPLICA';
+          error.peerId = peerId;
+          throw error;
+        }
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash ||
-            response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.get', objectHash: hash, key: null })) {
-          throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
-        }
-        return this.decrypt(decodeCanonical(bytes));
+            response.hash !== hash ||
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, {
+              namespace: this.namespace, operation: 'object.get', objectHash: hash, key: null
+            })) throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+        return { peerId, response, bytes };
       } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+        if (error?.code === 'CONTRADICTORY_REPLICA') contradiction ||= error;
+        return { peerId, error };
       }
+    }));
+    if (contradiction) throw contradiction;
+    const verified = outcomes.filter(item => !item.error);
+    failures.push(...outcomes.filter(item => item.error).map(item => ({
+      peerId: item.peerId, error: item.error instanceof Error ? item.error.message : String(item.error)
+    })));
+    const domains = new Set(verified.map(item => this.failureDomainsByPeerId[item.peerId]).filter(Boolean));
+    if (verified.length < this.replicaCount || domains.size < this.minFailureDomains) {
+      const error = new Error('immutable object read did not reach configured verified replica quorum');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = verified.length;
+      error.failures = failures;
+      throw error;
     }
-    const error = new Error('object was not recoverable from any configured peer');
-    error.code = 'OBJECT_UNAVAILABLE';
-    error.failures = failures;
-    throw error;
+    const firstBytes = verified[0].bytes;
+    if (verified.some(item => !item.bytes.equals(firstBytes))) {
+      const error = new Error('verified replicas returned contradictory bytes for the same immutable object hash');
+      error.code = 'CONTRADICTORY_REPLICA';
+      throw error;
+    }
+    return this.decrypt(decodeCanonical(firstBytes));
   }
 
   async listRefs(namespace = this.namespace) {
@@ -476,6 +500,15 @@ export class PeerContentAddressedStore {
       const error = new Error('peer reference replicas disagree; refusing to select a potentially stale manifest');
       error.code = 'REFERENCE_DIVERGENCE';
       error.hashes = results.map(result => ({ peerId: result.peerId, hash: result.hash }));
+      throw error;
+    }
+    const domains = new Set(results.map(result => this.failureDomainsByPeerId[result.peerId]).filter(Boolean));
+    if (results.length < this.replicaCount || domains.size < this.minFailureDomains) {
+      const error = new Error('peer reference read did not reach configured verified replica quorum');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = results.length;
+      error.failures = failures;
       throw error;
     }
     const first = results[0];
