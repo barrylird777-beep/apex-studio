@@ -71,8 +71,11 @@ test('connection elevation is bound to a live connection and credential fingerpr
 test('tensor pointer is swapped only after a replicated immutable object is stored', async () => {
   const writes = [];
   const cas = {
-    replicaCount: 2,
-    async putObject() { return { hash: 'b'.repeat(64), receipts: [{ peerId: 'p1' }, { peerId: 'p2' }] }; },
+    namespace: 'KernelVision', replicaCount: 2,
+    async putObject() { return { hash: 'b'.repeat(64), receipts: [
+      { peerId: 'p1', hash: 'b'.repeat(64), namespace: 'KernelVision', receiptId: 'r1', durabilityReceipt: { signed: true } },
+      { peerId: 'p2', hash: 'b'.repeat(64), namespace: 'KernelVision', receiptId: 'r2', durabilityReceipt: { signed: true } }
+    ] }; },
     async writeRef(key, value, options) { writes.push({ key, value, options }); return { hash: 'c'.repeat(64) }; }
   };
   const result = await publishAccessTensor({
