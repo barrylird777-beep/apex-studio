@@ -5,6 +5,7 @@ import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { startTestPeerBridge } from "./helpers/test-peer-storage-bridge.mjs";
 
 const port = 3127;
 const base = `http://127.0.0.1:${port}`;
@@ -40,7 +41,9 @@ async function json(route, options = {}) {
 
 test("SPEC-005 sovereign API smoke: calendar, day creation, assignment, order, unassign, auto-schedule", async t => {
   const tempRoot = await mkdtemp(path.join(tmpdir(), "apex-schedule-smoke-"));
-  t.after(() => rm(tempRoot, { recursive: true, force: true }));
+  const peerSocket = path.join(tempRoot, "peer-storage-api.sock");
+  const peer = await startTestPeerBridge(peerSocket);
+  t.after(async () => { await peer.close(); await rm(tempRoot, { recursive: true, force: true }); });
   const storageDir = path.join(tempRoot, "storage");
   const env = {
     ...process.env,
@@ -55,7 +58,10 @@ test("SPEC-005 sovereign API smoke: calendar, day creation, assignment, order, u
     STORAGE_DIR: storageDir,
     APEX_MEDIA_DIR: path.join(tempRoot, "media"),
     APEX_ARTIFACTS_DIR: path.join(tempRoot, "artifacts"),
-    APEX_ALLOW_ALL_CORS: "true"
+    APEX_ALLOW_ALL_CORS: "true",
+    APEX_APP_NAMESPACE: "KernelVision",
+    APEX_PEER_STORAGE_API_TOKEN_KERNELVISION: peer.tokens.KernelVision,
+    APEX_PEER_STORAGE_API_SOCKET: peerSocket
   };
   const server = spawn(process.execPath, ["server.mjs"], { env, stdio: ["ignore", "pipe", "pipe"] });
   try {
