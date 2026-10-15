@@ -13,10 +13,13 @@ test('peer runtime cannot launch from implementation labels alone', () => {
 });
 
 test('peer runtime launch requires every current-head evidence gate', () => {
+  const candidate = 'a'.repeat(40);
   const evidence = Object.fromEntries(PEER_RUNTIME_REQUIRED_EVIDENCE.map(key => [key, true]));
-  assert.equal(evaluatePeerRuntimeLaunchReadiness(evidence).ready, true);
+  evidence.commitSha = candidate;
+  assert.equal(evaluatePeerRuntimeLaunchReadiness(evidence, { expectedCommitSha: candidate }).ready, true);
+  assert.equal(evaluatePeerRuntimeLaunchReadiness(evidence, { expectedCommitSha: 'b'.repeat(40) }).ready, false);
   evidence.hardwareRootAttestationVerified = false;
-  const blocked = evaluatePeerRuntimeLaunchReadiness(evidence);
+  const blocked = evaluatePeerRuntimeLaunchReadiness(evidence, { expectedCommitSha: candidate });
   assert.equal(blocked.ready, false);
   assert.deepEqual(blocked.missing, ['hardwareRootAttestationVerified']);
 });
