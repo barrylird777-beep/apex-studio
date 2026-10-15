@@ -116,13 +116,36 @@ export function mintCapability({ issuerApp, subjectApp, path, actions, expiresAt
   }, privateKey);
 }
 
-export function verifyCapability(capability, { publicKey, subjectApp, action, path, now = Date.now(), isRevoked = () => false } = {}) {
+export class CapabilityReplayGuard {
+  #seen = new Map();
+  constructor({ maxEntries = 100000 } = {}) {
+    if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) throw new TypeError('replay guard capacity must be positive');
+    this.maxEntries = maxEntries;
+  }
+  consume(requestKey, expiresAt, now = Date.now()) {
+    if (typeof requestKey !== 'string' || !requestKey || !Number.isSafeInteger(expiresAt) || expiresAt <= now) return false;
+    for (const [key, expiry] of this.#seen) if (expiry <= now) this.#seen.delete(key);
+    if (this.#seen.has(requestKey) || this.#seen.size >= this.maxEntries) return false;
+    this.#seen.set(requestKey, expiresAt);
+    return true;
+  }
+  get size() { return this.#seen.size; }
+}
+
+export function verifyCapability(capability, {
+  publicKey, subjectApp, action, path, requestId, replayGuard, now = Date.now(), isRevoked = () => false
+} = {}) {
   if (!verifyEnvelope(capability, { kind: 'apex.cross-app-capability.v1', publicKey, now, maxAgeMs: MAX_CAPABILITY_TTL_MS })) return false;
   const p = capability.payload;
-  return APPS.has(p.issuerApp) && p.subjectApp === subjectApp && APPS.has(subjectApp) &&
+  const authorized = APPS.has(p.issuerApp) && p.subjectApp === subjectApp && APPS.has(subjectApp) &&
     ACTIONS.has(action) && Array.isArray(p.actions) && p.actions.includes(action) &&
     safePath(path) && (path === p.path || path.startsWith(p.path + '/')) &&
-    Number.isSafeInteger(p.expiresAt) && p.expiresAt > now && p.expiresAt - Number(p.createdAt) <= MAX_CAPABILITY_TTL_MS && typeof p.nonce === 'string' && !isRevoked(p.nonce);
+    Number.isSafeInteger(p.expiresAt) && p.expiresAt > now &&
+    p.expiresAt - Number(p.createdAt) <= MAX_CAPABILITY_TTL_MS &&
+    typeof p.nonce === 'string' && !isRevoked(p.nonce);
+  if (!authorized || typeof requestId !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId) ||
+      !replayGuard || typeof replayGuard.consume !== 'function') return false;
+  return replayGuard.consume(p.nonce + ':' + requestId, p.expiresAt, now);
 }
 
 export function createSignedHeartbeat({ peerId, hardwareRootCid, privateKey, createdAt = Date.now() } = {}) {
