@@ -85,12 +85,14 @@ export async function startPeerCasRuntime({ peerNode }) {
   if (key.length !== 32 || key.toString('base64') !== encodedKey) throw new Error('Peer-CAS encryption key must be canonical base64 for exactly 32 bytes');
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const peers = Object.keys(addressesByPeerId);
+  const receiptPublicKeysByPeerId = parseReceiptPublicKeys(required('APEX_PEER_CAS_RECEIPT_PUBLIC_KEYS'), peers);
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key,
     replicaCount: Number(process.env.APEX_PEER_CAS_REPLICAS || 2),
     minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
-    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
+    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')])),
+    receiptPublicKeysByPeerId
   });
   const allowed = new Set(required('APEX_PEER_CAS_ALLOWED_MODELS').split(';').map(x => x.trim()).filter(Boolean));
   if (!allowed.size || [...allowed].some(x => !/^[A-Za-z0-9._-]{1,128}@[A-Za-z0-9._-]{1,128}$/.test(x))) {
