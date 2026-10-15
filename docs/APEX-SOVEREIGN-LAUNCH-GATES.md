@@ -33,7 +33,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Deterministic distributed job claims use atomic CAS, lease tokens, monotonic fencing values, and now have a simultaneous-worker race regression; current-head CI and live peer evidence are still required.
 - [x] Job completion publishes an immutable result CID and validates the configured replica receipts; cross-peer retrieval regression coverage is still required before this is considered launch-verified.
 - [ ] Optional erasure-coded shard storage and k-of-n reconstruction.
-- [x] Bounded, sequential speculative prefetch of explicitly referenced small CIDs into the disposable RAM cache; aggregate byte/CID limits enforced and prefetch failures never become durable state.
+- [x] Automatic bounded speculative prefetch loop discovers CIDs from peer-owned references and warms only the disposable RAM cache; aggregate byte/CID limits are enforced and prefetch failures never become durable state.
 - [x] Blob ingestion/retrieval rejects oversized assets, excessive chunk counts, and manifests whose declared chunk lengths do not exactly match the total before assembling the payload.
 - [ ] Quota tensor evaluation exists and now fails closed when a configured metric is missing; trusted per-app usage metering is not yet wired, so quota-enabled storage remains blocked.
 - [ ] Unit/fault tests exist for core primitives; end-to-end Byzantine/restart/peer-loss measurements are not yet published.
