@@ -29,7 +29,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Signed capability-advertisement primitive and CID availability planner exist; live advertisement exchange remains open.
 - [x] Versioned access-tensor CID and atomic pointer publication primitive exist; initial policy provisioning and enforcement coverage remain open.
 - [x] Signed short-lived cross-app capability primitive includes scope, expiry, issuer/subject binding, and replay protection; production key lifecycle/integration remains open.
-- [ ] Deterministic distributed job claims with lease fencing under simultaneous worker races.
+- [x] Deterministic distributed job claims use atomic CAS, lease tokens, monotonic fencing values, and now have a simultaneous-worker race regression; current-head CI and live peer evidence are still required.
 - [x] Job completion publishes an immutable result CID and validates the configured replica receipts; cross-peer retrieval regression coverage is still required before this is considered launch-verified.
 - [ ] Optional erasure-coded shard storage and k-of-n reconstruction.
 - [ ] Bounded speculative prefetch of referenced small CIDs.
