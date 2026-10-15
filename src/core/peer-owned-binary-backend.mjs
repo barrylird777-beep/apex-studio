@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { encodeCanonical, decodeCanonical } from './apex-cbor.mjs';
@@ -9,7 +9,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function durableWrite(file, bytes) {
   const dir = path.dirname(file);
-  const temp = path.join(dir, '.pending-' + process.pid + '-' + createHash('sha256').update(bytes).digest('hex'));
+  const temp = path.join(dir, '.pending-' + process.pid + '-' + randomUUID());
   const handle = await open(temp, 'wx', 0o600);
   try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
   await rename(temp, file);
