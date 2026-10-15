@@ -232,56 +232,149 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(size) || size < 1 || size > 8 * 1024) {
       throw new TypeError('chunkSize must be between 1 byte and 8 KiB for the current peer envelope ceiling');
     }
-    const chunks = [];
-    for (let offset = 0; offset < blob.length; offset += size) {
-      const bytes = blob.subarray(offset, Math.min(offset + size, blob.length));
-      const chunkHash = sha256(bytes);
-      const receipt = await this.putObject({
-        kind: 'apex.blob-chunk.v1',
-        namespace: this.namespace,
-        bytes: bytes.length,
-        sha256: chunkHash,
-        dataBase64: bytes.toString('base64')
-      });
-      chunks.push({ hash: receipt.hash, bytes: bytes.length, sha256: chunkHash });
-    }
-    const manifest = {
-      kind: 'apex.blob-manifest.v1',
-      version: 1,
-      namespace: this.namespace,
-      totalBytes: blob.length,
-      sha256: sha256(blob),
-      chunks
+    const chunkCount = Math.ceil(blob.length / size);
+    const chunks = new Array(chunkCount);
+    const configuredPutConcurrency = Number(process.env.APEX_PEER_CAS_PUT_CONCURRENCY || 8);
+    const putConcurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredPutConcurrency) ? configuredPutConcurrency : 8));
+    let nextChunk = 0;
+    const putWorker = async () => {
+      while (true) {
+        const index = nextChunk++;
+        if (index >= chunkCount) return;
+        const offset = index * size;
+        const bytes = blob.subarray(offset, Math.min(offset + size, blob.length));
+        const chunkHash = sha256(bytes);
+        const receipt = await this.putObject({
+          kind: 'apex.blob-chunk.v1',
+          namespace: this.namespace,
+          bytes: bytes.length,
+          sha256: chunkHash,
+          dataBase64: bytes.toString('base64')
+        });
+        chunks[index] = { hash: receipt.hash, bytes: bytes.length, sha256: chunkHash };
+      }
     };
+    await Promise.all(Array.from({ length: Math.min(putConcurrency, chunkCount) }, putWorker));
+
+    const manifestBase = {
+      version: 1, namespace: this.namespace, totalBytes: blob.length, sha256: sha256(blob)
+    };
+    let manifest;
+    if (chunks.length <= 64) {
+      manifest = { kind: 'apex.blob-manifest.v1', ...manifestBase, chunks };
+    } else {
+      // Hierarchical CID tree keeps each encrypted manifest below the 32 KiB
+      // peer-object ceiling even for multi-gigabyte assets.
+      const fanout = 64;
+      const putNodeLevel = async (entries, level, type) => {
+        const nodes = [];
+        for (let offset = 0; offset < entries.length; offset += fanout) {
+          const group = entries.slice(offset, offset + fanout);
+          const receipt = await this.putObject({
+            kind: 'apex.blob-manifest-node.v1', version: 1,
+            namespace: this.namespace, level,
+            entries: group.map(entry => type === 'chunk'
+              ? { type: 'chunk', ...entry }
+              : { type: 'node', hash: entry.hash })
+          });
+          nodes.push({ hash: receipt.hash, level });
+        }
+        return nodes;
+      };
+      let level = 0;
+      let nodes = await putNodeLevel(chunks, level, 'chunk');
+      while (nodes.length > 1) {
+        level++;
+        nodes = await putNodeLevel(nodes, level, 'node');
+        if (level > 20) throw new Error('blob manifest tree exceeds the maximum supported depth');
+      }
+      manifest = {
+        kind: 'apex.blob-manifest.v2', version: 2, namespace: this.namespace,
+        totalBytes: blob.length, sha256: sha256(blob),
+        root: nodes[0].hash, rootLevel: nodes[0].level
+      };
+    }
     const receipt = await this.putObject(manifest);
-    return { ...receipt, kind: manifest.kind, totalBytes: blob.length, contentSha256: manifest.sha256, chunkCount: chunks.length };
+    return {
+      ...receipt, kind: manifest.kind, totalBytes: blob.length,
+      contentSha256: manifest.sha256, chunkCount: chunks.length
+    };
   }
 
   async getBlob(manifestHash) {
     const manifest = await this.getObject(manifestHash);
-    if (!manifest || manifest.kind !== 'apex.blob-manifest.v1' || manifest.version !== 1 ||
-        manifest.namespace !== this.namespace || !Number.isSafeInteger(manifest.totalBytes) ||
-        manifest.totalBytes < 0 || !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || '')) ||
-        !Array.isArray(manifest.chunks)) {
+    if (!manifest || !['apex.blob-manifest.v1', 'apex.blob-manifest.v2'].includes(manifest.kind) ||
+        !Number.isSafeInteger(manifest.totalBytes) || manifest.totalBytes < 0 ||
+        manifest.namespace !== this.namespace ||
+        !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || ''))) {
       throw new Error('invalid or cross-namespace blob manifest');
     }
-    if (manifest.chunks.some(item => !item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+    let descriptors;
+    if (manifest.kind === 'apex.blob-manifest.v1' && manifest.version === 1 && Array.isArray(manifest.chunks)) {
+      descriptors = manifest.chunks;
+    } else if (manifest.kind === 'apex.blob-manifest.v2' && manifest.version === 2 &&
+        /^[a-f0-9]{64}$/.test(String(manifest.root || '')) &&
+        Number.isSafeInteger(manifest.rootLevel) && manifest.rootLevel >= 0 && manifest.rootLevel <= 20) {
+      const configuredConcurrency = Number(process.env.APEX_PEER_CAS_FETCH_CONCURRENCY || 8);
+      const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
+      let levelNodes = [manifest.root];
+      descriptors = [];
+      for (let level = manifest.rootLevel; level >= 0; level--) {
+        const loaded = new Array(levelNodes.length);
+        let nextNode = 0;
+        const worker = async () => {
+          while (true) {
+            const index = nextNode++;
+            if (index >= levelNodes.length) return;
+            const node = await this.getObject(levelNodes[index]);
+            if (!node || node.kind !== 'apex.blob-manifest-node.v1' || node.version !== 1 ||
+                node.namespace !== this.namespace || node.level !== level || !Array.isArray(node.entries) ||
+                node.entries.length < 1 || node.entries.length > 64) {
+              throw new Error('invalid or cross-namespace blob manifest node');
+            }
+            loaded[index] = node.entries;
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(concurrency, levelNodes.length) }, worker));
+        if (level === 0) {
+          for (const entries of loaded) {
+            for (const item of entries) {
+              if (item?.type !== 'chunk') throw new Error('leaf manifest contains a non-chunk entry');
+              descriptors.push({ hash: item.hash, bytes: item.bytes, sha256: item.sha256 });
+            }
+          }
+        } else {
+          const next = [];
+          for (const entries of loaded) {
+            for (const item of entries) {
+              if (item?.type !== 'node' || !/^[a-f0-9]{64}$/.test(String(item.hash || ''))) {
+                throw new Error('intermediate manifest contains an invalid node reference');
+              }
+              next.push(item.hash);
+            }
+          }
+          levelNodes = next;
+        }
+      }
+    } else {
+      throw new Error('unsupported or malformed blob manifest version');
+    }
+    if (!Array.isArray(descriptors) || descriptors.some(item => !item ||
+        !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
         !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
         !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')))) {
       throw new Error('invalid blob chunk reference');
     }
-    // Chunk fetches run concurrently; getObject races authorized peers and
-    // verifies CID, app namespace, AEAD, and durability proof before returning.
     const configuredConcurrency = Number(process.env.APEX_PEER_CAS_FETCH_CONCURRENCY || 8);
     const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
-    const parts = new Array(manifest.chunks.length);
+    const parts = new Array(descriptors.length);
     let nextIndex = 0;
     let total = 0;
     const worker = async () => {
       while (true) {
         const index = nextIndex++;
-        if (index >= manifest.chunks.length) return;
-        const item = manifest.chunks[index];
+        if (index >= descriptors.length) return;
+        const item = descriptors[index];
         const chunk = await this.getObject(item.hash);
         if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
             chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
@@ -294,7 +387,7 @@ export class PeerContentAddressedStore {
         parts[index] = bytes;
       }
     };
-    await Promise.all(Array.from({ length: Math.min(concurrency, manifest.chunks.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(concurrency, descriptors.length) }, worker));
     for (const part of parts) {
       if (!part) throw new Error('parallel asset assembly left a missing chunk');
       total += part.length;
