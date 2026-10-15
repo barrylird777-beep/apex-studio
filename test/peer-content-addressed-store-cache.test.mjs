@@ -129,9 +129,11 @@ test('replica reconciliation repairs a missing CID from a verified peer source',
   });
   const saved = await store.putObject({ kind: 'repair-test', value: 'recover-me' });
   peerObjects.get('peer-2').delete(saved.hash);
-  const repaired = await store.reconcileObject(saved.hash);
-  assert.equal(repaired.verifiedReplicas, 2);
-  assert.equal(repaired.failureDomains, 2);
+  const repairLoop = store.startRepairLoop({ getCids: async () => [saved.hash] });
+  const repaired = await repairLoop.runOnce();
+  repairLoop.stop();
+  assert.equal(repaired.candidates, 1);
+  assert.equal(repaired.repaired, 1);
   assert.ok(peerObjects.get('peer-2').has(saved.hash));
   assert.equal((await store.getObject(saved.hash)).value, 'recover-me');
 });
