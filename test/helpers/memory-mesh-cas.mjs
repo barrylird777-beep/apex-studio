@@ -21,6 +21,16 @@ export class MemoryMeshCAS {
     this.refs.set(id, { hash, value: structuredClone(value) });
     return { namespace, key, hash };
   }
+  async deleteRef(namespace, key, { expectedHash = null } = {}) {
+    const id = namespace + '/' + key;
+    const current = this.refs.get(id);
+    if (!current) return false;
+    if (expectedHash !== null && current.hash !== expectedHash) {
+      throw Object.assign(new Error('peer CAS conflict'), { code: 'CAS_CONFLICT' });
+    }
+    this.refs.delete(id);
+    return true;
+  }
   async listRefs(namespace) {
     const prefix = namespace + '/';
     return [...this.refs.entries()].filter(([id]) => id.startsWith(prefix)).map(([id, row]) => ({
