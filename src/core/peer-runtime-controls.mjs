@@ -79,10 +79,18 @@ export async function publishAccessTensor({ cas, tensor, expectedHash = null, po
     throw new TypeError('peer CAS with immutable object writes and atomic reference swaps is required');
   }
   if (!safePath(pointerKey)) throw new TypeError('invalid tensor pointer key');
-  const built = tensor?.kind === 'apex.access-tensor.v1' ? { tensor, cid: cidFor(tensor) } : createAccessTensor(tensor);
+  const built = createAccessTensor(tensor?.kind === 'apex.access-tensor.v1'
+    ? { version: tensor.version, parentCid: tensor.parentCid ?? null, rules: tensor.rules, quotas: tensor.quotas }
+    : tensor);
   const stored = await cas.putObject(built.tensor);
-  if (!/^[a-f0-9]{64}$/.test(String(stored?.hash || '')) || !Array.isArray(stored.receipts) || stored.receipts.length < cas.replicaCount) {
-    throw new Error('access tensor lacks a verified content CID and replica receipts');
+  const receipts = Array.isArray(stored?.receipts) ? stored.receipts : [];
+  const verifiedPeers = new Set(receipts.filter(receipt =>
+    typeof receipt?.peerId === 'string' && receipt.peerId &&
+    receipt.hash === stored?.hash && receipt.namespace === cas.namespace &&
+    typeof receipt.receiptId === 'string' && receipt.receiptId && receipt.durabilityReceipt != null
+  ).map(receipt => receipt.peerId));
+  if (!/^[a-f0-9]{64}$/.test(String(stored?.hash || '')) || verifiedPeers.size < Number(cas.replicaCount || 1)) {
+    throw new Error('access tensor lacks distinct, namespace-bound durability receipts');
   }
   const pointer = { kind: 'apex.access-tensor-pointer.v1', version: 1, cid: stored.hash, tensorCid: built.cid };
   const swapped = await cas.writeRef(pointerKey, pointer, { expectedHash });
