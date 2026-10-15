@@ -4,7 +4,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import {
   createAccessTensor, evaluateAccessTensor, mintCapability, verifyCapability,
   createSignedHeartbeat, verifySignedHeartbeat, createCapabilityAdvertisement,
-  verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor
+  verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor, CapabilityReplayGuard
 } from '../src/core/peer-runtime-controls.mjs';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -25,15 +25,24 @@ test('access tensors default deny, enforce path specificity, and apply per-app q
   assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'read', path: 'assets/clip', usage: { concurrentJobs: 3 } }).reason, 'quota-exceeded');
 });
 
-test('cross-app capability is signed, scoped, expires, and honors revocation', () => {
+test('cross-app capability is signed, short-lived, scoped, replay-protected, and revocable', () => {
   const capability = mintCapability({
     issuerApp: 'PlanetApeX', subjectApp: 'KernelVision', path: 'bible/manuscripts',
     actions: ['read'], expiresAt: Date.now() + 60000, privateKey, nonce: 'test-nonce'
   });
-  assert.equal(verifyCapability(capability, { publicKey, subjectApp: 'KernelVision', action: 'read', path: 'bible/manuscripts/folio-1' }), true);
-  assert.equal(verifyCapability(capability, { publicKey, subjectApp: 'XShield', action: 'read', path: 'bible/manuscripts/folio-1' }), false);
-  assert.equal(verifyCapability(capability, { publicKey, subjectApp: 'KernelVision', action: 'write', path: 'bible/manuscripts/folio-1' }), false);
-  assert.equal(verifyCapability(capability, { publicKey, subjectApp: 'KernelVision', action: 'read', path: 'bible/manuscripts/folio-1', isRevoked: nonce => nonce === 'test-nonce' }), false);
+  const replayGuard = new CapabilityReplayGuard();
+  const request = { publicKey, subjectApp: 'KernelVision', action: 'read',
+    path: 'bible/manuscripts/folio-1', requestId: 'request-0001', replayGuard };
+  assert.equal(verifyCapability(capability, request), true);
+  assert.equal(verifyCapability(capability, request), false, 'a request identifier cannot be replayed');
+  assert.equal(verifyCapability(capability, { ...request, requestId: 'request-0002', subjectApp: 'XShield' }), false);
+  assert.equal(verifyCapability(capability, { ...request, requestId: 'request-0003', action: 'write' }), false);
+  assert.equal(verifyCapability(capability, { ...request, requestId: 'request-0004',
+    isRevoked: nonce => nonce === 'test-nonce' }), false);
+  assert.throws(() => mintCapability({
+    issuerApp: 'PlanetApeX', subjectApp: 'KernelVision', path: 'bible/manuscripts',
+    actions: ['read'], expiresAt: Date.now() + 6 * 60 * 1000, privateKey
+  }), /overlong/);
 });
 
 test('signed heartbeats and capability advertisements reject wrong identity', () => {
