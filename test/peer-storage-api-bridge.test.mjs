@@ -43,7 +43,7 @@ function fakeStore(namespace) {
     },
     objects: {
       namespace,
-      async putBlob(bytes) { const hash = randomUUID().replaceAll('-', '').padEnd(64, '0'); blobs.set(hash, Buffer.from(bytes)); return { hash, bytes: bytes.length, namespace, replicas: ['test-peer-' + namespace], receipts: [{ hash, bytes: bytes.length, namespace, peerId: 'test-peer-' + namespace, receiptId: 'test-receipt-' + hash }] }; },
+      async putBlob(bytes) { const hash = randomUUID().replaceAll('-', '').padEnd(64, '0'); blobs.set(hash, Buffer.from(bytes)); const replicas = ['test-peer-a-' + namespace, 'test-peer-b-' + namespace]; return { hash, bytes: bytes.length, namespace, replicas, receipts: replicas.map((peerId, index) => ({ hash, bytes: bytes.length, namespace, peerId, receiptId: 'test-receipt-' + index + '-' + hash })) }; },
       async getBlob(hash) { const bytes = blobs.get(hash); if (!bytes) throw new Error('missing fake blob'); return Buffer.from(bytes); }
     }
   };
