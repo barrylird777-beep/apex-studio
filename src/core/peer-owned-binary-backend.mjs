@@ -229,20 +229,22 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       if (!Array.isArray(participants) || !participants.length || participants.some(id => typeof id !== 'string' || !id) ||
           new Set(participants).size !== participants.length) throw new Error('invalid transaction participant set');
       await this.putBytes(hash, bytes);
-      const txFile = path.join(transactionsDir, sha256(Buffer.from(transactionId)) + '.cbor');
       return withRefLock(path.join(refsDir, refId(namespace, key) + '.lock'), async () => {
-        const existingTx = await readFile(txFile).then(decodeCanonical).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
-        if (existingTx) {
-          if (existingTx.namespace !== namespace || existingTx.key !== key || existingTx.hash !== hash ||
-              existingTx.expectedHash !== expectedHash ||
-              encodeCanonical([...participants].sort()).compare(encodeCanonical(existingTx.participants)) !== 0) {
+        const existing = await readTransaction(transactionId);
+        if (existing) {
+          const tx = existing.tx;
+          if (tx.namespace !== namespace || tx.key !== key || tx.hash !== hash ||
+              tx.expectedHash !== expectedHash ||
+              encodeCanonical([...participants].sort()).compare(encodeCanonical(tx.participants)) !== 0) {
             throw new Error('transaction ID reused for a different proposal or participant set');
           }
-          return { transactionId, state: existingTx.state, hash: existingTx.hash };
+          return { transactionId, state: tx.state, hash: tx.hash };
         }
-        for (const name of await readdir(transactionsDir)) {
+        for (const name of await readdir(transactionHeadsDir)) {
           if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
-          const pending = decodeCanonical(await readFile(path.join(transactionsDir, name)));
+          const head = decodeCanonical(await readFile(path.join(transactionHeadsDir, name)));
+          const recordBytes = await readFile(path.join(transactionsDir, head.recordHash + '.cbor'));
+          const pending = decodeCanonical(recordBytes);
           if (pending.namespace === namespace && pending.key === key &&
               ['prepared', 'commit-decided'].includes(pending.state)) {
             const error = new Error('reference has an unresolved prepared transaction; recovery is required');
@@ -257,30 +259,34 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           throw error;
         }
         const tx = { version: 1, transactionId, namespace, key, expectedHash, hash, bytes, participants: [...participants].sort(), state: 'prepared' };
-        await durableWrite(txFile, encodeCanonical(tx));
+        await writeTransaction(tx, null);
         return { transactionId, state: tx.state, hash };
       });
     },
     async decideRefCommit(transactionId, participants) {
-      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
-      const initial = await readFile(txFile).then(decodeCanonical);
-      return withRefLock(path.join(refsDir, refId(initial.namespace, initial.key) + '.lock'), async () => {
-        const tx = await readFile(txFile).then(decodeCanonical);
+      const initial = await readTransaction(transactionId);
+      if (!initial) throw new Error('transaction record not found');
+      return withRefLock(path.join(refsDir, refId(initial.tx.namespace, initial.tx.key) + '.lock'), async () => {
+        const current = await readTransaction(transactionId);
+        if (!current) throw new Error('transaction record disappeared during decision');
+        const tx = current.tx;
         if (!Array.isArray(participants) || encodeCanonical([...participants].sort()).compare(encodeCanonical(tx.participants)) !== 0) {
           throw new Error('commit decision participant set does not match prepared transaction');
         }
         if (tx.state === 'commit-decided' || tx.state === 'committed') return { transactionId, state: tx.state, hash: tx.hash };
         if (tx.state !== 'prepared') throw new Error('transaction is not in a committable state');
         tx.state = 'commit-decided';
-        await durableWrite(txFile, encodeCanonical(tx));
+        await writeTransaction(tx, current.recordHash);
         return { transactionId, state: tx.state, hash: tx.hash };
       });
     },
     async commitPreparedRef(transactionId) {
-      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
-      const initial = await readFile(txFile).then(decodeCanonical);
-      return withRefLock(path.join(refsDir, refId(initial.namespace, initial.key) + '.lock'), async () => {
-        const tx = await readFile(txFile).then(decodeCanonical);
+      const initial = await readTransaction(transactionId);
+      if (!initial) throw new Error('transaction record not found');
+      return withRefLock(path.join(refsDir, refId(initial.tx.namespace, initial.tx.key) + '.lock'), async () => {
+        const currentTx = await readTransaction(transactionId);
+        if (!currentTx) throw new Error('transaction record disappeared during commit');
+        const tx = currentTx.tx;
         if (tx.state === 'committed') return { transactionId, state: tx.state, hash: tx.hash };
         if (tx.state !== 'commit-decided') throw new Error('transaction has no durable commit decision');
         const current = await this.readRef(tx.namespace, tx.key);
@@ -293,32 +299,33 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           throw error;
         }
         tx.state = 'committed';
-        await durableWrite(txFile, encodeCanonical(tx));
+        await writeTransaction(tx, currentTx.recordHash);
         return { transactionId, state: tx.state, hash: tx.hash };
       });
     },
     async abortPreparedRef(transactionId) {
-      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
-      const initial = await readFile(txFile).then(decodeCanonical).catch(error => {
-        if (error.code === 'ENOENT') return null;
-        throw error;
-      });
+      const initial = await readTransaction(transactionId);
       if (!initial) return { transactionId, state: 'absent' };
-      return withRefLock(path.join(refsDir, refId(initial.namespace, initial.key) + '.lock'), async () => {
-        const tx = await readFile(txFile).then(decodeCanonical);
+      return withRefLock(path.join(refsDir, refId(initial.tx.namespace, initial.tx.key) + '.lock'), async () => {
+        const current = await readTransaction(transactionId);
+        if (!current) return { transactionId, state: 'absent' };
+        const tx = current.tx;
         if (tx.state === 'aborted') return { transactionId, state: tx.state };
         if (tx.state !== 'prepared') throw new Error('cannot abort a transaction after a durable commit decision');
         tx.state = 'aborted';
-        await durableWrite(txFile, encodeCanonical(tx));
+        await writeTransaction(tx, current.recordHash);
         return { transactionId, state: tx.state };
       });
     },
     async listRefTransactions(namespace) {
       if (typeof namespace !== 'string' || !namespace) throw new Error('explicit transaction namespace is required');
       const pending = [];
-      for (const name of await readdir(transactionsDir)) {
+      for (const name of await readdir(transactionHeadsDir)) {
         if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
-        const tx = decodeCanonical(await readFile(path.join(transactionsDir, name)));
+        const head = decodeCanonical(await readFile(path.join(transactionHeadsDir, name)));
+        const result = await readTransaction(head.transactionId);
+        if (!result) continue;
+        const tx = result.tx;
         if (tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state)) {
           pending.push({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state });
         }
@@ -326,11 +333,10 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       return pending.sort((a, b) => a.transactionId.localeCompare(b.transactionId));
     },
     async getRefTransaction(transactionId) {
-      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
-      try {
-        const tx = await readFile(txFile).then(decodeCanonical);
-        return { transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, expectedHash: tx.expectedHash, hash: tx.hash, participants: tx.participants, state: tx.state };
-      } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+      const result = await readTransaction(transactionId);
+      if (!result) return null;
+      const { tx } = result;
+      return { transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, expectedHash: tx.expectedHash, hash: tx.hash, participants: tx.participants, state: tx.state };
     },
     async listRefs(namespace) {
       if (typeof namespace !== 'string' || !namespace) throw new Error('explicit reference namespace is required');
