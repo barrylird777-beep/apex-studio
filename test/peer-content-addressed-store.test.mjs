@@ -83,6 +83,9 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
       const { transactionId: id, namespace, key, expectedHash, hash, participants, state } = tx;
       return { transactionId: id, namespace, key, expectedHash, hash, participants, state };
     };
+    store.listRefTransactions = async namespace => [...transactions.values()]
+      .filter(tx => tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state))
+      .map(tx => ({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state }));
     store.health = async ({ namespace, peerId }) => ({
       durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
       atomicReferencesVerified: true, peerId, namespace,
@@ -574,7 +577,9 @@ test('peer CAS recovers a durable commit decision after a peer commit failure', 
     }
   );
   mesh.client.transport = baseTransport;
-  const recovered = await mesh.client.recoverRefTransaction(transactionId);
-  assert.equal(recovered.state, 'committed');
+  const recovery = await mesh.client.recoverPendingRefTransactions();
+  assert.equal(recovery.recovered, 1);
+  assert.equal(recovery.outcomes[0].transactionId, transactionId);
+  assert.equal(recovery.outcomes[0].state, 'committed');
   assert.equal((await mesh.client.readRef('recoverable-ref')).value.revision, 1);
 });
