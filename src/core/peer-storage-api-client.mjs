@@ -7,11 +7,7 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
     const payload = Buffer.from(JSON.stringify({ app, operation, args }));
     const req = http.request({
       socketPath, path: '/v1/storage', method: 'POST',
-      headers: {
-        authorization: 'Bearer ' + token,
-        'content-type': 'application/json',
-        'content-length': payload.length
-      },
+      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json', 'content-length': payload.length },
       timeout: 30000
     }, res => {
       const chunks = [];
@@ -32,14 +28,11 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
   });
 }
 
-/**
- * API-side fixed-namespace client. A caller creates one instance per trusted
- * app context; the namespace is immutable and cannot be supplied per request.
- */
+/** Fixed app identity: callers cannot change the app namespace per operation. */
 export class PeerStorageApiClient {
-  constructor({ app, token = process.env.APEX_PEER_STORAGE_API_TOKEN,
+  constructor({ app = process.env.APEX_APP_NAMESPACE, token = process.env.APEX_PEER_STORAGE_API_TOKEN,
     socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock' } = {}) {
-    if (!APPS.has(app)) throw new TypeError('a canonical app namespace is required');
+    if (!APPS.has(app)) throw new TypeError('APEX_APP_NAMESPACE must name one canonical app');
     if (typeof token !== 'string' || token.length < 32) throw new TypeError('peer storage bridge token must be at least 32 characters');
     if (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..')) {
       throw new TypeError('peer storage bridge socket must be a safe path under /tmp');
@@ -50,16 +43,22 @@ export class PeerStorageApiClient {
     this.socketPath = socketPath;
   }
 
-  readRef(key) {
-    return rpc({ ...this, operation: 'readRef', args: { key } });
+  async init() { await this.listRefs('system'); return this; }
+
+  readRef(namespace, key) {
+    return rpc({ ...this, operation: 'readRef', args: { namespace, key } });
   }
 
-  writeRef(key, value, { expectedHash = null } = {}) {
-    return rpc({ ...this, operation: 'writeRef', args: { key, value, expectedHash } });
+  writeRef(namespace, key, value, { expectedHash = null } = {}) {
+    return rpc({ ...this, operation: 'writeRef', args: { namespace, key, value, expectedHash } });
   }
 
-  listRefs() {
-    return rpc({ ...this, operation: 'listRefs' });
+  listRefs(namespace) {
+    return rpc({ ...this, operation: 'listRefs', args: { namespace } });
+  }
+
+  deleteRef(namespace, key, { expectedHash = null } = {}) {
+    return rpc({ ...this, operation: 'deleteRef', args: { namespace, key, expectedHash } });
   }
 
   async putBlob(bytes) {
