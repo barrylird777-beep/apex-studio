@@ -5,6 +5,7 @@ on:
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
       - "src/core/peer-content-addressed-store.mjs"
+      - "src/core/peer-runtime-controls.mjs"
       - "src/core/peer-mesh-cas-adapter.mjs"
       - "src/core/peer-cas-runtime.mjs"
       - "src/core/sovereign-runtime-daemon.mjs"
@@ -18,6 +19,7 @@ on:
       - "test/sovereign-pure-wal-bridge.test.mjs"
       - "test/schedule-api.smoke.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
+      - "test/peer-runtime-controls.test.mjs"
       - "test/peer-content-addressed-store-cache.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
   push:
@@ -43,7 +45,8 @@ jobs:
         run: >-
           node --check src/core/peer-storage-api-bridge.mjs &&
           node --check src/core/peer-storage-api-client.mjs &&
-          node --check src/core/peer-content-addressed-store.mjs &&
+          node --check src/core/peer-content-addressed-store.mjs &&\
+          node --check src/core/peer-runtime-controls.mjs &&
           node --check src/core/peer-mesh-cas-adapter.mjs &&
           node --check src/core/peer-cas-runtime.mjs &&
           node --check src/core/sovereign-runtime-daemon.mjs &&
