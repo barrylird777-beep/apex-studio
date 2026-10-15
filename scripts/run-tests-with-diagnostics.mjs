@@ -6,7 +6,8 @@ import { startTestPeerBridge } from "../test/helpers/test-peer-storage-bridge.mj
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const testCommand = packageJson.scripts?.["test:files"];
-const files = testCommand?.match(/test\/[^\s"]+\.mjs/g) ?? [];
+const requestedFiles = process.argv.slice(2).filter(file => /^test\/[^\s"]+\.mjs$/.test(file));
+const files = requestedFiles.length ? requestedFiles : (testCommand?.match(/test\/[^\s"]+\.mjs/g) ?? []);
 if (!files.length) throw new Error("Could not discover test files from package.json test script");
 
 const concurrency = Math.max(1, Number(process.env.APEX_TEST_CONCURRENCY || 4));
@@ -20,6 +21,8 @@ const peerBridgeFiles = new Set([
   "test/apex-intelligence.test.mjs",
   "test/apex-worker-dispatch.test.mjs",
   "test/sovereign-pure-wal-bridge.test.mjs",
+  "test/sovereign-mesh.test.mjs",
+  "test/sovereign-durable-runtime.test.mjs",
   "test/sovereign-pure-wal-security.test.mjs",
   "test/sovereign-app-fabric.test.mjs",
   "test/teevee-production-api.test.mjs",
