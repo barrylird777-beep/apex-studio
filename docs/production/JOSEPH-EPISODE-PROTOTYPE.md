@@ -18,7 +18,7 @@ The smoke script writes:
 - `artifacts/kernelvision-smoke/joseph-from-pit-to-forgiveness.mp4`
 - `artifacts/kernelvision-smoke/joseph-from-pit-to-forgiveness.srt`
 
-CI retains these files as the `kernelvision-joseph-episode-prototype` artifact for seven days.
+The CI workspace keeps these outputs only for the duration of the run; no hosted artifact is uploaded or retained.
 
 ## What is real in this prototype
 
