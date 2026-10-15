@@ -197,7 +197,7 @@ export class PeerContentAddressedStore {
         });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response) ||
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.get', objectHash: hash, key: null }) ||
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
           throw new Error('repair source failed object hash, namespace, or durability receipt verification');
         }
@@ -229,7 +229,7 @@ export class PeerContentAddressedStore {
           bytesBase64: sourceBytes.toString('base64')
         });
         if (response.hash !== hash || response.bytes !== sourceBytes.length || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.put', objectHash: hash, key: null })) {
           throw new Error('repair target returned an invalid or unverified durability receipt');
         }
         repaired.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
@@ -328,7 +328,7 @@ export class PeerContentAddressedStore {
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash ||
             response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.get', objectHash: hash, key: null })) {
           throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
         }
         return this.decrypt(decodeCanonical(bytes));
@@ -353,7 +353,7 @@ export class PeerContentAddressedStore {
         const response = await this.request(peerId, {
           protocol: 'apex.cas.v1', operation: 'ref.list', namespace
         });
-        if (response.namespace !== namespace || !hasVerifiedDurabilityReceipt(response) || !Array.isArray(response.refs)) {
+        if (response.namespace !== namespace || !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace, operation: 'ref.list', objectHash: null, key: null }) || !Array.isArray(response.refs)) {
           throw new Error('peer reference listing lacks a verified durability receipt or valid reference list');
         }
         const peerKeys = new Set();
@@ -414,7 +414,7 @@ export class PeerContentAddressedStore {
           protocol: 'apex.cas.v1', operation: 'ref.get',
           namespace: this.namespace, key
         });
-        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response)) {
+        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'ref.get', objectHash: response.hash ?? null, key })) {
           throw new Error('peer reference read failed namespace or durability receipt verification');
         }
         if (response.hash === null) {
@@ -466,7 +466,7 @@ export class PeerContentAddressedStore {
           bytesBase64: bytes.toString('base64')
         });
         if (response.namespace !== this.namespace || response.hash !== hash ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'ref.cas', objectHash: hash, key })) {
           throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
         }
         receipts.push({
