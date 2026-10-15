@@ -20,7 +20,7 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
         catch { return reject(new Error('peer storage bridge returned an invalid response')); }
         if (res.statusCode !== 200 || body?.ok !== true || body.app !== app) {
           const error = new Error('peer storage bridge rejected the operation; no fallback is permitted');
-          if (['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE'].includes(body?.code)) error.code = body.code;
+          if (['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE', 'BFT_CONSENSUS_UNAVAILABLE', 'BFT_COMMIT_UNVERIFIED', 'REFERENCE_DIVERGENCE', 'REFERENCE_LISTING_DIVERGENCE', 'ACCESS_DENIED', 'ACCESS_POLICY_UNAVAILABLE', 'QUOTA_EXCEEDED', 'QUOTA_USAGE_UNAVAILABLE'].includes(body?.code)) error.code = body.code;
           return reject(error);
         }
         resolve(body.result);
