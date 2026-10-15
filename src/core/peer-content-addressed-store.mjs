@@ -618,7 +618,7 @@ export class PeerContentAddressedStore {
           }
           peerKeys.add(ref.key);
           peerListing.set(ref.key, ref.hash);
-          const value = decodeCanonical(bytes);
+          const value = this.decrypt(decodeCanonical(bytes));
           const prior = byKey.get(ref.key);
           if (prior && prior.hash !== ref.hash) {
             const error = new Error('peer reference replicas disagree; refusing to select a potentially stale manifest');
@@ -675,7 +675,7 @@ export class PeerContentAddressedStore {
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) {
           throw new Error('peer reference content failed hash verification');
         }
-        results.push({ peerId, hash: response.hash, value: decodeCanonical(bytes) });
+        results.push({ peerId, hash: response.hash, value: this.decrypt(decodeCanonical(bytes)) });
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
@@ -702,7 +702,7 @@ export class PeerContentAddressedStore {
     if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) {
       throw new TypeError('invalid expected peer reference hash');
     }
-    const bytes = encodeCanonical(value);
+    const bytes = encodeCanonical(this.encrypt(value));
     if (bytes.length > this.maxObjectBytes) throw new Error('peer reference exceeds the safe single-envelope limit');
     const hash = sha256(bytes);
     const receipts = [];
