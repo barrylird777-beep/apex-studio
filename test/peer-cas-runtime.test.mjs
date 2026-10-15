@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startPeerCasRuntime } from '../src/core/peer-cas-runtime.mjs';
+import { startPeerCasRuntime, attestConfiguredPeerRoots } from '../src/core/peer-cas-runtime.mjs';
 
 const ENV_KEYS = [
   'APEX_PEER_CAS_NAMESPACE',
@@ -40,3 +40,30 @@ test('Peer-CAS runtime rejects non-canonical app namespaces before dialing peers
     else process.env.APEX_PEER_CAS_NAMESPACE = previous;
   }
 });
+
+
+test('hardware-root admission binds fresh challenges and failure domains to verified roots', async () => {
+  const provider = {
+    async attestPeerHardwareRoot({ peerId, app, challenge, issuedAt }) {
+      return { peerId, app, challenge, hardwareRootCid: (peerId === 'peer-a' ? 'a' : 'b').repeat(64),
+        issuedAt, expiresAt: issuedAt + 30000, signature: 'platform-signed-evidence' };
+    },
+    async verifyHardwareRoot(evidence, context) {
+      return evidence.challenge === context.challenge && evidence.peerId === context.peerId &&
+        evidence.app === context.app && evidence.signature === 'platform-signed-evidence';
+    },
+    async getHardwareFailureDomain(evidence) { return evidence.hardwareRootCid; },
+    async getPeerAdvertisements() { return []; },
+    async getPeerPublicKey() { return null; }
+  };
+  const domains = await attestConfiguredPeerRoots({
+    peers: ['peer-a', 'peer-b'], namespace: 'KernelVision', provider
+  });
+  assert.equal(domains['peer-a'], 'hardware-root:' + 'a'.repeat(64));
+  assert.equal(domains['peer-b'], 'hardware-root:' + 'b'.repeat(64));
+  await assert.rejects(attestConfiguredPeerRoots({
+    peers: ['peer-a'], namespace: 'KernelVision',
+    provider: { ...provider, async verifyHardwareRoot() { return false; } }
+  }), /hardware-root attestation is invalid/);
+});
+
