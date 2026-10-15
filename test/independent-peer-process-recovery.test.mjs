@@ -143,6 +143,18 @@ test('independent peer processes recover encrypted objects and refs after outage
 
   const value = { project: 'cross-process-recovery', revision: 1, payload: 'survives process loss' };
   const written = await client.putObject(value);
+
+  // Fault injection: terminate both peers after the immutable object is durable
+  // but before publishing its mutable reference.
+  await stopPeer(peerA);
+  await stopPeer(peerB);
+  peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], signingPrivateKey: signingKeys['peer-a'] });
+  peerB = startPeer(t, { peerId: 'peer-b', root: roots['peer-b'], signingPrivateKey: signingKeys['peer-b'] });
+  a = await peerA.ready;
+  b = await peerB.ready;
+  assert.deepEqual(await client.getObject(written.hash), value);
+  assert.deepEqual(await client.listRefs(), [], 'interrupted publication must not fabricate a reference');
+
   const ref = await client.writeRef('project-main', { objectHash: written.hash, revision: 1 }, { expectedHash: null });
   assert.deepEqual(new Set(written.replicas), new Set(['peer-a', 'peer-b']));
   assert.deepEqual(new Set(ref.replicas), new Set(['peer-a', 'peer-b']));
