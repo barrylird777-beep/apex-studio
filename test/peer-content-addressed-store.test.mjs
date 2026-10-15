@@ -66,8 +66,14 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024, authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' }));
   }
   const unavailable = new Set();
+  const stalled = new Set();
   const transport = {
-    async request(peerId, envelope) {
+    async request(peerId, envelope, { signal } = {}) {
+      if (stalled.has(peerId)) return new Promise((resolve, reject) => {
+        const cancel = () => reject(signal?.reason || new Error('peer request cancelled'));
+        if (signal?.aborted) cancel();
+        else signal?.addEventListener('abort', cancel, { once: true });
+      });
       if (unavailable.has(peerId)) throw new Error('peer unavailable');
       const handler = handlers.get(peerId);
       if (!handler) throw new Error('unknown peer');
@@ -78,6 +84,8 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     stores,
     handlers,
     unavailable,
+    stalled,
+    transport,
     client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId })
   };
 }
@@ -494,5 +502,31 @@ test('peer CAS rejects unverified durability claims even when backend self-label
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
     /verified durable peer-owned storage/
+  );
+});
+
+
+test('bounded concurrent writes contact healthy peers while a stalled peer is cancelled', async () => {
+  const mesh = makeMesh();
+  mesh.stalled.add('peer-a');
+  mesh.client.requestTimeoutMs = 80;
+  const started = Date.now();
+  await assert.rejects(mesh.client.putObject({ concurrent: true }), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
+  assert.ok(Date.now() - started < 1000, 'request deadline must bound the stalled peer');
+  assert.ok(mesh.stores.get('peer-b').objects.size > 0, 'healthy peer must receive the write without waiting for stalled peer');
+});
+
+test('a contradictory authenticated object hash aborts the entire write', async () => {
+  const mesh = makeMesh();
+  const original = mesh.transport.request.bind(mesh.transport);
+  mesh.transport.request = async (peerId, envelope, options) => {
+    const response = await original(peerId, envelope, options);
+    if (peerId === 'peer-b' && envelope.operation === 'object.put') return { ...response, hash: 'f'.repeat(64) };
+    return response;
+  };
+  await assert.rejects(mesh.client.putObject({ contradiction: true }), error =>
+    error.code === 'CONTRADICTORY_REPLICA' && error.peerId === 'peer-b'
   );
 });
