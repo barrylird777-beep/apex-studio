@@ -200,15 +200,18 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     },
     async decideRefCommit(transactionId, participants) {
       const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
-      const tx = await readFile(txFile).then(decodeCanonical);
-      if (!Array.isArray(participants) || encodeCanonical([...participants].sort()).compare(encodeCanonical(tx.participants)) !== 0) {
-        throw new Error('commit decision participant set does not match prepared transaction');
-      }
-      if (tx.state === 'commit-decided' || tx.state === 'committed') return { transactionId, state: tx.state, hash: tx.hash };
-      if (tx.state !== 'prepared') throw new Error('transaction is not in a committable state');
-      tx.state = 'commit-decided';
-      await durableWrite(txFile, encodeCanonical(tx));
-      return { transactionId, state: tx.state, hash: tx.hash };
+      const initial = await readFile(txFile).then(decodeCanonical);
+      return withRefLock(path.join(refsDir, refId(initial.namespace, initial.key) + '.lock'), async () => {
+        const tx = await readFile(txFile).then(decodeCanonical);
+        if (!Array.isArray(participants) || encodeCanonical([...participants].sort()).compare(encodeCanonical(tx.participants)) !== 0) {
+          throw new Error('commit decision participant set does not match prepared transaction');
+        }
+        if (tx.state === 'commit-decided' || tx.state === 'committed') return { transactionId, state: tx.state, hash: tx.hash };
+        if (tx.state !== 'prepared') throw new Error('transaction is not in a committable state');
+        tx.state = 'commit-decided';
+        await durableWrite(txFile, encodeCanonical(tx));
+        return { transactionId, state: tx.state, hash: tx.hash };
+      });
     },
     async commitPreparedRef(transactionId) {
       const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
@@ -233,12 +236,19 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     },
     async abortPreparedRef(transactionId) {
       const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
-      const tx = await readFile(txFile).then(decodeCanonical);
-      if (tx.state === 'aborted') return { transactionId, state: tx.state };
-      if (tx.state !== 'prepared') throw new Error('cannot abort a transaction after a durable commit decision');
-      tx.state = 'aborted';
-      await durableWrite(txFile, encodeCanonical(tx));
-      return { transactionId, state: tx.state };
+      const initial = await readFile(txFile).then(decodeCanonical).catch(error => {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (!initial) return { transactionId, state: 'absent' };
+      return withRefLock(path.join(refsDir, refId(initial.namespace, initial.key) + '.lock'), async () => {
+        const tx = await readFile(txFile).then(decodeCanonical);
+        if (tx.state === 'aborted') return { transactionId, state: tx.state };
+        if (tx.state !== 'prepared') throw new Error('cannot abort a transaction after a durable commit decision');
+        tx.state = 'aborted';
+        await durableWrite(txFile, encodeCanonical(tx));
+        return { transactionId, state: tx.state };
+      });
     },
     async listRefTransactions(namespace) {
       if (typeof namespace !== 'string' || !namespace) throw new Error('explicit transaction namespace is required');
