@@ -241,17 +241,13 @@ test("remote queue indexes recover from a crash after job persistence", async ()
 test("peer-only startup refuses to import coordinator-local CAS records", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-migration-"));
   try {
-    const localCas = (await import("../src/core/content-addressed-store.mjs")).ContentAddressedStore;
-    const source = await new localCas({ root: path.join(root, ".apex-cas") }).init();
-    const sourceRef = await source.writeRef("state", "legacy-key", { collection: "legacy", id: "record-7", record: { id: "record-7", keep: true } });
     const remote = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas: remote });
     await store.init();
     assert.equal(await remote.readRef("state", store.refKey("legacy", "record-7")), null,
       "peer-only startup must not import coordinator-local records");
-    assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true },
-      "the source remains untouched for explicit operator recovery");
-    assert.ok(sourceRef.hash);
+    await assert.rejects(access(path.join(root, ".apex-cas")), { code: "ENOENT" },
+      "peer-only startup must not create a coordinator-local CAS directory");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
