@@ -249,6 +249,15 @@ export function planRarestFirstChunks(chunks, verifiedAdvertisements, { app, max
 export class ConnectionTrustSessions {
   #sessions = new WeakMap();
   #pending = new WeakMap();
+  #lifecycleBound = new WeakSet();
+
+  #bindLifecycle(connection) {
+    if (this.#lifecycleBound.has(connection)) return;
+    const onClose = () => this.revoke(connection);
+    if (typeof connection.once === 'function') connection.once('close', onClose);
+    else if (typeof connection.addEventListener === 'function') connection.addEventListener('close', onClose, { once: true });
+    this.#lifecycleBound.add(connection);
+  }
 
   /** Issue a one-use unpredictable challenge before asking a hardware root to attest. */
   createChallenge(connection, credentialFingerprint, { ttlMs = 30000 } = {}) {
@@ -257,6 +266,7 @@ export class ConnectionTrustSessions {
         !Number.isSafeInteger(ttlMs) || ttlMs < 1000 || ttlMs > 60000) {
       throw new TypeError('live connection, credential fingerprint, and bounded challenge TTL are required');
     }
+    this.#bindLifecycle(connection);
     const challenge = randomBytes(32).toString('base64url');
     this.#pending.set(connection, Object.freeze({
       challenge, credentialFingerprint, expiresAt: Date.now() + ttlMs
@@ -271,6 +281,7 @@ export class ConnectionTrustSessions {
         typeof verifyCredential !== 'function' || typeof verifyAttestation !== 'function') {
       throw new TypeError('connection, credential fingerprint, and independent credential/attestation verifiers are required');
     }
+    this.#bindLifecycle(connection);
     const pending = this.#pending.get(connection);
     this.#pending.delete(connection); // one attempt only, including failed attempts
     if (!pending || pending.expiresAt <= Date.now() ||
