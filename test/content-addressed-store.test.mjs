@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, access } from "node:fs/promises";
+import { mkdtemp, rm, access, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { ContentAddressedStore } from "../src/core/content-addressed-store.mjs";
@@ -16,7 +16,7 @@ test("coordinator-local CAS object writes are disabled", async () => {
       error => error.code === "NONCOMPLIANT_STORAGE_DISABLED");
     await assert.rejects(store.deleteRef("app", "record-1"),
       error => error.code === "NONCOMPLIANT_STORAGE_DISABLED");
-    await assert.rejects(access(root), { code: "ENOENT" });
+    assert.deepEqual(await readdir(root), [], "disabled writes must not create local CAS directories");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
