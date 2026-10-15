@@ -630,7 +630,7 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas', 'ref.list', 'ref.prepare', 'ref.decision', 'ref.commit', 'ref.abort', 'ref.tx.get'].includes(operation)) {
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.list', 'ref.prepare', 'ref.decision', 'ref.commit', 'ref.abort', 'ref.tx.get'].includes(operation)) {
       throw new Error('unsupported peer storage operation');
     }
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
