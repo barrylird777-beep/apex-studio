@@ -167,6 +167,8 @@ test('API client chunks and verifies large binary assets through peer bridge', a
     process.env.APEX_APP_NAMESPACE = 'KernelVision';
     const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath, chunkSize: 8 * 1024 });
     if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
+    const boundedClient = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath, maxAssetBytes: 1024 });
+    await assert.rejects(boundedClient.putBlob(Buffer.alloc(1025)), error => error.code === 'ASSET_TOO_LARGE');
     const input = Buffer.alloc(1024 * 1024 + 37);
     for (let i = 0; i < input.length; i++) input[i] = i % 251;
     const stored = await client.putBlob(input);
