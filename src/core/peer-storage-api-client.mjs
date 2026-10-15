@@ -95,7 +95,7 @@ export class PeerStorageApiClient {
       return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, deduplicated: true };
     }
     const chunks = [];
-    const chunkSize = 512 * 1024;
+    // The bridge accepts a 16 MiB JSON envelope; 8 MiB binary chunks fit after base64\n    // expansion and reduce manifest fan-out. The peer CAS subdivides each chunk internally.\n    const chunkSize = 8 * 1024 * 1024;
     for (let offset = 0; offset < buffer.length; offset += chunkSize) {
       const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
       const stored = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'putBlob', args: { bytesBase64: piece.toString('base64') } });
