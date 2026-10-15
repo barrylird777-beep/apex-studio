@@ -175,6 +175,12 @@ test('API client chunks and verifies large binary assets through peer bridge', a
     assert.equal(stored.bytes, input.length);
     const recovered = await client.getBlob(stored.hash);
     assert.deepEqual(recovered, input);
+    assert.equal(client.cacheMetrics.misses, 1, 'first verified read populates the disposable RAM cache');
+    recovered.fill(0);
+    const cachedAgain = await client.getBlob(stored.hash);
+    assert.deepEqual(cachedAgain, input, 'callers cannot mutate the cached payload');
+    assert.equal(client.cacheMetrics.hits, 1, 'second immutable CID read is served from verified RAM');
+    assert.ok(client.verifiedAssetCacheBytes <= client.cacheMaxBytes, 'RAM cache stays within its byte budget');
   } finally {
     await bridge.close();
     await rm(socketPath, { force: true }).catch(() => {});
