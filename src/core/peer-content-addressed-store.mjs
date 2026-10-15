@@ -742,9 +742,9 @@ export function createPeerObjectStorageHandler({
           typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512 ||
           !validHash(envelope.hash) || typeof envelope.bytesBase64 !== 'string' ||
           (envelope.expectedHash !== null && !validHash(envelope.expectedHash)) ||
-          !Array.isArray(envelope.participants)) throw new Error('invalid distributed reference prepare request');
+          !Array.isArray(envelope.participants) || !envelope.participants.includes(localPeerId)) throw new Error('invalid distributed reference prepare request or participant set');
       const bytes = Buffer.from(envelope.bytesBase64, 'base64');
-      if (bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) throw new Error('distributed reference prepare failed byte/hash verification');
+      if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) throw new Error('distributed reference prepare failed size, byte, or hash verification');
       const prepared = await store.prepareRef({
         transactionId: envelope.transactionId, namespace: envelope.namespace, key: envelope.key,
         expectedHash: envelope.expectedHash ?? null, hash: envelope.hash, bytes,
@@ -754,6 +754,9 @@ export function createPeerObjectStorageHandler({
     }
     if (['ref.decision', 'ref.commit', 'ref.abort'].includes(operation)) {
       if (typeof envelope.transactionId !== 'string' || !envelope.transactionId) throw new Error('invalid transaction ID');
+      const existingTransaction = await store.getRefTransaction?.(envelope.transactionId);
+      if (existingTransaction && existingTransaction.namespace !== envelope.namespace) throw new Error('transaction namespace mismatch');
+      if (!existingTransaction && operation !== 'ref.abort') throw new Error('transaction record not found in the requested namespace');
       let result;
       if (operation === 'ref.decision') {
         if (typeof store.decideRefCommit !== 'function') throw new Error('peer backend lacks durable commit-decision support');
