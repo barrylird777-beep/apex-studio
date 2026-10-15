@@ -116,7 +116,15 @@ test('API client chunks and verifies large binary assets through peer bridge', a
   const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
   const socketPath = '/tmp/apex-storage-blob-test-' + randomUUID() + '.sock';
   const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
-  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
+  const bridge = createPeerStorageApiBridge({
+    stores, tokens, socketPath,
+    authorize: async ({ app, operation }) => {
+      if (!APEX_APPS.includes(app) || !['readRef', 'writeRef', 'listRefs', 'deleteRef', 'putBlob', 'getBlob'].includes(operation)) {
+        throw Object.assign(new Error('test tensor denied operation'), { code: 'ACCESS_DENIED' });
+      }
+      return { allowed: true, testPolicy: true };
+    }
+  });
   try {
     await bridge.listen();
     const previousApp = process.env.APEX_APP_NAMESPACE;
