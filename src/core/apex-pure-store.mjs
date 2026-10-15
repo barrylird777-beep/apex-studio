@@ -149,6 +149,12 @@ export class ApexPureStore {
     finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
   }
   async initializeRemote(){
+    const canonicalApps=new Set(["KernelVision","XShield","Kernelodies","PlanetApeX","KashKorner","KoinKob"]);
+    const adapterNamespace=String(this.cas?.namespace||"");
+    const requiredNamespace=this.appNamespace||adapterNamespace;
+    if(!canonicalApps.has(requiredNamespace)||adapterNamespace!==requiredNamespace){
+      throw new Error("[SOVEREIGN_STORAGE_UNAVAILABLE] A canonical, app-scoped peer CAS adapter is required; local and unscoped stores are rejected.");
+    }
     if(!this.cas||typeof this.cas.init!=="function"||typeof this.cas.readRef!=="function"||
       typeof this.cas.writeRef!=="function"||typeof this.cas.listRefs!=="function"||
       typeof this.cas.deleteRef!=="function"){
