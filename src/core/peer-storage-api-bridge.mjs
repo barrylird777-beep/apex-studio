@@ -99,18 +99,49 @@ export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/
       return send(Number(error?.statusCode) || 503, { error: 'peer storage operation failed closed', ...(code ? { code } : {}) });
     }
   });
+  let socketIdentity = null;
   return {
     server,
     listen: () => new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(socketPath, async () => {
         try {
-          const { chmod } = await import('node:fs/promises');
+          const { chmod, lstat } = await import('node:fs/promises');
           await chmod(socketPath, 0o600);
+          const stat = await lstat(socketPath);
+          if (!stat.isSocket()) throw new Error('peer storage IPC path is not a Unix socket');
+          socketIdentity = { dev: stat.dev, ino: stat.ino };
           resolve({ socketPath });
-        } catch (error) { server.close(() => reject(error)); }
+        } catch (error) {
+          server.close(async () => {
+            const { lstat, unlink } = await import('node:fs/promises');
+            try {
+              const stat = await lstat(socketPath);
+              if (stat.isSocket() && (!socketIdentity || (stat.dev === socketIdentity.dev && stat.ino === socketIdentity.ino))) {
+                await unlink(socketPath);
+              }
+            } catch {}
+            reject(error);
+          });
+        }
       });
     }),
-    close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    close: () => new Promise((resolve, reject) => server.close(async error => {
+      if (error) return reject(error);
+      try {
+        if (socketIdentity) {
+          const { lstat, unlink } = await import('node:fs/promises');
+          const stat = await lstat(socketPath);
+          // Never remove a replacement path created by another process.
+          if (stat.isSocket() && stat.dev === socketIdentity.dev && stat.ino === socketIdentity.ino) {
+            await unlink(socketPath);
+          }
+        }
+        resolve();
+      } catch (failure) {
+        if (failure?.code === 'ENOENT') resolve();
+        else reject(failure);
+      }
+    }))
   };
 }
