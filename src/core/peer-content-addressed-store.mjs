@@ -3,6 +3,20 @@ import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
+async function mapConcurrent(items, limit, mapper) {
+  const output = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(items.length, Math.max(1, limit)) }, async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      output[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+}
+
 const hasVerifiedDurabilityReceipt = response =>
   response?.durable === true && response?.ownership === 'peer-owned' &&
   response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
@@ -299,14 +313,15 @@ export class PeerContentAddressedStore {
         !Array.isArray(manifest.chunks)) {
       throw new Error('invalid or cross-namespace blob manifest');
     }
-    const parts = [];
-    let total = 0;
+    if (manifest.chunks.length > 8192) throw new Error('blob manifest exceeds the 8192-chunk safety limit');
     for (const item of manifest.chunks) {
       if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
           !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
           !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
         throw new Error('invalid blob chunk reference');
       }
+    }
+    const parts = await mapConcurrent(manifest.chunks, 8, async item => {
       const chunk = await this.getObject(item.hash);
       if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
           chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
@@ -316,7 +331,10 @@ export class PeerContentAddressedStore {
       if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
         throw new Error('blob chunk integrity verification failed');
       }
-      parts.push(bytes);
+      return bytes;
+    });
+    let total = 0;
+    for (const bytes of parts) {
       total += bytes.length;
       if (total > manifest.totalBytes) throw new Error('blob chunks exceed manifest length');
     }
