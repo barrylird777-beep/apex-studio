@@ -177,7 +177,14 @@ test('asset chunk scheduler verifies hardware-root-bound advertisements and fetc
       sha256: createHash('sha256').update(second).digest('hex'), dataBase64: second.toString('base64') };
     throw new Error('unexpected CID');
   };
-  const recovered = await store.getBlob(manifestHash);
-  assert.deepEqual(recovered, whole);
-  assert.deepEqual(requested, [rare, common], 'the chunk held by fewer verified peers must be fetched first');
+  const previousConcurrency = process.env.APEX_PEER_CAS_FETCH_CONCURRENCY;
+  process.env.APEX_PEER_CAS_FETCH_CONCURRENCY = '1';
+  try {
+    const recovered = await store.getBlob(manifestHash);
+    assert.deepEqual(recovered, whole);
+    assert.deepEqual(requested, [rare, common], 'the chunk held by fewer verified peers must be fetched first');
+  } finally {
+    if (previousConcurrency === undefined) delete process.env.APEX_PEER_CAS_FETCH_CONCURRENCY;
+    else process.env.APEX_PEER_CAS_FETCH_CONCURRENCY = previousConcurrency;
+  }
 });
