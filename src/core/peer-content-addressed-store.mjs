@@ -15,7 +15,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -30,6 +30,14 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.memoryCacheBytes = Number(memoryCacheBytes);
+    this.memoryCacheTtlMs = Number(memoryCacheTtlMs);
+    if (!Number.isSafeInteger(this.memoryCacheBytes) || this.memoryCacheBytes < 0 ||
+        !Number.isSafeInteger(this.memoryCacheTtlMs) || this.memoryCacheTtlMs < 1) {
+      throw new TypeError('memory cache requires a nonnegative byte budget and positive TTL');
+    }
+    this.verifiedMemoryCache = new Map();
+    this.verifiedMemoryCacheSize = 0;
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
@@ -82,6 +90,37 @@ export class PeerContentAddressedStore {
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     return decodeCanonical(plaintext);
+  }
+
+  cacheVerifiedObject(hash, value) {
+    if (this.memoryCacheBytes === 0) return;
+    const bytes = encodeCanonical(value);
+    if (bytes.length > this.memoryCacheBytes) return;
+    const prior = this.verifiedMemoryCache.get(hash);
+    if (prior) this.verifiedMemoryCacheSize -= prior.bytes.length;
+    this.verifiedMemoryCache.delete(hash);
+    const entry = { bytes, expiresAt: Date.now() + this.memoryCacheTtlMs };
+    this.verifiedMemoryCache.set(hash, entry);
+    this.verifiedMemoryCacheSize += bytes.length;
+    while (this.verifiedMemoryCacheSize > this.memoryCacheBytes) {
+      const oldestKey = this.verifiedMemoryCache.keys().next().value;
+      const oldest = this.verifiedMemoryCache.get(oldestKey);
+      this.verifiedMemoryCache.delete(oldestKey);
+      this.verifiedMemoryCacheSize -= oldest.bytes.length;
+    }
+  }
+
+  readVerifiedMemoryCache(hash) {
+    const entry = this.verifiedMemoryCache.get(hash);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.verifiedMemoryCache.delete(hash);
+      this.verifiedMemoryCacheSize -= entry.bytes.length;
+      return null;
+    }
+    this.verifiedMemoryCache.delete(hash);
+    this.verifiedMemoryCache.set(hash, entry);
+    return decodeCanonical(entry.bytes);
   }
 
   async request(peerId, request) {
@@ -290,6 +329,8 @@ export class PeerContentAddressedStore {
 
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+    const cached = this.readVerifiedMemoryCache(hash);
+    if (cached !== null) return cached;
     const failures = [];
     for (const peerId of this.peers) {
       try {
@@ -305,7 +346,9 @@ export class PeerContentAddressedStore {
             !hasVerifiedDurabilityReceipt(response)) {
           throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
         }
-        return this.decrypt(decodeCanonical(bytes));
+        const value = this.decrypt(decodeCanonical(bytes));
+        this.cacheVerifiedObject(hash, value);
+        return value;
       } catch (error) {
         failures.push(error instanceof Error ? error.message : String(error));
       }
