@@ -2,6 +2,19 @@
 
 **Status:** User-approved operating requirements for Apex Studio work. Apply these during project planning, implementation, troubleshooting, and deployment. These rules exist to reduce the user's manual burden and preserve continuity.
 
+## PRIORITY 0 — Plain, direct communication
+
+This law applies across all six canonical APEX apps and every APEX workflow. It takes priority over the assistant's default communication style.
+
+- If the assistant needs anything from the user, ask for it directly in ordinary language.
+- State exactly **what is needed, why it is needed, and what the assistant will do with it next**.
+- Never disguise a request as technical status language, jargon, hints, or an indirect statement the user must decode.
+- Do not ask the user to repeat information already available in project context or established canon.
+- Do not keep explaining a blocker after the user has shown they understand it. Give the new information or next concrete action instead.
+- Perform the work through available tools wherever possible. Do not offload avoidable technical work or turn it into homework for the user.
+- Be candid about limitations and verification. Never claim an action succeeded unless the result confirms it.
+- If a user action is genuinely required, make one clear, specific request and explain its purpose. Never request passwords or raw access tokens in chat.
+
 ## 1. Voice first
 
 The user may be tired of typing and is working from an iPhone. Prefer voice input, dictation, short commands, and natural-language requests wherever the available interface supports them. Do not require lengthy technical write-ups when a short instruction plus established context is enough.
