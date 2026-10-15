@@ -265,25 +265,39 @@ export class PeerContentAddressedStore {
         !Array.isArray(manifest.chunks)) {
       throw new Error('invalid or cross-namespace blob manifest');
     }
-    const parts = [];
+    if (manifest.chunks.some(item => !item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+        !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
+        !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')))) {
+      throw new Error('invalid blob chunk reference');
+    }
+    // Chunk fetches run concurrently; getObject races authorized peers and
+    // verifies CID, app namespace, AEAD, and durability proof before returning.
+    const configuredConcurrency = Number(process.env.APEX_PEER_CAS_FETCH_CONCURRENCY || 8);
+    const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
+    const parts = new Array(manifest.chunks.length);
+    let nextIndex = 0;
     let total = 0;
-    for (const item of manifest.chunks) {
-      if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
-          !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
-          !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
-        throw new Error('invalid blob chunk reference');
+    const worker = async () => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= manifest.chunks.length) return;
+        const item = manifest.chunks[index];
+        const chunk = await this.getObject(item.hash);
+        if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
+            chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
+          throw new Error('blob chunk metadata mismatch');
+        }
+        const bytes = Buffer.from(chunk.dataBase64, 'base64');
+        if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
+          throw new Error('blob chunk integrity verification failed');
+        }
+        parts[index] = bytes;
       }
-      const chunk = await this.getObject(item.hash);
-      if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
-          chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
-        throw new Error('blob chunk metadata mismatch');
-      }
-      const bytes = Buffer.from(chunk.dataBase64, 'base64');
-      if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
-        throw new Error('blob chunk integrity verification failed');
-      }
-      parts.push(bytes);
-      total += bytes.length;
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, manifest.chunks.length) }, worker));
+    for (const part of parts) {
+      if (!part) throw new Error('parallel asset assembly left a missing chunk');
+      total += part.length;
       if (total > manifest.totalBytes) throw new Error('blob chunks exceed manifest length');
     }
     const blob = Buffer.concat(parts, total);
