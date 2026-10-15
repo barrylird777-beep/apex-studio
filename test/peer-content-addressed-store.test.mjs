@@ -677,3 +677,57 @@ test('BFT reference path requires a verified commit certificate and independent 
   assert.deepEqual(result.replicas, ['peer-a']);
   assert.equal(result.consensus.membershipEpoch, 1);
 });
+
+
+test('libp2p peer transport elevates connection trust once, then rechecks on rotation or reconnect', async () => {
+  const makeConnection = () => {
+    const connection = {
+      closed: false, remotePeer: { toString: () => 'peer-a' }, closeHandler: null,
+      once(event, handler) { if (event === 'close') this.closeHandler = handler; },
+      close() { this.closed = true; this.closeHandler?.(); }
+    };
+    return connection;
+  };
+  let connection = makeConnection();
+  let fingerprint = 'credential-v1';
+  let attestations = 0;
+  let sends = 0;
+  const transport = createLibp2pPeerStorageTransport({
+    node: { dialProtocol() {} },
+    addressesByPeerId: { 'peer-a': '/ip4/127.0.0.1/tcp/4100/p2p/peer-a' },
+    appNamespace: 'PlanetApeX',
+    connectionTrust: {
+      async getConnectionForStream() { return connection; },
+      async getConnectionCredentialFingerprint() { return fingerprint; },
+      async attestConnection({ challenge, credentialFingerprint }) {
+        attestations++;
+        return { challenge, credentialFingerprint, issuedAt: Date.now() };
+      },
+      async verifyConnectionCredential(_connection, { credentialFingerprint }) {
+        return credentialFingerprint === fingerprint;
+      },
+      async verifyConnectionAttestation(evidence, _connection, { challenge, credentialFingerprint }) {
+        return evidence.challenge === challenge && evidence.credentialFingerprint === credentialFingerprint;
+      }
+    },
+    send: async (_node, _address, _envelope, { authorizeConnection }) => {
+      await authorizeConnection({ node: {}, stream: {}, destinationPeerId: 'peer-a' });
+      sends++;
+      return { accepted: true, peerId: 'peer-a' };
+    }
+  });
+  const request = () => transport.request('peer-a', {
+    protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'state/item'
+  });
+  await request();
+  await request();
+  assert.equal(attestations, 1, 'same connection and credential should reuse verified trust');
+  fingerprint = 'credential-v2';
+  await request();
+  assert.equal(attestations, 2, 'credential rotation must require a new attestation');
+  connection.close();
+  connection = makeConnection();
+  await request();
+  assert.equal(attestations, 3, 'a new connection must establish trust again');
+  assert.equal(sends, 4);
+});
