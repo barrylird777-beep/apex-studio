@@ -10,7 +10,6 @@ import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 import { createSovereignAppFabric } from './sovereign-app-fabric.mjs';
-import { createSovereignAppFabric } from './sovereign-app-fabric.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
