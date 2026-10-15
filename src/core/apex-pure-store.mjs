@@ -149,63 +149,16 @@ export class ApexPureStore {
     finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
   }
   async initializeRemote(){
+    if(!this.cas||typeof this.cas.init!=="function"||typeof this.cas.readRef!=="function"||
+      typeof this.cas.writeRef!=="function"||typeof this.cas.listRefs!=="function"||
+      typeof this.cas.deleteRef!=="function"){
+      throw new Error("[SOVEREIGN_STORAGE_UNAVAILABLE] A complete peer-only CAS adapter is required.");
+    }
+    // No legacy WAL replay, local CAS import, JSON marker, disk lock, or fallback.
     await this.cas.init();
-    const scope=String(process.env.APEX_SERVICE_SCOPE||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
-    const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
-    await this.withRemoteLock("queue-mutations",async()=>{
-      // Active remote startup reads durable CAS refs directly. Legacy WAL is migration-only.
-      if(await this.cas.readRef("system",markerKey))return;
-      await this.withRemoteLock(lockKey,async()=>{
-      if(await this.cas.readRef("system",markerKey))return;
-      for(const namespace of ["state","jobs"]){
-        try{await stat(path.join(this.localCas.refs,namespace));}
-        catch(error){if(error.code==="ENOENT")continue;throw error;}
-        for(const ref of await this.localCas.listRefs(namespace)){
-          const current=await this.cas.readRef(namespace,ref.key);
-          if(current)continue;
-          if(namespace==="state"&&ref.value?.collection!=null&&ref.value?.id!=null&&ref.value?.record!=null){
-            await this.persistState(String(ref.value.collection),String(ref.value.id),ref.value.record);
-          }else if(namespace==="jobs"&&ref.value?.job?.id!=null){
-            await this.persistJob(ref.value.job);
-          }else{
-            await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
-          }
-        }
-      }
-      let legacyExists=false;
-      try{await stat(this.legacyWal.file);legacyExists=true;}catch(error){if(error.code!=="ENOENT")throw error;}
-      if(legacyExists){
-        const pendingState=new Map(),pendingJobs=new Map();
-        const flush=async()=>{
-          const writes=[];
-          for(const item of pendingState.values())writes.push(async()=>{
-            const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
-            if(item.deleted){if(current)await this.persistDelete(item.collection,item.id);}
-            else if(!current)await this.persistState(item.collection,item.id,item.record);
-          });
-          for(const [id,job] of pendingJobs)writes.push(async()=>{
-            const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
-            if(!current)await this.persistJob(job);
-          });
-          await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
-        };
-        await this.legacyWal.replayReadOnly({retainRing:false,onRecord:async record=>{
-          const p=record.payload||{};
-          if(record.type==="state.put"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});}
-          else if(record.type==="state.delete"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,deleted:true});}
-          else if(record.type==="job.enqueue")pendingJobs.set(String(p.id),clone(p.job));
-          else if(record.type==="job.transition"){
-            const id=String(p.id);let job=pendingJobs.get(id);
-            if(!pendingJobs.has(id)){const current=await this.cas.readRef("jobs",this.refKey("job",id));job=current?.value?.job?clone(current.value.job):undefined;}
-            if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
-          }
-          if(pendingState.size+pendingJobs.size>=128)await flush();
-        }});
-        await flush();
-      }
-      await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-content-addressed",service:scope,migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
-      });
-    });
+    await this.cas.listRefs("system");
+    this.remoteQueueIndexReady=false;
+    this.ready=true;
     return this;
   }
   async ensureRemoteQueueIndex({force=false}={}){
