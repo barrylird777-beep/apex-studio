@@ -18,6 +18,7 @@ on:
       - "test/sovereign-pure-wal-bridge.test.mjs"
       - "test/schedule-api.smoke.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
+      - "test/peer-content-addressed-store-cache.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
   push:
     branches:
@@ -57,3 +58,5 @@ jobs:
           node --check test/schedule-api.smoke.mjs
       - name: Test bridge authentication and app isolation
         run: node --test test/peer-storage-api-bridge.test.mjs
+      - name: Test bounded verified RAM cache
+        run: node --test test/peer-content-addressed-store-cache.test.mjs
