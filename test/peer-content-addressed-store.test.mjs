@@ -483,3 +483,31 @@ test('peer CAS rejects unverified durability claims even when backend self-label
     /verified durable peer-owned storage/
   );
 });
+
+
+test('verified peer objects are served from bounded RAM cache while peers are briefly unavailable', async () => {
+  const mesh = makeMesh();
+  const value = { cidCache: true, namespace: 'PlanetApeX', bytes: [1, 2, 3] };
+  const stored = await mesh.client.putObject(value);
+  assert.deepEqual(await mesh.client.getObject(stored.hash), value);
+  mesh.unavailable.add('peer-a');
+  mesh.unavailable.add('peer-b');
+  assert.deepEqual(await mesh.client.getObject(stored.hash), value);
+});
+
+test('verified object cache can be disabled without enabling any local persistence', async () => {
+  const mesh = makeMesh();
+  const disabled = new PeerContentAddressedStore({
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    failureDomainsByPeerId: { 'peer-a': 'test-a', 'peer-b': 'test-b' },
+    namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7),
+    memoryCacheBytes: 0
+  });
+  const stored = await disabled.putObject({ cache: 'disabled' });
+  await disabled.getObject(stored.hash);
+  assert.equal(disabled.verifiedMemoryCache.size, 0);
+  assert.equal(disabled.verifiedMemoryCacheSize, 0);
+});
