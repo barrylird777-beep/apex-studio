@@ -18,7 +18,9 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
         catch { return reject(new Error('peer storage bridge returned an invalid response')); }
         if (res.statusCode !== 200 || body?.ok !== true || body.app !== app) {
-          return reject(new Error('peer storage bridge rejected the operation; no fallback is permitted'));
+          const error = new Error('peer storage bridge rejected the operation; no fallback is permitted');
+          if (['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE'].includes(body?.code)) error.code = body.code;
+          return reject(error);
         }
         resolve(body.result);
       });
