@@ -54,7 +54,7 @@ test('local CAS expires immutable objects and heads without persistence', () => 
   now = 111;
   assert.equal(fast.getImmutable(value.cid), null);
   assert.equal(fast.readHead('head'), null);
-  assert.deepEqual(fast.stats(), { objectCount: 0, objectBytes: 0, headCount: 0, maxBytes: 1024, ttlMs: 10, maxHeads: 4096 });
+  assert.deepEqual(fast.stats(), { objectCount: 0, objectBytes: 0, headCount: 0, maxBytes: 1024, ttlMs: 10, maxObjects: 4096, maxHeads: 4096 });
 });
 
 test('local CAS can be disabled and bounds pointer metadata', () => {
@@ -76,6 +76,17 @@ test('local CAS can be disabled and bounds pointer metadata', () => {
   assert.equal(bounded.readHead('head-b'), null);
   assert.equal(bounded.readHead('head-a'), a);
   assert.equal(bounded.readHead('head-c'), c);
+});
+
+test('local CAS bounds object metadata even when the byte budget is available', () => {
+  const fast = new LocalCasFastPath({ maxBytes: 1024, maxObjects: 2 });
+  const a = fast.putImmutable(Buffer.from('a')).cid;
+  const b = fast.putImmutable(Buffer.from('b')).cid;
+  const c = fast.putImmutable(Buffer.from('c')).cid;
+  assert.equal(fast.getImmutable(a), null);
+  assert.equal(fast.getImmutable(b).toString(), 'b');
+  assert.equal(fast.getImmutable(c).toString(), 'c');
+  assert.equal(fast.stats().objectCount, 2);
 });
 
 test('local CAS rejects unsafe keys and invalid CIDs', () => {
