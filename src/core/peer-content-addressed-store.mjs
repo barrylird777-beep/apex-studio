@@ -791,6 +791,18 @@ export function createPeerObjectStorageHandler({
     };
   };
   const validHash = value => /^[a-f0-9]{64}$/.test(String(value || ''));
+  const validEncryptedReference = (bytes, namespace) => {
+    try {
+      const envelope = decodeCanonical(bytes);
+      const iv = Buffer.from(String(envelope?.iv || ''), 'base64');
+      const tag = Buffer.from(String(envelope?.tag || ''), 'base64');
+      const ciphertext = Buffer.from(String(envelope?.ciphertext || ''), 'base64');
+      return envelope?.version === 1 && envelope?.algorithm === 'aes-256-gcm' &&
+        envelope?.namespace === namespace && iv.length === 12 && tag.length === 16 &&
+        ciphertext.length > 0 && iv.toString('base64') === envelope.iv &&
+        tag.toString('base64') === envelope.tag && ciphertext.toString('base64') === envelope.ciphertext;
+    } catch { return false; }
+  };
 
   return async function handlePeerObjectStorage(envelope, { remotePeerId = '' } = {}) {
     if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
@@ -854,8 +866,8 @@ export function createPeerObjectStorageHandler({
       const listed = refs.map(ref => {
         const bytes = Buffer.from(ref.bytes);
         if (typeof ref.key !== 'string' || !ref.key || ref.key.length > 512 ||
-            !validHash(ref.hash) || sha256(bytes) !== ref.hash) {
-          throw new Error('peer reference listing failed key, hash, or byte integrity verification');
+            !validHash(ref.hash) || sha256(bytes) !== ref.hash || !validEncryptedReference(bytes, envelope.namespace)) {
+          throw new Error('peer reference listing failed key, hash, encryption, or byte integrity verification');
         }
         return { key: ref.key, hash: ref.hash, bytesBase64: bytes.toString('base64') };
       });
@@ -869,8 +881,8 @@ export function createPeerObjectStorageHandler({
       const current = await store.readRef(envelope.namespace, envelope.key);
       if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
       const bytes = Buffer.from(current.bytes);
-      if (!validHash(current.hash) || sha256(bytes) !== current.hash) {
-        throw new Error('peer reference failed integrity verification');
+      if (!validHash(current.hash) || sha256(bytes) !== current.hash || !validEncryptedReference(bytes, envelope.namespace)) {
+        throw new Error('peer reference failed encryption or integrity verification');
       }
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...capacity };
     }
@@ -882,8 +894,8 @@ export function createPeerObjectStorageHandler({
       throw new Error('invalid peer reference write request');
     }
     const bytes = Buffer.from(envelope.bytesBase64, 'base64');
-    if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) {
-      throw new Error('peer reference write failed size, encoding, or hash verification');
+    if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash || !validEncryptedReference(bytes, envelope.namespace)) {
+      throw new Error('peer reference write failed size, encoding, encryption, or hash verification');
     }
     let saved;
     try {
