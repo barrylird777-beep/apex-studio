@@ -27,8 +27,8 @@ test('peer-backed store ignores coordinator-local symlink paths', async () => {
     await fs.symlink(outside,path.join(root,'linked'),'dir');
     const store=new ApexPureStore({root,wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
     await fs.writeFile(path.join(outside,'record.json'),'sentinel');
-    const saved=await store.put('safe','peer-record',{secret:true});
-    assert.equal(saved.id,'peer-record');
+    const saved=await store.put('linked','record',{secret:true});
+    assert.equal(saved.id,'record');
     assert.equal(await fs.readFile(path.join(outside,'record.json'),'utf8'),'sentinel',
       'peer-backed writes must not follow or modify coordinator-local symlinks');
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
