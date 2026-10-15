@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, createHmac } from 'node:crypto';
@@ -46,7 +46,7 @@ test('peer-owned binary backend survives backend re-instantiation and verifies C
 });
 
 test('durable CAS commit decision survives backend restart and rolls the reference forward', async t => {
-  const { options, backend } = await fixture(t);
+  const { root, options, backend } = await fixture(t);
   const bytes = encodeCanonical({ value: 'recover-after-decision' });
   const proposedHash = hash(bytes);
   const transactionId = 'restart-recovery-transaction-1';
@@ -63,6 +63,10 @@ test('durable CAS commit decision survives backend restart and rolls the referen
   assert.equal(committed.state, 'committed');
   assert.deepEqual(await restarted.readRef('PlanetApeX', 'recovery-ref'), { hash: proposedHash, bytes });
   assert.equal((await restarted.getRefTransaction(transactionId)).state, 'committed');
+  const immutableRecords = await readdir(path.join(root, 'transactions'));
+  assert.equal(immutableRecords.length, 3, 'prepare, decision, and commit must append distinct immutable CID records');
+  assert.ok(immutableRecords.every(name => /^[a-f0-9]{64}\\.cbor$/.test(name)));
+  assert.ok((await readdir(path.join(root, 'transaction-heads'))).includes(hash(Buffer.from(transactionId)) + '.cbor'));
 });
 
 test('durable CAS refuses abort after a commit decision and allows idempotent commit replay', async t => {
