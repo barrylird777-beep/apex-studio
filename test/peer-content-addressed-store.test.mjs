@@ -153,7 +153,7 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.equal(mesh.stores.get('peer-a').objects.get(result.hash).includes(Buffer.from('manuscript')), false);
 });
 
-test('peer CAS atomically replicates mutable references and recovers them from a surviving peer', async () => {
+test('peer CAS replicates mutable references and fails closed when a participant disappears', async () => {
   const mesh = makeMesh();
   const manifest = { version: 1, app: 'PlanetApeX', projectId: 'project-1', assets: [{ id: 'cover', hash: 'a'.repeat(64) }] };
   const saved = await mesh.client.writeRef('project-project-1', manifest);
@@ -162,7 +162,10 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   assert.deepEqual(restored.value, manifest);
   assert.equal(restored.hash, saved.hash);
   mesh.unavailable.add('peer-a');
-  assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
+  await assert.rejects(
+    mesh.client.readRef('project-project-1'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
 });
 
 test('peer CAS refuses to choose between divergent mutable references', async () => {
