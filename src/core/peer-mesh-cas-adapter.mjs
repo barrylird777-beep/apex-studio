@@ -95,14 +95,14 @@ export class PeerMeshCasAdapter {
   jobs() { return [...this.jobCache.values()].map(clone); }
   async refreshJobs() {
     let refs;
-    for (let retry = 0; retry < 4; retry++) {
+    for (let retry = 0; retry < 6; retry++) {
       try {
         refs = await this.store.listRefs();
         break;
       } catch (error) {
         const convergenceError = ['REFERENCE_DIVERGENCE', 'REFERENCE_LISTING_DIVERGENCE', 'INSUFFICIENT_REPLICAS'].includes(error?.code);
-        if (!convergenceError || retry === 3) throw error;
-        await new Promise(resolve => setTimeout(resolve, 5 * (2 ** retry)));
+        if (!convergenceError || retry === 5) throw error;
+        await new Promise(resolve => setTimeout(resolve, Math.min(100, 10 * (2 ** retry))));
       }
     }
     if (!Array.isArray(refs)) throw new Error('peer job index could not reach a consistent replica view');
