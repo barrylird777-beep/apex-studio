@@ -382,7 +382,7 @@ export class PeerContentAddressedStore {
     failures.push(...outcomes.filter(item => item.error).map(item => ({
       peerId: item.peerId, error: item.error instanceof Error ? item.error.message : String(item.error)
     })));
-    const domains = new Set(verified.map(item => this.failureDomainsByPeerId[item.peerId]).filter(Boolean));
+    const domains = new Set(verified.map(item => this.failureDomainsByPeerId[item.peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
     if (verified.length < this.replicaCount || domains.size < this.minFailureDomains) {
       const error = new Error('immutable object read did not reach configured verified replica quorum');
       error.code = 'INSUFFICIENT_REPLICAS';
@@ -502,7 +502,7 @@ export class PeerContentAddressedStore {
       error.hashes = results.map(result => ({ peerId: result.peerId, hash: result.hash }));
       throw error;
     }
-    const domains = new Set(results.map(result => this.failureDomainsByPeerId[result.peerId]).filter(Boolean));
+    const domains = new Set(results.map(result => this.failureDomainsByPeerId[result.peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
     if (results.length < this.replicaCount || domains.size < this.minFailureDomains) {
       const error = new Error('peer reference read did not reach configured verified replica quorum');
       error.code = 'INSUFFICIENT_REPLICAS';
