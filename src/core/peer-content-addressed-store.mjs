@@ -1,13 +1,38 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createPublicKey, verify as verifyBytes, randomBytes } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
-const hasVerifiedDurabilityReceipt = response =>
-  response?.durable === true && response?.ownership === 'peer-owned' &&
-  response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
-  response?.atomicReferencesVerified === true && Boolean(response?.receipt) &&
-  typeof response?.receiptId === 'string' && response.receiptId.length > 0;
+const hasVerifiedDurabilityReceipt = (response, peerId, publicKeys, expected = {}) => {
+  if (!(response?.durable === true && response?.ownership === 'peer-owned' &&
+      response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
+      response?.atomicReferencesVerified === true && response?.receipt?.algorithm === 'Ed25519' &&
+      typeof response?.receipt?.body === 'string' && typeof response?.receipt?.signature === 'string' &&
+      typeof response?.receiptId === 'string' && response.receiptId.length > 0)) return false;
+  try {
+    const encodedKey = publicKeys?.[peerId];
+    if (typeof encodedKey !== 'string' || !encodedKey) return false;
+    const der = Buffer.from(encodedKey, 'base64');
+    if (der.toString('base64') !== encodedKey) return false;
+    const key = createPublicKey({ key: der, format: 'der', type: 'spki' });
+    if (key.asymmetricKeyType !== 'ed25519') return false;
+    const body = Buffer.from(response.receipt.body, 'base64');
+    const signature = Buffer.from(response.receipt.signature, 'base64');
+    if (body.toString('base64') !== response.receipt.body ||
+        signature.toString('base64') !== response.receipt.signature ||
+        !verifyBytes(null, body, key, signature)) return false;
+    const claims = decodeCanonical(body);
+    const required = {
+      version: 1, peerId, namespace: expected.namespace,
+      operation: expected.operation, objectHash: expected.objectHash ?? null,
+      key: expected.key ?? null, ownership: 'peer-owned', durable: true,
+      atomicReferencesVerified: true, restartRecoveryVerified: true
+    };
+    return Object.entries(required).every(([name, value]) => claims?.[name] === value) &&
+      response.peerId === peerId && response.namespace === expected.namespace &&
+      response.receiptId === sha256(body);
+  } catch { return false; }
+};
 
 /**
  * Peer-backed immutable object replication primitive.
@@ -15,7 +40,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, receiptPublicKeysByPeerId = {} } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -29,6 +54,7 @@ export class PeerContentAddressedStore {
     this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
     this.namespace = namespace;
     this.encryptionKey = key;
+    this.receiptPublicKeysByPeerId = Object.fromEntries(Object.entries(receiptPublicKeysByPeerId || {}).map(([id, value]) => [String(id), String(value)]));
     this.maxObjectBytes = Number(maxObjectBytes);
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
@@ -114,7 +140,7 @@ export class PeerContentAddressedStore {
           bytesBase64: bytes.toString('base64')
         });
         if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.put', objectHash: hash, key: null })) {
           throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
         }
         receipts.push({
