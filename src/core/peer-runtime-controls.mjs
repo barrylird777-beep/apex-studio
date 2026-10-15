@@ -154,9 +154,18 @@ export function createSignedHeartbeat({ peerId, hardwareRootCid, privateKey, cre
   return signEnvelope('apex.peer-heartbeat.v1', { peerId, hardwareRootCid, createdAt }, privateKey);
 }
 
-export function verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId, now = Date.now(), maxAgeMs = 30000 } = {}) {
-  return verifyEnvelope(heartbeat, { kind: 'apex.peer-heartbeat.v1', publicKey, now, maxAgeMs }) &&
-    heartbeat.payload.peerId === expectedPeerId && /^[a-f0-9]{64}$/.test(heartbeat.payload.hardwareRootCid);
+export async function verifySignedHeartbeat(heartbeat, {
+  publicKey, expectedPeerId, verifyHardwareRoot, now = Date.now(), maxAgeMs = 30000
+} = {}) {
+  if (!verifyEnvelope(heartbeat, { kind: 'apex.peer-heartbeat.v1', publicKey, now, maxAgeMs }) ||
+      heartbeat.payload.peerId !== expectedPeerId ||
+      !/^[a-f0-9]{64}$/.test(heartbeat.payload.hardwareRootCid) ||
+      typeof verifyHardwareRoot !== 'function') return false;
+  return await verifyHardwareRoot({
+    hardwareRootCid: heartbeat.payload.hardwareRootCid,
+    peerId: heartbeat.payload.peerId,
+    createdAt: heartbeat.payload.createdAt
+  }) === true;
 }
 
 export function createCapabilityAdvertisement({ peerId, app, hardwareRootCid, cids = [], privateKey, createdAt = Date.now() } = {}) {
@@ -169,11 +178,21 @@ export function createCapabilityAdvertisement({ peerId, app, hardwareRootCid, ci
   }, privateKey);
 }
 
-export function verifyCapabilityAdvertisement(advertisement, { publicKey, expectedPeerId, app, now = Date.now(), maxAgeMs = 60000 } = {}) {
-  return verifyEnvelope(advertisement, { kind: 'apex.peer-capabilities.v1', publicKey, now, maxAgeMs }) &&
-    advertisement.payload.peerId === expectedPeerId && advertisement.payload.app === app &&
-    APPS.has(app) && /^[a-f0-9]{64}$/.test(advertisement.payload.hardwareRootCid) &&
-    Array.isArray(advertisement.payload.cids) && advertisement.payload.cids.every(cid => /^[a-f0-9]{64}$/.test(cid));
+export async function verifyCapabilityAdvertisement(advertisement, {
+  publicKey, expectedPeerId, app, verifyHardwareRoot, now = Date.now(), maxAgeMs = 60000
+} = {}) {
+  if (!verifyEnvelope(advertisement, { kind: 'apex.peer-capabilities.v1', publicKey, now, maxAgeMs }) ||
+      advertisement.payload.peerId !== expectedPeerId || advertisement.payload.app !== app ||
+      !APPS.has(app) || !/^[a-f0-9]{64}$/.test(advertisement.payload.hardwareRootCid) ||
+      !Array.isArray(advertisement.payload.cids) ||
+      !advertisement.payload.cids.every(cid => /^[a-f0-9]{64}$/.test(cid)) ||
+      typeof verifyHardwareRoot !== 'function') return false;
+  return await verifyHardwareRoot({
+    hardwareRootCid: advertisement.payload.hardwareRootCid,
+    peerId: advertisement.payload.peerId,
+    app: advertisement.payload.app,
+    createdAt: advertisement.payload.createdAt
+  }) === true;
 }
 
 /** Connection-local elevation expires on connection close or credential rotation. */
