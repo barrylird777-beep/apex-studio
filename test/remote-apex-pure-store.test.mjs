@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, access } from "node:fs/promises";
+import { mkdtemp, rm, access, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -259,12 +259,13 @@ test("peer-only startup never replays a coordinator-local WAL", async () => {
   try {
     const wal = new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") });
     await wal.append("state.put", { collection: "legacy", id: "wal-record", record: { id: "wal-record", fromWal: true } });
-    wal._acquireLock = async () => { throw new Error("read-only migration must not acquire a local lock"); };
+    wal._acquireLock = async () => { throw new Error("peer-only startup must not acquire a local WAL lock"); };
+    const before = await readFile(wal.file, "utf8");
     const remote = new MemoryCAS();
     const store = new ApexPureStore({ root, wal, cas: remote });
     await store.init();
     const imported = await remote.readRef("state", store.refKey("legacy", "wal-record"));
     assert.equal(imported, null, "peer-only startup must not replay local WAL records");
-    assert.equal((await wal.snapshot()).ring.length, 1, "the source WAL remains untouched");
+    assert.equal(await readFile(wal.file, "utf8"), before, "the source WAL remains untouched");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
