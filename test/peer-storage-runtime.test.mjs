@@ -1,8 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign as signBytes } from 'node:crypto';
+import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mjs';
+
+const receiptPair = generateKeyPairSync('ed25519');
+const receiptPublicKey = receiptPair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
+function signedReceipt({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) {
+  const claims = { version: 1, peerId, namespace, operation, objectHash, key, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
+  const body = encodeCanonical(claims);
+  return { receipt: { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, receiptPair.privateKey).toString('base64') }, receiptId: createHash('sha256').update(body).digest('hex') };
+}
 
 function binaryMemoryStore() {
   const objects = new Map();
@@ -55,13 +64,12 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
   store.listRefs = async namespace => [...refs.entries()]
     .filter(([refKey]) => refKey.startsWith(namespace + ':'))
     .map(([refKey, ref]) => ({ key: refKey.slice(namespace.length + 1), hash: ref.hash, bytes: Buffer.from(ref.bytes) }));
-  store.health = async ({ namespace, peerId }) => ({
+  store.health = async ({ namespace, peerId, operation, objectHash = null, key = null }) => ({
     durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
-    atomicReferencesVerified: true, peerId, namespace,
-    receipt: 'signed-test-receipt', receiptId: 'peer-proof-runtime'
+    atomicReferencesVerified: true, peerId, namespace, ...signedReceipt({ namespace, peerId, operation, objectHash, key })
   });
   store.verifyDurabilityReceipt = async (receipt, claims) =>
-    receipt === 'signed-test-receipt' && claims.peerId === 'storage-peer' &&
+    receipt?.algorithm === 'Ed25519' && claims.peerId === 'storage-peer' &&
     claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
     claims.atomicReferencesVerified === true;
   const runtime = await initializePeerObjectStorage({
@@ -76,7 +84,8 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     replicaCount: 1,
     failureDomainsByPeerId: { 'storage-peer': 'test-domain-storage-peer' },
     namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 23)
+    encryptionKey: Buffer.alloc(32, 23),
+    receiptPublicKeysByPeerId: { 'storage-peer': receiptPublicKey }
   });
   const value = { privateTitle: 'unpublished manuscript', app: 'PlanetApeX' };
   const receipt = await client.putObject(value);
