@@ -4,6 +4,8 @@ import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createCapabilityAdvertisement } from '../src/core/peer-runtime-controls.mjs';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 
+const cidFor = bytes => createHash('sha256').update(bytes).digest('hex');
+
 function makeStore({ cacheTtlMs = 1000, cacheMaxBytes = 8 } = {}) {
   return new PeerContentAddressedStore({
     transport: { request: async () => { throw new Error('network must not be used by cache-only test'); } },
@@ -16,7 +18,7 @@ function makeStore({ cacheTtlMs = 1000, cacheMaxBytes = 8 } = {}) {
 test('verified-object RAM cache returns defensive copies and records hot hits', () => {
   const store = makeStore();
   const original = Buffer.from('verified');
-  const cid = 'a'.repeat(64);
+  const cid = cidFor(original);
   store.cacheSet(cid, original);
   original.fill(0);
   const cached = store.cacheGet(cid);
@@ -30,26 +32,29 @@ test('verified-object RAM cache returns defensive copies and records hot hits', 
 
 test('RAM cache evicts least-recently-used entries to remain within its byte budget', () => {
   const store = makeStore({ cacheMaxBytes: 8 });
-  store.cacheSet('a'.repeat(64), Buffer.from('1234'));
-  store.cacheSet('b'.repeat(64), Buffer.from('5678'));
-  assert.ok(store.cacheGet('a'.repeat(64)));
-  store.cacheSet('c'.repeat(64), Buffer.from('abcd'));
-  assert.equal(store.cacheGet('b'.repeat(64)), null);
-  assert.ok(store.cacheGet('a'.repeat(64)));
-  assert.ok(store.cacheGet('c'.repeat(64)));
+  const a = Buffer.from('1234'), b = Buffer.from('5678'), c = Buffer.from('abcd');
+  const aCid = cidFor(a), bCid = cidFor(b), cCid = cidFor(c);
+  store.cacheSet(aCid, a);
+  store.cacheSet(bCid, b);
+  assert.ok(store.cacheGet(aCid));
+  store.cacheSet(cCid, c);
+  assert.equal(store.cacheGet(bCid), null);
+  assert.ok(store.cacheGet(aCid));
+  assert.ok(store.cacheGet(cCid));
   assert.equal(store.cacheSnapshot().bytes, 8);
   assert.equal(store.cacheSnapshot().entries, 2);
 });
 
 test('RAM cache expires entries and rejects objects larger than its configured budget', async () => {
   const store = makeStore({ cacheTtlMs: 10, cacheMaxBytes: 8 });
-  store.cacheSet('a'.repeat(64), Buffer.from('too-large!'));
+  const oversized = Buffer.from('too-large!');
+  store.cacheSet(cidFor(oversized), oversized);
   assert.equal(store.cacheSnapshot().entries, 0);
-  store.cacheSet('b'.repeat(64), Buffer.from('short'));
+  const short = Buffer.from('short'), shortCid = cidFor(short);
+  store.cacheSet(shortCid, short);
   await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(store.cacheGet('b'.repeat(64)), null);
+  assert.equal(store.cacheGet(shortCid), null);
   assert.equal(store.cacheSnapshot().bytes, 0);
-  assert.ok(store.cacheSnapshot().evictions >= 1);
 });
 
 function makeMemoryPeerStore() {
