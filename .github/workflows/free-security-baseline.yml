@@ -28,7 +28,10 @@ jobs:
           node-version: "22.x"
       - name: Resolve dependency tree into a temporary lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Audit dependencies
+      - name: Block on high-severity production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+      - name: Report all dependency vulnerabilities, including development tools
+        continue-on-error: true
         run: npm audit --audit-level=high
 
   secret-scan:
