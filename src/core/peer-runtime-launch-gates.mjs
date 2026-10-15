@@ -16,7 +16,7 @@ export const PEER_RUNTIME_LAUNCH_GATES = Object.freeze({
   crossAppCapabilityCids: 'implemented-primitive-not-enforced-everywhere',
   signedHeartbeats: 'implemented-primitive-no-gossip',
   capabilityAdvertisements: 'implemented-primitive-no-live-gossip',
-  connectionScopedTrust: 'implemented-primitive-not-transport-wired',
+  connectionScopedTrust: 'transport-hook-wired-platform-provider-unconfigured',
   allRuntimeOperationsTensorGated: 'bridge-gated-direct-runtime-paths-unverified',
   hardwareRootAttestation: 'blocked-no-platform-verifier',
   runtimeQuotas: 'primitive-only-not-runtime-enforced',
