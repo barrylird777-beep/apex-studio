@@ -29,7 +29,7 @@ test("streamAssetToStorage writes without buffering and returns SHA-256", async 
     const result = await streamAssetToStorage(Readable.from([data.subarray(0, 8), data.subarray(8)]), "episode-1", "asset.bin");
     assert.equal(result.bytes, data.length);
     assert.equal(result.path, null);
-    assert.match(result.url, /^\\/api\\/peer-assets\\/[a-f0-9]{64}$/);
+    assert.match(result.url, /^\/api\/peer-assets\/[a-f0-9]{64}$/);
     assert.deepEqual(await getPeerAsset(result.hash), data);
     assert.equal(result.sha256, crypto.createHash("sha256").update(data).digest("hex"));
     assert.ok(result.transfer.parallelStreams >= 1);
