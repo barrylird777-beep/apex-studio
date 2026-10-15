@@ -40,7 +40,7 @@ const hasVerifiedDurabilityReceipt = (response, peerId, publicKeys, expected = {
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, receiptPublicKeysByPeerId = {} } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, receiptPublicKeysByPeerId = {}, requestTimeoutMs = 5000 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -55,6 +55,8 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.receiptPublicKeysByPeerId = Object.fromEntries(Object.entries(receiptPublicKeysByPeerId || {}).map(([id, value]) => [String(id), String(value)]));
+    this.requestTimeoutMs = Number(requestTimeoutMs);
+    if (!Number.isSafeInteger(this.requestTimeoutMs) || this.requestTimeoutMs < 1 || this.requestTimeoutMs > 120000) throw new TypeError('requestTimeoutMs must be between 1 and 120000 milliseconds');
     this.maxObjectBytes = Number(maxObjectBytes);
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
@@ -110,7 +112,7 @@ export class PeerContentAddressedStore {
     return decodeCanonical(plaintext);
   }
 
-  async request(peerId, request, { signal, timeoutMs = 5000 } = {}) {
+  async request(peerId, request, { signal, timeoutMs = this.requestTimeoutMs } = {}) {
     const controller = new AbortController();
     const abortFromCaller = () => controller.abort(signal?.reason || new Error('peer request cancelled'));
     if (signal?.aborted) abortFromCaller();
