@@ -29,10 +29,10 @@ function parsePeers(value) {
 /** Create the app-scoped peer CAS used by the mesh engine; no model bridge. */
 export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceOverride, encryptionKeyBase64: keyOverride } = {}) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('started sovereign peer node required');
-  const namespace = namespaceOverride || required('APEX_PEER_CAS_NAMESPACE');
+  const namespace = namespaceOverride !== undefined ? namespaceOverride : required('APEX_PEER_CAS_NAMESPACE');
   if (!APPS.has(namespace)) throw new Error('Peer-CAS namespace must name one canonical app');
   const keyEnvName = 'APEX_PEER_CAS_ENCRYPTION_KEY_BASE64_' + namespace.toUpperCase();
-  const encodedKey = keyOverride || (namespaceOverride ? required(keyEnvName) : required('APEX_PEER_CAS_ENCRYPTION_KEY_BASE64'));
+  const encodedKey = keyOverride || (namespaceOverride !== undefined ? required(keyEnvName) : required('APEX_PEER_CAS_ENCRYPTION_KEY_BASE64'));
   const key = Buffer.from(encodedKey, 'base64');
   if (key.length !== 32 || key.toString('base64') !== encodedKey) throw new Error('Peer-CAS encryption key must be canonical base64 for exactly 32 bytes');
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
