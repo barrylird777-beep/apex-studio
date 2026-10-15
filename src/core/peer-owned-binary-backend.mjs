@@ -11,10 +11,21 @@ async function durableWrite(file, bytes) {
   const dir = path.dirname(file);
   const temp = path.join(dir, '.pending-' + process.pid + '-' + randomUUID());
   const handle = await open(temp, 'wx', 0o600);
-  try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
-  await rename(temp, file);
-  const directory = await open(dir, 'r');
-  try { await directory.sync(); } finally { await directory.close(); }
+  let renamed = false;
+  try {
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await rename(temp, file);
+    renamed = true;
+    const directory = await open(dir, 'r');
+    try { await directory.sync(); } finally { await directory.close(); }
+  } finally {
+    if (!renamed) await rm(temp, { force: true }).catch(() => {});
+  }
 }
 
 async function withRefLock(lockPath, operation, timeoutMs = 10000) {
