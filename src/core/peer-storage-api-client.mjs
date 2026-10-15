@@ -176,8 +176,16 @@ export class PeerStorageApiClient {
         const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
         const stored = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'putBlob',
           args: { bytesBase64: piece.toString('base64') } });
-        if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash)) throw new Error('peer did not return a valid chunk manifest hash');
-        chunks[index] = { hash: stored.hash, bytes: piece.length, sha256: createHash('sha256').update(piece).digest('hex') };
+        if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash) ||
+            !Array.isArray(stored.replicas) || !Array.isArray(stored.receipts) ||
+            stored.replicas.length === 0 || stored.receipts.length < stored.replicas.length ||
+            stored.receipts.some(receipt => !receipt || receipt.namespace !== this.namespace ||
+              receipt.hash !== stored.hash || typeof receipt.peerId !== 'string' || !receipt.peerId ||
+              typeof receipt.receiptId !== 'string' || !receipt.receiptId)) {
+          throw new Error('peer chunk write lacks complete namespace-bound replica receipt evidence');
+        }
+        chunks[index] = { hash: stored.hash, bytes: piece.length,
+          sha256: createHash('sha256').update(piece).digest('hex'), verifiedReplicas: stored.receipts.length };
       }
     };
     await Promise.all(Array.from({ length: Math.min(putConcurrency, chunkCount) }, putWorker));
@@ -229,7 +237,8 @@ export class PeerStorageApiClient {
       if (raced?.value?.sha256 !== digest || raced.value.bytes !== buffer.length ||
           raced.value.namespace !== this.namespace) throw error;
     }
-    return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, replicasVerifiedPerChunk: true };
+    return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, replicasVerifiedPerChunk: chunks.every(chunk => Number.isSafeInteger(chunk.verifiedReplicas) && chunk.verifiedReplicas > 0),
+      minimumVerifiedReplicasPerChunk: Math.min(...chunks.map(chunk => chunk.verifiedReplicas)) };
   }
 
   async getBlob(hash, { forcePeerRead = false } = {}) {
