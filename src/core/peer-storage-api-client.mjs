@@ -154,9 +154,9 @@ export class PeerStorageApiClient {
   async getBlob(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new TypeError('invalid asset hash');
     const ref = await this.readRef('asset-manifests', hash);
-    if (!ref?.value || ref.value.kind !== 'apex.api.asset-manifest.v1' ||
+    if (!ref?.value || !['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(ref.value.kind) ||
         ref.value.namespace !== this.namespace || ref.value.sha256 !== hash ||
-        !Number.isSafeInteger(ref.value.bytes) || !Array.isArray(ref.value.chunks)) {
+        !Number.isSafeInteger(ref.value.bytes) || ref.value.bytes < 0) {
       throw new Error('peer asset manifest is missing or invalid');
     }
     let descriptors;
