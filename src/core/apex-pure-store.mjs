@@ -257,7 +257,7 @@ export class ApexPureStore {
   async refreshState(){await this.init();await this.loadStateReferences();return this;}
   async refreshJobs(){await this.init();await this.loadJobReferences();return this;}
   async refresh(){await this.init();await this.loadReferences();return this;}
-  refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
+  refKey(collection,id){safeSegment(collection,"collection");safeSegment(id,"record id");return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
   async persistJob(job,{appendWal=true,walSeq=null}={}) {
     const effectiveJob=clone(job);
     if(!this.remoteMode){
@@ -393,7 +393,7 @@ export class ApexPureStore {
     }
     });
   }
-  key(c,id){return String(c)+"::"+String(id);}
+  key(c,id){safeSegment(c,"collection");safeSegment(id,"record id");return String(c)+"::"+String(id);}
   apply(r){
     const p=r.payload||{};
     if(r.type==="state.put"){this.state.set(this.key(p.collection,p.id),clone(p.record));}
