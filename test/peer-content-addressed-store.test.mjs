@@ -522,5 +522,5 @@ test('verified object cache can be disabled without enabling any local persisten
   });
   const stored = await disabled.putObject({ cache: 'disabled' });
   await disabled.getObject(stored.hash);
-  assert.deepEqual(disabled.localFastPath.stats(), { objectCount: 0, objectBytes: 0, headCount: 0, maxBytes: 0, ttlMs: 30000, maxHeads: 4096 });
+  assert.deepEqual(disabled.localFastPath.stats(), { objectCount: 0, objectBytes: 0, headCount: 0, maxBytes: 0, ttlMs: 30000, maxObjects: 4096, maxHeads: 4096 });
 });
