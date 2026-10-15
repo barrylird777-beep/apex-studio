@@ -23,15 +23,8 @@ export class PeerMeshCasAdapter {
   }
 
   async init() {
-    await this.store.listRefs();
-    const jobs = await this.store.listRefs();
-    this.jobCache.clear();
-    for (const ref of jobs) {
-      if (ref.namespace === this.appNamespace && ref.key.startsWith('jobs/')) {
-        const job = ref.value?.job;
-        if (job?.id != null) this.jobCache.set(String(job.id), clone(job));
-      }
-    }
+    if (this.initialized) return this;
+    await this.refreshJobs();
     this.initialized = true;
     return this;
   }
@@ -100,7 +93,17 @@ export class PeerMeshCasAdapter {
   }
 
   jobs() { return [...this.jobCache.values()].map(clone); }
-  async refreshJobs() { await this.init(); return this; }
+  async refreshJobs() {
+    const refs = await this.store.listRefs();
+    this.jobCache.clear();
+    for (const ref of refs) {
+      if (ref.namespace === this.appNamespace && ref.key.startsWith('jobs/')) {
+        const job = ref.value?.job;
+        if (job?.id != null) this.jobCache.set(String(job.id), clone(job));
+      }
+    }
+    return this;
+  }
 
   async enqueue({ id, type, payload = {}, runAt = Date.now(), maxAttempts = 5, dedupeKey = null, priority = 0 } = {}) {
     if (!type) throw new Error('job type required');
@@ -125,19 +128,35 @@ export class PeerMeshCasAdapter {
 
   async claim({ workerId = 'peer-runtime', limit = 1, leaseMs = 45000, role = null, onlyId = null } = {}) {
     await this.init();
+    await this.refreshJobs();
     const now = Date.now(), claimed = [];
-    const candidates = this.jobs().filter(job => job.status === 'queued' && Number(job.runAt || 0) <= now &&
+    const candidates = this.jobs().filter(job =>
+      ((job.status === 'queued' && Number(job.runAt || 0) <= now) ||
+       (job.status === 'running' && Number(job.leaseExpiresAt || 0) <= now)) &&
       (onlyId == null || String(job.id) === String(onlyId)) &&
       (role ? String(job.payload?._apex_worker?.role || '') === role : String(job.payload?._apex_worker?.role || '') !== 'sovereign-runtime'))
       .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || Number(a.runAt || 0) - Number(b.runAt || 0));
     for (const candidate of candidates) {
       if (claimed.length >= Math.max(1, Number(limit) || 1)) break;
       const current = await this.readRef('jobs', candidate.id);
-      if (!current?.value?.job || current.value.job.status !== 'queued') continue;
-      const job = current.value.job;
+      const job = current?.value?.job;
+      if (!job) continue;
+      const queuedAndReady = job.status === 'queued' && Number(job.runAt || 0) <= now;
+      const leaseExpired = job.status === 'running' && Number(job.leaseExpiresAt || 0) <= now;
+      if (!queuedAndReady && !leaseExpired) continue;
+      if (Number(job.attempts || 0) >= Number(job.maxAttempts || 5)) {
+        const dead = { ...job, status: 'dead', leaseOwner: null, leaseToken: null, leaseExpiresAt: 0,
+          lastError: 'worker lease expired after maximum attempts', updatedAt: new Date().toISOString() };
+        try {
+          await this.writeRef('jobs', candidate.id, { id: candidate.id, job: dead }, { expectedHash: current.hash });
+          this.jobCache.set(candidate.id, dead);
+        } catch (error) { if (error.code !== 'CAS_CONFLICT') throw error; }
+        continue;
+      }
       const next = { ...job, status: 'running', leaseOwner: String(workerId), leaseToken: crypto.randomUUID(),
         leaseFence: Number(job.leaseFence || 0) + 1, leaseExpiresAt: now + Math.max(1000, Number(leaseMs) || 45000),
-        attempts: Number(job.attempts || 0) + 1, updatedAt: new Date().toISOString() };
+        attempts: Number(job.attempts || 0) + 1, recoveredCount: Number(job.recoveredCount || 0) + (leaseExpired ? 1 : 0),
+        updatedAt: new Date().toISOString() };
       try {
         await this.writeRef('jobs', candidate.id, { id: candidate.id, job: next }, { expectedHash: current.hash });
         this.jobCache.set(candidate.id, next);
