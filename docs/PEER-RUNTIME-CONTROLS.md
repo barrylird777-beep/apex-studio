@@ -15,10 +15,11 @@ This document records implementation status, not a sovereignty or production-rea
 - Ed25519-signed capability envelopes, scoped cross-app capability verification, revocation callback, signed heartbeats, signed peer capability advertisements, and a rarest-first planning function that consumes already-verified advertisements.
 - Connection-scoped trust-session primitive with explicit credential and attestation verifier callbacks; credential rotation and connection closure invalidate elevation.
 - Job completion publishes an immutable apex.job-result.v1 object and records its CID in the CAS-backed job state.
-- Distributed job claims use CAS expected hashes, lease tokens, monotonically increasing fencing values, and a concurrent-winner regression test; release verification remains pending.
+- Job claims use CAS expected hashes, lease tokens, monotonically increasing fencing values, bounded convergence retries, and concurrent-winner/lease-reclaim regression tests. These tests use an in-memory peer simulation and do not establish Byzantine-safe global atomic CAS.
 
 ## Not yet launch-verified
 
+- **Critical consensus gap:** mutable references are currently CAS-updated sequentially across replicas. This is not a globally atomic Byzantine-fault-tolerant CAS protocol. The reviewed consensus/commit-decision protocol, membership epochs, operation IDs, and recovery rules must be implemented and fault-tested before production writes or merge.
 - The access-tensor evaluator and capability verifier are security primitives; the full runtime still needs to route every state, asset, job, and credential operation through the active tensor policy and trusted capability verifier.
 - The signed heartbeat and capability-advertisement helpers are not yet a complete libp2p gossip protocol. The rarest-first planner is wired into `PeerContentAddressedStore.getBlob` when a provider supplies fresh, signature-verified advertisements; live decentralized advertisement exchange and end-to-end source-selection proof remain open.
 - Hardware-root attestation is not established merely by a peer ID, certificate, environment label, or hardwareRootCid field. A platform-backed verifier must validate fresh signed hardware evidence and bind it to the live peer connection and app credential.
@@ -32,4 +33,5 @@ This document records implementation status, not a sovereignty or production-rea
 - No PostgreSQL, WAL, JSON persistence, paid bucket, or local persistent source-of-truth fallback.
 - Memory caches are disposable accelerators only; a cache hit never substitutes for verified durable peer receipts.
 - A CAS conflict is not a replica failure. A missing quorum, invalid receipt, corrupt CID, or incomplete repair is a hard failure.
+- Replica write quorum is not consensus: no production claim may describe the current sequential multi-peer reference update as globally atomic or Byzantine-safe.
 - Do not publish performance claims until benchmarks report p50/p95/p99 latency, throughput, peer count, fault count, and convergence time from repeatable runs.
