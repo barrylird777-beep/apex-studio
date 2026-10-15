@@ -519,6 +519,36 @@ export class PeerContentAddressedStore {
     return { hash, transactionId, replicas: participants, receipts: prepared };
   }
 
+  async recoverPendingRefTransactions() {
+    const pending = new Set();
+    const failures = [];
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.tx.list', namespace: this.namespace
+        });
+        if (response.namespace !== this.namespace || !Array.isArray(response.transactions) ||
+            !hasVerifiedDurabilityReceipt(response)) throw new Error('peer returned an invalid pending transaction list');
+        for (const tx of response.transactions) {
+          if (tx?.namespace !== this.namespace || typeof tx.transactionId !== 'string' ||
+              !['prepared', 'commit-decided'].includes(tx.state)) throw new Error('peer listed an invalid transaction record');
+          pending.add(tx.transactionId);
+        }
+      } catch (error) { failures.push({ peerId, error: error instanceof Error ? error.message : String(error) }); }
+    }
+    if (failures.length) {
+      const error = new Error('pending transaction discovery requires every configured peer; recovery is blocked by a partition');
+      error.code = 'RECOVERY_BLOCKED';
+      error.failures = failures;
+      throw error;
+    }
+    const outcomes = [];
+    for (const transactionId of [...pending].sort()) {
+      outcomes.push(await this.recoverRefTransaction(transactionId));
+    }
+    return { recovered: outcomes.length, outcomes };
+  }
+
   async recoverRefTransaction(transactionId) {
     if (typeof transactionId !== 'string' || !transactionId || transactionId.length > 256) throw new TypeError('invalid transaction ID');
     const states = [];
@@ -630,7 +660,7 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.list', 'ref.prepare', 'ref.decision', 'ref.commit', 'ref.abort', 'ref.tx.get'].includes(operation)) {
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.list', 'ref.prepare', 'ref.decision', 'ref.commit', 'ref.abort', 'ref.tx.get', 'ref.tx.list'].includes(operation)) {
       throw new Error('unsupported peer storage operation');
     }
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
@@ -695,6 +725,11 @@ export function createPeerObjectStorageHandler({
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...capacity };
     }
 
+    if (operation === 'ref.tx.list') {
+      if (typeof store.listRefTransactions !== 'function') throw new Error('peer backend lacks pending transaction enumeration');
+      const transactions = await store.listRefTransactions(envelope.namespace);
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transactions, ...capacity };
+    }
     if (operation === 'ref.tx.get') {
       if (typeof envelope.transactionId !== 'string' || !envelope.transactionId) throw new Error('invalid transaction ID');
       const tx = await store.getRefTransaction?.(envelope.transactionId);
