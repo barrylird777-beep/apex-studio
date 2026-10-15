@@ -59,6 +59,7 @@ export class LocalCasFastPath {
       this.deleteObject(cid);
       return null;
     }
+    entry.expiresAt = this.now() + this.ttlMs;
     this.objects.delete(cid);
     this.objects.set(cid, entry);
     return Buffer.from(entry.bytes);
@@ -72,6 +73,7 @@ export class LocalCasFastPath {
       this.heads.delete(key);
       return null;
     }
+    entry.expiresAt = this.now() + this.ttlMs;
     this.heads.delete(key);
     this.heads.set(key, entry);
     return entry.cid;
