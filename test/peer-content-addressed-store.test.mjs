@@ -509,6 +509,11 @@ test('peer CAS uses only verified RAM cache entries and fetches peer sources con
   assert.equal(requests, afterNetworkRead, 'second read must be served from verified RAM cache');
   assert.equal(mesh.client.cacheSnapshot().hits, 1);
   assert.ok(mesh.client.cacheSnapshot().bytes > 0);
+  const cached = mesh.client.verifiedObjectCache.get(saved.hash);
+  cached.bytes[0] ^= 0xff;
+  assert.deepEqual(await mesh.client.getObject(saved.hash), { cacheable: 'verified', value: 17 },
+    'tampered RAM bytes must be discarded and re-fetched from verified peers');
+  assert.equal(mesh.client.cacheSnapshot().misses >= 1, true);
 });
 
 test('peer storage runtime rejects plaintext mutable references', async () => {
