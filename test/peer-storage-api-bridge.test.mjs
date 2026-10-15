@@ -77,6 +77,9 @@ test('peer API bridge requires auth and keeps app references in separate stores'
     const own = await request(socketPath, tokens.KernelVision, { app: 'KernelVision', operation: 'readRef',
       args: { namespace: 'state', key: 'item-1' } });
     assert.equal(own.body.result.value.marker, 'only-kernelvision');
+    const crossAppCredential = await request(socketPath, tokens.KernelVision, { app: 'XShield', operation: 'readRef',
+      args: { namespace: 'state', key: 'item-1' } });
+    assert.equal(crossAppCredential.status, 401);
     const other = await request(socketPath, tokens.XShield, { app: 'XShield', operation: 'readRef',
       args: { namespace: 'state', key: 'item-1' } });
     assert.equal(other.body.result, null);
