@@ -48,6 +48,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install dependencies required by peer transport tests
+        run: npm install --no-audit --no-fund
       - name: Syntax-check integrated runtime modules
         run: >-
           node --check src/core/peer-storage-api-bridge.mjs &&
