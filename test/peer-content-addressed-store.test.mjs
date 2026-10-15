@@ -605,7 +605,9 @@ test('partial multi-peer reference commit is never reported successful and reads
   };
   await assert.rejects(
     mesh.client.writeRef('partial-commit', { revision: 1 }, { expectedHash: null }),
-    error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+    error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1 &&
+      error.partialCommit === true && error.reconciliationRequired === true &&
+      error.committedPeers.includes('peer-a')
   );
   failPeerBCommit = false;
   await assert.rejects(
