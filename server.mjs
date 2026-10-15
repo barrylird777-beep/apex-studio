@@ -5,12 +5,13 @@ import { fileURLToPath } from 'url';
 import { Readable } from 'node:stream';
 import crypto from 'node:crypto';
 
-import { access, readFile, unlink, realpath, stat } from 'node:fs/promises';
+import { access, readFile, unlink, realpath, stat, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { buildTimelineFfmpegPlan, OUTPUT_PRESETS } from './src/core/ffmpeg.mjs';
 import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
-import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
+import { initStorage, STORAGE_DIR, getProjectState, getPeerAsset, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
 import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
@@ -2110,16 +2111,20 @@ app.get('/korn-knob', async (_req, res) => {
 });
 // Serve the canonical Rapid Video Oracle-to-Forge production surface directly.
 app.use(express.static(path.join(__dirname, 'public')));
-// Persistent SE-X assets are served through a dedicated static mount. The
-// storage module validates all filenames before they are written, while
-// Express prevents traversal outside STORAGE_DIR when serving them.
-app.use('/files', express.static(STORAGE_DIR, {
-  fallthrough: false,
-  dotfiles: 'deny',
-  index: false,
-  redirect: false,
-  maxAge: '1h'
-}));
+// Binary assets are resolved only through the authenticated app-scoped peer CAS.
+// The former local /files static mount is intentionally disabled.
+app.get('/api/peer-assets/:hash', async (req, res) => {
+  try {
+    const bytes = await getPeerAsset(String(req.params.hash || ''));
+    res.set('content-type', 'application/octet-stream');
+    res.set('content-length', String(bytes.length));
+    res.set('cache-control', 'private, max-age=31536000, immutable');
+    res.set('etag', '"' + String(req.params.hash) + '"');
+    res.send(bytes);
+  } catch {
+    res.status(503).json({ error: 'peer asset unavailable; local fallback is disabled' });
+  }
+});
 
 // Bounded retry for transient upstream gateway failures. Provider routing below
 // still escalates to the next eligible swarm node when the final response fails.
@@ -3031,12 +3036,12 @@ app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
   }
 });
 
-function storagePathFromFileUrl(value) {
-  const raw = String(value || '').trim();
-  if (!raw.startsWith('/files/')) throw new Error('Asset is not a persistent /files/ resource');
-  const name = decodeURIComponent(raw.slice('/files/'.length));
-  if (!/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') throw new Error('Invalid persisted asset path');
-  return path.join(STORAGE_DIR, name);
+async function materializePeerAsset(value, targetPath) {
+  const match = String(value || '').trim().match(/^\/api\/peer-assets\/([a-f0-9]{64})$/);
+  if (!match) throw new Error('Render input is not a verified peer asset reference');
+  const bytes = await getPeerAsset(match[1]);
+  await writeFile(targetPath, bytes, { flag: 'wx', mode: 0o600 });
+  return targetPath;
 }
 
 app.get('/api/render/status', async (_req, res) => {
@@ -3049,10 +3054,10 @@ app.get('/api/render/status', async (_req, res) => {
 });
 
 app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
+  let workDir = null;
   let stitchedVideoPath = null;
   let masteredAudioPath = null;
   let finalExportPath = null;
-
   try {
     const format = String(req.body?.format || 'master');
     if (!Object.hasOwn(OUTPUT_PRESETS, format)) {
@@ -3061,109 +3066,69 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
     const requestedIds = Array.isArray(req.body?.sceneIds) ? req.body.sceneIds.map(String) : [];
     const state = await getProjectState();
     const scenes = Array.isArray(state.scenes) ? state.scenes : [];
-    const selected = scenes.filter(scene =>
-      scene?.video &&
-      (!requestedIds.length || requestedIds.includes(String(scene.id)))
-    );
+    const selected = scenes.filter(scene => scene?.video && (!requestedIds.length || requestedIds.includes(String(scene.id))));
+    if (!selected.length) return res.status(409).json({ success: false, error: 'No peer-persisted video scenes are ready for export' });
 
-    if (!selected.length) {
-      return res.status(409).json({ success: false, error: 'No persisted video scenes are ready for export' });
+    const bgmRecord = [...(Array.isArray(state.assets) ? state.assets : []), ...(Array.isArray(state.exports) ? state.exports : [])]
+      .find(asset => ['bgm', 'background-music'].includes(String(asset?.type || '').toLowerCase()) && asset?.url);
+
+    workDir = await mkdtemp(path.join(tmpdir(), 'apex-peer-render-'));
+    const clips = [];
+    let index = 0;
+    for (const scene of selected) {
+      const videoExt = String(scene.videoAsset?.extension || 'mp4').replace(/[^A-Za-z0-9]/g, '') || 'mp4';
+      const audioExt = String(scene.audioAsset?.extension || 'wav').replace(/[^A-Za-z0-9]/g, '') || 'wav';
+      const videoUri = await materializePeerAsset(scene.video, path.join(workDir, 'scene-' + index + '-video.' + videoExt));
+      const audioUri = scene.audio ? await materializePeerAsset(scene.audio, path.join(workDir, 'scene-' + index + '-audio.' + audioExt)) : null;
+      clips.push({ sceneId: scene.id, videoUri, audioUri });
+      index++;
     }
-
-    const clips = selected.map(scene => ({
-      sceneId: scene.id,
-      videoUri: storagePathFromFileUrl(scene.video),
-      audioUri: scene.audio ? storagePathFromFileUrl(scene.audio) : null
-    }));
-
     if (clips.some(clip => !clip.audioUri)) {
-      return res.status(409).json({ success: false, error: 'Every exported scene must have a persistent audio asset' });
+      return res.status(409).json({ success: false, error: 'Every exported scene must have a peer-persisted audio asset' });
     }
-
-    const bgmPath = path.join(STORAGE_DIR, 'bgm.wav');
-    try {
-      await access(bgmPath);
-    } catch {
-      return res.status(409).json({ success: false, error: 'Missing bgm.wav in storage directory for mastering' });
+    let bgmPath = null;
+    if (bgmRecord?.url) {
+      const bgmExt = String(bgmRecord.extension || 'wav').replace(/[^A-Za-z0-9]/g, '') || 'wav';
+      bgmPath = await materializePeerAsset(bgmRecord.url, path.join(workDir, 'background-music.' + bgmExt));
     }
-
     const stamp = Date.now();
     const suffix = Math.random().toString(36).slice(2, 8);
-    const stitchedFilename = 'render_stitched_' + stamp + '_' + suffix + '.mp4';
-    const masteredAudioFilename = 'render_mastered_audio_' + stamp + '_' + suffix + '.m4a';
-    const finalFilename = 'project_master_' + stamp + '_' + suffix + '.mp4';
-
-    stitchedVideoPath = path.join(STORAGE_DIR, stitchedFilename);
-    masteredAudioPath = path.join(STORAGE_DIR, masteredAudioFilename);
-    finalExportPath = path.join(STORAGE_DIR, finalFilename);
-
-    const worker = new RenderWorker({ outputDir: STORAGE_DIR });
-    if (!(await worker.available())) {
-      return res.status(503).json({ success: false, error: 'FFmpeg is not available on the server' });
-    }
-
-    const stitchOutputName = path.basename(stitchedVideoPath);
-    const plan = buildTimelineFfmpegPlan({
-      clips,
-      format,
-      output: stitchOutputName
-    });
-    if (!plan.ready) {
-      return res.status(409).json({ success: false, error: plan.reason });
-    }
-
-    const stitchJob = {
-      id: 'stitch_' + stamp,
-      settings: { output: stitchOutputName }
-    };
-
-    await worker.render(stitchJob, plan);
-
+    stitchedVideoPath = path.join(workDir, 'render_stitched_' + stamp + '_' + suffix + '.mp4');
+    masteredAudioPath = path.join(workDir, 'render_mastered_audio_' + stamp + '_' + suffix + '.m4a');
+    finalExportPath = path.join(workDir, 'project_master_' + stamp + '_' + suffix + '.mp4');
+    const worker = new RenderWorker({ outputDir: workDir });
+    if (!(await worker.available())) return res.status(503).json({ success: false, error: 'FFmpeg is not available on the server' });
+    const plan = buildTimelineFfmpegPlan({ clips, format, output: path.basename(stitchedVideoPath) });
+    if (!plan.ready) return res.status(409).json({ success: false, error: plan.reason });
+    await worker.render({ id: 'stitch_' + stamp, settings: { output: path.basename(stitchedVideoPath) } }, plan);
     let currentDelayMs = 0;
-    const timelineAudioItems = selected.map((scene) => {
-      const item = {
-        filePath: storagePathFromFileUrl(scene.audio),
-        startTimeMs: currentDelayMs
-      };
-      currentDelayMs += Math.max(1, Number(scene.durationMs) || 4000);
+    const timelineAudioItems = clips.map((clip, i) => {
+      const item = { filePath: clip.audioUri, startTimeMs: currentDelayMs };
+      currentDelayMs += Math.max(1, Number(selected[i].durationMs) || 4000);
       return item;
     });
-
     await masterSoundtrack(timelineAudioItems, bgmPath, masteredAudioPath);
     await masterFinalVideo(stitchedVideoPath, masteredAudioPath, finalExportPath, format);
-
-    // Drop intermediates as soon as the final render exists; keep only the final artifact for registration.
     await Promise.all([unlink(stitchedVideoPath).catch(() => {}), unlink(masteredAudioPath).catch(() => {})]);
     stitchedVideoPath = null;
     masteredAudioPath = null;
-
     const saved = await saveProjectAssetFromFile('master', finalExportPath, 'mp4');
     finalExportPath = null;
-    const assetSha256 = saved.sha256;
-
     return res.json({
-      success: true,
-      url: saved.url,
-      format,
-      sceneCount: selected.length,
-      bytes: saved.bytes,
-      assetSha256,
-      generatedAt: saved.updatedAt,
+      success: true, url: saved.url, format, sceneCount: selected.length,
+      bytes: saved.bytes, assetSha256: saved.sha256, generatedAt: saved.updatedAt,
       mastering: {
         audio: 'AAC 320k / 48kHz / stereo / EBU R128 loudnorm',
         video: `H.264 ${OUTPUT_PRESETS[format].width}x${OUTPUT_PRESETS[format].height} / ${OUTPUT_PRESETS[format].fps}fps / CRF ${OUTPUT_PRESETS[format].crf ?? 18} / cinematic grade`,
-        maxrate: OUTPUT_PRESETS[format].maxrate || null,
-        bufsize: OUTPUT_PRESETS[format].bufsize || null,
-        sha256: assetSha256
+        maxrate: OUTPUT_PRESETS[format].maxrate || null, bufsize: OUTPUT_PRESETS[format].bufsize || null, sha256: saved.sha256
       }
     });
   } catch (error) {
     console.error('[render-export-fatal]', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Peer-backed render export failed' });
   } finally {
-    for (const file of [stitchedVideoPath, masteredAudioPath, finalExportPath]) {
-      if (file) await unlink(file).catch(() => {});
-    }
+    for (const file of [stitchedVideoPath, masteredAudioPath, finalExportPath]) if (file) await unlink(file).catch(() => {});
+    if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
 });
 

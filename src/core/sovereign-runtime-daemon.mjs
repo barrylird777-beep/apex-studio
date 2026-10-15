@@ -15,6 +15,7 @@ import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
 import { startPeerCasRuntime, createPeerMeshCasRuntime } from './peer-cas-runtime.mjs';
+import { createPeerStorageApiBridge, APEX_APPS } from './peer-storage-api-bridge.mjs';
 
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));
@@ -32,6 +33,8 @@ let cyclePromise = Promise.resolve();
 let cycleFailed = false;
 let bridge;
 let modelBridge;
+let storageApiBridge;
+const peerCasRepairLoops = [];
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
 let peerStorageStore;
 const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, peerStorageVerified: false, dispatchReady: false };
@@ -196,7 +199,37 @@ async function main() {
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, verified: runtimeReadiness.peerStorageVerified }));
 
   // Construct the mesh only after the live peer and required app-scoped quorum are verified.
-  const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode });
+  const meshNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || '').trim();
+  const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode, namespace: meshNamespace });
+  if (meshCasRuntime.repairLoop) peerCasRepairLoops.push(meshCasRuntime.repairLoop);
+  const appStores = Object.create(null);
+  for (const app of APEX_APPS) {
+    // The API bridge uses the dedicated per-app key, never the runtime's
+    // general mesh key. Each app gets an independently configured CAS object.
+    const runtime = await createPeerMeshCasRuntime({ peerNode, namespace: app });
+    if (runtime.repairLoop) peerCasRepairLoops.push(runtime.repairLoop);
+    appStores[app] = {
+      cas: new PeerMeshCasAdapter({ store: runtime.store, appNamespace: app }),
+      objects: runtime.store
+    };
+  }
+  const apiBridgeTokens = Object.fromEntries(APEX_APPS.map(app => [
+    app, String(process.env['APEX_PEER_STORAGE_API_TOKEN_' + app.toUpperCase()] || '')
+  ]));
+  for (const app of APEX_APPS) {
+    if (apiBridgeTokens[app].length < 32) {
+      throw new Error('Missing app-scoped APEX_PEER_STORAGE_API_TOKEN_' + app.toUpperCase() + '; API bridge remains closed');
+    }
+  }
+  storageApiBridge = createPeerStorageApiBridge({
+    stores: appStores,
+    tokens: apiBridgeTokens,
+    socketPath: process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock'
+  });
+  await storageApiBridge.listen();
+  console.log('[APEX PEER STORAGE API BRIDGE]', JSON.stringify({
+    status: 'listening', apps: APEX_APPS, socketPath: process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock'
+  }));
   const meshCas = new PeerMeshCasAdapter({ store: meshCasRuntime.store, appNamespace: meshCasRuntime.namespace });
   meshStateStore = meshCas;
   meshAppFabric = createSovereignAppFabric({ store: meshStateStore });
@@ -360,6 +393,7 @@ async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   if (timer) clearInterval(timer);
+  for (const repairLoop of peerCasRepairLoops) repairLoop.stop();
   const shutdownEvidence = {
     signal,
     finalCycleSettled: false,
@@ -395,6 +429,12 @@ async function shutdown(signal) {
   } catch (error) {
     process.exitCode = 1;
     console.error('[SOVEREIGN] offline identity commit failed', String(error?.message || error));
+  }
+  try {
+    if (storageApiBridge) await storageApiBridge.close();
+  } catch (error) {
+    process.exitCode = 1;
+    console.error('[SOVEREIGN] API storage bridge shutdown failed', String(error?.message || error));
   }
   try {
     if (modelBridge) await modelBridge.close();

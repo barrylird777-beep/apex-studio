@@ -2,18 +2,38 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { startTestPeerBridge } from "../test/helpers/test-peer-storage-bridge.mjs";
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const testCommand = packageJson.scripts?.["test:files"];
-const files = testCommand?.match(/test\/[^\s"]+\.mjs/g) ?? [];
+const requestedFiles = process.argv.slice(2).filter(file => /^test\/[^\s"]+\.mjs$/.test(file));
+const files = requestedFiles.length ? requestedFiles : (testCommand?.match(/test\/[^\s"]+\.mjs/g) ?? []);
 if (!files.length) throw new Error("Could not discover test files from package.json test script");
 
 const concurrency = Math.max(1, Number(process.env.APEX_TEST_CONCURRENCY || 4));
 const timeoutMs = Math.max(1000, Number(process.env.APEX_TEST_FILE_TIMEOUT_MS || 180000));
 let next = 0;
 const failures = [];
+const peerBridgeFiles = new Set([
+  "test/voiceover-pure-wal.test.mjs",
+  "test/bible-production-pure-wal.test.mjs",
+  "test/durable-worker-race.test.mjs",
+  "test/apex-intelligence.test.mjs",
+  "test/apex-worker-dispatch.test.mjs",
+  "test/sovereign-pure-wal-bridge.test.mjs",
+  "test/sovereign-mesh.test.mjs",
+  "test/sovereign-durable-runtime.test.mjs",
+  "test/locked-continuous-loop.test.mjs",
+  "test/independent-peer-process-recovery.test.mjs",
+  "test/sovereign-legacy-worker-entry.test.mjs",
+  "test/sovereign-pure-wal-security.test.mjs",
+  "test/sovereign-app-fabric.test.mjs",
+  "test/teevee-production-api.test.mjs",
+  "test/engine-apex-chat-runtime.test.mjs",
+  "test/kernelodies-discovery.test.mjs"
+]);
 
-async function runFile(file) {
+async function runFile(file, index) {
   const started = Date.now();
   console.log(`\n[TEST-FILE START] ${file}`);
   const testRoot = path.join(tmpdir(), `apex-test-${process.pid}-${file.replace(/[^A-Za-z0-9]+/g, "-")}`);
@@ -24,6 +44,16 @@ async function runFile(file) {
     APEX_WAL_DIR: path.join(testRoot, "wal"),
     APEX_WAL_FILE: path.join(testRoot, "wal", "ring.wal.jsonl")
   };
+  let peerBridge = null;
+  if (peerBridgeFiles.has(file)) {
+    const socketPath = path.join(tmpdir(), `apex-test-peer-${process.pid}-${index}.sock`);
+    peerBridge = await startTestPeerBridge(socketPath);
+    Object.assign(childEnv, {
+      APEX_APP_NAMESPACE: "KernelVision",
+      APEX_PEER_STORAGE_API_TOKEN_KERNELVISION: peerBridge.tokens.KernelVision,
+      APEX_PEER_STORAGE_API_SOCKET: socketPath
+    });
+  }
   const child = spawn(process.execPath, ["--test", file], { stdio: "inherit", env: childEnv });
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -36,6 +66,7 @@ async function runFile(file) {
     child.once("error", reject);
     child.once("close", (exitCode, signal) => resolve({ exitCode, signal }));
   }).finally(() => clearTimeout(timer));
+  await peerBridge?.close();
   const elapsed = Date.now() - started;
   if (timedOut || code.exitCode !== 0) {
     failures.push({ file, elapsedMs: elapsed, timedOut, ...code });
@@ -49,7 +80,7 @@ async function worker() {
   while (true) {
     const index = next++;
     if (index >= files.length) return;
-    await runFile(files[index]);
+    await runFile(files[index], index);
   }
 }
 

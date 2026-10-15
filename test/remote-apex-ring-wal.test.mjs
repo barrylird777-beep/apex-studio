@@ -11,7 +11,7 @@ import { DeterministicSimulator } from "../src/testing/deterministic-simulator.m
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
-  constructor() { this.refs = new Map(); this.listCalls = 0; }
+  constructor() { this.namespace = 'KernelVision'; this.refs = new Map(); this.listCalls = 0; }
   async init() { return this; }
   async readRef(ns, key) {
     const row = this.refs.get(ns + "/" + key);

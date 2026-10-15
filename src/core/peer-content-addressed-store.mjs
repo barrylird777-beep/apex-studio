@@ -15,7 +15,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -30,6 +30,11 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.cacheTtlMs = Math.max(0, Number(cacheTtlMs) || 0);
+    this.cacheMaxBytes = Math.max(0, Number(cacheMaxBytes) || 0);
+    this.verifiedObjectCache = new Map();
+    this.verifiedObjectCacheBytes = 0;
+    this.cacheMetrics = { hits: 0, misses: 0, evictions: 0 };
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
@@ -227,58 +232,165 @@ export class PeerContentAddressedStore {
     if (!Number.isSafeInteger(size) || size < 1 || size > 8 * 1024) {
       throw new TypeError('chunkSize must be between 1 byte and 8 KiB for the current peer envelope ceiling');
     }
-    const chunks = [];
-    for (let offset = 0; offset < blob.length; offset += size) {
-      const bytes = blob.subarray(offset, Math.min(offset + size, blob.length));
-      const chunkHash = sha256(bytes);
-      const receipt = await this.putObject({
-        kind: 'apex.blob-chunk.v1',
-        namespace: this.namespace,
-        bytes: bytes.length,
-        sha256: chunkHash,
-        dataBase64: bytes.toString('base64')
-      });
-      chunks.push({ hash: receipt.hash, bytes: bytes.length, sha256: chunkHash });
-    }
-    const manifest = {
-      kind: 'apex.blob-manifest.v1',
-      version: 1,
-      namespace: this.namespace,
-      totalBytes: blob.length,
-      sha256: sha256(blob),
-      chunks
+    const chunkCount = Math.ceil(blob.length / size);
+    const chunks = new Array(chunkCount);
+    const configuredPutConcurrency = Number(process.env.APEX_PEER_CAS_PUT_CONCURRENCY || 8);
+    const putConcurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredPutConcurrency) ? configuredPutConcurrency : 8));
+    let nextChunk = 0;
+    const putWorker = async () => {
+      while (true) {
+        const index = nextChunk++;
+        if (index >= chunkCount) return;
+        const offset = index * size;
+        const bytes = blob.subarray(offset, Math.min(offset + size, blob.length));
+        const chunkHash = sha256(bytes);
+        const receipt = await this.putObject({
+          kind: 'apex.blob-chunk.v1',
+          namespace: this.namespace,
+          bytes: bytes.length,
+          sha256: chunkHash,
+          dataBase64: bytes.toString('base64')
+        });
+        chunks[index] = { hash: receipt.hash, bytes: bytes.length, sha256: chunkHash };
+      }
     };
+    await Promise.all(Array.from({ length: Math.min(putConcurrency, chunkCount) }, putWorker));
+
+    const manifestBase = {
+      version: 1, namespace: this.namespace, totalBytes: blob.length, sha256: sha256(blob)
+    };
+    let manifest;
+    if (chunks.length <= 64) {
+      manifest = { kind: 'apex.blob-manifest.v1', ...manifestBase, chunks };
+    } else {
+      // Hierarchical CID tree keeps each encrypted manifest below the 32 KiB
+      // peer-object ceiling even for multi-gigabyte assets.
+      const fanout = 64;
+      const putNodeLevel = async (entries, level, type) => {
+        const nodes = [];
+        for (let offset = 0; offset < entries.length; offset += fanout) {
+          const group = entries.slice(offset, offset + fanout);
+          const receipt = await this.putObject({
+            kind: 'apex.blob-manifest-node.v1', version: 1,
+            namespace: this.namespace, level,
+            entries: group.map(entry => type === 'chunk'
+              ? { type: 'chunk', ...entry }
+              : { type: 'node', hash: entry.hash })
+          });
+          nodes.push({ hash: receipt.hash, level });
+        }
+        return nodes;
+      };
+      let level = 0;
+      let nodes = await putNodeLevel(chunks, level, 'chunk');
+      while (nodes.length > 1) {
+        level++;
+        nodes = await putNodeLevel(nodes, level, 'node');
+        if (level > 20) throw new Error('blob manifest tree exceeds the maximum supported depth');
+      }
+      manifest = {
+        kind: 'apex.blob-manifest.v2', version: 2, namespace: this.namespace,
+        totalBytes: blob.length, sha256: sha256(blob),
+        root: nodes[0].hash, rootLevel: nodes[0].level
+      };
+    }
     const receipt = await this.putObject(manifest);
-    return { ...receipt, kind: manifest.kind, totalBytes: blob.length, contentSha256: manifest.sha256, chunkCount: chunks.length };
+    return {
+      ...receipt, kind: manifest.kind, totalBytes: blob.length,
+      contentSha256: manifest.sha256, chunkCount: chunks.length
+    };
   }
 
   async getBlob(manifestHash) {
     const manifest = await this.getObject(manifestHash);
-    if (!manifest || manifest.kind !== 'apex.blob-manifest.v1' || manifest.version !== 1 ||
-        manifest.namespace !== this.namespace || !Number.isSafeInteger(manifest.totalBytes) ||
-        manifest.totalBytes < 0 || !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || '')) ||
-        !Array.isArray(manifest.chunks)) {
+    if (!manifest || !['apex.blob-manifest.v1', 'apex.blob-manifest.v2'].includes(manifest.kind) ||
+        !Number.isSafeInteger(manifest.totalBytes) || manifest.totalBytes < 0 ||
+        manifest.namespace !== this.namespace ||
+        !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || ''))) {
       throw new Error('invalid or cross-namespace blob manifest');
     }
-    const parts = [];
+    let descriptors;
+    if (manifest.kind === 'apex.blob-manifest.v1' && manifest.version === 1 && Array.isArray(manifest.chunks)) {
+      descriptors = manifest.chunks;
+    } else if (manifest.kind === 'apex.blob-manifest.v2' && manifest.version === 2 &&
+        /^[a-f0-9]{64}$/.test(String(manifest.root || '')) &&
+        Number.isSafeInteger(manifest.rootLevel) && manifest.rootLevel >= 0 && manifest.rootLevel <= 20) {
+      const configuredConcurrency = Number(process.env.APEX_PEER_CAS_FETCH_CONCURRENCY || 8);
+      const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
+      let levelNodes = [manifest.root];
+      descriptors = [];
+      for (let level = manifest.rootLevel; level >= 0; level--) {
+        const loaded = new Array(levelNodes.length);
+        let nextNode = 0;
+        const worker = async () => {
+          while (true) {
+            const index = nextNode++;
+            if (index >= levelNodes.length) return;
+            const node = await this.getObject(levelNodes[index]);
+            if (!node || node.kind !== 'apex.blob-manifest-node.v1' || node.version !== 1 ||
+                node.namespace !== this.namespace || node.level !== level || !Array.isArray(node.entries) ||
+                node.entries.length < 1 || node.entries.length > 64) {
+              throw new Error('invalid or cross-namespace blob manifest node');
+            }
+            loaded[index] = node.entries;
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(concurrency, levelNodes.length) }, worker));
+        if (level === 0) {
+          for (const entries of loaded) {
+            for (const item of entries) {
+              if (item?.type !== 'chunk') throw new Error('leaf manifest contains a non-chunk entry');
+              descriptors.push({ hash: item.hash, bytes: item.bytes, sha256: item.sha256 });
+            }
+          }
+        } else {
+          const next = [];
+          for (const entries of loaded) {
+            for (const item of entries) {
+              if (item?.type !== 'node' || !/^[a-f0-9]{64}$/.test(String(item.hash || ''))) {
+                throw new Error('intermediate manifest contains an invalid node reference');
+              }
+              next.push(item.hash);
+            }
+          }
+          levelNodes = next;
+        }
+      }
+    } else {
+      throw new Error('unsupported or malformed blob manifest version');
+    }
+    if (!Array.isArray(descriptors) || descriptors.some(item => !item ||
+        !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+        !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
+        !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')))) {
+      throw new Error('invalid blob chunk reference');
+    }
+    const configuredConcurrency = Number(process.env.APEX_PEER_CAS_FETCH_CONCURRENCY || 8);
+    const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
+    const parts = new Array(descriptors.length);
+    let nextIndex = 0;
     let total = 0;
-    for (const item of manifest.chunks) {
-      if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
-          !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
-          !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
-        throw new Error('invalid blob chunk reference');
+    const worker = async () => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= descriptors.length) return;
+        const item = descriptors[index];
+        const chunk = await this.getObject(item.hash);
+        if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
+            chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
+          throw new Error('blob chunk metadata mismatch');
+        }
+        const bytes = Buffer.from(chunk.dataBase64, 'base64');
+        if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
+          throw new Error('blob chunk integrity verification failed');
+        }
+        parts[index] = bytes;
       }
-      const chunk = await this.getObject(item.hash);
-      if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
-          chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
-        throw new Error('blob chunk metadata mismatch');
-      }
-      const bytes = Buffer.from(chunk.dataBase64, 'base64');
-      if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
-        throw new Error('blob chunk integrity verification failed');
-      }
-      parts.push(bytes);
-      total += bytes.length;
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, descriptors.length) }, worker));
+    for (const part of parts) {
+      if (!part) throw new Error('parallel asset assembly left a missing chunk');
+      total += part.length;
       if (total > manifest.totalBytes) throw new Error('blob chunks exceed manifest length');
     }
     const blob = Buffer.concat(parts, total);
@@ -288,32 +400,195 @@ export class PeerContentAddressedStore {
     return blob;
   }
 
-  async getObject(hash) {
-    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+  /** Reconcile one known immutable CID against the configured replica policy. */
+  async reconcileObject(hash) {
+    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new TypeError('invalid SHA-256 object CID');
+    const present = new Set();
     const failures = [];
     for (const peerId of this.peers) {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1',
-          operation: 'object.get',
-          namespace: this.namespace,
-          hash
+          protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
         });
-        const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
-        if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash ||
-            response.hash !== hash || response.namespace !== this.namespace ||
+        const encoded = String(response.bytesBase64 || '');
+        const bytes = Buffer.from(encoded, 'base64');
+        if (response.namespace !== this.namespace || response.hash !== hash ||
+            bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
             !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+          throw new Error('replica failed CID, namespace, or durability receipt verification');
         }
-        return this.decrypt(decodeCanonical(bytes));
+        this.decrypt(decodeCanonical(bytes));
+        present.add(peerId);
       } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    const error = new Error('object was not recoverable from any configured peer');
-    error.code = 'OBJECT_UNAVAILABLE';
-    error.failures = failures;
-    throw error;
+    if (present.size === 0) {
+      const error = new Error('no verified source replica is available for CID repair');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.failures = failures;
+      throw error;
+    }
+    const repaired = [];
+    for (const peerId of this.peers) {
+      if (present.has(peerId)) continue;
+      try {
+        const result = await this.repairObject(hash, [peerId]);
+        repaired.push(...result.repaired);
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    const verifiedReplicas = present.size + repaired.length;
+    const failureDomains = new Set([
+      ...[...present].map(peerId => this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)),
+      ...repaired.map(receipt => receipt.failureDomain)
+    ].filter(Boolean));
+    if (verifiedReplicas < this.replicaCount || failureDomains.size < this.minFailureDomains) {
+      const error = new Error('CID repair could not restore the configured replica and failure-domain policy');
+      error.code = 'REPAIR_INCOMPLETE';
+      error.hash = hash;
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = verifiedReplicas;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = failureDomains.size;
+      error.failures = failures;
+      throw error;
+    }
+    return { hash, namespace: this.namespace, verifiedReplicas, failureDomains: failureDomains.size, repaired, failures };
+  }
+
+  /** Start a bounded, pull-based repair loop over CIDs known by this peer. */
+  startRepairLoop({ getCids, intervalMs = 30000, concurrency = 2, onError = () => {} } = {}) {
+    if (typeof getCids !== 'function' || typeof onError !== 'function') {
+      throw new TypeError('repair loop requires a local CID enumerator and error callback');
+    }
+    const interval = Number(intervalMs);
+    const parallel = Number(concurrency);
+    if (!Number.isSafeInteger(interval) || interval < 1000 ||
+        !Number.isSafeInteger(parallel) || parallel < 1 || parallel > 16) {
+      throw new TypeError('repair loop interval or concurrency is outside the safe bounds');
+    }
+    let stopped = false;
+    let running = false;
+    const runOnce = async () => {
+      if (stopped || running) return { skipped: true, repaired: 0 };
+      running = true;
+      try {
+        const values = await getCids();
+        if (!Array.isArray(values) || values.length > 100000) throw new TypeError('CID enumerator returned an invalid or oversized list');
+        const cids = [...new Set(values.map(String).filter(cid => /^[a-f0-9]{64}$/.test(cid)))];
+        let next = 0, repaired = 0;
+        const worker = async () => {
+          while (!stopped) {
+            const index = next++;
+            if (index >= cids.length) return;
+            try {
+              const result = await this.reconcileObject(cids[index]);
+              repaired += result.repaired.length;
+            } catch (error) {
+              await onError(error, cids[index]);
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(parallel, cids.length) }, worker));
+        return { skipped: false, candidates: cids.length, repaired };
+      } finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(() => { runOnce().catch(error => onError(error, null)); }, interval);
+    timer.unref?.();
+    return Object.freeze({
+      runOnce,
+      stop() { stopped = true; clearInterval(timer); }
+    });
+  }
+
+  cacheGet(hash) {
+    const entry = this.verifiedObjectCache.get(hash);
+    if (!entry) { this.cacheMetrics.misses++; return null; }
+    if (entry.expiresAt <= Date.now()) {
+      this.verifiedObjectCache.delete(hash);
+      this.verifiedObjectCacheBytes -= entry.bytes.length;
+      this.cacheMetrics.evictions++;
+      this.cacheMetrics.misses++;
+      return null;
+    }
+    // Refresh insertion order for bounded LRU eviction; payload stays RAM-only.
+    this.verifiedObjectCache.delete(hash);
+    this.verifiedObjectCache.set(hash, entry);
+    this.cacheMetrics.hits++;
+    return Buffer.from(entry.bytes);
+  }
+
+  cacheSet(hash, bytes) {
+    if (!this.cacheTtlMs || !this.cacheMaxBytes || bytes.length > this.cacheMaxBytes) return;
+    const prior = this.verifiedObjectCache.get(hash);
+    if (prior) this.verifiedObjectCacheBytes -= prior.bytes.length;
+    this.verifiedObjectCache.delete(hash);
+    const copy = Buffer.from(bytes);
+    this.verifiedObjectCache.set(hash, { bytes: copy, expiresAt: Date.now() + this.cacheTtlMs });
+    this.verifiedObjectCacheBytes += copy.length;
+    while (this.verifiedObjectCacheBytes > this.cacheMaxBytes && this.verifiedObjectCache.size) {
+      const oldestKey = this.verifiedObjectCache.keys().next().value;
+      const oldest = this.verifiedObjectCache.get(oldestKey);
+      this.verifiedObjectCache.delete(oldestKey);
+      this.verifiedObjectCacheBytes -= oldest.bytes.length;
+      this.cacheMetrics.evictions++;
+    }
+  }
+
+  cacheSnapshot() {
+    return Object.freeze({ ...this.cacheMetrics, entries: this.verifiedObjectCache.size,
+      bytes: this.verifiedObjectCacheBytes, ttlMs: this.cacheTtlMs, maxBytes: this.cacheMaxBytes });
+  }
+
+  async getObject(hash) {
+    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+    const cached = this.cacheGet(hash);
+    if (cached) return this.decrypt(decodeCanonical(cached));
+    const failures = [];
+    const configured = Number(process.env.APEX_PEER_CAS_READ_CONCURRENCY || 8);
+    const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configured) ? configured : 8, this.peers.length));
+    let next = 0;
+    let won = false;
+    const worker = async () => {
+      while (!won) {
+        const index = next++;
+        if (index >= this.peers.length) throw new Error('no untried peers remain');
+        const peerId = this.peers[index];
+        try {
+          const response = await this.request(peerId, {
+            protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
+          });
+          const encoded = String(response.bytesBase64 || '');
+          const bytes = Buffer.from(encoded, 'base64');
+          if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
+              response.hash !== hash || response.namespace !== this.namespace ||
+              !hasVerifiedDurabilityReceipt(response)) {
+            throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+          }
+          const value = this.decrypt(decodeCanonical(bytes));
+          if (!won) {
+            won = true;
+            this.cacheSet(hash, bytes);
+            return value;
+          }
+        } catch (error) {
+          failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+      throw new Error('another peer already satisfied the object read');
+    };
+    try {
+      return await Promise.any(Array.from({ length: concurrency }, worker));
+    } catch {
+      const error = new Error('object was not recoverable from any configured peer');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.failures = failures;
+      throw error;
+    }
   }
 
   async listRefs(namespace = this.namespace) {
@@ -343,7 +618,7 @@ export class PeerContentAddressedStore {
           }
           peerKeys.add(ref.key);
           peerListing.set(ref.key, ref.hash);
-          const value = decodeCanonical(bytes);
+          const value = this.decrypt(decodeCanonical(bytes));
           const prior = byKey.get(ref.key);
           if (prior && prior.hash !== ref.hash) {
             const error = new Error('peer reference replicas disagree; refusing to select a potentially stale manifest');
@@ -400,7 +675,7 @@ export class PeerContentAddressedStore {
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) {
           throw new Error('peer reference content failed hash verification');
         }
-        results.push({ peerId, hash: response.hash, value: decodeCanonical(bytes) });
+        results.push({ peerId, hash: response.hash, value: this.decrypt(decodeCanonical(bytes)) });
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
@@ -427,7 +702,7 @@ export class PeerContentAddressedStore {
     if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) {
       throw new TypeError('invalid expected peer reference hash');
     }
-    const bytes = encodeCanonical(value);
+    const bytes = encodeCanonical(this.encrypt(value));
     if (bytes.length > this.maxObjectBytes) throw new Error('peer reference exceeds the safe single-envelope limit');
     const hash = sha256(bytes);
     const receipts = [];
@@ -439,6 +714,13 @@ export class PeerContentAddressedStore {
           namespace: this.namespace, key, expectedHash, hash,
           bytesBase64: bytes.toString('base64')
         });
+        if (response.code === 'CAS_CONFLICT' || response.conflict === true) {
+          const error = new Error('peer reference changed before the atomic update');
+          error.code = 'CAS_CONFLICT';
+          error.peerId = peerId;
+          error.currentHash = response.hash ?? null;
+          throw error;
+        }
         if (response.namespace !== this.namespace || response.hash !== hash ||
             !hasVerifiedDurabilityReceipt(response)) {
           throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
@@ -450,6 +732,7 @@ export class PeerContentAddressedStore {
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
+        if (error?.code === 'CAS_CONFLICT') throw error;
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
@@ -508,6 +791,18 @@ export function createPeerObjectStorageHandler({
     };
   };
   const validHash = value => /^[a-f0-9]{64}$/.test(String(value || ''));
+  const validEncryptedReference = (bytes, namespace) => {
+    try {
+      const envelope = decodeCanonical(bytes);
+      const iv = Buffer.from(String(envelope?.iv || ''), 'base64');
+      const tag = Buffer.from(String(envelope?.tag || ''), 'base64');
+      const ciphertext = Buffer.from(String(envelope?.ciphertext || ''), 'base64');
+      return envelope?.version === 1 && envelope?.algorithm === 'aes-256-gcm' &&
+        envelope?.namespace === namespace && iv.length === 12 && tag.length === 16 &&
+        ciphertext.length > 0 && iv.toString('base64') === envelope.iv &&
+        tag.toString('base64') === envelope.tag && ciphertext.toString('base64') === envelope.ciphertext;
+    } catch { return false; }
+  };
 
   return async function handlePeerObjectStorage(envelope, { remotePeerId = '' } = {}) {
     if (!remotePeerId) throw new Error('authenticated remote peer identity missing');
@@ -571,8 +866,8 @@ export function createPeerObjectStorageHandler({
       const listed = refs.map(ref => {
         const bytes = Buffer.from(ref.bytes);
         if (typeof ref.key !== 'string' || !ref.key || ref.key.length > 512 ||
-            !validHash(ref.hash) || sha256(bytes) !== ref.hash) {
-          throw new Error('peer reference listing failed key, hash, or byte integrity verification');
+            !validHash(ref.hash) || sha256(bytes) !== ref.hash || !validEncryptedReference(bytes, envelope.namespace)) {
+          throw new Error('peer reference listing failed key, hash, encryption, or byte integrity verification');
         }
         return { key: ref.key, hash: ref.hash, bytesBase64: bytes.toString('base64') };
       });
@@ -586,8 +881,8 @@ export function createPeerObjectStorageHandler({
       const current = await store.readRef(envelope.namespace, envelope.key);
       if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
       const bytes = Buffer.from(current.bytes);
-      if (!validHash(current.hash) || sha256(bytes) !== current.hash) {
-        throw new Error('peer reference failed integrity verification');
+      if (!validHash(current.hash) || sha256(bytes) !== current.hash || !validEncryptedReference(bytes, envelope.namespace)) {
+        throw new Error('peer reference failed encryption or integrity verification');
       }
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...capacity };
     }
@@ -599,10 +894,22 @@ export function createPeerObjectStorageHandler({
       throw new Error('invalid peer reference write request');
     }
     const bytes = Buffer.from(envelope.bytesBase64, 'base64');
-    if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) {
-      throw new Error('peer reference write failed size, encoding, or hash verification');
+    if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash || !validEncryptedReference(bytes, envelope.namespace)) {
+      throw new Error('peer reference write failed size, encoding, encryption, or hash verification');
     }
-    const saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
+    let saved;
+    try {
+      saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
+    } catch (error) {
+      if (error?.code === 'CAS_CONFLICT' || error?.code === 'REFERENCE_CONFLICT') {
+        const current = typeof store.readRef === 'function'
+          ? await store.readRef(envelope.namespace, envelope.key)
+          : null;
+        return { accepted: true, peerId: localPeerId, namespace: envelope.namespace,
+          code: 'CAS_CONFLICT', conflict: true, hash: current?.hash ?? null, ...capacity };
+      }
+      throw error;
+    }
     if (!saved || saved.hash !== envelope.hash) throw new Error('peer reference backend did not confirm atomic reference update');
     return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...capacity };
   };

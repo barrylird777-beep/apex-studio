@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, access } from "node:fs/promises";
+import { mkdtemp, rm, access, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -10,7 +10,7 @@ import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
-  constructor() { this.refs = new Map(); this.listCalls = new Map(); }
+  constructor() { this.namespace = 'KernelVision'; this.refs = new Map(); this.blobs = new Map(); this.listCalls = new Map(); }
   async init() { return this; }
   async readRef(ns, key) {
     const row = this.refs.get(ns + "/" + key);
@@ -29,6 +29,17 @@ class MemoryCAS {
     if (expectedHash !== undefined && current.hash !== expectedHash) throw Object.assign(new Error("CAS conflict"), { code: "CAS_CONFLICT" });
     this.refs.delete(id); return true;
   }
+  async putBlob(input) {
+    const bytes = Buffer.from(input);
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    this.blobs.set(hash, Buffer.from(bytes));
+    return { hash, bytes: bytes.length, contentSha256: hash, namespace: this.namespace };
+  }
+  async getBlob(hash) {
+    const bytes = this.blobs.get(hash);
+    if (!bytes) throw Object.assign(new Error("object unavailable"), { code: "OBJECT_UNAVAILABLE" });
+    return Buffer.from(bytes);
+  }
   async listRefs(ns) {
     this.listCalls.set(ns, (this.listCalls.get(ns) || 0) + 1);
     const prefix = ns + "/";
@@ -42,7 +53,8 @@ test("remote Pure Store writes directly to CAS without an active WAL or local re
     const cas = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
     await store.init();
-    assert.ok(store.wal instanceof ApexRingWAL, "the legacy WAL remains migration-only");
+    assert.equal(store.wal, null, "peer-only storage must not construct a WAL");
+    assert.equal(store.localCas, null, "peer-only storage must not construct a local CAS fallback");
     const durable = await store.put("app_records", "no-wal-proof", { durable: true });
     assert.equal(durable.id, "no-wal-proof");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
@@ -95,6 +107,9 @@ test("remote queue index keeps claim, heartbeat, and completion off full job sca
     assert.equal(await store.transition("indexed-job", "complete", {
       leaseToken: claimed[0].leaseToken, leaseFence: claimed[0].leaseFence, result: { ok: true }
     }), true);
+    const completedRef = await cas.readRef("jobs", store.refKey("job", "indexed-job"));
+    assert.match(completedRef.value.job.resultCid, /^[a-f0-9]{64}$/);
+    assert.deepEqual(await store.getJobResult(completedRef.value.job.resultCid), { ok: true });
     assert.equal((await cas.listRefs("running")).some(ref => ref.value.id === "indexed-job"), false);
     assert.equal(cas.listCalls.get("jobs") || 0, baseline, "claim and transitions must use targeted refs, not full job scans");
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -237,31 +252,31 @@ test("remote queue indexes recover from a crash after job persistence", async ()
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("remote migration imports local CAS records without deleting the source", async () => {
+test("peer-only startup refuses to import coordinator-local CAS records", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-migration-"));
   try {
-    const localCas = (await import("../src/core/content-addressed-store.mjs")).ContentAddressedStore;
-    const source = await new localCas({ root: path.join(root, ".apex-cas") }).init();
-    const sourceRef = await source.writeRef("state", "legacy-key", { collection: "legacy", id: "record-7", record: { id: "record-7", keep: true } });
     const remote = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas: remote });
     await store.init();
-    assert.deepEqual((await remote.readRef("state", store.refKey("legacy", "record-7"))).value.record, { id: "record-7", keep: true });
-    assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true });
-    assert.ok(sourceRef.hash);
+    assert.equal(await remote.readRef("state", store.refKey("legacy", "record-7")), null,
+      "peer-only startup must not import coordinator-local records");
+    await assert.rejects(access(path.join(root, ".apex-cas")), { code: "ENOENT" },
+      "peer-only startup must not create a coordinator-local CAS directory");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("remote migration replays a full local WAL without acquiring a local lock", async () => {
+test("peer-only startup never replays a coordinator-local WAL", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-readonly-"));
   try {
     const wal = new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") });
     await wal.append("state.put", { collection: "legacy", id: "wal-record", record: { id: "wal-record", fromWal: true } });
-    wal._acquireLock = async () => { throw new Error("read-only migration must not acquire a local lock"); };
+    wal._acquireLock = async () => { throw new Error("peer-only startup must not acquire a local WAL lock"); };
+    const before = await readFile(wal.file, "utf8");
     const remote = new MemoryCAS();
     const store = new ApexPureStore({ root, wal, cas: remote });
     await store.init();
     const imported = await remote.readRef("state", store.refKey("legacy", "wal-record"));
-    assert.deepEqual(imported.value.record, { id: "wal-record", fromWal: true });
+    assert.equal(imported, null, "peer-only startup must not replay local WAL records");
+    assert.equal(await readFile(wal.file, "utf8"), before, "the source WAL remains untouched");
   } finally { await rm(root, { recursive: true, force: true }); }
 });

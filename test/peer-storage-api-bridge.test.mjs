@@ -1,0 +1,128 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
+import http from 'node:http';
+import { createPeerStorageApiBridge, APEX_APPS } from '../src/core/peer-storage-api-bridge.mjs';
+import { PeerStorageApiClient } from '../src/core/peer-storage-api-client.mjs';
+
+function fakeStore(namespace) {
+  const refs = new Map();
+  const blobs = new Map();
+  return {
+    namespace,
+    cas: {
+      namespace,
+      async readRef(ns, key) {
+        assert.equal(this.namespace, namespace);
+        const value = refs.get(ns + '/' + key);
+        return value ? structuredClone(value) : null;
+      },
+      async writeRef(ns, key, value, { expectedHash = null } = {}) {
+        assert.equal(this.namespace, namespace);
+        const id = ns + '/' + key;
+        const current = refs.get(id);
+        if ((current?.hash ?? null) !== expectedHash) {
+          const error = new Error('CAS conflict'); error.code = 'CAS_CONFLICT'; throw error;
+        }
+        const hash = randomUUID().replaceAll('-', '').padEnd(64, '0');
+        refs.set(id, { value: structuredClone(value), hash });
+        return { hash };
+      },
+      async listRefs(ns) {
+        return [...refs].filter(([key]) => key.startsWith(ns + '/')).map(([key, value]) => ({
+          namespace, key: key.slice(ns.length + 1), ...structuredClone(value)
+        }));
+      },
+      async deleteRef(ns, key, { expectedHash = null } = {}) {
+        const id = ns + '/' + key, current = refs.get(id);
+        if (!current) return false;
+        if (expectedHash && expectedHash !== current.hash) throw Object.assign(new Error('CAS conflict'), { code: 'CAS_CONFLICT' });
+        refs.delete(id); return true;
+      }
+    },
+    objects: {
+      namespace,
+      async putBlob(bytes) { const hash = randomUUID().replaceAll('-', '').padEnd(64, '0'); blobs.set(hash, Buffer.from(bytes)); return { hash, bytes: bytes.length }; },
+      async getBlob(hash) { const bytes = blobs.get(hash); if (!bytes) throw new Error('missing fake blob'); return Buffer.from(bytes); }
+    }
+  };
+}
+
+function request(socketPath, token, body) {
+  return new Promise((resolve, reject) => {
+    const payload = Buffer.from(JSON.stringify(body));
+    const req = http.request({ socketPath, path: '/v1/storage', method: 'POST',
+      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json', 'content-length': payload.length } },
+    res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }));
+    });
+    req.on('error', reject); req.end(payload);
+  });
+}
+
+test('peer API bridge requires auth and keeps app references in separate stores', async () => {
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
+  const socketPath = '/tmp/apex-storage-bridge-test-' + randomUUID() + '.sock';
+  const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
+  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
+  try {
+    await bridge.listen();
+    assert.equal((await request(socketPath, 'wrong-token', { app: 'KernelVision', operation: 'listRefs', args: { namespace: 'state' } })).status, 401);
+    const write = await request(socketPath, tokens.KernelVision, { app: 'KernelVision', operation: 'writeRef',
+      args: { namespace: 'state', key: 'item-1', value: { marker: 'only-kernelvision' }, expectedHash: null } });
+    assert.equal(write.status, 200);
+    const own = await request(socketPath, tokens.KernelVision, { app: 'KernelVision', operation: 'readRef',
+      args: { namespace: 'state', key: 'item-1' } });
+    assert.equal(own.body.result.value.marker, 'only-kernelvision');
+    const previousApp = process.env.APEX_APP_NAMESPACE;
+    process.env.APEX_APP_NAMESPACE = 'KernelVision';
+    const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath });
+    if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
+    await assert.rejects(client.writeRef('state', 'item-1', { marker: 'stale' }, { expectedHash: '0'.repeat(64) }),
+      error => error.code === 'CAS_CONFLICT');
+    // Exhaustively check every credential against every other canonical app.
+    for (const sourceApp of APEX_APPS) {
+      for (const targetApp of APEX_APPS) {
+        if (sourceApp === targetApp) continue;
+        const denied = await request(socketPath, tokens[sourceApp], { app: targetApp, operation: 'readRef',
+          args: { namespace: 'state', key: 'item-1' } });
+        assert.equal(denied.status, 401, `${sourceApp} credential must not access ${targetApp}`);
+      }
+    }
+    const other = await request(socketPath, tokens.XShield, { app: 'XShield', operation: 'readRef',
+      args: { namespace: 'state', key: 'item-1' } });
+    assert.equal(other.body.result, null);
+    const invalid = await request(socketPath, tokens.KernelVision, { app: 'not-an-app', operation: 'listRefs', args: { namespace: 'state' } });
+    assert.equal(invalid.status, 403);
+  } finally {
+    await bridge.close();
+    await rm(socketPath, { force: true }).catch(() => {});
+  }
+});
+
+
+test('API client chunks and verifies large binary assets through peer bridge', async () => {
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
+  const socketPath = '/tmp/apex-storage-blob-test-' + randomUUID() + '.sock';
+  const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
+  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
+  try {
+    await bridge.listen();
+    const previousApp = process.env.APEX_APP_NAMESPACE;
+    process.env.APEX_APP_NAMESPACE = 'KernelVision';
+    const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath, chunkSize: 8 * 1024 });
+    if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
+    const input = Buffer.alloc(1024 * 1024 + 37);
+    for (let i = 0; i < input.length; i++) input[i] = i % 251;
+    const stored = await client.putBlob(input);
+    assert.equal(stored.bytes, input.length);
+    const recovered = await client.getBlob(stored.hash);
+    assert.deepEqual(recovered, input);
+  } finally {
+    await bridge.close();
+    await rm(socketPath, { force: true }).catch(() => {});
+  }
+});

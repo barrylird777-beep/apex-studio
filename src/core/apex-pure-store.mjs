@@ -2,10 +2,9 @@ import { mkdir, rename, writeFile, readFile, realpath, lstat, open, stat, unlink
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ApexRingWAL } from "./apex-ring-wal.mjs";
-import { ContentAddressedStore } from "./content-addressed-store.mjs";
-import { RemoteContentAddressedStore } from "./remote-content-addressed-store.mjs";
 import { createHash } from "node:crypto";
+import { encodeCanonical, decodeCanonical } from "./apex-cbor.mjs";
+import { PeerStorageApiClient } from "./peer-storage-api-client.mjs";
 
 const ROOT=process.env.APEX_SE_X_ROOT||"/srv/apex/se-x";
 const PROJECTS=process.env.APEX_PROJECTS_DIR||path.join(ROOT,"projects");
@@ -31,7 +30,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.explicitCas=Boolean(cas);this.appNamespace=String(process.env.APEX_APP_NAMESPACE||"").trim();this.remoteMode=Boolean(cas)||Boolean(this.appNamespace)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=null;this.localCas=null;this.cas=cas||(this.appNamespace?new PeerStorageApiClient({app:this.appNamespace}):null);this.wal=null;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -40,6 +39,7 @@ export class ApexPureStore {
     catch(error){this.initPromise=null;throw error;}
   }
   async initialize(){
+    if(!this.explicitCas&&!this.appNamespace)throw new Error("[SOVEREIGN_STORAGE_UNAVAILABLE] APEX_APP_NAMESPACE is required; local and legacy remote persistence fallback is disabled.");
     if(this.remoteMode){await this.initializeRemote();this.ready=true;return this;}
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
@@ -147,63 +147,22 @@ export class ApexPureStore {
     finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
   }
   async initializeRemote(){
+    const canonicalApps=new Set(["KernelVision","XShield","Kernelodies","PlanetApeX","KashKorner","KoinKob"]);
+    const adapterNamespace=String(this.cas?.namespace||"");
+    const requiredNamespace=this.appNamespace||adapterNamespace;
+    if(!canonicalApps.has(requiredNamespace)||adapterNamespace!==requiredNamespace){
+      throw new Error("[SOVEREIGN_STORAGE_UNAVAILABLE] A canonical, app-scoped peer CAS adapter is required; local and unscoped stores are rejected.");
+    }
+    if(!this.cas||typeof this.cas.init!=="function"||typeof this.cas.readRef!=="function"||
+      typeof this.cas.writeRef!=="function"||typeof this.cas.listRefs!=="function"||
+      typeof this.cas.deleteRef!=="function"){
+      throw new Error("[SOVEREIGN_STORAGE_UNAVAILABLE] A complete peer-only CAS adapter is required.");
+    }
+    // No legacy WAL replay, local CAS import, JSON marker, disk lock, or fallback.
     await this.cas.init();
-    const scope=String(process.env.APEX_SERVICE_SCOPE||"apex").replace(/[^a-zA-Z0-9._:-]/g,"-").slice(0,100);
-    const markerKey="migration-v1-"+scope,lockKey="storage-migration-lock-"+scope;
-    await this.withRemoteLock("queue-mutations",async()=>{
-      // Active remote startup reads durable CAS refs directly. Legacy WAL is migration-only.
-      if(await this.cas.readRef("system",markerKey))return;
-      await this.withRemoteLock(lockKey,async()=>{
-      if(await this.cas.readRef("system",markerKey))return;
-      for(const namespace of ["state","jobs"]){
-        try{await stat(path.join(this.localCas.refs,namespace));}
-        catch(error){if(error.code==="ENOENT")continue;throw error;}
-        for(const ref of await this.localCas.listRefs(namespace)){
-          const current=await this.cas.readRef(namespace,ref.key);
-          if(current)continue;
-          if(namespace==="state"&&ref.value?.collection!=null&&ref.value?.id!=null&&ref.value?.record!=null){
-            await this.persistState(String(ref.value.collection),String(ref.value.id),ref.value.record);
-          }else if(namespace==="jobs"&&ref.value?.job?.id!=null){
-            await this.persistJob(ref.value.job);
-          }else{
-            await this.cas.writeRef(namespace,ref.key,ref.value,{expectedHash:null});
-          }
-        }
-      }
-      let legacyExists=false;
-      try{await stat(this.legacyWal.file);legacyExists=true;}catch(error){if(error.code!=="ENOENT")throw error;}
-      if(legacyExists){
-        const pendingState=new Map(),pendingJobs=new Map();
-        const flush=async()=>{
-          const writes=[];
-          for(const item of pendingState.values())writes.push(async()=>{
-            const current=await this.cas.readRef("state",this.refKey(item.collection,item.id)),key=this.refKey(item.collection,item.id);
-            if(item.deleted){if(current)await this.persistDelete(item.collection,item.id);}
-            else if(!current)await this.persistState(item.collection,item.id,item.record);
-          });
-          for(const [id,job] of pendingJobs)writes.push(async()=>{
-            const key=this.refKey("job",id),current=await this.cas.readRef("jobs",key);
-            if(!current)await this.persistJob(job);
-          });
-          await runBatched(writes,8,write=>write());pendingState.clear();pendingJobs.clear();
-        };
-        await this.legacyWal.replayReadOnly({retainRing:false,onRecord:async record=>{
-          const p=record.payload||{};
-          if(record.type==="state.put"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,record:clone(p.record)});}
-          else if(record.type==="state.delete"){const collection=String(p.collection),id=String(p.id);pendingState.set(this.key(collection,id),{collection,id,deleted:true});}
-          else if(record.type==="job.enqueue")pendingJobs.set(String(p.id),clone(p.job));
-          else if(record.type==="job.transition"){
-            const id=String(p.id);let job=pendingJobs.get(id);
-            if(!pendingJobs.has(id)){const current=await this.cas.readRef("jobs",this.refKey("job",id));job=current?.value?.job?clone(current.value.job):undefined;}
-            if(job)pendingJobs.set(id,{...job,...clone(p.patch)});
-          }
-          if(pendingState.size+pendingJobs.size>=128)await flush();
-        }});
-        await flush();
-      }
-      await this.cas.writeRef("system",markerKey,{version:1,storage:"remote-content-addressed",service:scope,migratedAt:new Date().toISOString(),legacyImported:legacyExists},{expectedHash:null});
-      });
-    });
+    await this.cas.listRefs("system");
+    this.remoteQueueIndexReady=false;
+    this.ready=true;
     return this;
   }
   async ensureRemoteQueueIndex({force=false}={}){
@@ -296,7 +255,7 @@ export class ApexPureStore {
   async refreshState(){await this.init();await this.loadStateReferences();return this;}
   async refreshJobs(){await this.init();await this.loadJobReferences();return this;}
   async refresh(){await this.init();await this.loadReferences();return this;}
-  refKey(collection,id){return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
+  refKey(collection,id){safeSegment(collection,"collection");safeSegment(id,"record id");return createHash("sha256").update(String(collection)+"::"+String(id)).digest("hex");}
   async persistJob(job,{appendWal=true,walSeq=null}={}) {
     const effectiveJob=clone(job);
     if(!this.remoteMode){
@@ -432,7 +391,7 @@ export class ApexPureStore {
     }
     });
   }
-  key(c,id){return String(c)+"::"+String(id);}
+  key(c,id){safeSegment(c,"collection");safeSegment(id,"record id");return String(c)+"::"+String(id);}
   apply(r){
     const p=r.payload||{};
     if(r.type==="state.put"){this.state.set(this.key(p.collection,p.id),clone(p.record));}
@@ -576,6 +535,7 @@ export class ApexPureStore {
     });
     const next=this.mutationChain.then(run,run);this.mutationChain=next.then(()=>undefined,()=>undefined);return next;
   }
+  async getJobResult(cid){if(!/^[a-f0-9]{64}$/.test(String(cid||"")))throw new TypeError("invalid job result CID");if(!this.remoteMode||typeof this.cas.getBlob!=="function")throw new Error("peer CAS blob reader is required for job results");const bytes=await this.cas.getBlob(String(cid));if(createHash("sha256").update(bytes).digest("hex")!==cid)throw new Error("job result CID failed integrity verification");const object=decodeCanonical(bytes);if(!object||object.kind!=="apex.job-result.v1"||object.version!==1||!Object.hasOwn(object,"result"))throw new Error("job result CID failed schema verification");return object.result;}
   async transition(id,op,{leaseToken,leaseFence,leaseMs=45000,result=null,error=null,delayMs=1000,reason=""}={}){
     return this.withMutationLock(async()=>{
       let j;
@@ -589,7 +549,7 @@ export class ApexPureStore {
       if(!j||j.status!=="running"||j.leaseToken!==leaseToken||(leaseFence!=null&&Number(j.leaseFence)!==Number(leaseFence))||Number(j.leaseExpiresAt||0)<=Date.now())return false;
       let patch={updatedAt:new Date().toISOString()};
       if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
-      if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
+      if(op==="complete"){let resultCid=null;if(this.remoteMode){if(typeof this.cas.putBlob!=="function")throw new Error("peer CAS blob writer is required for first-class job result CIDs");const bytes=encodeCanonical({kind:'apex.job-result.v1',version:1,result:result===undefined?null:result});const published=await this.cas.putBlob(bytes);const expectedCid=createHash("sha256").update(bytes).digest("hex");if(published?.hash!==expectedCid||published?.contentSha256!==expectedCid)throw new Error("job result CID failed content integrity verification");resultCid=published.hash;}patch={...patch,status:"completed",result:clone(result),...(resultCid?{resultCid}:{}),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};}
       if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
       if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
       const persisted=await this.persistJob({...j,...patch});

@@ -52,6 +52,7 @@ jobs:
           node --check src/network/sovereign-peer.mjs
           node --check src/core/autonomy/locked-continuous-loop.mjs
           node --check scripts/run-tests-with-diagnostics.mjs
+          node --check scripts/run-test-with-peer-bridge.mjs
           node --check scripts/smoke-kernelvision-episode.mjs
           node --check src/api/bible-production.mjs
           node --check src/core/storage.mjs
@@ -63,13 +64,15 @@ jobs:
       - name: Verify six-app identity and handoff contract
         run: node --test test/apex-six-apps.test.mjs test/canonical-handoff-bus.test.mjs test/apex-six-app-routes.test.mjs test/planet-apex-world-builder.test.mjs test/kash-korner-opportunities.test.mjs test/opportunity-engine-scan-scheduler.test.mjs
       - name: Verify isolated Pure-WAL app namespaces and dispatch queue
-        run: node --test test/sovereign-app-fabric.test.mjs
+        run: node scripts/run-test-with-peer-bridge.mjs test/sovereign-app-fabric.test.mjs
       - name: Verify Pure-WAL security and peer acknowledgements
-        run: node --test test/sovereign-pure-wal-security.test.mjs test/sovereign-pure-wal-bridge.test.mjs
+        run: |
+          node scripts/run-test-with-peer-bridge.mjs test/sovereign-pure-wal-security.test.mjs
+          node scripts/run-test-with-peer-bridge.mjs test/sovereign-pure-wal-bridge.test.mjs
       - name: Verify bounded upstream retries and Retry-After handling
         run: node --test test/fetch-with-retry.test.mjs
       - name: Verify Pure-WAL worker leases, retries and idempotency
-        run: node --test test/durable-worker-race.test.mjs
+        run: node scripts/run-test-with-peer-bridge.mjs test/durable-worker-race.test.mjs
       - name: Verify remote autonomous AI queue injection
         run: node --test test/locked-continuous-loop.test.mjs
       - name: Verify persistent peer identity
@@ -79,4 +82,6 @@ jobs:
       - name: Verify honest network-path policy
         run: node --test test/network-status.test.mjs test/network-throughput.test.mjs
       - name: Verify KernelVision Pure-WAL production and 24 fps export
-        run: node --test test/bible-production-pure-wal.test.mjs test/episode-pipeline.test.mjs test/storage-scenes.test.mjs test/mastering-fallback.test.mjs
+        run: |
+          node scripts/run-test-with-peer-bridge.mjs test/bible-production-pure-wal.test.mjs
+          node --test test/episode-pipeline.test.mjs test/storage-scenes.test.mjs test/mastering-fallback.test.mjs

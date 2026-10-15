@@ -6,6 +6,8 @@ import {
   createPeerObjectStorageHandler
 } from '../src/core/peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
+import { encodeCanonical } from '../src/core/apex-cbor.mjs';
+import { decodeCanonical } from '../src/core/apex-cbor.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -107,6 +109,12 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   const restored = await mesh.client.readRef('project-project-1');
   assert.deepEqual(restored.value, manifest);
   assert.equal(restored.hash, saved.hash);
+  const rawReference = await mesh.stores.get('peer-a').readRef('PlanetApeX', 'project-project-1');
+  const encryptedReference = decodeCanonical(rawReference.bytes);
+  assert.equal(encryptedReference.algorithm, 'aes-256-gcm');
+  assert.equal(encryptedReference.namespace, 'PlanetApeX');
+  assert.equal(rawReference.bytes.includes(Buffer.from('project-1')), false,
+    'peer-owned storage must not see plaintext reference payloads');
   mesh.unavailable.add('peer-a');
   assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
 });
@@ -115,7 +123,7 @@ test('peer CAS refuses to choose between divergent mutable references', async ()
   const mesh = makeMesh();
   await mesh.client.writeRef('project-project-2', { version: 1, app: 'PlanetApeX', assets: [] });
   const store = mesh.stores.get('peer-b');
-  const conflicting = Buffer.from((await import('../src/core/apex-cbor.mjs')).encodeCanonical({ version: 1, app: 'PlanetApeX', assets: [{ id: 'unexpected' }] }));
+  const conflicting = Buffer.from(encodeCanonical(mesh.client.encrypt({ version: 1, app: 'PlanetApeX', assets: [{ id: 'unexpected' }] })));
   const { createHash } = await import('node:crypto');
   const hash = createHash('sha256').update(conflicting).digest('hex');
   await store.writeRef('PlanetApeX', 'project-project-2', (await mesh.client.readRef('project-project-2')).hash, hash, conflicting).catch(() => {});
@@ -424,7 +432,9 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   assert.equal(health.atomicReferencesVerified, true);
   assert.equal(health.receiptId, 'test-proof-1');
 
-  const refBytes = Buffer.from('canonical reference bytes');
+  const refBytes = Buffer.from(encodeCanonical({ version: 1, algorithm: 'aes-256-gcm', namespace: 'PlanetApeX',
+    iv: Buffer.alloc(12, 1).toString('base64'), tag: Buffer.alloc(16, 2).toString('base64'),
+    ciphertext: Buffer.from('encrypted-payload').toString('base64') }));
   const hash = digest(refBytes);
   const written = await handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context);
   assert.equal(written.hash, hash);
@@ -481,5 +491,33 @@ test('peer CAS rejects unverified durability claims even when backend self-label
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
     /verified durable peer-owned storage/
+  );
+});
+
+
+test('peer CAS uses only verified RAM cache entries and fetches peer sources concurrently', async () => {
+  const mesh = makeMesh();
+  const saved = await mesh.client.putObject({ cacheable: 'verified', value: 17 });
+  let requests = 0;
+  const original = mesh.client.transport.request.bind(mesh.client.transport);
+  mesh.client.transport.request = async (...args) => { requests++; return original(...args); };
+  assert.deepEqual(await mesh.client.getObject(saved.hash), { cacheable: 'verified', value: 17 });
+  const afterNetworkRead = requests;
+  assert.ok(afterNetworkRead >= 1);
+  assert.deepEqual(await mesh.client.getObject(saved.hash), { cacheable: 'verified', value: 17 });
+  assert.equal(requests, afterNetworkRead, 'second read must be served from verified RAM cache');
+  assert.equal(mesh.client.cacheSnapshot().hits, 1);
+  assert.ok(mesh.client.cacheSnapshot().bytes > 0);
+});
+
+test('peer storage runtime rejects plaintext mutable references', async () => {
+  const mesh = makeMesh();
+  const bytes = encodeCanonical({ secret: 'must-not-be-plaintext' });
+  await assert.rejects(
+    mesh.handlers.get('peer-a')({
+      protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX',
+      key: 'plaintext-attempt', expectedHash: null, hash: digest(bytes), bytesBase64: bytes.toString('base64')
+    }, { remotePeerId: 'writer-peer' }),
+    /encryption/
   );
 });

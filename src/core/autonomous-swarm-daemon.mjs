@@ -1,33 +1,101 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { ContentAddressedStore } from './content-addressed-store.mjs';
+import { ApexPureStore } from './apex-pure-store.mjs';
 
-const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+export function createAutonomousSwarmDaemon({ pollMs = 1000, maxBackoffMs = 30000,
+  handler = async () => {}, workerId = process.env.APEX_SWARM_WORKER_ID || 'apex-swarm-' + randomUUID() } = {}) {
+  const store = new ApexPureStore();
+  let running = false;
+  let timer = null;
+  let failures = 0;
+  let cycleCount = 0;
+  let initialized = false;
 
-export function createAutonomousSwarmDaemon({root='/srv/apex/se-x/projects/swarm',pollMs=1000,maxBackoffMs=30000,handler=async()=>{}}={}) {
-  const cas=new ContentAddressedStore({root:path.join(root,'.swarm-cas')});
-  async function recordEvent(type,payload){await cas.writeRef('events',randomUUID(),{type,payload,at:new Date().toISOString()});}
-  let running=false; let timer=null; let failures=0; let cycleCount=0;
-  async function ensure(){await fs.mkdir(root,{recursive:true});}
-  async function loadQueue(){await ensure();try{return JSON.parse(await fs.readFile(path.join(root,'queue.json'),'utf8'));}catch(e){if(e.code==='ENOENT')return [];throw e;}}
-  async function saveQueue(items){await ensure();const target=path.join(root,'queue.json');const tmp=target+'.tmp-'+process.pid;await fs.writeFile(tmp,JSON.stringify(items,null,2)+'\n','utf8');await fs.rename(tmp,target);}
-  async function cycle(){
-    if(!running)return; cycleCount++;
-    try{
-      const queue=await loadQueue();
-      if(queue.length){const item=queue.shift();try{await handler(item);failures=0;await saveQueue(queue);await recordEvent('completed',{id:item.id??null,type:item.type??null});}catch(error){failures++;queue.push({...item,lastError:String(error?.message||error),failedAt:new Date().toISOString()});await saveQueue(queue);await recordEvent('failed',{id:item.id??null,error:String(error?.message||error)});}}
-      else failures=0;
-    }catch(error){failures++;await recordEvent('daemon-error',{error:String(error?.message||error)}).catch(()=>{});}
-    if(running){const delay=Math.min(maxBackoffMs,Math.max(pollMs,pollMs*2**Math.min(failures,5)));timer=setTimeout(()=>{timer=null;void cycle();},delay);timer.unref?.();}
+  async function ensureReady() {
+    if (initialized) return;
+    await store.init();
+    initialized = true;
   }
-  return {async start(){if(running)return this.status();running=true;failures=0;await cycle();return this.status();},async stop(){running=false;if(timer){clearTimeout(timer);timer=null;}return this.status();},status(){return {running,failures,cycleCount,root,pollMs,maxBackoffMs}}};
+
+  async function recordEvent(type, payload) {
+    await store.put('swarm-events', randomUUID(), { type, payload, at: new Date().toISOString() });
+  }
+
+  async function cycle() {
+    if (!running) return;
+    cycleCount++;
+    try {
+      await ensureReady();
+      const jobs = await store.claim({ workerId, limit: 1, leaseMs: 30000 });
+      if (jobs.length) {
+        const job = jobs[0];
+        let result;
+        let completedSuccessfully = false;
+        try {
+          result = await handler(job.payload, job);
+          const completed = await store.transition(job.id, 'complete', {
+            leaseToken: job.leaseToken, leaseFence: job.leaseFence, result
+          });
+          if (!completed) throw new Error('swarm job lease was lost before completion');
+          completedSuccessfully = true;
+          failures = 0;
+        } catch (error) {
+          failures++;
+          await store.transition(job.id, 'fail', {
+            leaseToken: job.leaseToken, leaseFence: job.leaseFence, error
+          });
+          await recordEvent('failed', { id: job.id, type: job.type, error: String(error?.message || error) });
+          result = undefined;
+        }
+        if (completedSuccessfully) {
+          const completedJob = store.jobs().find(item => String(item.id) === String(job.id));
+          await recordEvent('completed', { id: job.id, type: job.type, resultCid: completedJob?.resultCid || null });
+        }
+      } else {
+        failures = 0;
+      }
+    } catch (error) {
+      failures++;
+      await recordEvent('daemon-error', { error: String(error?.message || error) }).catch(() => {});
+    }
+    if (running) {
+      const delay = Math.min(maxBackoffMs, Math.max(pollMs, pollMs * 2 ** Math.min(failures, 5)));
+      timer = setTimeout(() => { timer = null; void cycle(); }, delay);
+      timer.unref?.();
+    }
+  }
+
+  return {
+    async start() {
+      if (running) return this.status();
+      running = true;
+      failures = 0;
+      await ensureReady();
+      await cycle();
+      return this.status();
+    },
+    async stop() {
+      running = false;
+      if (timer) { clearTimeout(timer); timer = null; }
+      return this.status();
+    },
+    status() {
+      return { running, failures, cycleCount, storage: 'peer-cas', appNamespace: store.appNamespace, workerId, pollMs, maxBackoffMs };
+    }
+  };
 }
 
-export async function enqueueSwarmItem({root='/srv/apex/se-x/projects/swarm',item}={}){
-  if(!item||typeof item!=='object')throw new TypeError('item is required');
-  await fs.mkdir(root,{recursive:true});
-  const file=path.join(root,'queue.json'); let queue=[];
-  try{queue=JSON.parse(await fs.readFile(file,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-  queue.push(item); const tmp=file+'.tmp-'+process.pid; await fs.writeFile(tmp,JSON.stringify(queue,null,2)+'\n','utf8'); await fs.rename(tmp,file); return item;
+export async function enqueueSwarmItem({ item } = {}) {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError('item is required');
+  const store = new ApexPureStore();
+  await store.init();
+  const queued = await store.enqueue({
+    id: String(item.id || randomUUID()),
+    type: String(item.type || 'swarm.item'),
+    payload: item,
+    runAt: Number(item.runAt) || Date.now(),
+    maxAttempts: Number(item.maxAttempts) || 5,
+    dedupeKey: item.dedupeKey == null ? null : String(item.dedupeKey),
+    priority: Number(item.priority) || 0
+  });
+  return { ...item, id: queued.id, durable: queued.durable, duplicate: queued.duplicate === true, status: queued.status };
 }

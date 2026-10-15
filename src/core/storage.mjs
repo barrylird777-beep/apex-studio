@@ -6,6 +6,7 @@ import { createReadStream, createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { Transform, Readable } from "node:stream";
 import { buildAdaptiveTransferController } from "../network/throughput-profile.mjs";
+import { PeerStorageApiClient } from "./peer-storage-api-client.mjs";
 
 const isCI = process.env.CI === "true" || process.env.NODE_ENV === "test";
 const STORAGE_DIR = path.resolve(
@@ -40,257 +41,155 @@ function queueManifestWrite(task) {
   return run;
 }
 
-export async function initStorage() {
-  await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
-  try {
-    await fs.access(PROJECT_FILE);
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-    await fs.writeFile(PROJECT_FILE, JSON.stringify({ assets: [], exports: [] }, null, 2), {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx"
-    }).catch((writeError) => {
-      if (writeError?.code !== "EEXIST") throw writeError;
-    });
+const peerAssetClient = () => new PeerStorageApiClient();
+const MANIFEST_NAMESPACE = "assets";
+const MANIFEST_KEY = "project-manifest";
+
+async function updatePeerManifest(mutator) {
+  const client = peerAssetClient();
+  await client.init();
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const current = await client.readRef(MANIFEST_NAMESPACE, MANIFEST_KEY);
+    const manifest = current?.value?.manifest || { assets: [], exports: [], scenes: [] };
+    const next = await mutator(structuredClone(manifest));
+    try {
+      await client.writeRef(MANIFEST_NAMESPACE, MANIFEST_KEY, { version: 1, manifest: next },
+        { expectedHash: current?.hash ?? null });
+      return next;
+    } catch (error) {
+      if (error.code !== "CAS_CONFLICT" || attempt === 7) throw error;
+    }
   }
+  throw new Error("peer manifest CAS retries exhausted");
+}
+
+export async function initStorage() {
+  const client = peerAssetClient();
+  await client.init();
 }
 
 export async function saveProjectAssetFromFile(type, sourcePath, extension) {
-  await initStorage();
-  const assetType = safePart(type, "type");
-  const ext = safePart(extension, "extension").replace(/^\\./, "");
   const source = path.resolve(String(sourcePath || ""));
-  const root = path.resolve(STORAGE_DIR) + path.sep;
-  if (!source.startsWith(root)) throw new TypeError("Source artifact must be inside the managed storage directory");
-  const sourceStat = await fs.stat(source);
-  if (!sourceStat.isFile() || sourceStat.size <= 0) throw new TypeError("Source artifact must be a non-empty regular file");
-  const filename = `project_${assetType}.${ext}`;
-  const filepath = path.join(STORAGE_DIR, filename);
-  await fs.rename(source, filepath);
-  const fileStat = await fs.stat(filepath);
-  const digest = crypto.createHash("sha256");
-  for await (const chunk of createReadStream(filepath)) digest.update(chunk);
-  const sha256 = digest.digest("hex");
-  return queueManifestWrite(async () => {
-    const manifest = await readManifest();
-    if (!Array.isArray(manifest.assets)) manifest.assets = [];
-    if (!Array.isArray(manifest.exports)) manifest.exports = [];
-    const record = { type: assetType, url: `/files/${encodeURIComponent(filename)}`, bytes: fileStat.size, sha256, updatedAt: Date.now() };
-    manifest.exports = [record, ...manifest.exports.filter(entry => entry?.type !== assetType)];
-    const temp = `${PROJECT_FILE}.tmp-${process.pid}-${crypto.randomUUID()}`;
-    await fs.writeFile(temp, JSON.stringify(manifest, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
-    try { await fs.rename(temp, PROJECT_FILE); }
-    catch (error) { await fs.rm(temp, { force: true }).catch(() => {}); throw error; }
-    return record;
-  });
+  const bytes = await fs.readFile(source);
+  if (!bytes.length) throw new TypeError("Source artifact must be a non-empty regular file");
+  return saveProjectAsset(type, bytes, extension);
 }
 
 export async function saveProjectAsset(type, buffer, extension) {
-  await initStorage();
   const assetType = safePart(type, "type");
-  const ext = safePart(extension, "extension").replace(/^\./, "");
-  const filename = `project_${assetType}.${ext}`;
-  const filepath = path.join(STORAGE_DIR, filename);
+  const ext = safePart(String(extension ?? "").replace(/^\./, ""), "extension").toLowerCase();
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-  await fs.writeFile(filepath, bytes, { mode: 0o600 });
-
-  return queueManifestWrite(async () => {
-    const manifest = await readManifest();
-    if (!Array.isArray(manifest.assets)) manifest.assets = [];
-    if (!Array.isArray(manifest.exports)) manifest.exports = [];
-    const record = {
-      type: assetType,
-      url: `/files/${encodeURIComponent(filename)}`,
-      bytes: bytes.length,
-      updatedAt: Date.now()
-    };
+  if (!bytes.length) throw new TypeError("Project asset cannot be empty");
+  const client = peerAssetClient();
+  await client.init();
+  const stored = await client.putBlob(bytes);
+  const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+  const record = { type: assetType, url: "/api/peer-assets/" + stored.hash, hash: stored.hash,
+    extension: ext, bytes: bytes.length, sha256, updatedAt: Date.now() };
+  await updatePeerManifest(manifest => {
+    manifest.assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+    manifest.exports = Array.isArray(manifest.exports) ? manifest.exports : [];
     manifest.exports = [record, ...manifest.exports.filter(entry => entry?.type !== assetType)];
-    const temp = `${PROJECT_FILE}.tmp-${process.pid}-${Date.now()}`;
-    await fs.writeFile(temp, JSON.stringify(manifest, null, 2), {
-      encoding: "utf8", mode: 0o600
-    });
-    await fs.rename(temp, PROJECT_FILE);
-    return record;
+    manifest.assets.push(record);
+    return manifest;
   });
+  return record;
 }
 
 export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata = {}) {
-  await initStorage();
   const sceneKey = safePart(sceneId, "sceneId");
   const assetKind = safePart(kind, "asset kind");
   if (!["image", "video", "audio"].includes(assetKind)) throw new TypeError("Unsupported scene asset kind");
   const ext = safePart(String(extension ?? "").replace(/^\./, ""), "extension").toLowerCase();
-  if (!["png", "jpg", "jpeg", "webp", "mp4", "wav", "mp3", "m4a", "aac"].includes(ext)) {
-    throw new TypeError("Unsupported scene asset extension");
-  }
+  if (!["png", "jpg", "jpeg", "webp", "mp4", "wav", "mp3", "m4a", "aac"].includes(ext)) throw new TypeError("Unsupported scene asset extension");
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
+  const client = peerAssetClient();
+  await client.init();
+  const stored = await client.putBlob(bytes);
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
-  const filename = `scene_${sceneKey}_${assetKind}_${crypto.randomUUID()}.${ext}`;
-  const filepath = path.join(STORAGE_DIR, filename);
-  const temp = filepath + ".part-" + process.pid;
-  await fs.writeFile(temp, bytes, { flag: "wx", mode: 0o600 });
-  try {
-    await fs.rename(temp, filepath);
-  } catch (error) {
-    await fs.rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-  const url = "/files/" + encodeURIComponent(filename);
+  const url = "/api/peer-assets/" + stored.hash;
   const updatedAt = Date.now();
-  return queueManifestWrite(async () => {
-    const manifest = await readManifest();
-    if (!Array.isArray(manifest.assets)) manifest.assets = [];
-    if (!Array.isArray(manifest.exports)) manifest.exports = [];
-    if (!Array.isArray(manifest.scenes)) manifest.scenes = [];
+  const record = { sceneId: sceneKey, [assetKind]: url, url, hash: stored.hash, bytes: bytes.length, sha256: digest, updatedAt };
+  await updatePeerManifest(manifest => {
+    manifest.assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+    manifest.exports = Array.isArray(manifest.exports) ? manifest.exports : [];
+    manifest.scenes = Array.isArray(manifest.scenes) ? manifest.scenes : [];
     let scene = manifest.scenes.find(item => String(item?.id) === sceneKey);
-    if (!scene) {
-      scene = { id: sceneKey, durationMs: 4000, createdAt: updatedAt };
-      manifest.scenes.push(scene);
-    }
+    if (!scene) { scene = { id: sceneKey, durationMs: 4000, createdAt: updatedAt }; manifest.scenes.push(scene); }
     const durationMs = Number(metadata?.durationMs);
-    if (Number.isFinite(durationMs) && durationMs >= 1000 && durationMs <= 600000) {
-      scene.durationMs = Math.max(Number(scene.durationMs) || 4000, Math.round(durationMs));
-    }
+    if (Number.isFinite(durationMs) && durationMs >= 1000 && durationMs <= 600000) scene.durationMs = Math.max(Number(scene.durationMs) || 4000, Math.round(durationMs));
     scene[assetKind] = url;
-    scene[assetKind + "Asset"] = {
-      url, bytes: bytes.length, sha256: digest, extension: ext, provenance: "unverified-imported-provider-output"
-    };
+    scene[assetKind + "Asset"] = { url, hash: stored.hash, bytes: bytes.length, sha256: digest, extension: ext, provenance: "peer-replicated" };
     scene.updatedAt = updatedAt;
-    manifest.assets.push({
-      type: assetKind, sceneId: sceneKey, url, bytes: bytes.length, sha256: digest, updatedAt
-    });
-    const tempManifest = `${PROJECT_FILE}.tmp-${process.pid}-${crypto.randomUUID()}`;
-    await fs.writeFile(tempManifest, JSON.stringify(manifest, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
-    try {
-      await fs.rename(tempManifest, PROJECT_FILE);
-    } catch (error) {
-      await fs.rm(tempManifest, { force: true }).catch(() => {});
-      throw error;
-    }
-    return { sceneId: sceneKey, [assetKind]: url, url, bytes: bytes.length, sha256: digest, updatedAt };
+    manifest.assets.push({ ...record, type: assetKind });
+    return manifest;
   });
+  return record;
 }
 
 export async function getProjectState() {
-  await initStorage();
-  return readManifest();
+  const client = peerAssetClient();
+  await client.init();
+  const current = await client.readRef(MANIFEST_NAMESPACE, MANIFEST_KEY);
+  return current?.value?.manifest || { assets: [], exports: [], scenes: [] };
+}
+
+export async function getPeerAsset(hash) {
+  if (!/^[a-f0-9]{64}$/.test(String(hash || ""))) throw new TypeError("Invalid peer asset hash");
+  const client = peerAssetClient();
+  await client.init();
+  return client.getBlob(hash);
 }
 
 export { STORAGE_DIR, PROJECT_FILE };
 
-
 export async function downloadUrlAssetToStorage(url, episodeId, assetName, options = {}) {
-  const { downloadHttpAsset } = await import('../network/http-range-transfer.mjs');
-  const episode = safePart(episodeId, 'episodeId');
-  const asset = safePart(assetName, 'assetName');
-  await initStorage();
-  const dir = path.join(STORAGE_DIR, 'episodes', episode);
-  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-  const finalPath = path.join(dir, asset);
-  const tempPath = finalPath + '.part-' + process.pid + '-' + Date.now();
-  try {
-    const transferController = options.transferController || buildAdaptiveTransferController({ initial: Math.max(1, Number(options.parallelStreams) || 4) });
-    const result = await downloadHttpAsset(url, tempPath, { ...options, transferController });
-    await fs.rename(tempPath, finalPath);
-    return Object.freeze({ ...result, episodeId: episode, assetName: asset, path: finalPath });
-  } catch (error) {
-    await fs.rm(tempPath, { force: true }).catch(() => {});
-    if (error?.code === 'SOURCE_NO_RANGE_SUPPORT' || error?.message === 'SOURCE_NO_RANGE_SUPPORT') {
-      const response = await fetch(url);
-      if (!response.ok || !response.body) throw new Error(`download returned HTTP ${response.status}`);
-      return streamAssetToStorage(Readable.fromWeb(response.body), episode, asset, options);
-    }
-    throw error;
-  }
+  const response = await fetch(url);
+  if (!response.ok || !response.body) throw new Error("download returned HTTP " + response.status);
+  return streamAssetToStorage(Readable.fromWeb(response.body), episodeId, assetName, options);
 }
 
 export async function streamAssetToStorage(readableStream, episodeId, assetName, options = {}) {
-  if (!readableStream || typeof readableStream.pipe !== 'function') throw new TypeError('readableStream must be a readable stream');
-  const episode = safePart(episodeId, 'episodeId');
-  const asset = safePart(assetName, 'assetName');
-  const {
-    transferController = buildAdaptiveTransferController(),
-    onProgress = null,
-    networkMetrics = null
-  } = options || {};
-  if (!transferController || typeof transferController.observe !== 'function') {
-    throw new TypeError('transferController must expose observe()');
+  if (!readableStream || typeof readableStream[Symbol.asyncIterator] !== "function") {
+    throw new TypeError("readableStream must be an async iterable readable stream");
   }
-  if (onProgress !== null && typeof onProgress !== 'function') {
-    throw new TypeError('onProgress must be a function');
-  }
-
-  await initStorage();
-  const dir = path.join(STORAGE_DIR, 'episodes', episode);
-  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-  const finalPath = path.join(dir, asset);
-  const tempPath = path.join(dir, '.' + asset + '.part-' + process.pid + '-' + Date.now());
-  const hash = crypto.createHash('sha256');
+  const episode = safePart(episodeId, "episodeId");
+  const asset = safePart(assetName, "assetName");
+  const { transferController = buildAdaptiveTransferController(), onProgress = null, networkMetrics = null } = options || {};
+  if (!transferController || typeof transferController.observe !== "function") throw new TypeError("transferController must expose observe()");
+  if (onProgress !== null && typeof onProgress !== "function") throw new TypeError("onProgress must be a function");
+  const chunks = [];
+  const hash = crypto.createHash("sha256");
   let bytes = 0;
   const startedAt = performance.now();
-  let lastSampleAt = startedAt;
-  let lastSampleBytes = 0;
-  let peakMbps = 0;
+  let lastSampleAt = startedAt, lastSampleBytes = 0, peakMbps = 0;
   let latestControl = transferController.state;
-
-  const digest = new Transform({
-    transform(chunk, encoding, callback) {
-      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
-      bytes += data.length;
-      const now = performance.now();
-      if (now - lastSampleAt >= 250) {
-        const elapsedSeconds = (now - lastSampleAt) / 1000;
-        const mbps = ((bytes - lastSampleBytes) * 8) / elapsedSeconds / 1e6;
-        peakMbps = Math.max(peakMbps, mbps);
-        lastSampleAt = now;
-        lastSampleBytes = bytes;
-        const metrics = typeof networkMetrics === 'function'
-          ? networkMetrics()
-          : (networkMetrics || {});
-        latestControl = transferController.observe({
-          observedMbps: mbps,
-          lossPct: metrics.lossPct || 0,
-          rttMs: metrics.rttMs || 0
-        });
-        if (onProgress) {
-          onProgress(Object.freeze({
-            bytes,
-            mbps,
-            controller: latestControl
-          }));
-        }
-      }
-      hash.update(data);
-      callback(null, data);
+  for await (const chunk of readableStream) {
+    const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    chunks.push(data);
+    hash.update(data);
+    bytes += data.length;
+    const now = performance.now();
+    if (now - lastSampleAt >= 250) {
+      const mbps = ((bytes - lastSampleBytes) * 8) / ((now - lastSampleAt) / 1000) / 1e6;
+      peakMbps = Math.max(peakMbps, mbps);
+      lastSampleAt = now; lastSampleBytes = bytes;
+      const metrics = typeof networkMetrics === "function" ? networkMetrics() : (networkMetrics || {});
+      latestControl = transferController.observe({ observedMbps: mbps, lossPct: metrics.lossPct || 0, rttMs: metrics.rttMs || 0 });
+      onProgress?.(Object.freeze({ bytes, mbps, controller: latestControl }));
     }
-  });
-
-  try {
-    await pipeline(readableStream, digest, createWriteStream(tempPath, { flags: 'wx', mode: 0o600 }));
-    await fs.rename(tempPath, finalPath);
-    const elapsedMs = Math.max(0.001, performance.now() - startedAt);
-    const averageMbps = (bytes * 8) / (elapsedMs / 1000) / 1e6;
-    peakMbps = Math.max(peakMbps, averageMbps);
-    latestControl = transferController.observe({
-      observedMbps: averageMbps,
-      lossPct: typeof networkMetrics === 'function' ? (networkMetrics()?.lossPct || 0) : (networkMetrics?.lossPct || 0),
-      rttMs: typeof networkMetrics === 'function' ? (networkMetrics()?.rttMs || 0) : (networkMetrics?.rttMs || 0)
-    });
-    return Object.freeze({
-      episodeId: episode,
-      assetName: asset,
-      path: finalPath,
-      bytes,
-      sha256: hash.digest('hex'),
-      elapsedMs,
-      averageMbps,
-      peakMbps,
-      transfer: latestControl
-    });
-  } catch (error) {
-    await fs.rm(tempPath, { force: true }).catch(() => {});
-    throw error;
   }
+  if (!bytes) throw new Error("cannot persist an empty peer asset");
+  const payload = Buffer.concat(chunks, bytes);
+  const digest = hash.digest("hex");
+  const extension = path.extname(asset).replace(/^\./, "") || "bin";
+  const record = await saveProjectAsset("episode-" + episode + "-" + path.basename(asset, path.extname(asset)), payload, extension);
+  const elapsedMs = Math.max(0.001, performance.now() - startedAt);
+  const averageMbps = (bytes * 8) / (elapsedMs / 1000) / 1e6;
+  peakMbps = Math.max(peakMbps, averageMbps);
+  const metrics = typeof networkMetrics === "function" ? networkMetrics() : (networkMetrics || {});
+  latestControl = transferController.observe({ observedMbps: averageMbps, lossPct: metrics.lossPct || 0, rttMs: metrics.rttMs || 0 });
+  return Object.freeze({ episodeId: episode, assetName: asset, path: null, url: record.url, hash: record.hash,
+    bytes, sha256: digest, elapsedMs, averageMbps, peakMbps, transfer: latestControl });
 }
