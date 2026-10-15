@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { apexPureStore } from './apex-pure-store.mjs';
 import { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 
 const DEFAULT_MAX_ATTEMPTS = Number(process.env.APEX_SOVEREIGN_MAX_ATTEMPTS || 8);
 
 function serializePayload(record) {
   return {
-    source: 'sovereign-wal',
+    source: 'sovereign-peer-cas',
     seq: record.seq,
     waveId: record.waveId,
     peerId: record.peerId,
@@ -19,13 +18,13 @@ function serializePayload(record) {
 }
 
 /**
- * Connects the checksummed sovereign event log to the local durable job store.
- * PostgreSQL is deliberately not required by this bridge.
+ * Connects the checksummed sovereign mesh to an explicitly injected peer-backed store.
+ * No local persistence fallback is permitted.
  */
-export function createSovereignDurableBridge({ engine, workerId, peerNode, peerAddress, sendPeer, store = apexPureStore }) {
+export function createSovereignDurableBridge({ engine, workerId, peerNode, peerAddress, sendPeer, store }) {
   if (!engine) throw new TypeError('engine is required');
   if (!workerId) throw new Error('workerId is required');
-  if (!store || typeof store.enqueue !== 'function') throw new TypeError('a durable local store is required');
+  if (!store || typeof store.enqueue !== 'function' || typeof store.put !== 'function' || typeof store.get !== 'function') throw new TypeError('an explicitly injected peer-backed state and queue store is required');
 
   async function persist(record, options = {}) {
     const payload = serializePayload(record);
