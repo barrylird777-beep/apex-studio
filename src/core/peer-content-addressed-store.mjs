@@ -381,7 +381,13 @@ export class PeerContentAddressedStore {
       const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configuredConcurrency) ? configuredConcurrency : 8));
       let levelNodes = [manifest.root];
       descriptors = [];
+      const maxManifestNodes = Math.ceil(this.maxBlobChunks / 64) + Math.ceil(this.maxBlobChunks / 4096) + Math.ceil(this.maxBlobChunks / 262144) + 8;
+      let visitedManifestNodes = 0;
       for (let level = manifest.rootLevel; level >= 0; level--) {
+        visitedManifestNodes += levelNodes.length;
+        if (visitedManifestNodes > maxManifestNodes || levelNodes.length > maxManifestNodes) {
+          throw new Error('blob manifest tree exceeds the configured bounded node count');
+        }
         const loaded = new Array(levelNodes.length);
         let nextNode = 0;
         const worker = async () => {
@@ -413,6 +419,7 @@ export class PeerContentAddressedStore {
                 throw new Error('intermediate manifest contains an invalid node reference');
               }
               next.push(item.hash);
+              if (next.length > maxManifestNodes) throw new Error('blob manifest expansion exceeds the configured bounded node count');
             }
           }
           levelNodes = next;
