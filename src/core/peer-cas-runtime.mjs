@@ -10,6 +10,19 @@ function required(name) {
   return value;
 }
 
+async function loadDurabilityReceiptVerifier() {
+  const specifier = required('APEX_PEER_RECEIPT_VERIFIER_MODULE');
+  let verifierModule;
+  try { verifierModule = await import(specifier); }
+  catch (cause) {
+    throw new Error('configured peer durability receipt verifier could not be loaded; Peer-CAS stays disabled', { cause });
+  }
+  if (typeof verifierModule.verifyDurabilityReceipt !== 'function') {
+    throw new Error('APEX_PEER_RECEIPT_VERIFIER_MODULE must export verifyDurabilityReceipt(receipt, claims); Peer-CAS stays disabled');
+  }
+  return verifierModule.verifyDurabilityReceipt;
+}
+
 function parsePeers(value) {
   const result = Object.create(null);
   for (const entry of value.split(';')) {
@@ -66,8 +79,9 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1);
   if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
+  const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
   const store = new PeerContentAddressedStore({
-    transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains,
+    transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains, verifyDurabilityReceipt,
     failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
   });
   // This read requires verified responses from the configured replica quorum.
@@ -101,8 +115,9 @@ export async function startPeerCasRuntime({ peerNode }) {
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const peers = Object.keys(addressesByPeerId);
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
+  const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
   const store = new PeerContentAddressedStore({
-    transport, peers, namespace, encryptionKey: key,
+    transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt,
     replicaCount: Number(process.env.APEX_PEER_CAS_REPLICAS || 2),
     minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
     failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
