@@ -153,4 +153,3 @@ export class PeerStorageApiClient {
     return Buffer.concat(parts, total);
   }
 }
-}
