@@ -122,30 +122,42 @@ export class PeerContentAddressedStore {
     const hash = sha256(bytes);
     const receipts = [];
     const failures = [];
-    for (const peerId of this.peers) {
-      try {
-        const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1',
-          operation: 'object.put',
-          namespace: this.namespace,
-          hash,
-          bytesBase64: bytes.toString('base64')
-        });
-        if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
+    const maxConcurrency = Math.max(1, Math.min(
+      this.peers.length,
+      Number.isSafeInteger(this.writeConcurrency) ? this.writeConcurrency : 4
+    ));
+    let nextPeer = 0;
+    let quorumReached = false;
+    const writeWorker = async () => {
+      while (!quorumReached) {
+        const index = nextPeer++;
+        if (index >= this.peers.length) return;
+        const peerId = this.peers[index];
+        try {
+          const response = await this.request(peerId, {
+            protocol: 'apex.cas.v1',
+            operation: 'object.put',
+            namespace: this.namespace,
+            hash,
+            bytesBase64: bytes.toString('base64')
+          });
+          if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace ||
+              !hasVerifiedDurabilityReceipt(response)) {
+            throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
+          }
+          receipts.push({
+            peerId, hash, bytes: response.bytes, namespace: this.namespace,
+            receiptId: response.receiptId, durabilityReceipt: response.receipt,
+            failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
+          });
+          const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
+          if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) quorumReached = true;
+        } catch (error) {
+          failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
         }
-        receipts.push({
-          peerId, hash, bytes: response.bytes, namespace: this.namespace,
-          receiptId: response.receiptId, durabilityReceipt: response.receipt,
-          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
-        });
-        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
-      } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
-    }
+    };
+    await Promise.all(Array.from({ length: maxConcurrency }, writeWorker));
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
     if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
       const error = new Error('peer object write did not satisfy required replica count and independent failure-domain policy');
