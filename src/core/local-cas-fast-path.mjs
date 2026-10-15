@@ -150,7 +150,13 @@ export class LocalCasFastPath {
 
   pruneExpired() {
     const now = this.now();
-    for (const [cid, entry] of this.objects) if (entry.expiresAt <= now) this.deleteObject(cid);
+    // All entries share one TTL and every hit refreshes/moves an entry to the
+    // LRU tail, so expired objects are a prefix of this insertion-ordered Map.
+    while (this.objects.size) {
+      const oldest = this.objects.entries().next().value;
+      if (!oldest || oldest[1].expiresAt > now) break;
+      this.deleteObject(oldest[0]);
+    }
     for (const [key, entry] of this.heads) {
       if (entry.expiresAt <= now || !this.objects.has(entry.cid)) this.heads.delete(key);
     }
