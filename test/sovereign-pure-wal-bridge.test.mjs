@@ -6,6 +6,9 @@ import { PeerMeshCasAdapter } from '../src/core/peer-mesh-cas-adapter.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from '../src/core/sovereign-mesh-engine.mjs';
 import { createSovereignDurableBridge } from '../src/core/sovereign-durable-bridge.mjs';
 
+// The engine requires an explicit peer identity even in volatile contract tests.
+if (!process.env.APEX_SOVEREIGN_PEER_ID) process.env.APEX_SOVEREIGN_PEER_ID = 'peer-cas-contract-test';
+
 // Volatile contract fixture only. It is never used as a production storage backend.
 class MemoryPeerRefs {
   constructor(namespace = 'kernelvision') { this.namespace = namespace; this.refs = new Map(); }
