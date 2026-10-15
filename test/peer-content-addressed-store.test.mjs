@@ -529,20 +529,58 @@ test('peer CAS rejects unverified durability claims even when backend self-label
 });
 
 
-test('peer CAS marks a partial reference write as an unknown outcome, not a clean rejection', async () => {
+test('peer CAS aborts a prepared write when a participant is unavailable before decision', async () => {
   const mesh = makeMesh();
   mesh.unavailable.add('peer-b');
+  let transactionId;
   await assert.rejects(
     mesh.client.writeRef('partial-commit-case', { version: 1, payload: 'must-not-be-blindly-retried' }),
-    error => error.code === 'COMMIT_OUTCOME_UNKNOWN' &&
-      error.acceptedPeers.includes('peer-a') &&
-      error.proposedHash &&
-      error.expectedHash === null &&
-      error.receipts.length === 1
+    error => {
+      transactionId = error.transactionId;
+      return error.code === 'PREPARE_INCOMPLETE' && Boolean(transactionId) &&
+        error.preparedPeers.includes('peer-a');
+    }
   );
   mesh.unavailable.delete('peer-b');
+  assert.equal(await mesh.client.readRef('partial-commit-case'), null);
+  assert.equal((await mesh.client.recoverRefTransaction(transactionId)).state, 'aborted');
+});
+
+test('peer CAS concurrent writers using one expected head cannot both commit', async () => {
+  const mesh = makeMesh();
+  const outcomes = await Promise.allSettled([
+    mesh.client.writeRef('concurrent-ref', { writer: 'a' }, { expectedHash: null }),
+    mesh.client.writeRef('concurrent-ref', { writer: 'b' }, { expectedHash: null })
+  ]);
+  assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
+  assert.equal(outcomes.filter(item => item.status === 'rejected').length, 1);
+  const winner = await mesh.client.readRef('concurrent-ref');
+  assert.ok(['a', 'b'].includes(winner.value.writer));
+});
+
+test('peer CAS recovers a durable commit decision after a peer commit failure', async () => {
+  const mesh = makeMesh();
+  const baseTransport = mesh.client.transport;
+  let failCommit = true;
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (request.operation === 'ref.commit' && peerId === 'peer-b' && failCommit) {
+        failCommit = false;
+        throw new Error('simulated crash after durable commit decision');
+      }
+      return baseTransport.request(peerId, request);
+    }
+  };
+  let transactionId;
   await assert.rejects(
-    mesh.client.readRef('partial-commit-case'),
-    error => error.code === 'REFERENCE_DIVERGENCE'
+    mesh.client.writeRef('recoverable-ref', { revision: 1 }, { expectedHash: null }),
+    error => {
+      transactionId = error.transactionId;
+      return error.code === 'COMMIT_OUTCOME_UNKNOWN' && Boolean(transactionId);
+    }
   );
+  mesh.client.transport = baseTransport;
+  const recovered = await mesh.client.recoverRefTransaction(transactionId);
+  assert.equal(recovered.state, 'committed');
+  assert.equal((await mesh.client.readRef('recoverable-ref')).value.revision, 1);
 });
