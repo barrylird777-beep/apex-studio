@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { createHash } from 'node:crypto';
+import { encodeCanonical } from './apex-cbor.mjs';
 
 const APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
 
@@ -109,13 +110,13 @@ export class PeerStorageApiClient {
     } else {
       const fanout = 64;
       const writeNode = async node => {
-        const hash = createHash('sha256').update(JSON.stringify(node)).digest('hex');
+        const hash = createHash('sha256').update(encodeCanonical(node)).digest('hex');
         try { await this.writeRef('asset-manifest-nodes', hash, node, { expectedHash: null }); }
         catch (error) {
           if (error.code !== 'CAS_CONFLICT') throw error;
           const prior = await this.readRef('asset-manifest-nodes', hash);
           if (!prior || JSON.stringify(prior.value) !== JSON.stringify(node) ||
-              createHash('sha256').update(JSON.stringify(prior.value)).digest('hex') !== hash) throw error;
+              createHash('sha256').update(encodeCanonical(prior.value)).digest('hex') !== hash) throw error;
         }
         return { hash, level: node.level };
       };
