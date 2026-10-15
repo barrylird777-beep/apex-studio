@@ -33,11 +33,26 @@ export class SovereignMeshEngine {
     this.state = new Map();
     this._writeTail = Promise.resolve();
     this._writeError = null;
+    this._namespaceFrozen = false;
     this._initialized = this._initializeStorage();
   }
 
   key(waveId) { return digest(waveId); }
   async ready() { await this._initialized; return this; }
+
+  assertWritable() {
+    if (this._namespaceFrozen) {
+      const error = new Error("Sovereign namespace is frozen after a write-integrity or quorum failure");
+      error.code = "NAMESPACE_FROZEN";
+      error.cause = this._writeError || undefined;
+      throw error;
+    }
+  }
+
+  freezeNamespace(error) {
+    this._namespaceFrozen = true;
+    this._writeError = error instanceof Error ? error : new Error(String(error || "unknown write failure"));
+  }
 
   async _initializeStorage() {
     await this.cas.init();
@@ -78,6 +93,7 @@ export class SovereignMeshEngine {
 
   async dispatchAutonomousPayload(payload) {
     await this.ready();
+    this.assertWritable();
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TypeError("Invalid payload object provided.");
     const waveId = String(payload.waveId || randomUUID());
     const existing = this.state.get(waveId);
@@ -87,7 +103,7 @@ export class SovereignMeshEngine {
     const seq = await this.reserveSequence();
     const record = { seq, waveId, peerId, action: payload.action || "SovereignPublish", timestamp: new Date().toISOString(), status: "DISPATCHED", payload };
     record.checksum = sovereignRecordChecksum(record);
-    const write = this._writeTail.catch(() => {}).then(async () => {
+    const write = this._writeTail.then(async () => {
       const refKey = this.key(waveId);
       try { await this.cas.writeRef("waves", refKey, record, { expectedHash: null }); }
       catch (error) {
@@ -98,15 +114,15 @@ export class SovereignMeshEngine {
       }
       return record;
     });
-    this._writeTail = write.catch(error => { this._writeError = error; throw error; });
+    this._writeTail = write.catch(error => { this.freezeNamespace(error); throw error; });
     const saved = await this._writeTail;
-    this._writeError = null;
     this.state.set(waveId, saved);
     return { ...saved };
   }
 
   async acknowledge(waveId, acceptance = {}) {
     await this.ready();
+    this.assertWritable();
     const current = this.state.get(String(waveId));
     if (!current) throw new Error("Unknown sovereign wave: " + waveId);
     if (current.status === "ACKNOWLEDGED") return { ...current };
@@ -114,22 +130,22 @@ export class SovereignMeshEngine {
     const record = { seq, waveId: current.waveId, peerId: current.peerId, action: current.action,
       timestamp: new Date().toISOString(), status: "ACKNOWLEDGED", payload: { ...current.payload, acceptance } };
     record.checksum = sovereignRecordChecksum(record);
-    const write = this._writeTail.catch(() => {}).then(async () => {
+    const write = this._writeTail.then(async () => {
       const refKey = this.key(waveId);
       const manifest = await this.cas.readRef("waves", refKey);
       if (!manifest) throw new Error("Sovereign wave manifest disappeared before acknowledgment");
       await this.cas.writeRef("waves", refKey, record, { expectedHash: manifest.hash });
       return record;
     });
-    this._writeTail = write.catch(error => { this._writeError = error; throw error; });
+    this._writeTail = write.catch(error => { this.freezeNamespace(error); throw error; });
     const saved = await this._writeTail;
-    this._writeError = null;
     this.state.set(String(waveId), saved);
     return { ...saved };
   }
 
   get(waveId) { return this.state.get(String(waveId)); }
   get writeError() { return this._writeError; }
+  get namespaceFrozen() { return this._namespaceFrozen; }
   snapshot() { return Array.from(this.state.values(), entry => ({ ...entry })); }
   get size() { return this.state.size; }
 }
