@@ -41,19 +41,25 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
       return { hash };
     };
     const transactions = new Map();
+    const preparingKeys = new Set();
     store.prepareRef = async ({ transactionId, namespace, key, expectedHash, hash, bytes, participants }) => {
       const prior = transactions.get(transactionId);
       if (prior) return { transactionId, state: prior.state, hash: prior.hash };
-      const current = refs.get(namespace + ':' + key);
-      if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('reference prepare conflict'), { code: 'REFERENCE_CONFLICT' });
-      for (const tx of transactions.values()) {
-        if (tx.namespace === namespace && tx.key === key && ['prepared', 'commit-decided'].includes(tx.state)) {
-          throw Object.assign(new Error('unresolved transaction'), { code: 'REFERENCE_TRANSACTION_BLOCKED' });
+      const refKey = namespace + ':' + key;
+      if (preparingKeys.has(refKey)) throw Object.assign(new Error('reference prepare is concurrently locked'), { code: 'REFERENCE_TRANSACTION_BLOCKED' });
+      preparingKeys.add(refKey);
+      try {
+        const current = refs.get(refKey);
+        if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('reference prepare conflict'), { code: 'REFERENCE_CONFLICT' });
+        for (const tx of transactions.values()) {
+          if (tx.namespace === namespace && tx.key === key && ['prepared', 'commit-decided'].includes(tx.state)) {
+            throw Object.assign(new Error('unresolved transaction'), { code: 'REFERENCE_TRANSACTION_BLOCKED' });
+          }
         }
-      }
-      await store.putBytes(hash, bytes);
-      transactions.set(transactionId, { transactionId, namespace, key, expectedHash, hash, bytes: Buffer.from(bytes), participants: [...participants].sort(), state: 'prepared' });
-      return { transactionId, state: 'prepared', hash };
+        await store.putBytes(hash, bytes);
+        transactions.set(transactionId, { transactionId, namespace, key, expectedHash, hash, bytes: Buffer.from(bytes), participants: [...participants].sort(), state: 'prepared' });
+        return { transactionId, state: 'prepared', hash };
+      } finally { preparingKeys.delete(refKey); }
     };
     store.decideRefCommit = async (transactionId, participants) => {
       const tx = transactions.get(transactionId);
