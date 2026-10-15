@@ -67,7 +67,15 @@ test('peer API bridge requires auth and keeps app references in separate stores'
   const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
   const socketPath = '/tmp/apex-storage-bridge-test-' + randomUUID() + '.sock';
   const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
-  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
+  const bridge = createPeerStorageApiBridge({
+    stores, tokens, socketPath,
+    authorize: async ({ app, operation }) => {
+      if (!APEX_APPS.includes(app) || !['readRef', 'writeRef', 'listRefs', 'deleteRef', 'putBlob', 'getBlob'].includes(operation)) {
+        throw Object.assign(new Error('test tensor denied operation'), { code: 'ACCESS_DENIED' });
+      }
+      return { allowed: true, testPolicy: true };
+    }
+  });
   try {
     await bridge.listen();
     assert.equal((await request(socketPath, 'wrong-token', { app: 'KernelVision', operation: 'listRefs', args: { namespace: 'state' } })).status, 401);
