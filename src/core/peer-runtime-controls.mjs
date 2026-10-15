@@ -268,3 +268,59 @@ export class ConnectionTrustSessions {
   }
   revoke(connection) { if (connection) this.#sessions.delete(connection); }
 }
+
+
+const STORAGE_OPERATION_ACTION = Object.freeze({
+  readRef: 'read', listRefs: 'read', getBlob: 'read',
+  writeRef: 'write', putBlob: 'write', deleteRef: 'delete'
+});
+
+/**
+ * Runtime authorization gate for the API-to-peer bridge. The caller must load
+ * the current tensor from the app's peer CAS on every request; no local policy
+ * cache or permissive default is used. The tensor's canonical CID is verified
+ * before any storage operation is allowed.
+ */
+export function createPeerStorageTensorAuthorizer({ getTensor, getUsage = async () => ({}) } = {}) {
+  if (typeof getTensor !== 'function' || typeof getUsage !== 'function') {
+    throw new TypeError('peer-CAS tensor loader and quota usage provider are required');
+  }
+  return async ({ app, operation, args = {} } = {}) => {
+    const action = STORAGE_OPERATION_ACTION[operation];
+    if (!APPS.has(app) || !action) {
+      throw Object.assign(new Error('storage operation is not authorized'), { code: 'ACCESS_DENIED' });
+    }
+    let path;
+    if (operation === 'putBlob') {
+      const encoded = args.bytesBase64;
+      if (typeof encoded !== 'string' || encoded.length > 12 * 1024 * 1024) {
+        throw Object.assign(new Error('invalid asset payload'), { code: 'ACCESS_DENIED' });
+      }
+      const bytes = Buffer.from(encoded, 'base64');
+      if (bytes.toString('base64') !== encoded) {
+        throw Object.assign(new Error('invalid asset encoding'), { code: 'ACCESS_DENIED' });
+      }
+      path = 'assets/' + sha256(bytes);
+    } else if (operation === 'getBlob') {
+      path = 'assets/' + String(args.hash || '');
+    } else if (operation === 'listRefs') {
+      path = String(args.namespace || '');
+    } else {
+      path = String(args.namespace || '') + '/' + String(args.key || '');
+    }
+    const loaded = await getTensor(app);
+    if (!loaded || !loaded.tensor || !verifyAccessTensor(loaded.tensor, loaded.tensorCid)) {
+      throw Object.assign(new Error('verified peer access tensor unavailable'), { code: 'ACCESS_POLICY_UNAVAILABLE' });
+    }
+    const usage = await getUsage(app, { action, path, operation, args });
+    const decision = evaluateAccessTensor(loaded.tensor, {
+      app, action, path, usage: usage || {}, expectedCid: loaded.tensorCid
+    });
+    if (!decision.allowed) {
+      throw Object.assign(new Error('access tensor denied the storage operation'), {
+        code: decision.reason === 'quota-exceeded' ? 'QUOTA_EXCEEDED' : 'ACCESS_DENIED'
+      });
+    }
+    return Object.freeze({ allowed: true, tensorCid: loaded.tensorCid, action, path });
+  };
+}
