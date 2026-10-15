@@ -10,7 +10,7 @@ import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
-  constructor() { this.refs = new Map(); this.listCalls = new Map(); }
+  constructor() { this.namespace = 'KernelVision'; this.refs = new Map(); this.listCalls = new Map(); }
   async init() { return this; }
   async readRef(ns, key) {
     const row = this.refs.get(ns + "/" + key);
@@ -237,7 +237,7 @@ test("remote queue indexes recover from a crash after job persistence", async ()
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("remote migration imports local CAS records without deleting the source", async () => {
+test("peer-only startup refuses to import coordinator-local CAS records", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-migration-"));
   try {
     const localCas = (await import("../src/core/content-addressed-store.mjs")).ContentAddressedStore;
@@ -246,13 +246,15 @@ test("remote migration imports local CAS records without deleting the source", a
     const remote = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas: remote });
     await store.init();
-    assert.deepEqual((await remote.readRef("state", store.refKey("legacy", "record-7"))).value.record, { id: "record-7", keep: true });
-    assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true });
+    assert.equal(await remote.readRef("state", store.refKey("legacy", "record-7")), null,
+      "peer-only startup must not import coordinator-local records");
+    assert.deepEqual((await source.readRef("state", "legacy-key")).value.record, { id: "record-7", keep: true },
+      "the source remains untouched for explicit operator recovery");
     assert.ok(sourceRef.hash);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("remote migration replays a full local WAL without acquiring a local lock", async () => {
+test("peer-only startup never replays a coordinator-local WAL", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "apex-remote-wal-readonly-"));
   try {
     const wal = new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") });
@@ -262,6 +264,7 @@ test("remote migration replays a full local WAL without acquiring a local lock",
     const store = new ApexPureStore({ root, wal, cas: remote });
     await store.init();
     const imported = await remote.readRef("state", store.refKey("legacy", "wal-record"));
-    assert.deepEqual(imported.value.record, { id: "wal-record", fromWal: true });
+    assert.equal(imported, null, "peer-only startup must not replay local WAL records");
+    assert.equal((await wal.snapshot()).records.length, 1, "the source WAL remains untouched");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
