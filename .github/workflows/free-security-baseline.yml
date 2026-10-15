@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22.x"
+      - name: Resolve dependency tree into a temporary lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
