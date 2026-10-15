@@ -1,4 +1,4 @@
-import { createHash, sign as cryptoSign, verify as cryptoVerify, randomUUID } from 'node:crypto';
+import { createHash, sign as cryptoSign, verify as cryptoVerify, randomUUID, randomBytes } from 'node:crypto';
 import { encodeCanonical } from './apex-cbor.mjs';
 
 const APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
@@ -248,17 +248,45 @@ export function planRarestFirstChunks(chunks, verifiedAdvertisements, { app, max
 /** Connection-local elevation expires on connection close or credential rotation. */
 export class ConnectionTrustSessions {
   #sessions = new WeakMap();
+  #pending = new WeakMap();
+
+  /** Issue a one-use unpredictable challenge before asking a hardware root to attest. */
+  createChallenge(connection, credentialFingerprint, { ttlMs = 30000 } = {}) {
+    if (!connection || (typeof connection !== 'object' && typeof connection !== 'function') ||
+        connection.closed === true || typeof credentialFingerprint !== 'string' || !credentialFingerprint ||
+        !Number.isSafeInteger(ttlMs) || ttlMs < 1000 || ttlMs > 60000) {
+      throw new TypeError('live connection, credential fingerprint, and bounded challenge TTL are required');
+    }
+    const challenge = randomBytes(32).toString('base64url');
+    this.#pending.set(connection, Object.freeze({
+      challenge, credentialFingerprint, expiresAt: Date.now() + ttlMs
+    }));
+    this.#sessions.delete(connection);
+    return challenge;
+  }
+
   async elevate(connection, { credentialFingerprint, attestation, verifyCredential, verifyAttestation } = {}) {
     if (!connection || (typeof connection !== 'object' && typeof connection !== 'function') ||
         typeof credentialFingerprint !== 'string' || !credentialFingerprint ||
         typeof verifyCredential !== 'function' || typeof verifyAttestation !== 'function') {
       throw new TypeError('connection, credential fingerprint, and independent credential/attestation verifiers are required');
     }
-    if (connection.closed === true || !await verifyCredential(connection, { credentialFingerprint }) ||
-        !await verifyAttestation(attestation, connection, { credentialFingerprint })) {
+    const pending = this.#pending.get(connection);
+    this.#pending.delete(connection); // one attempt only, including failed attempts
+    if (!pending || pending.expiresAt <= Date.now() ||
+        pending.credentialFingerprint !== credentialFingerprint ||
+        attestation?.challenge !== pending.challenge ||
+        connection.closed === true ||
+        !await verifyCredential(connection, { credentialFingerprint }) ||
+        !await verifyAttestation(attestation, connection, {
+          credentialFingerprint, challenge: pending.challenge, expiresAt: pending.expiresAt
+        })) {
       throw new Error('connection trust elevation failed closed');
     }
-    const session = Object.freeze({ credentialFingerprint, elevatedAt: Date.now(), attestationCid: cidFor(attestation) });
+    const session = Object.freeze({
+      credentialFingerprint, elevatedAt: Date.now(), attestationCid: cidFor(attestation),
+      challenge: pending.challenge
+    });
     this.#sessions.set(connection, session);
     return session;
   }
@@ -266,7 +294,12 @@ export class ConnectionTrustSessions {
     const session = connection && this.#sessions.get(connection);
     return Boolean(session && connection.closed !== true && session.credentialFingerprint === credentialFingerprint);
   }
-  revoke(connection) { if (connection) this.#sessions.delete(connection); }
+  revoke(connection) {
+    if (connection) {
+      this.#sessions.delete(connection);
+      this.#pending.delete(connection);
+    }
+  }
 }
 
 
