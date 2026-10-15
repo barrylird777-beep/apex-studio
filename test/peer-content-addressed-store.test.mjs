@@ -99,7 +99,7 @@ test('peer CAS refuses to count an object write from a volatile peer as durable'
   const client = new PeerContentAddressedStore({
     transport: { request: async (_peerId, envelope) => handler(envelope, { remotePeerId: 'writer-peer' }) },
     peers: ['volatile-peer'], replicaCount: 1, namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
+    encryptionKey: Buffer.alloc(32, 7)
   });
   await assert.rejects(client.putObject({ mustNotBeCalledDurable: true }), error =>
     error.code === 'INSUFFICIENT_REPLICAS' &&
@@ -129,7 +129,11 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   assert.deepEqual(restored.value, manifest);
   assert.equal(restored.hash, saved.hash);
   mesh.unavailable.add('peer-a');
-  assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
+  await assert.rejects(mesh.client.readRef('project-project-1'), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
+  // Immutable bytes remain recoverable from the surviving peer because their requested hash is already known.
+  assert.deepEqual(await mesh.client.getObject(saved.hash), manifest);
 });
 
 test('peer CAS refuses to choose between divergent mutable references', async () => {
