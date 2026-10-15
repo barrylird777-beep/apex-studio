@@ -41,8 +41,12 @@ export const PEER_RUNTIME_REQUIRED_EVIDENCE = Object.freeze([
  * Evidence must be supplied by release automation from the exact candidate
  * commit. Missing, stale, or false evidence blocks launch.
  */
-export function evaluatePeerRuntimeLaunchReadiness(evidence = {}) {
+export function evaluatePeerRuntimeLaunchReadiness(evidence = {}, { expectedCommitSha = '' } = {}) {
   const missing = PEER_RUNTIME_REQUIRED_EVIDENCE.filter(key => evidence[key] !== true);
+  const validSha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+  if (!validSha(expectedCommitSha) || !validSha(evidence.commitSha) || evidence.commitSha !== expectedCommitSha) {
+    missing.unshift('evidenceCommitShaMatchesCandidate');
+  }
   return Object.freeze({
     ready: missing.length === 0,
     missing: Object.freeze(missing),
