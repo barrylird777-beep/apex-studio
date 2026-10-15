@@ -3,6 +3,7 @@
  * It has no local disk, WAL, JSON-log, or legacy fallback.
  */
 const validPart = value => typeof value === 'string' && /^[A-Za-z0-9._:-]{1,160}$/.test(value);
+const validKeyPath = value => typeof value === 'string' && value.length <= 512 && value.split('/').every(validPart);
 const clone = value => value == null ? value : structuredClone(value);
 
 export class PeerMeshCasAdapter {
@@ -17,7 +18,7 @@ export class PeerMeshCasAdapter {
   }
 
   refKey(namespace, key) {
-    if (!validPart(namespace) || !validPart(key)) throw new TypeError('invalid peer reference namespace or key');
+    if (!validPart(namespace) || !validKeyPath(key)) throw new TypeError('invalid peer reference namespace or key');
     return namespace + '/' + key;
   }
 
