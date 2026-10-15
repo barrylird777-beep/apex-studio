@@ -293,3 +293,29 @@ test('API client refuses incomplete peer receipt evidence and does not publish a
     await rm(socketPath, { force: true }).catch(() => {});
   }
 });
+
+
+test('peer bridge preserves the fail-closed BFT consensus blocker for API callers', async () => {
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
+  const socketPath = '/tmp/apex-storage-bft-gate-' + randomUUID() + '.sock';
+  const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
+  stores.KernelVision.cas.writeRef = async () => {
+    throw Object.assign(new Error('BFT commit provider unavailable'), { code: 'BFT_CONSENSUS_UNAVAILABLE' });
+  };
+  const bridge = createPeerStorageApiBridge({
+    stores, tokens, socketPath,
+    authorize: async () => ({ allowed: true })
+  });
+  const previousApp = process.env.APEX_APP_NAMESPACE;
+  try {
+    await bridge.listen();
+    process.env.APEX_APP_NAMESPACE = 'KernelVision';
+    const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath });
+    await assert.rejects(client.writeRef('state', 'must-not-write', { marker: true }, { expectedHash: null }),
+      error => error.code === 'BFT_CONSENSUS_UNAVAILABLE');
+  } finally {
+    if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
+    await bridge.close();
+    await rm(socketPath, { force: true }).catch(() => {});
+  }
+});
