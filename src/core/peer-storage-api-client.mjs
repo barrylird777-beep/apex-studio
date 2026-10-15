@@ -112,20 +112,45 @@ export class PeerStorageApiClient {
         !Number.isSafeInteger(ref.value.bytes) || !Array.isArray(ref.value.chunks)) {
       throw new Error('peer asset manifest is missing or invalid');
     }
-    const parts = [];
-    const digest = createHash('sha256');
-    let total = 0;
-    for (const item of ref.value.chunks) {
-      if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
-          !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
-          !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) throw new Error('invalid asset chunk descriptor');
-      const result = await rpc({ ...this, operation: 'getBlob', args: { hash: item.hash } });
-      const piece = Buffer.from(String(result?.bytesBase64 || ''), 'base64');
-      if (piece.toString('base64') !== result?.bytesBase64 || piece.length !== item.bytes ||
-          createHash('sha256').update(piece).digest('hex') !== item.sha256) throw new Error('asset chunk integrity verification failed');
-      parts.push(piece); digest.update(piece); total += piece.length;
+    const descriptors = ref.value.chunks;
+    if (descriptors.some(item => !item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+        !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
+        !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')))) {
+      throw new Error('invalid asset chunk descriptor');
     }
-    if (total !== ref.value.bytes || digest.digest('hex') !== hash) throw new Error('reconstructed peer asset failed integrity verification');
+    // Bounded parallelism keeps multiple peer streams active without unbounded
+    // memory or connection pressure. Results remain in manifest order.
+    const configured = Number(process.env.APEX_PEER_STORAGE_FETCH_CONCURRENCY || 8);
+    const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configured) ? configured : 8));
+    const parts = new Array(descriptors.length);
+    const digest = createHash('sha256');
+    let next = 0;
+    let total = 0;
+    const worker = async () => {
+      while (true) {
+        const index = next++;
+        if (index >= descriptors.length) return;
+        const item = descriptors[index];
+        const result = await rpc({ ...this, operation: 'getBlob', args: { hash: item.hash } });
+        const encoded = String(result?.bytesBase64 || '');
+        const piece = Buffer.from(encoded, 'base64');
+        if (piece.toString('base64') !== encoded || piece.length !== item.bytes ||
+            createHash('sha256').update(piece).digest('hex') !== item.sha256) {
+          throw new Error('asset chunk integrity verification failed');
+        }
+        parts[index] = piece;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, descriptors.length) }, worker));
+    for (const piece of parts) {
+      if (!piece) throw new Error('asset chunk assembly incomplete');
+      digest.update(piece);
+      total += piece.length;
+    }
+    if (total !== ref.value.bytes || digest.digest('hex') !== hash) {
+      throw new Error('reconstructed peer asset failed integrity verification');
+    }
     return Buffer.concat(parts, total);
   }
+}
 }
