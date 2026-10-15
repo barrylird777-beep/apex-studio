@@ -46,6 +46,7 @@ on:
       - "src/core/peer-content-addressed-store.mjs"
       - "src/core/peer-runtime-controls.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
+      - "test/peer-content-addressed-store.test.mjs"
       - "test/peer-content-addressed-store-cache.test.mjs"
       - "test/peer-runtime-controls.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
