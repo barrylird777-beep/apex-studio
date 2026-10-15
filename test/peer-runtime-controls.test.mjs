@@ -45,13 +45,14 @@ test('cross-app capability is signed, short-lived, scoped, replay-protected, and
   }), /overlong/);
 });
 
-test('signed heartbeats and capability advertisements reject wrong identity', () => {
+test('signed heartbeats and capability advertisements require verified hardware roots', async () => {
   const heartbeat = createSignedHeartbeat({ peerId: 'peer-1', hardwareRootCid: root, privateKey });
-  assert.equal(verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-1' }), true);
-  assert.equal(verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-2' }), false);
+  assert.equal(await verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-1', verifyHardwareRoot: async evidence => evidence.hardwareRootCid === root }), true);
+  assert.equal(await verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-2', verifyHardwareRoot: async () => true }), false);
+  assert.equal(await verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-1' }), false, 'missing hardware-root verifier fails closed');
   const advertisement = createCapabilityAdvertisement({ peerId: 'peer-1', app: 'KernelVision', hardwareRootCid: root, cids: [root], privateKey });
-  assert.equal(verifyCapabilityAdvertisement(advertisement, { publicKey, expectedPeerId: 'peer-1', app: 'KernelVision' }), true);
-  assert.equal(verifyCapabilityAdvertisement(advertisement, { publicKey, expectedPeerId: 'peer-1', app: 'XShield' }), false);
+  assert.equal(await verifyCapabilityAdvertisement(advertisement, { publicKey, expectedPeerId: 'peer-1', app: 'KernelVision', verifyHardwareRoot: async evidence => evidence.hardwareRootCid === root }), true);
+  assert.equal(await verifyCapabilityAdvertisement(advertisement, { publicKey, expectedPeerId: 'peer-1', app: 'XShield', verifyHardwareRoot: async () => true }), false);
 });
 
 test('connection elevation is bound to a live connection and credential fingerprint', async () => {
