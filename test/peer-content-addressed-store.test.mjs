@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import {
   PeerContentAddressedStore,
   createPeerObjectStorageHandler
@@ -542,6 +543,21 @@ test('peer CAS aborts a prepared write when a participant is unavailable before 
   );
   mesh.unavailable.delete('peer-b');
   assert.equal(await mesh.client.readRef('partial-commit-case'), null);
+  assert.equal((await mesh.client.recoverRefTransaction(transactionId)).state, 'aborted');
+});
+
+test('peer CAS refuses to abort a prepared-only transaction until coordinator shutdown is confirmed', async () => {
+  const mesh = makeMesh();
+  const bytes = encodeCanonical({ pending: 'must not be aborted while writer may be live' });
+  const hash = digest(bytes);
+  const transactionId = 'prepared-only-coordinator-live';
+  const participants = ['peer-a', 'peer-b'];
+  for (const peerId of participants) {
+    await mesh.stores.get(peerId).prepareRef({
+      transactionId, namespace: 'PlanetApeX', key: 'prepared-only-ref',
+      expectedHash: null, hash, bytes, participants
+    });
+  }
   await assert.rejects(
     mesh.client.recoverRefTransaction(transactionId),
     error => error.code === 'RECOVERY_BLOCKED'
