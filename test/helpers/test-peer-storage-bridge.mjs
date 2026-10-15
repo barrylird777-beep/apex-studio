@@ -56,7 +56,7 @@ export async function startTestPeerBridge(socketPath) {
     };
     stores[app] = { cas, objects };
   }
-  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
+  const bridge = createPeerStorageApiBridge({ stores, tokens, authorize: async () => ({ allowed: true, testOnly: true }), socketPath });
   await bridge.listen();
   return { bridge, tokens, close: () => bridge.close() };
 }
