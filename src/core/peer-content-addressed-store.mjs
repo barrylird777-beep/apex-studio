@@ -628,7 +628,10 @@ export function createPeerObjectStorageHandler({
   if (typeof authorizeNamespace !== 'function') throw new TypeError('an explicit per-app namespace authorization policy is required');
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
-  const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function';
+  const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function' &&
+    typeof store.prepareRef === 'function' && typeof store.decideRefCommit === 'function' &&
+    typeof store.commitPreparedRef === 'function' && typeof store.abortPreparedRef === 'function' &&
+    typeof store.getRefTransaction === 'function' && typeof store.listRefTransactions === 'function';
   const capacityReceipt = async (namespace, expectedPeerId) => {
     if (!hasReferenceBackend || typeof store.health !== 'function' ||
         typeof store.verifyDurabilityReceipt !== 'function') {
@@ -713,6 +716,13 @@ export function createPeerObjectStorageHandler({
     }
     if (operation === 'ref.list') {
       if (typeof store.listRefs !== 'function') throw new Error('peer reference listing is unsupported by this durable backend');
+      const pending = await store.listRefTransactions(envelope.namespace);
+      if (pending.length) {
+        const error = new Error('reference listing is blocked while distributed CAS transactions are unresolved');
+        error.code = 'REFERENCE_TRANSACTION_PENDING';
+        error.transactions = pending.map(tx => tx.transactionId);
+        throw error;
+      }
       const refs = await store.listRefs(envelope.namespace);
       const listed = refs.map(ref => {
         const bytes = Buffer.from(ref.bytes);
@@ -777,6 +787,14 @@ export function createPeerObjectStorageHandler({
       throw new Error('invalid peer reference key');
     }
     if (operation === 'ref.get') {
+      const pending = await store.listRefTransactions(envelope.namespace);
+      const unresolved = pending.find(tx => tx.key === envelope.key);
+      if (unresolved) {
+        const error = new Error('reference read is blocked while its distributed CAS transaction is unresolved');
+        error.code = 'REFERENCE_TRANSACTION_PENDING';
+        error.transactionId = unresolved.transactionId;
+        throw error;
+      }
       const current = await store.readRef(envelope.namespace, envelope.key);
       if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
       const bytes = Buffer.from(current.bytes);
