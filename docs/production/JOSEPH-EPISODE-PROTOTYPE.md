@@ -13,12 +13,15 @@ npm install
 npm run smoke:kernelvision-episode
 ```
 
-The smoke script writes:
+By default, the MP4 and subtitles are created under a temporary directory and removed when the smoke command exits. CI does not upload or retain media artifacts.
 
-- `artifacts/kernelvision-smoke/joseph-from-pit-to-forgiveness.mp4`
-- `artifacts/kernelvision-smoke/joseph-from-pit-to-forgiveness.srt`
+If you explicitly choose an approved peer-owned export directory, set it before running:
 
-The CI workspace keeps these outputs only for the duration of the run; no hosted artifact is uploaded or retained.
+```sh
+APEX_APPROVED_PEER_EXPORT_DIR=/path/to/approved-peer-export npm run smoke:kernelvision-episode
+```
+
+The script then copies the MP4 and SRT there. The variable is an explicit user choice; the script does not independently verify ownership of that destination.
 
 ## What is real in this prototype
 
