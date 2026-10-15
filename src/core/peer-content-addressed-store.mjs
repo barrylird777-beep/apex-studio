@@ -405,10 +405,12 @@ export class PeerContentAddressedStore {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (results.length === 0) {
-      const error = new Error('peer reference was not recoverable from any verified peer');
-      error.code = 'OBJECT_UNAVAILABLE';
+    if (failures.length || results.length !== this.peers.length) {
+      const error = new Error('peer reference reads require every configured participant; refusing to return a potentially stale head during a partition');
+      error.code = 'REFERENCE_READ_INCOMPLETE';
       error.failures = failures;
+      error.verifiedPeers = results.map(result => result.peerId);
+      error.requiredPeers = [...this.peers];
       throw error;
     }
     const hashes = new Set(results.map(result => result.hash));
