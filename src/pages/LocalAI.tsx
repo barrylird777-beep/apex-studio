@@ -36,7 +36,7 @@ export default function LocalAI(){
       if(!wasmSupported)throw new Error("This browser does not expose the WebAssembly features required by the local runtime.");
       if(!file.name.toLowerCase().endsWith(".gguf"))throw new Error("Choose a .gguf model file.");
       if(file.size<=0)throw new Error("The selected model file is empty.");
-      const runtime=new Wllama({default:"https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/src/wasm/wllama.wasm"});
+      const runtime=new Wllama({default:"/vendor/wllama/src/wasm/wllama.wasm"});
       // Wllama's default compatibility mode enables its Safari-compatible worker/WASM build.
       runtime.setCompat("default");
       engine.current=runtime;
