@@ -161,3 +161,16 @@ test('two independently persisted peers recover encrypted content after one peer
     error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
   );
 });
+
+test('peer-owned backend enforces namespace ACL for reads, writes, and listings', async t => {
+  const { backend } = await fixture(t);
+  const bytes = encodeCanonical({ value: 'must-not-cross-app-boundary' });
+  const id = hash(bytes);
+  await assert.rejects(backend.readRef('XShield', 'private/item'),
+    error => error.code === 'NAMESPACE_DENIED');
+  await assert.rejects(backend.writeRef('XShield', 'private/item', null, id, bytes),
+    error => error.code === 'NAMESPACE_DENIED');
+  await assert.rejects(backend.listRefs('XShield'),
+    error => error.code === 'NAMESPACE_DENIED');
+  assert.deepEqual(await backend.listRefs('PlanetApeX'), []);
+});
