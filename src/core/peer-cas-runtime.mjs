@@ -1,3 +1,4 @@
+import { createPublicKey } from 'node:crypto';
 import { PeerContentAddressedStore } from './peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from './peer-storage-libp2p-transport.mjs';
 import { createPeerModelBridgeServer } from './peer-model-bridge.mjs';
@@ -8,6 +9,30 @@ function required(name) {
   const value = String(process.env[name] || '').trim();
   if (!value) throw new Error(name + ' is required; Peer-CAS stays disabled');
   return value;
+}
+
+function parseReceiptPublicKeys(value, peerIds) {
+  const result = Object.create(null);
+  for (const entry of String(value || '').split(';').filter(Boolean)) {
+    const split = entry.indexOf('=');
+    if (split < 1) throw new Error('APEX_PEER_CAS_RECEIPT_PUBLIC_KEYS must use peerId=base64-SPKI entries separated by semicolons');
+    const peerId = entry.slice(0, split).trim();
+    const encoded = entry.slice(split + 1).trim();
+    const der = Buffer.from(encoded, 'base64');
+    if (!peerId || !encoded || der.toString('base64') !== encoded || result[peerId]) {
+      throw new Error('invalid or duplicate peer receipt public key');
+    }
+    result[peerId] = encoded;
+  }
+  for (const peerId of peerIds) {
+    if (!result[peerId]) throw new Error('missing pinned Ed25519 receipt public key for configured peer ' + peerId);
+    const key = createPublicKey({ key: Buffer.from(result[peerId], 'base64'), format: 'der', type: 'spki' });
+    if (key.asymmetricKeyType !== 'ed25519') throw new Error('receipt verification key must be Ed25519 for peer ' + peerId);
+  }
+  if (Object.keys(result).some(peerId => !peerIds.includes(peerId))) {
+    throw new Error('receipt public-key map contains an unconfigured peer');
+  }
+  return result;
 }
 
 function parsePeers(value) {
@@ -39,10 +64,12 @@ export async function createPeerMeshCasRuntime({ peerNode } = {}) {
   const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
   const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1);
   if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
+  const receiptPublicKeysByPeerId = parseReceiptPublicKeys(required('APEX_PEER_CAS_RECEIPT_PUBLIC_KEYS'), peers);
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains,
-    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
+    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')])),
+    receiptPublicKeysByPeerId
   });
   // This read requires verified responses from the configured replica quorum.
   await store.listRefs();
