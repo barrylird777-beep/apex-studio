@@ -152,7 +152,7 @@ test('independent peer processes recover encrypted objects and refs after outage
 
   await stopPeer(peerA);
   await stopPeer(peerB);
-  peerB = startPeer(t, { peerId: 'peer-b', root: roots['peer-b'], receiptKey });
+  peerB = startPeer(t, { peerId: 'peer-b', root: roots['peer-b'], signingPrivateKey: signingKeys['peer-b'] });
   b = await peerB.ready;
 
   assert.deepEqual(await client.getObject(written.hash), value);
@@ -163,7 +163,7 @@ test('independent peer processes recover encrypted objects and refs after outage
     error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
   );
 
-  peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], receiptKey });
+  peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], signingPrivateKey: signingKeys['peer-a'] });
   a = await peerA.ready;
   assert.deepEqual(await client.listRefs(), [
     { namespace: 'PlanetApeX', key: 'project-main', hash: ref.hash, value: { objectHash: written.hash, revision: 1 } }
