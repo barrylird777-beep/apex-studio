@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 
 const APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
 
@@ -63,13 +64,54 @@ export class PeerStorageApiClient {
 
   async putBlob(bytes) {
     const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-    return rpc({ ...this, operation: 'putBlob', args: { bytesBase64: buffer.toString('base64') } });
+    if (!buffer.length) throw new TypeError('cannot store an empty asset');
+    const digest = createHash('sha256').update(buffer).digest('hex');
+    const existing = await this.readRef('asset-manifests', digest);
+    if (existing?.value?.sha256 === digest && existing.value.bytes === buffer.length) {
+      return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, deduplicated: true };
+    }
+    const chunks = [];
+    const chunkSize = 512 * 1024;
+    for (let offset = 0; offset < buffer.length; offset += chunkSize) {
+      const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
+      const stored = await rpc({ ...this, operation: 'putBlob', args: { bytesBase64: piece.toString('base64') } });
+      if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash)) throw new Error('peer did not return a valid chunk manifest hash');
+      chunks.push({ hash: stored.hash, bytes: piece.length, sha256: createHash('sha256').update(piece).digest('hex') });
+    }
+    const manifest = { version: 1, kind: 'apex.api.asset-manifest.v1', namespace: this.namespace,
+      sha256: digest, bytes: buffer.length, chunks };
+    try {
+      await this.writeRef('asset-manifests', digest, manifest, { expectedHash: existing?.hash ?? null });
+    } catch (error) {
+      if (error.code !== 'CAS_CONFLICT') throw error;
+      const raced = await this.readRef('asset-manifests', digest);
+      if (raced?.value?.sha256 !== digest || raced.value.bytes !== buffer.length) throw error;
+    }
+    return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, replicasVerifiedPerChunk: true };
   }
 
   async getBlob(hash) {
-    const result = await rpc({ ...this, operation: 'getBlob', args: { hash } });
-    const bytes = Buffer.from(String(result?.bytesBase64 || ''), 'base64');
-    if (bytes.toString('base64') !== result?.bytesBase64) throw new Error('peer blob response encoding verification failed');
-    return bytes;
+    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new TypeError('invalid asset hash');
+    const ref = await this.readRef('asset-manifests', hash);
+    if (!ref?.value || ref.value.kind !== 'apex.api.asset-manifest.v1' ||
+        ref.value.namespace !== this.namespace || ref.value.sha256 !== hash ||
+        !Number.isSafeInteger(ref.value.bytes) || !Array.isArray(ref.value.chunks)) {
+      throw new Error('peer asset manifest is missing or invalid');
+    }
+    const parts = [];
+    const digest = createHash('sha256');
+    let total = 0;
+    for (const item of ref.value.chunks) {
+      if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+          !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
+          !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) throw new Error('invalid asset chunk descriptor');
+      const result = await rpc({ ...this, operation: 'getBlob', args: { hash: item.hash } });
+      const piece = Buffer.from(String(result?.bytesBase64 || ''), 'base64');
+      if (piece.toString('base64') !== result?.bytesBase64 || piece.length !== item.bytes ||
+          createHash('sha256').update(piece).digest('hex') !== item.sha256) throw new Error('asset chunk integrity verification failed');
+      parts.push(piece); digest.update(piece); total += piece.length;
+    }
+    if (total !== ref.value.bytes || digest.digest('hex') !== hash) throw new Error('reconstructed peer asset failed integrity verification');
+    return Buffer.concat(parts, total);
   }
 }
