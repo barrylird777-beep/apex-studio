@@ -542,7 +542,11 @@ test('peer CAS aborts a prepared write when a participant is unavailable before 
   );
   mesh.unavailable.delete('peer-b');
   assert.equal(await mesh.client.readRef('partial-commit-case'), null);
-  assert.equal((await mesh.client.recoverRefTransaction(transactionId)).state, 'aborted');
+  await assert.rejects(
+    mesh.client.recoverRefTransaction(transactionId),
+    error => error.code === 'RECOVERY_BLOCKED'
+  );
+  assert.equal((await mesh.client.recoverRefTransaction(transactionId, { coordinatorStopped: true })).state, 'aborted');
 });
 
 test('peer CAS concurrent writers using one expected head cannot both commit', async () => {
