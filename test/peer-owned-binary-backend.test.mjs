@@ -65,7 +65,7 @@ test('durable CAS commit decision survives backend restart and rolls the referen
   assert.equal((await restarted.getRefTransaction(transactionId)).state, 'committed');
   const immutableRecords = await readdir(path.join(root, 'transactions'));
   assert.equal(immutableRecords.length, 3, 'prepare, decision, and commit must append distinct immutable CID records');
-  assert.ok(immutableRecords.every(name => /^[a-f0-9]{64}\\.cbor$/.test(name)));
+  assert.ok(immutableRecords.every(name => /^[a-f0-9]{64}\.cbor$/.test(name)));
   assert.ok((await readdir(path.join(root, 'transaction-heads'))).includes(hash(Buffer.from(transactionId)) + '.cbor'));
 });
 
