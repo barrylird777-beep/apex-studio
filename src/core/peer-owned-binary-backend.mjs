@@ -223,9 +223,12 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           restartRecoveryVerified: true
         };
         if (!Object.entries(required).every(([key, value]) => signed[key] === value)) return false;
-        // The signed receipt attests peer-owned durability/recovery for this
-        // namespace. Object hash/byte integrity is checked against the signed
-        // transport peer's operation response, not against this health receipt.
+        // Claims represented in the signed health attestation must match exactly.
+        // Hash/byte/response fields are separately validated against the authenticated
+        // operation response; they are not fields of this namespace health proof.
+        for (const [key, value] of Object.entries(claims)) {
+          if (Object.hasOwn(signed, key) && signed[key] !== value) return false;
+        }
         if (claims.response && (claims.response.peerId !== signed.peerId ||
             claims.response.namespace !== signed.namespace ||
             (claims.hash !== null && claims.response.hash !== claims.hash) ||
