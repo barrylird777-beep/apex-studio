@@ -62,23 +62,23 @@ function request(socketPath, token, body) {
 }
 
 test('peer API bridge requires auth and keeps app references in separate stores', async () => {
-  const token = 'test-token-' + randomUUID().repeat(3);
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
   const socketPath = '/tmp/apex-storage-bridge-test-' + randomUUID() + '.sock';
   const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
-  const bridge = createPeerStorageApiBridge({ stores, token, socketPath });
+  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
   try {
     await bridge.listen();
     assert.equal((await request(socketPath, 'wrong-token', { app: 'KernelVision', operation: 'listRefs', args: { namespace: 'state' } })).status, 401);
-    const write = await request(socketPath, token, { app: 'KernelVision', operation: 'writeRef',
+    const write = await request(socketPath, tokens.KernelVision, { app: 'KernelVision', operation: 'writeRef',
       args: { namespace: 'state', key: 'item-1', value: { marker: 'only-kernelvision' }, expectedHash: null } });
     assert.equal(write.status, 200);
     const own = await request(socketPath, token, { app: 'KernelVision', operation: 'readRef',
       args: { namespace: 'state', key: 'item-1' } });
     assert.equal(own.body.result.value.marker, 'only-kernelvision');
-    const other = await request(socketPath, token, { app: 'XShield', operation: 'readRef',
+    const other = await request(socketPath, tokens.XShield, { app: 'XShield', operation: 'readRef',
       args: { namespace: 'state', key: 'item-1' } });
     assert.equal(other.body.result, null);
-    const invalid = await request(socketPath, token, { app: 'not-an-app', operation: 'listRefs', args: { namespace: 'state' } });
+    const invalid = await request(socketPath, tokens.KernelVision, { app: 'not-an-app', operation: 'listRefs', args: { namespace: 'state' } });
     assert.equal(invalid.status, 403);
   } finally {
     await bridge.close();
