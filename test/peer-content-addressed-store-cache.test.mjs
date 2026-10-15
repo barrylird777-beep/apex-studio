@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 
 function makeStore({ cacheTtlMs = 1000, cacheMaxBytes = 8 } = {}) {
@@ -48,4 +49,48 @@ test('RAM cache expires entries and rejects objects larger than its configured b
   assert.equal(store.cacheGet('b'.repeat(64)), null);
   assert.equal(store.cacheSnapshot().bytes, 0);
   assert.ok(store.cacheSnapshot().evictions >= 1);
+});
+
+function makeMemoryPeerStore() {
+  const objects = new Map();
+  const receiptFields = {
+    durable: true, ownership: 'peer-owned', recoveryVerified: true,
+    restartRecoveryVerified: true, atomicReferencesVerified: true,
+    receipt: 'test-peer-durability-receipt', receiptId: 'receipt-test-1'
+  };
+  const transport = {
+    async request(peerId, request) {
+      if (request.operation === 'object.put') {
+        const bytes = Buffer.from(request.bytesBase64, 'base64');
+        const hash = createHash('sha256').update(bytes).digest('hex');
+        if (hash !== request.hash) throw new Error('test peer rejected incorrect object CID');
+        objects.set(hash, { bytes, namespace: request.namespace });
+        return { peerId, accepted: true, hash, bytes: bytes.length, namespace: request.namespace, ...receiptFields };
+      }
+      if (request.operation === 'object.get') {
+        const row = objects.get(request.hash);
+        if (!row) throw new Error('test object unavailable');
+        return { peerId, accepted: true, hash: request.hash, bytesBase64: row.bytes.toString('base64'),
+          namespace: row.namespace, ...receiptFields };
+      }
+      throw new Error('unsupported test operation');
+    }
+  };
+  return new PeerContentAddressedStore({
+    transport, peers: ['peer-test'], replicaCount: 1, minFailureDomains: 1,
+    namespace: 'KernelVision', encryptionKey: Buffer.alloc(32, 7),
+    cacheTtlMs: 1000, cacheMaxBytes: 1024 * 1024, maxObjectBytes: 32 * 1024
+  });
+}
+
+test('large assets use bounded hierarchical CID manifests and reconstruct with full integrity checks', async () => {
+  const store = makeMemoryPeerStore();
+  const input = Buffer.alloc(8 * 1024 * 65 + 19);
+  for (let i = 0; i < input.length; i++) input[i] = (i * 17) % 251;
+  const receipt = await store.putBlob(input);
+  assert.equal(receipt.kind, 'apex.blob-manifest.v2');
+  assert.ok(receipt.chunkCount > 64, 'test must cross the flat-manifest fanout threshold');
+  const recovered = await store.getBlob(receipt.hash);
+  assert.deepEqual(recovered, input);
+  assert.equal(createHash('sha256').update(recovered).digest('hex'), receipt.contentSha256);
 });
