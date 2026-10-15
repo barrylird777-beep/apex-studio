@@ -564,3 +564,30 @@ test('reference reads require configured replica quorum even when one peer has a
     error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
   );
 });
+
+
+test('peer CAS rejects forged, cross-peer, altered-hash, and altered-namespace receipts', async () => {
+  const scenarios = ['forged-signature', 'cross-peer-signature', 'altered-hash', 'altered-namespace'];
+  for (const scenario of scenarios) {
+    const mesh = makeMesh();
+    const originalRequest = mesh.transport.request.bind(mesh.transport);
+    mesh.client.transport.request = async (peerId, request, options) => {
+      const response = await originalRequest(peerId, request, options);
+      if (peerId !== 'peer-a' || request.operation !== 'object.put') return response;
+      if (scenario === 'forged-signature') {
+        return { ...response, receipt: { ...response.receipt, signature: Buffer.alloc(64, 3).toString('base64') } };
+      }
+      if (scenario === 'cross-peer-signature') {
+        const other = await originalRequest('peer-b', request, options);
+        return { ...response, receipt: other.receipt, receiptId: other.receiptId };
+      }
+      if (scenario === 'altered-hash') {
+        return { ...response, hash: 'f'.repeat(64) };
+      }
+      return { ...response, namespace: 'XShield' };
+    };
+    await assert.rejects(mesh.client.putObject({ scenario }), error =>
+      error.code === 'INSUFFICIENT_REPLICAS' || error.code === 'CONTRADICTORY_REPLICA'
+    , scenario);
+  }
+});
