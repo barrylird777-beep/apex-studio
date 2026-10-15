@@ -4,7 +4,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import {
   createAccessTensor, evaluateAccessTensor, mintCapability, verifyCapability,
   createSignedHeartbeat, verifySignedHeartbeat, createCapabilityAdvertisement,
-  verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor, CapabilityReplayGuard
+  verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor, planRarestFirstChunks, CapabilityReplayGuard
 } from '../src/core/peer-runtime-controls.mjs';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -83,4 +83,19 @@ test('tensor pointer is swapped only after a replicated immutable object is stor
   assert.equal(writes.length, 1);
   assert.equal(writes[0].value.cid, 'b'.repeat(64));
   assert.equal(writes[0].options.expectedHash, null);
+});
+
+test('rarest-first planner orders scarce chunks before common chunks and lists verified sources', () => {
+  const rare = 'b'.repeat(64), common = 'c'.repeat(64);
+  const ads = [
+    createCapabilityAdvertisement({ peerId: 'peer-1', app: 'KernelVision', hardwareRootCid: root, cids: [rare, common], privateKey }),
+    createCapabilityAdvertisement({ peerId: 'peer-2', app: 'KernelVision', hardwareRootCid: root, cids: [common], privateKey }),
+    createCapabilityAdvertisement({ peerId: 'peer-3', app: 'XShield', hardwareRootCid: root, cids: [rare], privateKey })
+  ];
+  const plan = planRarestFirstChunks([{ hash: common }, { hash: rare }], ads, { app: 'KernelVision' });
+  assert.equal(plan[0].cid, rare);
+  assert.equal(plan[0].availablePeerCount, 1);
+  assert.deepEqual(plan[0].sourcePeers, ['peer-1']);
+  assert.equal(plan[1].cid, common);
+  assert.equal(plan[1].availablePeerCount, 2);
 });
