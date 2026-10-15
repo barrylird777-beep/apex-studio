@@ -3037,7 +3037,7 @@ app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
 });
 
 async function materializePeerAsset(value, targetPath) {
-  const match = String(value || '').trim().match(/^\\/api\\/peer-assets\\/([a-f0-9]{64})$/);
+  const match = String(value || '').trim().match(/^\/api\/peer-assets\/([a-f0-9]{64})$/);
   if (!match) throw new Error('Render input is not a verified peer asset reference');
   const bytes = await getPeerAsset(match[1]);
   await writeFile(targetPath, bytes, { flag: 'wx', mode: 0o600 });
