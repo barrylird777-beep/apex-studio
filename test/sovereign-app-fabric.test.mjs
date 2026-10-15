@@ -22,7 +22,7 @@ import { saveKernelodiesRecord, getKernelodiesRecord } from '../src/apps/kernelo
 test('one Pure-WAL fabric gives all six canonical apps isolated durable namespaces', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-six-app-fabric-'));
   try {
-    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')}),cas:new MemoryMeshCAS()});
     const fabric=createSovereignAppFabric({store});
     const apps=fabric.apps();
     assert.equal(apps.length,6);
@@ -51,7 +51,7 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
 test('KoBlocks reusable capability records have an isolated non-app namespace', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-capability-namespace-'));
   try {
-    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')}),cas:new MemoryMeshCAS()});
     const fabric=createSovereignAppFabric({store});
     const saved=await saveKoBlocksRecord('workflow-1',{kind:'reusable-workflow',proof:'isolated'},fabric);
     assert.equal(saved.capabilityId,'ko-blocks');
@@ -67,7 +67,7 @@ test('phone dispatch is queued and drained into peer-CAS mesh state', async () =
   const prior=process.env.APEX_SOVEREIGN_PEER_ID;
   delete process.env.APEX_SOVEREIGN_PEER_ID;
   try {
-    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')}),cas:new MemoryMeshCAS()});
     const fabric=createSovereignAppFabric({store});
     const queued=await fabric.dispatch({appId:'kernelodies',waveId:'phone-wave-1',action:'phone.test',data:{origin:'iphone'}});
     assert.equal(queued.accepted,true);
@@ -105,7 +105,7 @@ test('fabric status recognizes the runtime-advertised public peer address withou
   const prior=Object.fromEntries(names.map(name=>[name,process.env[name]]));
   for(const name of names)delete process.env[name];
   try {
-    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
+    const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')}),cas:new MemoryMeshCAS()});
     await store.init();
     const peerId='12D3KooWPeerId';
     await store.put('sovereign_runtime','identity',{
