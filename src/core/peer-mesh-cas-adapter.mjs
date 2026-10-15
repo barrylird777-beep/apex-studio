@@ -138,7 +138,19 @@ export class PeerMeshCasAdapter {
       .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || Number(a.runAt || 0) - Number(b.runAt || 0));
     for (const candidate of candidates) {
       if (claimed.length >= Math.max(1, Number(limit) || 1)) break;
-      const current = await this.readRef('jobs', candidate.id);
+      let current;
+      for (let retry = 0; retry < 4; retry++) {
+        try {
+          current = await this.readRef('jobs', candidate.id);
+          break;
+        } catch (error) {
+          const convergenceError = ['REFERENCE_DIVERGENCE', 'REFERENCE_LISTING_DIVERGENCE', 'INSUFFICIENT_REPLICAS'].includes(error?.code);
+          if (!convergenceError || retry === 3) throw error;
+          // A concurrent quorum write can briefly leave replicas at different CAS heads.
+          // Retry only this bounded observation window; persistent divergence still fails closed.
+          await new Promise(resolve => setTimeout(resolve, 5 * (2 ** retry)));
+        }
+      }
       const job = current?.value?.job;
       if (!job) continue;
       const queuedAndReady = job.status === 'queued' && Number(job.runAt || 0) <= now;
