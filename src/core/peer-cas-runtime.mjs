@@ -232,6 +232,39 @@ export async function startPeerCasRuntime({ peerNode }) {
   if (!allowed.size || [...allowed].some(x => !/^[A-Za-z0-9._-]{1,128}@[A-Za-z0-9._-]{1,128}$/.test(x))) {
     throw new Error('APEX_PEER_CAS_ALLOWED_MODELS must list explicit modelId@revision entries');
   }
+  let prefetchLoop = null;
+  if (String(process.env.APEX_PEER_CAS_PREFETCH_ENABLED || 'true').toLowerCase() !== 'false') {
+    prefetchLoop = store.startPrefetchLoop({
+      intervalMs: Number(process.env.APEX_PEER_CAS_PREFETCH_INTERVAL_MS || 15000),
+      maxCids: Number(process.env.APEX_PEER_CAS_PREFETCH_MAX_CIDS || 8),
+      maxBytes: Number(process.env.APEX_PEER_CAS_PREFETCH_MAX_BYTES || 65536),
+      getCids: async () => {
+        const refs = await store.listRefs();
+        const cids = new Set();
+        for (const ref of refs) collectReferencedCids(ref.value, cids);
+        return [...cids];
+      },
+      onError: error => console.error('[PEER CAS PREFETCH]', JSON.stringify({
+        namespace, code: error?.code || null, error: String(error?.message || error)
+      }))
+    });
+  }
+  let repairLoop = null;
+  if (String(process.env.APEX_PEER_CAS_REPAIR_ENABLED || 'true').toLowerCase() !== 'false') {
+    repairLoop = store.startRepairLoop({
+      intervalMs: Number(process.env.APEX_PEER_CAS_REPAIR_INTERVAL_MS || 30000),
+      concurrency: Number(process.env.APEX_PEER_CAS_REPAIR_CONCURRENCY || 2),
+      getCids: async () => {
+        const refs = await store.listRefs();
+        const cids = new Set();
+        for (const ref of refs) collectReferencedCids(ref.value, cids);
+        return [...cids];
+      },
+      onError: (error, cid) => console.error('[PEER CAS REPAIR]', JSON.stringify({
+        namespace, cid, code: error?.code || null, error: String(error?.message || error)
+      }))
+    });
+  }
   const bridge = createPeerModelBridgeServer({
     store,
     authorizeModel: ({ namespace: app, modelId, revision }) => app === namespace && allowed.has(modelId + '@' + revision),
@@ -239,5 +272,5 @@ export async function startPeerCasRuntime({ peerNode }) {
     socketPath: process.env.APEX_PEER_CAS_SOCKET || '/tmp/apex_peer_cas.sock'
   });
   await bridge.listen();
-  return Object.freeze({ store, bridge, namespace, peers });
+  return Object.freeze({ store, bridge, namespace, peers, repairLoop, prefetchLoop });
 }
