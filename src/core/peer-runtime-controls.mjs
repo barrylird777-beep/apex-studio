@@ -357,6 +357,23 @@ export function createPeerStorageTensorAuthorizer({ getTensor, getUsage = async 
       throw Object.assign(new Error('verified peer access tensor unavailable'), { code: 'ACCESS_POLICY_UNAVAILABLE' });
     }
     const usage = await getUsage(app, { action, path, operation, args });
+    const quota = loaded.tensor.quotas?.[app] || {};
+    const metricForQuota = {
+      maxConcurrentJobs: 'concurrentJobs',
+      maxCpuMs: 'cpuMs',
+      maxMemoryBytes: 'memoryBytes',
+      maxStorageBytes: 'storageBytes'
+    };
+    // Never treat unknown usage as zero. If a tensor activates a quota, every
+    // corresponding measurement must be supplied by a trusted runtime provider.
+    for (const [limitKey, usageKey] of Object.entries(metricForQuota)) {
+      if (quota[limitKey] !== undefined &&
+          (!usage || !Number.isSafeInteger(usage[usageKey]) || usage[usageKey] < 0)) {
+        throw Object.assign(new Error('required runtime quota measurement is unavailable'), {
+          code: 'QUOTA_USAGE_UNAVAILABLE', quota: limitKey, metric: usageKey
+        });
+      }
+    }
     const decision = evaluateAccessTensor(loaded.tensor, {
       app, action, path, usage: usage || {}, expectedCid: loaded.tensorCid
     });
