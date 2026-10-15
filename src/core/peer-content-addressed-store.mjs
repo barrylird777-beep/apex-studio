@@ -567,8 +567,22 @@ export function createPeerObjectStorageHandler({
     const verified = proof?.durable === true && proof?.ownership === 'peer-owned'
       && proof?.restartRecoveryVerified === true && proof?.atomicReferencesVerified === true
       && proof?.peerId === expectedPeerId && proof?.namespace === namespace
-      && proof?.receipt && await store.verifyDurabilityReceipt(proof.receipt, {
-        namespace, peerId: expectedPeerId, restartRecoveryVerified: true, atomicReferencesVerified: true
+      && proof?.operation === (binding.operation || 'storage.health')
+      && proof?.objectHash === (binding.objectHash ?? null)
+      && proof?.key === (binding.key ?? null)
+      && proof?.receipt && proof?.receiptId === sha256(encodeCanonical({
+        version: 1, peerId: expectedPeerId, namespace,
+        operation: binding.operation || 'storage.health',
+        objectHash: binding.objectHash ?? null, key: binding.key ?? null,
+        ownership: 'peer-owned', durable: true,
+        atomicReferencesVerified: true, restartRecoveryVerified: true
+      }))
+      && await store.verifyDurabilityReceipt(proof.receipt, {
+        version: 1, namespace, peerId: expectedPeerId,
+        operation: binding.operation || 'storage.health',
+        objectHash: binding.objectHash ?? null, key: binding.key ?? null,
+        ownership: 'peer-owned', durable: true,
+        restartRecoveryVerified: true, atomicReferencesVerified: true
       }) === true;
     return {
       durable: verified,
