@@ -4,9 +4,11 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import http from 'node:http';
 import { createPeerStorageApiBridge, APEX_APPS } from '../src/core/peer-storage-api-bridge.mjs';
+import { PeerStorageApiClient } from '../src/core/peer-storage-api-client.mjs';
 
 function fakeStore(namespace) {
   const refs = new Map();
+  const blobs = new Map();
   return {
     namespace,
     cas: {
@@ -41,8 +43,8 @@ function fakeStore(namespace) {
     },
     objects: {
       namespace,
-      async putBlob(bytes) { return { hash: randomUUID().replaceAll('-', '').padEnd(64, '0'), bytes: bytes.length }; },
-      async getBlob() { return Buffer.from('peer-data'); }
+      async putBlob(bytes) { const hash = randomUUID().replaceAll('-', '').padEnd(64, '0'); blobs.set(hash, Buffer.from(bytes)); return { hash, bytes: bytes.length }; },
+      async getBlob(hash) { const bytes = blobs.get(hash); if (!bytes) throw new Error('missing fake blob'); return Buffer.from(bytes); }
     }
   };
 }
@@ -80,6 +82,27 @@ test('peer API bridge requires auth and keeps app references in separate stores'
     assert.equal(other.body.result, null);
     const invalid = await request(socketPath, tokens.KernelVision, { app: 'not-an-app', operation: 'listRefs', args: { namespace: 'state' } });
     assert.equal(invalid.status, 403);
+  } finally {
+    await bridge.close();
+    await rm(socketPath, { force: true }).catch(() => {});
+  }
+});
+
+
+test('API client chunks and verifies large binary assets through peer bridge', async () => {
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
+  const socketPath = '/tmp/apex-storage-blob-test-' + randomUUID() + '.sock';
+  const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
+  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath });
+  try {
+    await bridge.listen();
+    const client = new PeerStorageApiClient({ app: 'KernelVision', token: tokens.KernelVision, socketPath });
+    const input = Buffer.alloc(1024 * 1024 + 37);
+    for (let i = 0; i < input.length; i++) input[i] = i % 251;
+    const stored = await client.putBlob(input);
+    assert.equal(stored.bytes, input.length);
+    const recovered = await client.getBlob(stored.hash);
+    assert.deepEqual(recovered, input);
   } finally {
     await bridge.close();
     await rm(socketPath, { force: true }).catch(() => {});
