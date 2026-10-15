@@ -66,6 +66,25 @@ export async function attestConfiguredPeerRoots({ peers, namespace, provider, no
   return Object.freeze(domains);
 }
 
+async function loadBftCasProvider() {
+  const specifier = required('APEX_PEER_CAS_BFT_PROVIDER_MODULE');
+  const membershipEpoch = Number(required('APEX_PEER_CAS_MEMBERSHIP_EPOCH'));
+  if (!Number.isSafeInteger(membershipEpoch) || membershipEpoch < 1) {
+    throw new Error('APEX_PEER_CAS_MEMBERSHIP_EPOCH must be a positive integer; BFT CAS stays disabled');
+  }
+  let provider;
+  try { provider = await import(specifier); }
+  catch (cause) { throw new Error('configured BFT CAS provider could not be loaded; reference writes stay disabled', { cause }); }
+  if (typeof provider.commitReference !== 'function' || typeof provider.verifyCommitCertificate !== 'function') {
+    throw new Error('BFT CAS provider must export commitReference and verifyCommitCertificate; reference writes stay disabled');
+  }
+  return Object.freeze({
+    commitReference: provider.commitReference,
+    verifyCommitCertificate: provider.verifyCommitCertificate,
+    membershipEpoch
+  });
+}
+
 async function loadDurabilityReceiptVerifier() {
   const specifier = required('APEX_PEER_RECEIPT_VERIFIER_MODULE');
   let verifierModule;
@@ -136,11 +155,12 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
+  const bftCasProvider = await loadBftCasProvider();
   const peerTrustProvider = await loadPeerTrustProvider();
   const failureDomainsByPeerId = await attestConfiguredPeerRoots({ peers, namespace, provider: peerTrustProvider });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains, verifyDurabilityReceipt,
-    ...peerTrustProvider, failureDomainsByPeerId
+    ...bftCasProvider, requireBftConsensus: true, ...peerTrustProvider, failureDomainsByPeerId
   });
   // This read requires verified responses from the configured replica quorum.
   await store.listRefs();
@@ -174,10 +194,12 @@ export async function startPeerCasRuntime({ peerNode }) {
   const peers = Object.keys(addressesByPeerId);
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
+  const bftCasProvider = await loadBftCasProvider();
   const peerTrustProvider = await loadPeerTrustProvider();
   const failureDomainsByPeerId = await attestConfiguredPeerRoots({ peers, namespace, provider: peerTrustProvider });
   const store = new PeerContentAddressedStore({
-    transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt, ...peerTrustProvider,
+    transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt, ...bftCasProvider,
+    requireBftConsensus: true, ...peerTrustProvider,
     replicaCount: Number(process.env.APEX_PEER_CAS_REPLICAS || 2),
     minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
     failureDomainsByPeerId
