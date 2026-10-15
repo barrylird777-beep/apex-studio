@@ -86,7 +86,9 @@ jobs:
       - name: Test bridge and peer CAS correctness
         run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-content-addressed-store-cache.test.mjs
       - name: Test signed runtime controls and access tensors
-        run: node --test test/peer-runtime-controls.test.mjs test/namespace-access-tensor.test.mjs
+        run: node --test test/peer-runtime-controls.test.mjs
+      - name: Test challenge-bound hardware-root admission
+        run: node --test test/peer-cas-runtime.test.mjs test/namespace-access-tensor.test.mjs
       - name: Test launch gates and runtime wiring
         run: node --test test/peer-runtime-launch-gates.test.mjs test/peer-cas-runtime.test.mjs test/remote-apex-pure-store.test.mjs test/sovereign-app-fabric.test.mjs
       - name: Test peer-only asset storage and API smoke
