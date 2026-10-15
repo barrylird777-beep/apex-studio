@@ -591,3 +591,25 @@ test('peer CAS rejects forged, cross-peer, altered-hash, and altered-namespace r
     , scenario);
   }
 });
+
+
+test('partial multi-peer reference commit is never reported successful and reads fail closed on divergence', async () => {
+  const mesh = makeMesh();
+  const originalRequest = mesh.transport.request.bind(mesh.transport);
+  let failPeerBCommit = true;
+  mesh.transport.request = async (peerId, request, options) => {
+    if (failPeerBCommit && peerId === 'peer-b' && request.operation === 'ref.cas') {
+      throw Object.assign(new Error('injected peer-b commit failure'), { code: 'INJECTED_FAILURE' });
+    }
+    return originalRequest(peerId, request, options);
+  };
+  await assert.rejects(
+    mesh.client.writeRef('partial-commit', { revision: 1 }, { expectedHash: null }),
+    error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
+  failPeerBCommit = false;
+  await assert.rejects(
+    mesh.client.readRef('partial-commit'),
+    error => error.code === 'REFERENCE_DIVERGENCE'
+  );
+});
