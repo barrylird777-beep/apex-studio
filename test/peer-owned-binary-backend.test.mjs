@@ -96,6 +96,20 @@ test('concurrent reference compare-and-swap allows exactly one writer', async t 
   assert.equal(outcomes.filter(item => item.status === 'rejected' && item.reason.code === 'REFERENCE_CONFLICT').length, 1);
 });
 
+test('peer CAS reclaims an abandoned lock left by a crashed process', async t => {
+  const { root, backend } = await fixture(t);
+  const key = 'stale-lock-ref';
+  const lockId = hash(Buffer.from('PlanetApeX\\0' + key));
+  const lockPath = path.join(root, 'refs', lockId + '.lock');
+  await mkdir(lockPath, { recursive: true });
+  await writeFile(path.join(lockPath, 'owner.cbor'), encodeCanonical({ pid: 99999999, createdAt: 0 }));
+  const bytes = encodeCanonical({ recovered: true });
+  const refHash = hash(bytes);
+  const saved = await backend.writeRef('PlanetApeX', key, null, refHash, bytes);
+  assert.equal(saved.hash, refHash);
+  assert.deepEqual(await backend.readRef('PlanetApeX', key), { hash: refHash, bytes });
+});
+
 test('corrupt immutable objects fail startup closed instead of being silently discarded', async t => {
   const { root, backend } = await fixture(t);
   const bytes = encodeCanonical({ object: 'valid' });
