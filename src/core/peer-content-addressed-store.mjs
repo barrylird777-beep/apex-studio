@@ -448,7 +448,7 @@ export class PeerContentAddressedStore {
           namespace: this.namespace, transactionId, participants,
           key, expectedHash, hash, bytesBase64: bytes.toString('base64')
         });
-        if (response.namespace !== this.namespace || response.transaction?.transactionId !== transactionId ||
+        if (response.namespace !== this.namespace || response.transaction?.transactionId !== transactionId || response.transaction?.hash !== hash ||
             !['prepared', 'commit-decided', 'committed'].includes(response.transaction?.state) ||
             !hasVerifiedDurabilityReceipt(response)) throw new Error('peer did not durably prepare the requested CAS transaction');
         prepared.push({ peerId, receiptId: response.receiptId, failureDomain: this.failureDomainsByPeerId[peerId] || null });
