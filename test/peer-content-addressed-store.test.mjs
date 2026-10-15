@@ -99,7 +99,7 @@ test('peer CAS refuses to count an object write from a volatile peer as durable'
   const client = new PeerContentAddressedStore({
     transport: { request: async (_peerId, envelope) => handler(envelope, { remotePeerId: 'writer-peer' }) },
     peers: ['volatile-peer'], replicaCount: 1, namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   await assert.rejects(client.putObject({ mustNotBeCalledDurable: true }), error =>
     error.code === 'INSUFFICIENT_REPLICAS' &&
@@ -203,7 +203,7 @@ test('peer CAS authenticates the app namespace as AES-GCM additional data', () =
     replicaCount: 2,
     failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
     namespace: 'KernelVision',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   assert.throws(
     () => otherNamespace.decrypt({ ...envelope, namespace: 'KernelVision' }),
@@ -220,7 +220,7 @@ test('peer CAS cannot decrypt an object under a different app namespace', async 
     replicaCount: 2,
     failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
     namespace: 'KernelVision',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   await assert.rejects(otherNamespace.getObject(result.hash), error => error.code === 'OBJECT_UNAVAILABLE');
 });
@@ -311,7 +311,7 @@ test('peer CAS verifies replica count and distinct failure domains before report
     minFailureDomains: 2,
     failureDomainsByPeerId: { 'peer-a': 'region-1', 'peer-b': 'region-2' },
     namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   const result = await client.putObject({ critical: 'must survive a domain loss' });
   assert.equal(result.replicas.length, 2);
@@ -386,7 +386,7 @@ test('single-replica durability policy does not require failure-domain labels', 
     replicaCount: 1,
     minFailureDomains: 1,
     namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   const receipt = await client.putObject({ noDomainMapNeeded: true });
   assert.equal(receipt.replicas.length, 1);
