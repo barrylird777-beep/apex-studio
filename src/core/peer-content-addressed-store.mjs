@@ -509,7 +509,7 @@ export function createPeerObjectStorageHandler({
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
   const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function';
-  const capacityReceipt = async (namespace, expectedPeerId) => {
+  const capacityReceipt = async (namespace, expectedPeerId, binding = {}) => {
     if (!hasReferenceBackend || typeof store.health !== 'function' ||
         typeof store.verifyDurabilityReceipt !== 'function') {
       return { durable: false, ownership: 'unverified', recoveryVerified: false, restartRecoveryVerified: false, atomicReferencesVerified: false };
@@ -572,7 +572,7 @@ export function createPeerObjectStorageHandler({
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes, ...await capacityReceipt(envelope.namespace, localPeerId) };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null }) };
     }
 
     if (operation === 'object.get') {
