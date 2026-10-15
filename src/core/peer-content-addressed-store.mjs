@@ -458,6 +458,53 @@ export class PeerContentAddressedStore {
     return { hash, namespace: this.namespace, verifiedReplicas, failureDomains: failureDomains.size, repaired, failures };
   }
 
+  /** Start a bounded, pull-based repair loop over CIDs known by this peer. */
+  startRepairLoop({ getCids, intervalMs = 30000, concurrency = 2, onError = () => {} } = {}) {
+    if (typeof getCids !== 'function' || typeof onError !== 'function') {
+      throw new TypeError('repair loop requires a local CID enumerator and error callback');
+    }
+    const interval = Number(intervalMs);
+    const parallel = Number(concurrency);
+    if (!Number.isSafeInteger(interval) || interval < 1000 ||
+        !Number.isSafeInteger(parallel) || parallel < 1 || parallel > 16) {
+      throw new TypeError('repair loop interval or concurrency is outside the safe bounds');
+    }
+    let stopped = false;
+    let running = false;
+    const runOnce = async () => {
+      if (stopped || running) return { skipped: true, repaired: 0 };
+      running = true;
+      try {
+        const values = await getCids();
+        if (!Array.isArray(values) || values.length > 100000) throw new TypeError('CID enumerator returned an invalid or oversized list');
+        const cids = [...new Set(values.map(String).filter(cid => /^[a-f0-9]{64}$/.test(cid)))];
+        let next = 0, repaired = 0;
+        const worker = async () => {
+          while (!stopped) {
+            const index = next++;
+            if (index >= cids.length) return;
+            try {
+              const result = await this.reconcileObject(cids[index]);
+              repaired += result.repaired.length;
+            } catch (error) {
+              await onError(error, cids[index]);
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(parallel, cids.length) }, worker));
+        return { skipped: false, candidates: cids.length, repaired };
+      } finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(() => { runOnce().catch(error => onError(error, null)); }, interval);
+    timer.unref?.();
+    return Object.freeze({
+      runOnce,
+      stop() { stopped = true; clearInterval(timer); }
+    });
+  }
+
   cacheGet(hash) {
     const entry = this.verifiedObjectCache.get(hash);
     if (!entry) { this.cacheMetrics.misses++; return null; }
