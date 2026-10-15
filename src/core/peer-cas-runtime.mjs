@@ -228,6 +228,8 @@ export async function startPeerCasRuntime({ peerNode }) {
     minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
     failureDomainsByPeerId
   });
+  // Do not expose the model bridge until a verified peer-reference read quorum exists.
+  await store.listRefs();
   const allowed = new Set(required('APEX_PEER_CAS_ALLOWED_MODELS').split(';').map(x => x.trim()).filter(Boolean));
   if (!allowed.size || [...allowed].some(x => !/^[A-Za-z0-9._-]{1,128}@[A-Za-z0-9._-]{1,128}$/.test(x))) {
     throw new Error('APEX_PEER_CAS_ALLOWED_MODELS must list explicit modelId@revision entries');
