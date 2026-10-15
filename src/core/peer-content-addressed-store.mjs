@@ -665,7 +665,7 @@ export function createPeerObjectStorageHandler({
         }
         return { key: ref.key, hash: ref.hash, bytesBase64: bytes.toString('base64') };
       });
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...capacity };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: null, key: null }) };
     }
 
     if (typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512) {
@@ -673,12 +673,12 @@ export function createPeerObjectStorageHandler({
     }
     if (operation === 'ref.get') {
       const current = await store.readRef(envelope.namespace, envelope.key);
-      if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
+      if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: null, key: envelope.key }) };
       const bytes = Buffer.from(current.bytes);
       if (!validHash(current.hash) || sha256(bytes) !== current.hash) {
         throw new Error('peer reference failed integrity verification');
       }
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...capacity };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: null, key: envelope.key }) };
     }
 
     if (envelope.expectedHash !== null && !validHash(envelope.expectedHash)) {
@@ -693,6 +693,6 @@ export function createPeerObjectStorageHandler({
     }
     const saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
     if (!saved || saved.hash !== envelope.hash) throw new Error('peer reference backend did not confirm atomic reference update');
-    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...capacity };
+    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash, key: envelope.key }) };
   };
 }
