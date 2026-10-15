@@ -634,6 +634,40 @@ export class PeerContentAddressedStore {
     });
   }
 
+  /** Periodically prefetch a bounded set of CIDs discovered in peer-owned references. */
+  startPrefetchLoop({ getCids, intervalMs = 15000, maxCids = 8, maxBytes = 64 * 1024, onError = () => {} } = {}) {
+    if (typeof getCids !== 'function' || typeof onError !== 'function') {
+      throw new TypeError('prefetch loop requires a peer-reference CID enumerator and error callback');
+    }
+    const interval = Number(intervalMs);
+    if (!Number.isSafeInteger(interval) || interval < 1000 ||
+        !Number.isSafeInteger(maxCids) || maxCids < 0 || maxCids > 32 ||
+        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 1024 * 1024) {
+      throw new TypeError('prefetch loop limits are outside the safe bounds');
+    }
+    let stopped = false;
+    let running = false;
+    const runOnce = async () => {
+      if (stopped || running) return { skipped: true, requested: 0, cached: 0, bytes: 0 };
+      running = true;
+      try {
+        const values = await getCids();
+        if (!Array.isArray(values) || values.length > 100000) {
+          throw new TypeError('prefetch CID enumerator returned an invalid or oversized list');
+        }
+        return await this.prefetchCids(values, { maxCids, maxBytes });
+      } catch (error) {
+        await onError(error);
+        throw error;
+      } finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(() => { runOnce().catch(() => {}); }, interval);
+    timer.unref?.();
+    return Object.freeze({ runOnce, stop() { stopped = true; clearInterval(timer); } });
+  }
+
   /**
    * Opportunistically warm the disposable RAM cache for explicitly referenced CIDs.
    * This never changes references, creates durable claims, or falls back to disk.
