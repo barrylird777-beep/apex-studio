@@ -483,3 +483,19 @@ test('peer CAS rejects unverified durability claims even when backend self-label
     /verified durable peer-owned storage/
   );
 });
+
+
+test('peer CAS uses only verified RAM cache entries and fetches peer sources concurrently', async () => {
+  const mesh = makeMesh();
+  const saved = await mesh.client.putObject({ cacheable: 'verified', value: 17 });
+  let requests = 0;
+  const original = mesh.client.transport.request.bind(mesh.client.transport);
+  mesh.client.transport.request = async (...args) => { requests++; return original(...args); };
+  assert.deepEqual(await mesh.client.getObject(saved.hash), { cacheable: 'verified', value: 17 });
+  const afterNetworkRead = requests;
+  assert.ok(afterNetworkRead >= 1);
+  assert.deepEqual(await mesh.client.getObject(saved.hash), { cacheable: 'verified', value: 17 });
+  assert.equal(requests, afterNetworkRead, 'second read must be served from verified RAM cache');
+  assert.equal(mesh.client.cacheSnapshot().hits, 1);
+  assert.ok(mesh.client.cacheSnapshot().bytes > 0);
+});
