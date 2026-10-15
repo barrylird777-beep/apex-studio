@@ -73,7 +73,7 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   // This read requires verified responses from the configured replica quorum.
   await store.listRefs();
   let repairLoop = null;
-  if (String(process.env.APEX_PEER_CAS_REPAIR_ENABLED || '').toLowerCase() === 'true') {
+  if (String(process.env.APEX_PEER_CAS_REPAIR_ENABLED || 'true').toLowerCase() !== 'false') {
     repairLoop = store.startRepairLoop({
       intervalMs: Number(process.env.APEX_PEER_CAS_REPAIR_INTERVAL_MS || 30000),
       concurrency: Number(process.env.APEX_PEER_CAS_REPAIR_CONCURRENCY || 2),
