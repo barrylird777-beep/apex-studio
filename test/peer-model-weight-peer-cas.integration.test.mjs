@@ -69,6 +69,11 @@ function mesh() {
         const { transactionId: txId, namespace, key, expectedHash, hash, participants, state } = tx;
         return { transactionId: txId, namespace, key, expectedHash, hash, participants, state };
       },
+      async listRefTransactions(namespace) {
+        return [...transactions.entries()]
+          .filter(([key, tx]) => key.startsWith(id + ':') && tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state))
+          .map(([, tx]) => ({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state }));
+      },
       async health({ namespace, peerId: requestedPeer }) {
         return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
           atomicReferencesVerified: true, peerId: requestedPeer, namespace,
