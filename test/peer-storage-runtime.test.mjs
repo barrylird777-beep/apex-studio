@@ -52,6 +52,9 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
     return { hash };
   };
+  store.listRefs = async namespace => [...refs.entries()]
+    .filter(([refKey]) => refKey.startsWith(namespace + ':'))
+    .map(([refKey, ref]) => ({ key: refKey.slice(namespace.length + 1), hash: ref.hash, bytes: Buffer.from(ref.bytes) }));
   store.health = async ({ namespace, peerId }) => ({
     durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
     atomicReferencesVerified: true, peerId, namespace,
@@ -79,6 +82,12 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
   const receipt = await client.putObject(value);
   assert.equal(receipt.replicas[0], 'storage-peer');
   assert.deepEqual(await client.getObject(receipt.hash), value);
+  const referenceValue = { objectHash: receipt.hash, revision: 1 };
+  const reference = await client.writeRef('library-main', referenceValue, { expectedHash: null });
+  assert.equal(reference.hash.length, 64);
+  assert.deepEqual(await client.listRefs(), [
+    { namespace: 'PlanetApeX', key: 'library-main', hash: reference.hash, value: referenceValue }
+  ]);
   const storedBytes = store.objects.get(receipt.hash);
   assert.equal(Buffer.isBuffer(storedBytes), true);
   assert.equal(storedBytes.includes(Buffer.from('unpublished manuscript')), false);
