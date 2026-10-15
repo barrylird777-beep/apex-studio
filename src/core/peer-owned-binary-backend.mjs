@@ -151,15 +151,17 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     } else {
       await durableWrite(recordFile, recordBytes);
     }
-    const current = await readTransaction(tx.transactionId);
-    if ((current?.recordHash ?? null) !== expectedRecordHash) {
-      const error = new Error('peer CAS transaction head compare-and-swap conflict');
-      error.code = 'TRANSACTION_HEAD_CONFLICT';
-      throw error;
-    }
-    await durableWrite(transactionHeadFile(tx.transactionId),
-      encodeCanonical({ transactionId: tx.transactionId, recordHash }));
-    return recordHash;
+    return withRefLock(transactionHeadFile(tx.transactionId) + '.lock', async () => {
+      const current = await readTransaction(tx.transactionId);
+      if ((current?.recordHash ?? null) !== expectedRecordHash) {
+        const error = new Error('peer CAS transaction head compare-and-swap conflict');
+        error.code = 'TRANSACTION_HEAD_CONFLICT';
+        throw error;
+      }
+      await durableWrite(transactionHeadFile(tx.transactionId),
+        encodeCanonical({ transactionId: tx.transactionId, recordHash }));
+      return recordHash;
+    });
   }
 
   const receiptFor = claims => {
