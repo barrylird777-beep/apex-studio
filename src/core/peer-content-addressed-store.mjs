@@ -132,12 +132,9 @@ export class PeerContentAddressedStore {
     // cryptographic verifier. Never recurse or accept a self-asserted receipt.
     if (!hasVerifiedDurabilityReceipt(response) || typeof this.verifyDurabilityReceipt !== 'function') return false;
     try {
-      // The peer-owned backend signs a namespace-scoped durability/recovery
-      // attestation. Object hash and byte count are independently checked against
-      // the request/response below; they are not fields in that health attestation.
       return await this.verifyDurabilityReceipt(response.receipt, Object.freeze({
-        peerId, namespace: this.namespace, ownership: 'peer-owned', durable: true,
-        atomicReferencesVerified: true, restartRecoveryVerified: true
+        peerId, namespace: this.namespace, hash: response.hash ?? null,
+        bytes: response.bytes ?? null, receiptId: response.receiptId, response
       })) === true;
     } catch { return false; }
   }
