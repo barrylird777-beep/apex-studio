@@ -615,6 +615,41 @@ export class PeerContentAddressedStore {
     });
   }
 
+  /**
+   * Opportunistically warm the disposable RAM cache for explicitly referenced CIDs.
+   * This never changes references, creates durable claims, or falls back to disk.
+   */
+  async prefetchCids(cids, { maxCids = 8, maxBytes = 64 * 1024, concurrency = 2 } = {}) {
+    if (!Array.isArray(cids)) throw new TypeError('prefetch CIDs must be an array');
+    if (!Number.isSafeInteger(maxCids) || maxCids < 0 || maxCids > 32 ||
+        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 1024 * 1024 ||
+        !Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 4) {
+      throw new TypeError('prefetch limits are outside the safe bounds');
+    }
+    const unique = [...new Set(cids.map(String).filter(cid => /^[a-f0-9]{64}$/.test(cid)))].slice(0, maxCids);
+    const result = { requested: unique.length, cached: 0, skipped: 0, bytes: 0, failures: 0 };
+    let next = 0;
+    let budget = maxBytes;
+    const worker = async () => {
+      while (next < unique.length) {
+        const cid = unique[next++];
+        if (budget <= 0) { result.skipped++; continue; }
+        try {
+          const value = await this.getObject(cid);
+          const size = encodeCanonical(value).length;
+          if (size > budget) { result.skipped++; continue; }
+          budget -= size;
+          result.bytes += size;
+          result.cached++;
+        } catch {
+          result.failures++;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, unique.length) }, worker));
+    return Object.freeze(result);
+  }
+
   cacheGet(hash) {
     if (!this.cacheTtlMs || !this.cacheMaxBytes) { this.cacheMetrics.misses++; return null; }
     const cid = this.localFastPath.readHead(hash);
