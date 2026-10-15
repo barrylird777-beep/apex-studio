@@ -60,9 +60,11 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
   const objectsDir = path.join(root, 'objects');
   const refsDir = path.join(root, 'refs');
   const transactionsDir = path.join(root, 'transactions');
+  const transactionHeadsDir = path.join(root, 'transaction-heads');
   await mkdir(objectsDir, { recursive: true, mode: 0o700 });
   await mkdir(refsDir, { recursive: true, mode: 0o700 });
   await mkdir(transactionsDir, { recursive: true, mode: 0o700 });
+  await mkdir(transactionHeadsDir, { recursive: true, mode: 0o700 });
 
   // Startup integrity pass fails closed. Corrupt data is quarantined by refusal,
   // never silently deleted or treated as a cache miss.
@@ -88,9 +90,10 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     }
     for (const name of await readdir(transactionsDir)) {
       if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
-      const tx = decodeCanonical(await readFile(path.join(transactionsDir, name)));
+      const bytes = await readFile(path.join(transactionsDir, name));
+      if (sha256(bytes) !== name.slice(0, 64)) throw new Error('peer CAS startup integrity failure: transaction CID mismatch ' + name);
+      const tx = decodeCanonical(bytes);
       if (!tx || tx.version !== 1 || typeof tx.transactionId !== 'string' ||
-          sha256(Buffer.from(tx.transactionId)) + '.cbor' !== name ||
           typeof tx.namespace !== 'string' || typeof tx.key !== 'string' ||
           !/^[a-f0-9]{64}$/.test(String(tx.hash || '')) ||
           !Buffer.isBuffer(tx.bytes) || sha256(tx.bytes) !== tx.hash ||
@@ -98,9 +101,66 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         throw new Error('peer CAS startup integrity failure: invalid transaction record ' + name);
       }
     }
+    for (const name of await readdir(transactionHeadsDir)) {
+      if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
+      const head = decodeCanonical(await readFile(path.join(transactionHeadsDir, name)));
+      if (!head || typeof head.transactionId !== 'string' ||
+          sha256(Buffer.from(head.transactionId)) + '.cbor' !== name ||
+          !/^[a-f0-9]{64}$/.test(String(head.recordHash || ''))) {
+        throw new Error('peer CAS startup integrity failure: invalid transaction head ' + name);
+      }
+      const record = await readFile(path.join(transactionsDir, head.recordHash + '.cbor'));
+      if (sha256(record) !== head.recordHash || decodeCanonical(record).transactionId !== head.transactionId) {
+        throw new Error('peer CAS startup integrity failure: transaction head points to invalid record ' + name);
+      }
+    }
     return true;
   }
   await verifyDisk();
+
+  const transactionHeadFile = transactionId =>
+    path.join(transactionHeadsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
+  async function readTransaction(transactionId) {
+    const headBytes = await readFile(transactionHeadFile(transactionId)).catch(error => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (!headBytes) return null;
+    const head = decodeCanonical(headBytes);
+    if (head.transactionId !== transactionId || !/^[a-f0-9]{64}$/.test(String(head.recordHash || ''))) {
+      throw new Error('peer CAS transaction head integrity failure');
+    }
+    const recordBytes = await readFile(path.join(transactionsDir, head.recordHash + '.cbor'));
+    if (sha256(recordBytes) !== head.recordHash) throw new Error('peer CAS transaction record CID mismatch');
+    const tx = decodeCanonical(recordBytes);
+    if (tx.transactionId !== transactionId) throw new Error('peer CAS transaction ID mismatch');
+    return { tx, recordHash: head.recordHash };
+  }
+  async function writeTransaction(tx, expectedRecordHash = null) {
+    const recordBytes = encodeCanonical(tx);
+    const recordHash = sha256(recordBytes);
+    const recordFile = path.join(transactionsDir, recordHash + '.cbor');
+    const existingRecord = await readFile(recordFile).catch(error => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (existingRecord) {
+      if (sha256(existingRecord) !== recordHash || !existingRecord.equals(recordBytes)) {
+        throw new Error('peer CAS immutable transaction CID collision or corruption');
+      }
+    } else {
+      await durableWrite(recordFile, recordBytes);
+    }
+    const current = await readTransaction(tx.transactionId);
+    if ((current?.recordHash ?? null) !== expectedRecordHash) {
+      const error = new Error('peer CAS transaction head compare-and-swap conflict');
+      error.code = 'TRANSACTION_HEAD_CONFLICT';
+      throw error;
+    }
+    await durableWrite(transactionHeadFile(tx.transactionId),
+      encodeCanonical({ transactionId: tx.transactionId, recordHash }));
+    return recordHash;
+  }
 
   const receiptFor = claims => {
     const body = encodeCanonical(claims);
