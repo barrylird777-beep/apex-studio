@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign as signBytes, verify as verifyBytes } from 'node:crypto';
+import { encodeCanonical, decodeCanonical } from '../src/core/apex-cbor.mjs';
 import {
   PeerContentAddressedStore,
   createPeerObjectStorageHandler
@@ -27,6 +28,8 @@ function memoryStore() {
 }
 
 function makeMesh(ids = ['peer-a', 'peer-b']) {
+  const keyPairs = Object.fromEntries(ids.map(id => [id, generateKeyPairSync('ed25519')]));
+  const receiptPublicKeysByPeerId = Object.fromEntries(ids.map(id => [id, keyPairs[id].publicKey.export({ format: 'der', type: 'spki' }).toString('base64')]));
   const stores = new Map();
   const handlers = new Map();
   for (const id of ids) {
@@ -39,16 +42,26 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
       refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
       return { hash };
     };
-    store.health = async ({ namespace, peerId }) => ({
-      durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
-      atomicReferencesVerified: true, peerId, namespace,
-      receipt: 'test-receipt-' + id + '-' + namespace,
-      receiptId: 'test-proof-' + id + '-' + namespace
-    });
-    store.verifyDurabilityReceipt = async (receipt, claims) =>
-      receipt === 'test-receipt-' + id + '-' + claims.namespace &&
-      claims.peerId === id && claims.namespace === 'PlanetApeX' &&
-      claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true;
+    store.health = async ({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) => {
+      const claims = { version: 1, peerId, namespace, operation, objectHash, key,
+        ownership: 'peer-owned', durable: true, atomicReferencesVerified: true,
+        restartRecoveryVerified: true };
+      const body = encodeCanonical(claims);
+      return { ...claims, receipt: { algorithm: 'Ed25519', body: body.toString('base64'),
+        signature: signBytes(null, body, keyPairs[id].privateKey).toString('base64') },
+        receiptId: digest(body) };
+    };
+    store.verifyDurabilityReceipt = async (receipt, claims) => {
+      try {
+        const body = Buffer.from(receipt.body, 'base64');
+        const signed = decodeCanonical(body);
+        return receipt.algorithm === 'Ed25519' && body.toString('base64') === receipt.body &&
+          verifyBytes(null, body, keyPairs[id].publicKey, Buffer.from(receipt.signature, 'base64')) &&
+          claims.peerId === id && claims.namespace === 'PlanetApeX' &&
+          claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true &&
+          signed.peerId === id && signed.namespace === claims.namespace;
+      } catch { return false; }
+    };
     stores.set(id, store);
     handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024, authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' }));
   }
@@ -65,7 +78,7 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     stores,
     handlers,
     unavailable,
-    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
+    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId })
   };
 }
 
