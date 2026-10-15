@@ -356,7 +356,7 @@ export async function startSovereignPeer(options) {
   return node;
 }
 
-export async function sendToPeer(node, multiaddr, envelope) {
+export async function sendToPeer(node, multiaddr, envelope, { authorizeConnection = null } = {}) {
   const address = String(multiaddr || '');
   const match = address.match(/\/p2p\/([^/]+)$/);
   const destinationPeerId = match?.[1] || '';
@@ -378,6 +378,11 @@ export async function sendToPeer(node, multiaddr, envelope) {
       stream = await node.dialProtocol(target, PROTOCOL, {
         signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
       });
+      // A configured app trust gate runs after the authenticated stream opens but before any request bytes are sent.
+      if (authorizeConnection !== null) {
+        if (typeof authorizeConnection !== 'function') throw new TypeError('authorizeConnection must be a function');
+        await authorizeConnection({ node, stream, destinationPeerId, address });
+      }
       console.info('[HEARTBEAT_DIAL_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       // Attach the reader before writing so event-based streams cannot lose a fast ACK,
