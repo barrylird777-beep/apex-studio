@@ -42,7 +42,8 @@ test("remote Pure Store writes directly to CAS without an active WAL or local re
     const cas = new MemoryCAS();
     const store = new ApexPureStore({ root, wal: new ApexRingWAL({ file: path.join(root, "wal", "ring.wal.jsonl") }), cas });
     await store.init();
-    assert.ok(store.wal instanceof ApexRingWAL, "the legacy WAL remains migration-only");
+    assert.equal(store.wal, null, "peer-only storage must not construct a WAL");
+    assert.equal(store.localCas, null, "peer-only storage must not construct a local CAS fallback");
     const durable = await store.put("app_records", "no-wal-proof", { durable: true });
     assert.equal(durable.id, "no-wal-proof");
     await assert.rejects(access(path.join(root, "wal")), { code: "ENOENT" });
