@@ -45,7 +45,7 @@ jobs:
         run: >-
           node --check src/core/peer-storage-api-bridge.mjs &&
           node --check src/core/peer-storage-api-client.mjs &&
-          node --check src/core/peer-content-addressed-store.mjs &&\
+          node --check src/core/peer-content-addressed-store.mjs &&
           node --check src/core/peer-runtime-controls.mjs &&
           node --check src/core/peer-mesh-cas-adapter.mjs &&
           node --check src/core/peer-cas-runtime.mjs &&
