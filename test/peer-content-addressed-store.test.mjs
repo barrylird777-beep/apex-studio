@@ -401,13 +401,17 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   const durableStore = {
     durable: true,
     ownership: 'peer-owned',
-    async health({ namespace, peerId }) {
-      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, peerId, namespace, receipt: 'signed-test-receipt', receiptId: 'test-proof-1' };
+    async health({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) {
+      const claims = { version: 1, peerId, namespace, operation, objectHash, key,
+        ownership: 'peer-owned', durable: true, atomicReferencesVerified: true,
+        restartRecoveryVerified: true };
+      return { ...claims, receipt: 'signed-test-receipt', receiptId: digest(encodeCanonical(claims)) };
     },
     async verifyDurabilityReceipt(receipt, claims) {
       return receipt === 'signed-test-receipt' && claims.peerId === 'capacity-peer' &&
         claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
-        claims.atomicReferencesVerified === true;
+        claims.atomicReferencesVerified === true && typeof claims.operation === 'string' &&
+        Object.hasOwn(claims, 'objectHash') && Object.hasOwn(claims, 'key');
     },
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
@@ -445,7 +449,8 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   assert.equal(health.recoveryVerified, true);
   assert.equal(health.restartRecoveryVerified, true);
   assert.equal(health.atomicReferencesVerified, true);
-  assert.equal(health.receiptId, 'test-proof-1');
+  assert.equal(typeof health.receiptId, 'string');
+  assert.equal(health.receiptId.length, 64);
 
   const refBytes = Buffer.from('canonical reference bytes');
   const hash = digest(refBytes);
