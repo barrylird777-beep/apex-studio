@@ -99,7 +99,7 @@ export function createPeerStorageApiBridge({ stores, tokens, authorize, socketPa
       }
       return send(200, { ok: true, app: body.app, result });
     } catch (error) {
-      const code = ['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE', 'ACCESS_DENIED', 'ACCESS_POLICY_UNAVAILABLE', 'QUOTA_EXCEEDED'].includes(error?.code) ? error.code : undefined;
+      const code = ['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE', 'BFT_CONSENSUS_UNAVAILABLE', 'BFT_COMMIT_UNVERIFIED', 'REFERENCE_DIVERGENCE', 'REFERENCE_LISTING_DIVERGENCE', 'ACCESS_DENIED', 'ACCESS_POLICY_UNAVAILABLE', 'QUOTA_EXCEEDED', 'QUOTA_USAGE_UNAVAILABLE'].includes(error?.code) ? error.code : undefined;
       const statusCode = Number(error?.statusCode) || (code === 'ACCESS_DENIED' ? 403 : code === 'QUOTA_EXCEEDED' ? 429 : 503);
       return send(statusCode, { error: 'peer storage operation failed closed', ...(code ? { code } : {}) });
     }
