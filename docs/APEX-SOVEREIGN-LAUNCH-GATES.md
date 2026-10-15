@@ -28,7 +28,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [ ] Versioned access-control tensors stored as CIDs and atomically published through a CAS pointer.
 - [ ] Short-lived cross-app capability CIDs with path scope, operation scope, expiry, issuer binding, and replay protection.
 - [ ] Deterministic distributed job claims with lease fencing under simultaneous worker races.
-- [ ] Job results published as immutable CIDs and retrievable without the originating worker.
+- [x] Job completion publishes an immutable result CID and validates the configured replica receipts; cross-peer retrieval regression coverage is still required before this is considered launch-verified.
 - [ ] Optional erasure-coded shard storage and k-of-n reconstruction.
 - [ ] Bounded speculative prefetch of referenced small CIDs.
 - [ ] Per-app CPU, memory, storage, and concurrent-job quotas enforced inside the runtime.
