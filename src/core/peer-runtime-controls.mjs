@@ -108,11 +108,18 @@ function signEnvelope(kind, payload, privateKey) {
 }
 function verifyEnvelope(envelope, { kind, publicKey, now = Date.now(), maxAgeMs = 60000 } = {}) {
   if (!envelope || envelope.kind !== kind || envelope.version !== 1 || !envelope.payload ||
-      typeof envelope.signature !== 'string' || !publicKey) return false;
-  const bytes = canonicalBytes(signedPayload(kind, envelope.payload));
-  if (sha256(bytes) !== envelope.cid || !cryptoVerify(null, bytes, publicKey, Buffer.from(envelope.signature, 'base64'))) return false;
-  const createdAt = Number(envelope.payload.createdAt);
-  return Number.isSafeInteger(createdAt) && createdAt <= now + 5000 && now - createdAt <= maxAgeMs;
+      typeof envelope.signature !== 'string' || !publicKey ||
+      !/^[a-f0-9]{64}$/.test(String(envelope.cid || ''))) return false;
+  try {
+    const bytes = canonicalBytes(signedPayload(kind, envelope.payload));
+    const signature = Buffer.from(envelope.signature, 'base64');
+    if (!signature.length || signature.toString('base64') !== envelope.signature ||
+        sha256(bytes) !== envelope.cid || !cryptoVerify(null, bytes, publicKey, signature)) return false;
+    const createdAt = Number(envelope.payload.createdAt);
+    return Number.isSafeInteger(createdAt) && createdAt <= now + 5000 && now - createdAt <= maxAgeMs;
+  } catch {
+    return false;
+  }
 }
 
 export function mintCapability({ issuerApp, subjectApp, path, actions, expiresAt, privateKey, nonce = randomUUID() } = {}) {
