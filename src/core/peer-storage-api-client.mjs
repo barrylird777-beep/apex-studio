@@ -47,7 +47,7 @@ export class PeerStorageApiClient {
     Object.defineProperties(this, {
       namespace: { value: configuredApp, enumerable: true },
       app: { value: configuredApp, enumerable: true },
-      token: { value: token, enumerable: true },
+      token: { value: token },
       socketPath: { value: socketPath, enumerable: true }
     });
   }
@@ -55,17 +55,17 @@ export class PeerStorageApiClient {
   async init() { await this.listRefs('system'); return this; }
 
   readRef(namespace, key) {
-    return rpc({ ...this, operation: 'readRef', args: { namespace, key } });
+    return rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'readRef', args: { namespace, key } });
   }
 
   async writeRef(namespace, key, value, options = {}) {
     if (Object.hasOwn(options, 'expectedHash')) {
-      return rpc({ ...this, operation: 'writeRef', args: { namespace, key, value, expectedHash: options.expectedHash } });
+      return rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'writeRef', args: { namespace, key, value, expectedHash: options.expectedHash } });
     }
     for (let attempt = 0; attempt < 8; attempt++) {
       const current = await this.readRef(namespace, key);
       try {
-        return await rpc({ ...this, operation: 'writeRef',
+        return await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'writeRef',
           args: { namespace, key, value, expectedHash: current?.hash ?? null } });
       } catch (error) {
         if (error.code !== 'CAS_CONFLICT' || attempt === 7) throw error;
@@ -75,11 +75,11 @@ export class PeerStorageApiClient {
   }
 
   listRefs(namespace) {
-    return rpc({ ...this, operation: 'listRefs', args: { namespace } });
+    return rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'listRefs', args: { namespace } });
   }
 
   deleteRef(namespace, key, { expectedHash = null } = {}) {
-    return rpc({ ...this, operation: 'deleteRef', args: { namespace, key, expectedHash } });
+    return rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'deleteRef', args: { namespace, key, expectedHash } });
   }
 
   async putBlob(bytes) {
@@ -98,7 +98,7 @@ export class PeerStorageApiClient {
     const chunkSize = 512 * 1024;
     for (let offset = 0; offset < buffer.length; offset += chunkSize) {
       const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
-      const stored = await rpc({ ...this, operation: 'putBlob', args: { bytesBase64: piece.toString('base64') } });
+      const stored = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'putBlob', args: { bytesBase64: piece.toString('base64') } });
       if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash)) throw new Error('peer did not return a valid chunk manifest hash');
       chunks.push({ hash: stored.hash, bytes: piece.length, sha256: createHash('sha256').update(piece).digest('hex') });
     }
@@ -141,7 +141,7 @@ export class PeerStorageApiClient {
         const index = next++;
         if (index >= descriptors.length) return;
         const item = descriptors[index];
-        const result = await rpc({ ...this, operation: 'getBlob', args: { hash: item.hash } });
+        const result = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'getBlob', args: { hash: item.hash } });
         const encoded = String(result?.bytesBase64 || '');
         const piece = Buffer.from(encoded, 'base64');
         if (piece.toString('base64') !== encoded || piece.length !== item.bytes ||
