@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { generateKeyPairSync } from 'node:crypto';
 import {
   createAccessTensor, evaluateAccessTensor, verifyAccessTensor, mintCapability, verifyCapability,
@@ -70,6 +71,17 @@ test('connection elevation is bound to a live connection and credential fingerpr
   assert.equal(sessions.isElevated(connection, 'credential-v2'), false);
   sessions.revoke(connection);
   assert.equal(sessions.isElevated(connection, 'credential-v1'), false);
+  const closingConnection = new EventEmitter();
+  closingConnection.closed = false;
+  const closingChallenge = sessions.createChallenge(closingConnection, 'credential-v1');
+  await sessions.elevate(closingConnection, {
+    credentialFingerprint: 'credential-v1', attestation: { challenge: closingChallenge },
+    verifyCredential: async () => true, verifyAttestation: async () => true
+  });
+  assert.equal(sessions.isElevated(closingConnection, 'credential-v1'), true);
+  closingConnection.emit('close');
+  assert.equal(sessions.isElevated(closingConnection, 'credential-v1'), false,
+    'connection close must immediately revoke elevated trust');
   const staleConnection = { closed: false };
   const staleChallenge = sessions.createChallenge(staleConnection, 'credential-v1');
   await assert.rejects(sessions.elevate(staleConnection, {
