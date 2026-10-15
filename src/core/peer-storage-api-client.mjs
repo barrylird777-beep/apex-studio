@@ -181,7 +181,7 @@ export class PeerStorageApiClient {
             if (!node || node.kind !== 'apex.api.asset-manifest-node.v1' || node.version !== 1 ||
                 node.namespace !== this.namespace || node.level !== level || !Array.isArray(node.entries) ||
                 node.entries.length < 1 || node.entries.length > 64 ||
-                createHash('sha256').update(JSON.stringify(node)).digest('hex') !== nodes[index]) {
+                createHash('sha256').update(encodeCanonical(node)).digest('hex') !== nodes[index]) {
               throw new Error('API asset manifest node failed CID, version, or namespace verification');
             }
             loaded[index] = node.entries;
