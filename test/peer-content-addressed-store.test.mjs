@@ -419,7 +419,7 @@ test('single-replica durability policy does not require failure-domain labels', 
   assert.deepEqual(await client.getObject(receipt.hash), { noDomainMapNeeded: true });
 });
 
-test('peer CAS protocol exposes durable health and atomic namespaced references only for verified peer-owned backends', async () => {
+test('peer CAS refuses to advertise distributed atomicity when a backend lacks transaction recovery primitives', async () => {
   const objects = new Map();
   const refs = new Map();
   const durableStore = {
@@ -464,19 +464,21 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   });
   const context = { remotePeerId: 'writer-peer' };
   const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, context);
-  assert.equal(health.durable, true);
-  assert.equal(health.ownership, 'peer-owned');
-  assert.equal(health.recoveryVerified, true);
-  assert.equal(health.restartRecoveryVerified, true);
-  assert.equal(health.atomicReferencesVerified, true);
-  assert.equal(health.receiptId, 'test-proof-1');
+  assert.equal(health.durable, false);
+  assert.equal(health.ownership, 'unverified');
+  assert.equal(health.recoveryVerified, false);
+  assert.equal(health.restartRecoveryVerified, false);
+  assert.equal(health.atomicReferencesVerified, false);
+  assert.equal(health.receiptId, undefined);
 
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash: 'a'.repeat(64), bytesBase64: Buffer.from('legacy').toString('base64') }, context),
     /unsupported peer storage operation/
   );
-  const read = await handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context);
-  assert.equal(read.hash, null);
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context),
+    /verified durable peer-owned storage/
+  );
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'KashKorner', key: 'root' }, context),
     /namespace access denied/
