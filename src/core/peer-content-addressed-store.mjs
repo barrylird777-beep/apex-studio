@@ -584,10 +584,10 @@ export function createPeerObjectStorageHandler({
           value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
         throw new Error('persistent peer object failed integrity or namespace verification');
       }
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId) };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null }) };
     }
 
-    const capacity = await capacityReceipt(envelope.namespace, localPeerId);
+    const capacity = await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null });
     if (capacity.durable !== true || capacity.ownership !== 'peer-owned') {
       throw new Error('peer reference operations require verified durable peer-owned storage with restart recovery');
     }
