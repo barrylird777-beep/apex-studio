@@ -19,18 +19,18 @@ test('Pure-WAL store rejects traversal collection names before writing outside r
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
-test('Pure-WAL store rejects symlinked collection and target paths', async () => {
+test('peer-backed store ignores coordinator-local symlink paths', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-pure-symlink-'));
   try {
     const root=path.join(dir,'projects'),outside=path.join(dir,'outside');
     await fs.mkdir(root,{recursive:true});await fs.mkdir(outside,{recursive:true});
     await fs.symlink(outside,path.join(root,'linked'),'dir');
     const store=new ApexPureStore({root,wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
-    await assert.rejects(store.put('linked','record',{secret:true}),/SECURITY_VIOLATION/);
-    await fs.writeFile(path.join(outside,'record.json'),'{}');
-    await fs.mkdir(path.join(root,'safe'));
-    await fs.symlink(path.join(outside,'record.json'),path.join(root,'safe','linked.json'));
-    await assert.rejects(store.put('safe','linked',{secret:true}),/SECURITY_VIOLATION/);
+    await fs.writeFile(path.join(outside,'record.json'),'sentinel');
+    const saved=await store.put('safe','peer-record',{secret:true});
+    assert.equal(saved.id,'peer-record');
+    assert.equal(await fs.readFile(path.join(outside,'record.json'),'utf8'),'sentinel',
+      'peer-backed writes must not follow or modify coordinator-local symlinks');
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
@@ -43,15 +43,14 @@ test('legacy PureStore rejects absolute and parent-traversal paths', async () =>
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
-test('Pure-WAL materialized records are written with restrictive permissions and reopened from WAL', async () => {
+test('peer records survive reinitialization without local materialized files or WAL writes', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-pure-durable-'));
   try {
     const root=path.join(dir,'projects'),walFile=path.join(dir,'wal','ring.wal.jsonl');
     const store=new ApexPureStore({root,wal:new ApexRingWAL({file:walFile})});
     await store.put('notes','note-1',{value:'durable'});
-    const file=path.join(root,'notes','note-1.json');
-    assert.equal((await fs.stat(file)).isFile(),true);
-    assert.equal((await fs.stat(file)).mode & 0o777,0o600);
+    await assert.rejects(fs.access(root),{code:'ENOENT'});
+    await assert.rejects(fs.access(walFile),{code:'ENOENT'});
     const reopened=new ApexPureStore({root,wal:new ApexRingWAL({file:walFile})});
     await reopened.init();
     assert.equal((await reopened.get('notes','note-1')).value,'durable');
