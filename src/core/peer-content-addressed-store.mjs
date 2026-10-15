@@ -566,6 +566,9 @@ export class PeerContentAddressedStore {
       error.code = 'INSUFFICIENT_REPLICAS';
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
+      error.partialCommit = receipts.length > 0;
+      error.committedPeers = receipts.map(receipt => receipt.peerId);
+      error.reconciliationRequired = receipts.length > 0;
       error.failures = failures;
       throw error;
     }
