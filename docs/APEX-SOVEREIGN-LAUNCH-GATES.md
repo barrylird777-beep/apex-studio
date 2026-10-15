@@ -24,7 +24,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Rarest-first planning and `getBlob` source selection use fresh, signature-verified advertisements; live multi-peer advertisement gossip and production source-selection proof remain open.
 - [x] Bounded pull-based repair loop and replica reconciliation are implemented; peer-loss convergence remains unverified in a live mesh.
 - [x] Runtime now requires fresh challenge-bound hardware-root evidence for every configured peer and derives failure-domain labels from the verifier provider; production remains blocked until a real platform-backed provider is configured and its evidence is validated.
-- [x] Connection-scoped trust-session primitive rejects stale challenges and revokes on connection close/credential change; transport integration remains open.
+- [x] Connection-scoped trust-session primitive is wired before libp2p request bytes are sent and revalidates on credential rotation/reconnect; platform-provider and live lifecycle evidence remain open.
 - [x] Signed heartbeat primitive verifies freshness, peer identity, and hardware-root evidence; decentralized gossip/liveness integration remains open.
 - [x] Signed capability-advertisement primitive and CID availability planner exist; live advertisement exchange remains open.
 - [x] Versioned access-tensor CID and atomic pointer publication primitive exist; initial policy provisioning and enforcement coverage remain open.
