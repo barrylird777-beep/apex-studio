@@ -495,6 +495,20 @@ test('verified peer objects are served from bounded RAM cache while peers are br
   assert.deepEqual(await mesh.client.getObject(stored.hash), value);
 });
 
+
+test('verified RAM fast path returns isolated values after peer loss', async () => {
+  const mesh = makeMesh();
+  const value = { namespace: 'PlanetApeX', nested: { bytes: [1, 2, 3] } };
+  const stored = await mesh.client.putObject(value);
+  assert.deepEqual(await mesh.client.getObject(stored.hash), value);
+  mesh.unavailable.add('peer-a');
+  mesh.unavailable.add('peer-b');
+  const first = await mesh.client.getObject(stored.hash);
+  first.nested.bytes[0] = 99;
+  first.nested.extra = 'must not persist';
+  assert.deepEqual(await mesh.client.getObject(stored.hash), value);
+});
+
 test('verified object cache can be disabled without enabling any local persistence', async () => {
   const mesh = makeMesh();
   const disabled = new PeerContentAddressedStore({
@@ -508,6 +522,5 @@ test('verified object cache can be disabled without enabling any local persisten
   });
   const stored = await disabled.putObject({ cache: 'disabled' });
   await disabled.getObject(stored.hash);
-  assert.equal(disabled.verifiedMemoryCache.size, 0);
-  assert.equal(disabled.verifiedMemoryCacheSize, 0);
+  assert.deepEqual(disabled.localFastPath.stats(), { objectCount: 0, objectBytes: 0, headCount: 0, maxBytes: 0, ttlMs: 30000, maxHeads: 4096 });
 });
