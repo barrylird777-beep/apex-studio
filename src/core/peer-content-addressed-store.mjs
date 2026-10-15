@@ -316,6 +316,57 @@ export class PeerContentAddressedStore {
     throw error;
   }
 
+  async listRefs(namespace = this.namespace) {
+    if (namespace !== this.namespace) throw new Error('peer reference listing cannot cross app namespaces');
+    const byKey = new Map();
+    const failures = [];
+    let verifiedPeers = 0;
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.list', namespace
+        });
+        if (response.namespace !== namespace || !hasVerifiedDurabilityReceipt(response) || !Array.isArray(response.refs)) {
+          throw new Error('peer reference listing lacks a verified durability receipt or valid reference list');
+        }
+        const peerKeys = new Set();
+        for (const ref of response.refs) {
+          if (!ref || typeof ref.key !== 'string' || !ref.key || ref.key.length > 512 ||
+              !/^[a-f0-9]{64}$/.test(String(ref.hash || '')) || typeof ref.bytesBase64 !== 'string') {
+            throw new Error('peer returned an invalid reference listing entry');
+          }
+          const bytes = Buffer.from(ref.bytesBase64, 'base64');
+          if (bytes.toString('base64') !== ref.bytesBase64 || sha256(bytes) !== ref.hash || peerKeys.has(ref.key)) {
+            throw new Error('peer reference listing failed integrity or duplicate-key verification');
+          }
+          peerKeys.add(ref.key);
+          const value = decodeCanonical(bytes);
+          const prior = byKey.get(ref.key);
+          if (prior && prior.hash !== ref.hash) {
+            const error = new Error('peer reference replicas disagree; refusing to select a potentially stale manifest');
+            error.code = 'REFERENCE_DIVERGENCE';
+            error.key = ref.key;
+            throw error;
+          }
+          byKey.set(ref.key, { namespace, key: ref.key, hash: ref.hash, value });
+        }
+        verifiedPeers++;
+      } catch (error) {
+        if (error?.code === 'REFERENCE_DIVERGENCE') throw error;
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (verifiedPeers < this.replicaCount) {
+      const error = new Error('peer reference listing did not reach the configured verified replica count');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = verifiedPeers;
+      error.failures = failures;
+      throw error;
+    }
+    return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+  }
+
   async readRef(key) {
     if (typeof key !== 'string' || !key || key.length > 512) throw new TypeError('invalid peer reference key');
     const results = [];
@@ -452,7 +503,7 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas'].includes(operation)) {
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas', 'ref.list'].includes(operation)) {
       throw new Error('unsupported peer storage operation');
     }
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
@@ -503,6 +554,20 @@ export function createPeerObjectStorageHandler({
     if (capacity.durable !== true || capacity.ownership !== 'peer-owned') {
       throw new Error('peer reference operations require verified durable peer-owned storage with restart recovery');
     }
+    if (operation === 'ref.list') {
+      if (typeof store.listRefs !== 'function') throw new Error('peer reference listing is unsupported by this durable backend');
+      const refs = await store.listRefs(envelope.namespace);
+      const listed = refs.map(ref => {
+        const bytes = Buffer.from(ref.bytes);
+        if (typeof ref.key !== 'string' || !ref.key || ref.key.length > 512 ||
+            !validHash(ref.hash) || sha256(bytes) !== ref.hash) {
+          throw new Error('peer reference listing failed key, hash, or byte integrity verification');
+        }
+        return { key: ref.key, hash: ref.hash, bytesBase64: bytes.toString('base64') };
+      });
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...capacity };
+    }
+
     if (typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512) {
       throw new Error('invalid peer reference key');
     }
