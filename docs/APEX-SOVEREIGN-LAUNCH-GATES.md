@@ -39,7 +39,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 ## Required prelaunch evidence
 
 1. **App isolation:** all six app credentials tested against all six namespaces; all unauthorized combinations denied.
-2. **CAS correctness:** concurrent swaps from independent workers, stale expected hashes, replayed writes, duplicate delivery, and interrupted partial replication.
+2. **CAS correctness:** concurrent swaps from independent workers, stale expected hashes, replayed writes, duplicate delivery, and interrupted partial replication. This must be backed by a reviewed BFT commit protocol; replica quorum alone is insufficient.
 3. **Byzantine tolerance:** latency and correctness under 0, 1, and f faulty peers; never report a result as durable unless the configured quorum and failure-domain policy are satisfied.
 4. **Peer loss:** remove a replica during read/write, verify convergence and repair from remaining authorized peers, and prove repair never selects corrupt or stale data.
 5. **Restart recovery:** terminate and restart peers with all local persistent state unavailable; recover references and assets from the peer mesh only.
