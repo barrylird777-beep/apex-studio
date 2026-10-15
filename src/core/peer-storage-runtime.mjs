@@ -63,5 +63,5 @@ export async function initializePeerObjectStorage({
     authorizeNamespace: ({ remotePeerId, namespace }) =>
       Boolean(remotePeerId && Array.isArray(acl[namespace]) && acl[namespace].includes(remotePeerId))
   });
-  return Object.freeze({ enabled: true, store, handle });
+  return Object.freeze({ enabled: true, handle });
 }
