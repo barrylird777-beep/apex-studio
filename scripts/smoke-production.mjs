@@ -3,9 +3,12 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { rm } from 'node:fs/promises';
+import { startTestPeerBridge } from '../test/helpers/test-peer-storage-bridge.mjs';
 
 const port = 18080;
 const smokeRoot = path.join(tmpdir(), `apex-smoke-${process.pid}`);
+const peerSocket = path.join(tmpdir(), `apex-smoke-peer-${process.pid}.sock`);
+const peer = await startTestPeerBridge(peerSocket);
 const child = spawn(process.execPath, ['server.mjs'], {
   env: {
     ...process.env,
@@ -16,7 +19,10 @@ const child = spawn(process.execPath, ['server.mjs'], {
     APEX_SHORTCUT_TOKEN: 'apex-smoke-token',
     APEX_PROJECTS_DIR: path.join(smokeRoot, 'projects'),
     APEX_WAL_DIR: path.join(smokeRoot, 'wal'),
-    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl')
+    APEX_WAL_FILE: path.join(smokeRoot, 'wal', 'ring.wal.jsonl'),
+    APEX_APP_NAMESPACE: 'KernelVision',
+    APEX_PEER_STORAGE_API_TOKEN_KERNELVISION: peer.tokens.KernelVision,
+    APEX_PEER_STORAGE_API_SOCKET: peerSocket
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -169,5 +175,6 @@ try {
     sleep(3000)
   ]);
   if (child.exitCode === null) child.kill('SIGKILL');
+  await peer.close();
   await rm(smokeRoot, { recursive: true, force: true });
 }
