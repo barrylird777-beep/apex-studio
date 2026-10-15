@@ -6,6 +6,7 @@ on:
       - "src/core/peer-storage-api-client.mjs"
       - "src/core/local-cas-fast-path.mjs"
       - "test/local-cas-fast-path.test.mjs"
+      - "scripts/benchmark-local-cas-fast-path.mjs"
       - "package.json"
       - "src/core/content-addressed-store.mjs"
       - "src/core/autonomous-swarm-daemon.mjs"
@@ -77,6 +78,7 @@ jobs:
           node --check src/core/autonomous-swarm-daemon.mjs &&
           node --check src/core/peer-content-addressed-store.mjs &&
           node --check src/core/local-cas-fast-path.mjs &&
+          node --check scripts/benchmark-local-cas-fast-path.mjs &&
           node --check src/core/peer-runtime-controls.mjs &&
           node --check src/core/peer-mesh-cas-adapter.mjs &&
           node --check src/core/peer-cas-runtime.mjs &&
