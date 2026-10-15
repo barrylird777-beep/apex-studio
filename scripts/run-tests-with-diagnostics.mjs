@@ -15,7 +15,6 @@ let next = 0;
 const failures = [];
 const peerBridgeFiles = new Set([
   "test/voiceover-pure-wal.test.mjs",
-  "test/storage-scenes.test.mjs",
   "test/bible-production-pure-wal.test.mjs",
   "test/durable-worker-race.test.mjs",
   "test/apex-intelligence.test.mjs",
