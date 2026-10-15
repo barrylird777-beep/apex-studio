@@ -92,6 +92,9 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     const { transactionId: id, namespace, key, expectedHash, hash, participants, state } = tx;
     return { transactionId: id, namespace, key, expectedHash, hash, participants, state };
   };
+  store.listRefTransactions = async namespace => [...transactions.values()]
+    .filter(tx => tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state))
+    .map(tx => ({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state }));
   store.listRefs = async namespace => [...refs.entries()]
     .filter(([refKey]) => refKey.startsWith(namespace + ':'))
     .map(([refKey, ref]) => ({ key: refKey.slice(namespace.length + 1), hash: ref.hash, bytes: Buffer.from(ref.bytes) }));
