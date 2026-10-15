@@ -41,18 +41,22 @@ async function fixture() {
   return { peerRefs, store, engine };
 }
 
-test('peer-only bridge dispatches through injected CAS and verifies checksums', async () => {
+test('APEX_REQUIRE_PEER_ACK=false cannot bypass verified peer receipt', async () => {
   const { store, engine } = await fixture();
   const previous = process.env.APEX_REQUIRE_PEER_ACK;
   process.env.APEX_REQUIRE_PEER_ACK = 'false';
   try {
     const bridge = createSovereignDurableBridge({ engine, store, workerId: 'peer-cas-test' });
-    const result = await bridge.dispatch({
-      waveId: 'peer-cas-wave-1', action: 'app.publish',
-      payload: { appId: 'kernelodies', trackId: 'track-1' }
-    });
-    assert.equal(result.acknowledged.status, 'ACKNOWLEDGED');
-    assert.equal(verifySovereignRecord(result.acknowledged), true);
+    await assert.rejects(
+      bridge.dispatch({
+        waveId: 'peer-cas-wave-1', action: 'app.publish',
+        payload: { appId: 'kernelodies', trackId: 'track-1' }
+      }),
+      /peer acknowledgement is required/
+    );
+    const pending = engine.get('peer-cas-wave-1');
+    assert.equal(pending.status, 'DISPATCHED');
+    assert.equal(verifySovereignRecord(pending), true);
     assert.equal(store.jobs().length, 1);
     assert.equal(store.jobs()[0].dedupeKey, 'sovereign:peer-cas-wave-1');
     assert.equal((await store.get('sovereign_peer_acks', 'peer-cas-wave-1')), null);
