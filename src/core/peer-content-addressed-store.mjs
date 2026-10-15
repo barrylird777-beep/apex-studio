@@ -16,7 +16,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000 } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), verifyDurabilityReceipt = null, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -32,6 +32,10 @@ export class PeerContentAddressedStore {
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
     this.writeConcurrency = Number(writeConcurrency);
+    this.verifyDurabilityReceipt = verifyDurabilityReceipt;
+    if (verifyDurabilityReceipt !== null && typeof verifyDurabilityReceipt !== 'function') {
+      throw new TypeError('verifyDurabilityReceipt must be an independent cryptographic verifier');
+    }
     if (!Number.isSafeInteger(this.writeConcurrency) || this.writeConcurrency < 1 || this.writeConcurrency > 32) {
       throw new TypeError('writeConcurrency must be an integer between 1 and 32');
     }
@@ -114,6 +118,16 @@ export class PeerContentAddressedStore {
     return response;
   }
 
+  async hasVerifiedDurabilityReceipt(response, peerId) {
+    if (!(await this.hasVerifiedDurabilityReceipt(response, peerId)) || typeof this.verifyDurabilityReceipt !== 'function') return false;
+    try {
+      return await this.verifyDurabilityReceipt(response.receipt, Object.freeze({
+        peerId, namespace: this.namespace, hash: response.hash ?? null,
+        bytes: response.bytes ?? null, receiptId: response.receiptId, response
+      })) === true;
+    } catch { return false; }
+  }
+
   async putObject(value) {
     const bytes = encodeCanonical(this.encrypt(value));
     if (bytes.length > this.maxObjectBytes) {
@@ -146,7 +160,7 @@ export class PeerContentAddressedStore {
             bytesBase64: bytes.toString('base64')
           });
           if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace ||
-              !hasVerifiedDurabilityReceipt(response)) {
+              !(await this.hasVerifiedDurabilityReceipt(response, peerId))) {
             throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
           }
           receipts.push({
@@ -205,7 +219,7 @@ export class PeerContentAddressedStore {
         });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response) ||
+            !(await this.hasVerifiedDurabilityReceipt(response, peerId)) ||
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
           throw new Error('repair source failed object hash, namespace, or durability receipt verification');
         }
@@ -237,7 +251,7 @@ export class PeerContentAddressedStore {
           bytesBase64: sourceBytes.toString('base64')
         });
         if (response.hash !== hash || response.bytes !== sourceBytes.length || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !(await this.hasVerifiedDurabilityReceipt(response, peerId))) {
           throw new Error('repair target returned an invalid or unverified durability receipt');
         }
         repaired.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
@@ -499,7 +513,7 @@ export class PeerContentAddressedStore {
         const bytes = Buffer.from(encoded, 'base64');
         if (response.namespace !== this.namespace || response.hash !== hash ||
             bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !(await this.hasVerifiedDurabilityReceipt(response, peerId))) {
           throw new Error('replica failed CID, namespace, or durability receipt verification');
         }
         this.decrypt(decodeCanonical(bytes));
@@ -639,7 +653,7 @@ export class PeerContentAddressedStore {
     const bytes = Buffer.from(encoded, 'base64');
     if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
         response.hash !== hash || response.namespace !== this.namespace ||
-        !hasVerifiedDurabilityReceipt(response)) {
+        !(await this.hasVerifiedDurabilityReceipt(response, peerId))) {
       throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
     }
     const value = this.decrypt(decodeCanonical(bytes));
@@ -694,7 +708,7 @@ export class PeerContentAddressedStore {
         const response = await this.request(peerId, {
           protocol: 'apex.cas.v1', operation: 'ref.list', namespace
         });
-        if (response.namespace !== namespace || !hasVerifiedDurabilityReceipt(response) || !Array.isArray(response.refs)) {
+        if (response.namespace !== namespace || !(await this.hasVerifiedDurabilityReceipt(response, peerId)) || !Array.isArray(response.refs)) {
           throw new Error('peer reference listing lacks a verified durability receipt or valid reference list');
         }
         const peerKeys = new Set();
@@ -755,7 +769,7 @@ export class PeerContentAddressedStore {
           protocol: 'apex.cas.v1', operation: 'ref.get',
           namespace: this.namespace, key
         });
-        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response)) {
+        if (response.namespace !== this.namespace || !(await this.hasVerifiedDurabilityReceipt(response, peerId))) {
           throw new Error('peer reference read failed namespace or durability receipt verification');
         }
         if (response.hash === null) {
@@ -814,7 +828,7 @@ export class PeerContentAddressedStore {
           throw error;
         }
         if (response.namespace !== this.namespace || response.hash !== hash ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !(await this.hasVerifiedDurabilityReceipt(response, peerId))) {
           throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
         }
         receipts.push({
