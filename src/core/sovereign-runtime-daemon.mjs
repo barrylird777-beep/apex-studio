@@ -198,7 +198,8 @@ async function main() {
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, verified: runtimeReadiness.peerStorageVerified }));
 
   // Construct the mesh only after the live peer and required app-scoped quorum are verified.
-  const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode });
+  const meshNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || '').trim();
+  const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode, namespace: meshNamespace });
   const appStores = Object.create(null);
   for (const app of APEX_APPS) {
     // The API bridge uses the dedicated per-app key, never the runtime's
