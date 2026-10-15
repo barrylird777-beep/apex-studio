@@ -526,7 +526,7 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas', 'ref.list'].includes(operation)) {
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas', 'ref.list', 'ref.prepare', 'ref.decision', 'ref.commit', 'ref.abort', 'ref.tx.get'].includes(operation)) {
       throw new Error('unsupported peer storage operation');
     }
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
@@ -589,6 +589,46 @@ export function createPeerObjectStorageHandler({
         return { key: ref.key, hash: ref.hash, bytesBase64: bytes.toString('base64') };
       });
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...capacity };
+    }
+
+    if (operation === 'ref.tx.get') {
+      if (typeof envelope.transactionId !== 'string' || !envelope.transactionId) throw new Error('invalid transaction ID');
+      const tx = await store.getRefTransaction?.(envelope.transactionId);
+      if (!tx || tx.namespace !== envelope.namespace) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: null, ...capacity };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: tx, ...capacity };
+    }
+    if (operation === 'ref.prepare') {
+      if (typeof store.prepareRef !== 'function') throw new Error('peer backend lacks durable transaction prepare support');
+      if (typeof envelope.transactionId !== 'string' || !envelope.transactionId ||
+          typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512 ||
+          !validHash(envelope.hash) || typeof envelope.bytesBase64 !== 'string' ||
+          (envelope.expectedHash !== null && !validHash(envelope.expectedHash)) ||
+          !Array.isArray(envelope.participants)) throw new Error('invalid distributed reference prepare request');
+      const bytes = Buffer.from(envelope.bytesBase64, 'base64');
+      if (bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) throw new Error('distributed reference prepare failed byte/hash verification');
+      const prepared = await store.prepareRef({
+        transactionId: envelope.transactionId, namespace: envelope.namespace, key: envelope.key,
+        expectedHash: envelope.expectedHash ?? null, hash: envelope.hash, bytes,
+        participants: envelope.participants
+      });
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: prepared, ...capacity };
+    }
+    if (['ref.decision', 'ref.commit', 'ref.abort'].includes(operation)) {
+      if (typeof envelope.transactionId !== 'string' || !envelope.transactionId) throw new Error('invalid transaction ID');
+      let result;
+      if (operation === 'ref.decision') {
+        if (typeof store.decideRefCommit !== 'function') throw new Error('peer backend lacks durable commit-decision support');
+        result = await store.decideRefCommit(envelope.transactionId, envelope.participants);
+      } else if (operation === 'ref.commit') {
+        if (typeof store.commitPreparedRef !== 'function') throw new Error('peer backend lacks transaction commit/recovery support');
+        result = await store.commitPreparedRef(envelope.transactionId);
+      } else {
+        if (typeof store.abortPreparedRef !== 'function') throw new Error('peer backend lacks safe transaction abort support');
+        result = await store.abortPreparedRef(envelope.transactionId);
+      }
+      const tx = await store.getRefTransaction?.(envelope.transactionId);
+      if (tx && tx.namespace !== envelope.namespace) throw new Error('transaction namespace mismatch');
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: result, ...capacity };
     }
 
     if (typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512) {
