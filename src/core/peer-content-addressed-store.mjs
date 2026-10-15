@@ -414,7 +414,7 @@ export class PeerContentAddressedStore {
           protocol: 'apex.cas.v1', operation: 'ref.get',
           namespace: this.namespace, key
         });
-        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'ref.get', objectHash: response.hash ?? null, key })) {
+        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'ref.get', objectHash: null, key })) {
           throw new Error('peer reference read failed namespace or durability receipt verification');
         }
         if (response.hash === null) {
