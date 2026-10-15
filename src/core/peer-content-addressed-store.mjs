@@ -523,7 +523,7 @@ export class PeerContentAddressedStore {
     return { hash, transactionId, replicas: participants, receipts: prepared };
   }
 
-  async recoverPendingRefTransactions() {
+  async recoverPendingRefTransactions({ coordinatorStopped = false } = {}) {
     const pending = new Set();
     const failures = [];
     for (const peerId of this.peers) {
@@ -548,12 +548,12 @@ export class PeerContentAddressedStore {
     }
     const outcomes = [];
     for (const transactionId of [...pending].sort()) {
-      outcomes.push(await this.recoverRefTransaction(transactionId));
+      outcomes.push(await this.recoverRefTransaction(transactionId, { coordinatorStopped }));
     }
     return { recovered: outcomes.length, outcomes };
   }
 
-  async recoverRefTransaction(transactionId) {
+  async recoverRefTransaction(transactionId, { coordinatorStopped = false } = {}) {
     if (typeof transactionId !== 'string' || !transactionId || transactionId.length > 256) throw new TypeError('invalid transaction ID');
     const states = [];
     const failures = [];
@@ -599,11 +599,16 @@ export class PeerContentAddressedStore {
       return { transactionId, state: 'committed', peers: results.map(result => result.peerId) };
     }
     if (states.every(state => ['prepared', 'aborted', 'absent'].includes(state.state))) {
-      const results = [];
+      if (states.some(state => state.state === 'prepared') && coordinatorStopped !== true) {
+        const error = new Error('prepared-only transaction may still have a live coordinator; explicit coordinatorStopped confirmation is required before abort');
+        error.code = 'RECOVERY_BLOCKED';
+        error.transactionId = transactionId;
+        error.states = states;
+        throw error;
+      }
       for (const state of states) {
         if (state.state !== 'prepared') continue;
-        const response = await this.request(state.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
-        results.push({ peerId: state.peerId, state: response.transaction?.state });
+        await this.request(state.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
       }
       return { transactionId, state: 'aborted', peers: states.map(state => state.peerId) };
     }
