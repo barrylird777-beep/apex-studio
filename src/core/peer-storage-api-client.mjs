@@ -52,8 +52,20 @@ export class PeerStorageApiClient {
     return rpc({ ...this, operation: 'readRef', args: { namespace, key } });
   }
 
-  writeRef(namespace, key, value, { expectedHash = null } = {}) {
-    return rpc({ ...this, operation: 'writeRef', args: { namespace, key, value, expectedHash } });
+  async writeRef(namespace, key, value, options = {}) {
+    if (Object.hasOwn(options, 'expectedHash')) {
+      return rpc({ ...this, operation: 'writeRef', args: { namespace, key, value, expectedHash: options.expectedHash } });
+    }
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const current = await this.readRef(namespace, key);
+      try {
+        return await rpc({ ...this, operation: 'writeRef',
+          args: { namespace, key, value, expectedHash: current?.hash ?? null } });
+      } catch (error) {
+        if (error.code !== 'CAS_CONFLICT' || attempt === 7) throw error;
+      }
+    }
+    throw new Error('peer API reference CAS retries exhausted');
   }
 
   listRefs(namespace) {
