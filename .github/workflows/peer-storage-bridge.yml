@@ -4,8 +4,12 @@ on:
     paths:
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
+      - "src/core/content-addressed-store.mjs"
+      - "src/core/autonomous-swarm-daemon.mjs"
       - "src/core/peer-content-addressed-store.mjs"
       - "src/core/peer-runtime-controls.mjs"
+      - "src/core/content-addressed-store.mjs"
+      - "src/core/autonomous-swarm-daemon.mjs"
       - "src/core/peer-mesh-cas-adapter.mjs"
       - "src/core/peer-cas-runtime.mjs"
       - "src/core/sovereign-runtime-daemon.mjs"
@@ -47,6 +51,8 @@ jobs:
         run: >-
           node --check src/core/peer-storage-api-bridge.mjs &&
           node --check src/core/peer-storage-api-client.mjs &&
+          node --check src/core/content-addressed-store.mjs &&
+          node --check src/core/autonomous-swarm-daemon.mjs &&
           node --check src/core/peer-content-addressed-store.mjs &&
           node --check src/core/peer-runtime-controls.mjs &&
           node --check src/core/peer-mesh-cas-adapter.mjs &&
@@ -67,3 +73,5 @@ jobs:
         run: node --test test/peer-runtime-controls.test.mjs
       - name: Test bounded verified RAM cache
         run: node --test test/peer-content-addressed-store-cache.test.mjs
+      - name: Test coordinator-local CAS remains disabled
+        run: node --test test/content-addressed-store.test.mjs
