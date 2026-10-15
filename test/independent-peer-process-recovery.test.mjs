@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -168,4 +168,37 @@ test('independent peer processes recover encrypted objects and refs after outage
   assert.deepEqual(await client.listRefs(), [
     { namespace: 'PlanetApeX', key: 'project-main', hash: ref.hash, value: { objectHash: written.hash, revision: 1 } }
   ]);
+});
+
+
+test('corrupt stored bytes are rejected on restart instead of being acknowledged as durable', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'apex-peer-corruption-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const pair = generateKeyPairSync('ed25519');
+  const publicKey = pair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
+  const signingPrivateKey = pair.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
+  const peerRoot = path.join(root, 'peer-a');
+  let peer = startPeer(t, { peerId: 'peer-a', root: peerRoot, signingPrivateKey });
+  let address = await peer.ready;
+  const transport = { async request(peerId, request, { signal } = {}) {
+    const response = await fetch(`http://127.0.0.1:${address.port}/rpc`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(request), signal: signal || AbortSignal.timeout(1000)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'peer request failed');
+    return result;
+  }};
+  const client = new PeerContentAddressedStore({
+    transport, peers: ['peer-a'], replicaCount: 1,
+    namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 31),
+    receiptPublicKeysByPeerId: { 'peer-a': publicKey }
+  });
+  const stored = await client.putObject({ integrity: 'must fail closed after corruption' });
+  await stopPeer(peer);
+  const objectPath = path.join(peerRoot, 'objects', stored.hash + '.bin');
+  const original = await readFile(objectPath);
+  await writeFile(objectPath, Buffer.concat([original, Buffer.from([0])]));
+  peer = startPeer(t, { peerId: 'peer-a', root: peerRoot, signingPrivateKey });
+  await assert.rejects(peer.ready, /exited before readiness|startup timed out/);
 });
