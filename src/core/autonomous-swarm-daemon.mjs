@@ -29,12 +29,14 @@ export function createAutonomousSwarmDaemon({ pollMs = 1000, maxBackoffMs = 3000
       if (jobs.length) {
         const job = jobs[0];
         let result;
+        let completedSuccessfully = false;
         try {
           result = await handler(job.payload, job);
           const completed = await store.transition(job.id, 'complete', {
             leaseToken: job.leaseToken, leaseFence: job.leaseFence, result
           });
           if (!completed) throw new Error('swarm job lease was lost before completion');
+          completedSuccessfully = true;
           failures = 0;
         } catch (error) {
           failures++;
@@ -44,7 +46,7 @@ export function createAutonomousSwarmDaemon({ pollMs = 1000, maxBackoffMs = 3000
           await recordEvent('failed', { id: job.id, type: job.type, error: String(error?.message || error) });
           result = undefined;
         }
-        if (result !== undefined) {
+        if (completedSuccessfully) {
           const completedJob = store.jobs().find(item => String(item.id) === String(job.id));
           await recordEvent('completed', { id: job.id, type: job.type, resultCid: completedJob?.resultCid || null });
         }
