@@ -20,7 +20,7 @@ ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex and related 
 - Keep all six apps distinct, with separate identities and isolated data namespaces. Shared transport does not grant cross-app data access.
 - Shared handoffs must be authenticated, validated and idempotent. A queued handoff is not proof of peer delivery; only verified peer acknowledgements count.
 - **Storage target:** no WAL, no local disk as the system of record, no PostgreSQL, and no persisted JSON records. Use authenticated remote CAS/peer-backed storage, isolated app namespaces and verified replica receipts.
-- **Known gap:** WAL implementations and a local-store fallback remain in code, and remote CAS currently persists JSON-encoded objects/manifests. These are not compliant with the target and must be removed or replaced with tests proving no production path can fall back to them.
+- **Fail-closed status (2026-10-14):** default `ApexPureStore` initialization now refuses to start without a verified peer-only store. Filesystem CAS writes, JSON/S3 CAS writes, and local WAL appends explicitly throw `NONCOMPLIANT_STORAGE_DISABLED`. Legacy implementations remain in source for recovery/audit and are not approved as production persistence. This disables durable writes; it does **not** mean peer persistence is already wired or that the system is production-ready.
 - Keep path confinement, symlink checks, fail-closed peer authorization and independent inspection.
 - Network status must describe measured client/server paths accurately. Do not claim multipath, failover, or worldwide peer connectivity without end-to-end evidence.
 - Public access should work over authenticated HTTPS; peer-to-peer networking must remain separately authenticated and allowlisted.
