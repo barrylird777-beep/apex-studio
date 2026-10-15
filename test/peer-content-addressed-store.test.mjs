@@ -483,3 +483,22 @@ test('peer CAS rejects unverified durability claims even when backend self-label
     /verified durable peer-owned storage/
   );
 });
+
+
+test('peer CAS marks a partial reference write as an unknown outcome, not a clean rejection', async () => {
+  const mesh = makeMesh();
+  mesh.unavailable.add('peer-b');
+  await assert.rejects(
+    mesh.client.writeRef('partial-commit-case', { version: 1, payload: 'must-not-be-blindly-retried' }),
+    error => error.code === 'COMMIT_OUTCOME_UNKNOWN' &&
+      error.acceptedPeers.includes('peer-a') &&
+      error.proposedHash &&
+      error.expectedHash === null &&
+      error.receipts.length === 1
+  );
+  mesh.unavailable.delete('peer-b');
+  await assert.rejects(
+    mesh.client.readRef('partial-commit-case'),
+    error => error.code === 'REFERENCE_DIVERGENCE'
+  );
+});
