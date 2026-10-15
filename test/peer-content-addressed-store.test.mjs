@@ -631,3 +631,12 @@ test('expired distributed job leases are reclaimed with a higher fence and rejec
     leaseToken: newLease.leaseToken, leaseFence: newLease.leaseFence, result: { recovered: true }
   }), true);
 });
+
+
+test('production peer CAS refuses mutable-reference writes without a configured BFT commit provider', () => {
+  assert.throws(() => new PeerContentAddressedStore({
+    transport: { request: async () => { throw new Error('must not reach transport'); } },
+    peers: ['peer-a'], replicaCount: 1, namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7), requireBftConsensus: true, membershipEpoch: 1
+  }), error => error.code === 'BFT_CONSENSUS_UNAVAILABLE');
+});
