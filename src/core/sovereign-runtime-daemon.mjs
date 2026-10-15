@@ -4,29 +4,25 @@ import { pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { verifyRemotePersistenceProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
+import { PeerMeshCasAdapter } from './peer-mesh-cas-adapter.mjs';
 import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
 import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
 import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
-import { retryWalStartup } from './wal-startup-retry.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
-import { migrateSovereignStorage } from './sovereign-storage-migration.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
-import { startPeerCasRuntime } from './peer-cas-runtime.mjs';
+import { startPeerCasRuntime, createPeerMeshCasRuntime } from './peer-cas-runtime.mjs';
 
-const storageMigration = await migrateSovereignStorage();
-console.log('[SOVEREIGN STORAGE] persistent root ready', JSON.stringify({ migrated: storageMigration.migrated, copiedFiles: storageMigration.copied.length }));
-const storageDir = process.env.APEX_SOVEREIGN_STORAGE_DIR || '/srv/apex/se-x/projects';
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));
 const peerAddress = process.env.APEX_SOVEREIGN_PEER_ADDRESS || '';
 const smokeTestWaveId = String(process.env.APEX_PEER_SMOKE_TEST_WAVE_ID || '').trim();
 
-const engine = new SovereignMeshEngine(storageDir);
+let engine;
 let peerNode;
 let edgeNode;
 let stopping = false;
@@ -115,33 +111,23 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
 }
 
 async function verifyRemotePersistenceReadiness() {
-  if (!apexPureStore.remoteMode || !apexPureStore.cas?.writeRef || !apexPureStore.cas?.readRef || !apexPureStore.cas?.deleteRef) {
+  if (!engine?.cas?.writeRef || !engine?.cas?.readRef) {
     runtimeReadiness.remotePersistenceVerified = false;
     return false;
   }
   const key = 'runtime-probe-' + randomUUID();
   const probe = { version: 1, nonce: randomUUID(), peerId: peerNode?.peerId?.toString() || null, checkedAt: new Date().toISOString() };
-  const written = await apexPureStore.cas.writeRef('system', key, probe, { expectedHash: null });
-  const readback = await apexPureStore.cas.readRef('system', key);
+  const written = await engine.cas.writeRef('system', key, probe, { expectedHash: null });
+  const readback = await engine.cas.readRef('system', key);
   if (!verifyRemotePersistenceProbe(probe, readback) || written?.hash !== readback?.hash) {
     throw new Error('Remote CAS readiness write/read/hash verification failed');
   }
-  await apexPureStore.cas.deleteRef('system', key, { expectedHash: readback.hash });
   runtimeReadiness.remotePersistenceVerified = true;
   runtimeReadiness.remotePersistenceHash = readback.hash;
   return true;
 }
 
 async function main() {
-  const storageReady = await retryWalStartup(() => apexPureStore.init(), { isStopping: () => stopping });
-  if (!storageReady || stopping) return;
-  runtimeReadiness.storageReady = true;
-  await engine.ready();
-  if (stopping) return;
-  const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
-  if (settledLocalReceipts) console.log('[SOVEREIGN LOCAL RECEIPTS]', JSON.stringify({ acknowledged: settledLocalReceipts, disposition: 'local-only' }));
-  if (stopping) return;
-
   peerNode = await createSovereignPeer({ onEnvelope: acceptPeerEnvelope });
   if (stopping) {
     await peerNode.stop().catch(() => {});
@@ -207,6 +193,17 @@ async function main() {
     }
   }
   console.log('[SOVEREIGN PEER OBJECT STORAGE]', JSON.stringify({ enabled: peerStorageRuntime.enabled, verified: runtimeReadiness.peerStorageVerified }));
+
+  // Construct the mesh only after the live peer and required app-scoped quorum are verified.
+  const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode });
+  const meshCas = new PeerMeshCasAdapter({ store: meshCasRuntime.store, appNamespace: meshCasRuntime.namespace });
+  engine = new SovereignMeshEngine({ cas: meshCas });
+  await engine.ready();
+  runtimeReadiness.storageReady = true;
+  if (stopping) return;
+  const settledLocalReceipts = await acknowledgePendingLocalPeerReceives(engine);
+  if (settledLocalReceipts) console.log('[SOVEREIGN RECEIPTS] pending acknowledgments settled', JSON.stringify({ acknowledged: settledLocalReceipts }));
+  if (stopping) return;
 
   if (String(process.env.APEX_PEER_CAS_ENABLED || '').toLowerCase() === 'true') {
     const liveModelRuntime = await startPeerCasRuntime({ peerNode });
@@ -279,8 +276,9 @@ async function main() {
     peerAddress: peerAddress || null,
     publicPeerAddress: buildPublicPeerAddress(peerNode.peerId.toString()),
     listenAddresses: peerNode.getMultiaddrs().map(String),
-    storageDir: engine.storageDir,
-    durableStore: 'content-addressed',
+    durableStore: 'peer-owned-content-addressed',
+    appNamespace: meshCasRuntime.namespace,
+    verifiedReplicaCount: meshCasRuntime.replicaCount,
     reconcileMs
   }));
 
