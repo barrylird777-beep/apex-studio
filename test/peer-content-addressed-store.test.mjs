@@ -468,18 +468,12 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   assert.equal(health.atomicReferencesVerified, true);
   assert.equal(health.receiptId, 'test-proof-1');
 
-  const refBytes = Buffer.from('canonical reference bytes');
-  const hash = digest(refBytes);
-  const written = await handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context);
-  assert.equal(written.hash, hash);
-  assert.equal(written.durable, true);
-  const read = await handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context);
-  assert.equal(read.hash, hash);
-  assert.equal(Buffer.from(read.bytesBase64, 'base64').toString(), refBytes.toString());
   await assert.rejects(
-    handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context),
-    /compare-and-swap conflict/
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash: 'a'.repeat(64), bytesBase64: Buffer.from('legacy').toString('base64') }, context),
+    /unsupported peer storage operation/
   );
+  const read = await handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context);
+  assert.equal(read.hash, null);
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'KashKorner', key: 'root' }, context),
     /namespace access denied/
