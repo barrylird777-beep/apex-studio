@@ -579,6 +579,13 @@ export class PeerContentAddressedStore {
     }
     const decisions = states.filter(state => ['commit-decided', 'committed'].includes(state.state));
     if (decisions.length) {
+      if (states.some(state => state.state === 'aborted')) {
+        const error = new Error('a participant recorded abort while another recorded commit; refusing to cross an impossible transaction decision');
+        error.code = 'TRANSACTION_STATE_DIVERGENCE';
+        error.transactionId = transactionId;
+        error.states = states;
+        throw error;
+      }
       if (states.some(state => state.state === 'absent')) {
         const error = new Error('a participant lacks the transaction record despite a durable commit decision; refusing unsafe reconstruction');
         error.code = 'TRANSACTION_STATE_DIVERGENCE';
