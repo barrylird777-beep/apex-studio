@@ -26,7 +26,7 @@ export async function startTestPeerBridge(socketPath) {
         return { hash };
       },
       async listRefs(namespace) {
-        return [...refs.values()].filter(ref => ref.key.startsWith(namespace + '/')).map(ref => structuredClone(ref));
+        return [...refs.values()].filter(ref => ref.key.startsWith(namespace + '/')).map(ref => ({ ...structuredClone(ref), namespace, key: ref.key.slice(namespace.length + 1) }));
       },
       async deleteRef(namespace, key, { expectedHash = null } = {}) {
         const id = namespace + '/' + key;
