@@ -123,7 +123,7 @@ test('peer storage bridge denies tensor-rejected operations before mutating CAS'
     authorize: async ({ app, operation, args }) => {
       authorizationCalls++;
       assert.equal(app, 'KernelVision');
-      assert.equal(operation, 'writeRef');
+      assert.ok(['writeRef', 'readRef'].includes(operation));
       assert.equal(args.key, 'blocked-record');
       throw Object.assign(new Error('tensor deny'), { code: 'ACCESS_DENIED' });
     }
@@ -141,6 +141,7 @@ test('peer storage bridge denies tensor-rejected operations before mutating CAS'
       app: 'KernelVision', operation: 'readRef', args: { namespace: 'state', key: 'blocked-record' }
     });
     assert.equal(readback.status, 403, 'the same denying tensor also blocks readback');
+    assert.equal(authorizationCalls, 2);
   } finally {
     await bridge.close();
     await rm(socketPath, { force: true }).catch(() => {});
