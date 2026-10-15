@@ -78,17 +78,30 @@ export class SovereignMeshEngine {
   }
 
   async reserveSequence() {
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const current = await this.cas.readRef("meta", "sequence");
-      const next = Number(current?.value?.next || 1);
-      try {
-        await this.cas.writeRef("meta", "sequence", { next: next + 1 }, { expectedHash: current?.hash ?? null });
-        return next;
-      } catch (error) {
-        if (error.code !== "CAS_CONFLICT") throw error;
+    this.assertWritable();
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const current = await this.cas.readRef("meta", "sequence");
+        const next = Number(current?.value?.next || 1);
+        if (!Number.isSafeInteger(next) || next < 1 || next >= Number.MAX_SAFE_INTEGER) {
+          const error = new Error("Sovereign sequence state is invalid or exhausted");
+          error.code = "SEQUENCE_STATE_INVALID";
+          throw error;
+        }
+        try {
+          await this.cas.writeRef("meta", "sequence", { next: next + 1 }, { expectedHash: current?.hash ?? null });
+          return next;
+        } catch (error) {
+          if (error.code !== "CAS_CONFLICT") throw error;
+        }
       }
+      const error = new Error("Could not reserve sovereign sequence after peer CAS retries");
+      error.code = "SEQUENCE_RETRY_EXHAUSTED";
+      throw error;
+    } catch (error) {
+      this.freezeNamespace(error);
+      throw error;
     }
-    throw new Error("Could not reserve sovereign sequence after peer CAS retries");
   }
 
   async dispatchAutonomousPayload(payload) {
