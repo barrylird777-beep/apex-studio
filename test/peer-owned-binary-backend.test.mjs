@@ -108,13 +108,14 @@ test('two independently persisted peers recover encrypted content after one peer
   const root = await mkdtemp(path.join(os.tmpdir(), 'apex-peer-loss-'));
   const priorRoot = process.env.APEX_PEER_OWNED_STORAGE_ROOT;
   const priorKey = process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64;
-  process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 = Buffer.alloc(32, 37).toString('base64');
+  const peerKeys = Object.fromEntries(['peer-a', 'peer-b'].map(peerId => [peerId, generateKeyPairSync('ed25519')]));
+  const publicKeys = Object.fromEntries(Object.entries(peerKeys).map(([peerId, pair]) => [peerId, pair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64')]));
   t.after(async () => {
     await rm(root, { recursive: true, force: true });
     if (priorRoot === undefined) delete process.env.APEX_PEER_OWNED_STORAGE_ROOT;
     else process.env.APEX_PEER_OWNED_STORAGE_ROOT = priorRoot;
-    if (priorKey === undefined) delete process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64;
-    else process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 = priorKey;
+    if (priorKey === undefined) delete process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64;
+    else process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64 = priorKey;
   });
 
   const roots = { 'peer-a': path.join(root, 'peer-a'), 'peer-b': path.join(root, 'peer-b') };
@@ -123,6 +124,7 @@ test('two independently persisted peers recover encrypted content after one peer
   const online = new Map([['peer-a', true], ['peer-b', true]]);
   const startPeer = async peerId => {
     process.env.APEX_PEER_OWNED_STORAGE_ROOT = roots[peerId];
+    process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64 = peerKeys[peerId].privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
     const backend = await createPeerOwnedBinaryBackend(options(peerId));
     handlers.set(peerId, createPeerObjectStorageHandler({
       store: backend,
@@ -144,7 +146,7 @@ test('two independently persisted peers recover encrypted content after one peer
   const client = new PeerContentAddressedStore({
     transport, peers: ['peer-a', 'peer-b'], replicaCount: 2, minFailureDomains: 2,
     failureDomainsByPeerId: { 'peer-a': 'device-a', 'peer-b': 'device-b' },
-    namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7)
+    namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: publicKeys
   });
   const value = { project: 'survives-peer-loss', revision: 4, payload: 'peer-owned content' };
   const written = await client.putObject(value);
