@@ -10,7 +10,7 @@ const exec = promisify(execFile);
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const root = await mkdtemp(path.join(tmpdir(), "kernelvision-export-smoke-"));
 const records = [];
-const artifactDir = path.resolve("artifacts/kernelvision-smoke");
+const exportDir = process.env.APEX_APPROVED_PEER_EXPORT_DIR ? path.resolve(process.env.APEX_APPROVED_PEER_EXPORT_DIR) : null;
 const scenes = [
   ["They sold their own brother for silver.", "Brothers close around Joseph beneath a blood-red sunset.", "#100f20", "#9b4938"],
   ["His father's gift made jealousy burn.", "A torn ceremonial coat falls into dust.", "#21162c", "#bd6b4b"],
@@ -65,7 +65,6 @@ function sceneSvg(index) {
 try {
   const assets = path.join(root, "assets");
   await mkdir(assets, { recursive: true });
-  await mkdir(artifactDir, { recursive: true });
   for (let i = 0; i < scenes.length; i++) {
     const svg = path.join(assets, "scene-" + i + ".svg");
     const png = path.join(assets, "scene-" + i + ".png");
@@ -105,11 +104,16 @@ try {
   }, { mediaRoot: root, fabric: { async put(appId, id, record) { records.push({ appId, id, record }); return record; } } });
   const output = path.join(root, result.artifact.output.path);
   const subtitles = path.join(root, result.artifact.subtitles.path);
-  const published = path.join(artifactDir, "joseph-from-pit-to-forgiveness.mp4");
-  const publishedSrt = path.join(artifactDir, "joseph-from-pit-to-forgiveness.srt");
-  await copyFile(output, published);
-  await copyFile(subtitles, publishedSrt);
-  const info = await stat(published);
+  const info = await stat(output);
+  let exportedTo = null;
+  if (exportDir) {
+    await mkdir(exportDir, { recursive: true });
+    const published = path.join(exportDir, "joseph-from-pit-to-forgiveness.mp4");
+    const publishedSrt = path.join(exportDir, "joseph-from-pit-to-forgiveness.srt");
+    await copyFile(output, published);
+    await copyFile(subtitles, publishedSrt);
+    exportedTo = exportDir;
+  }
   assert.ok(info.size > 100000, "rendered MP4 must contain actual media bytes");
   assert.equal(result.artifact.status, "ready");
   assert.equal(result.artifact.output.width, 1920);
@@ -122,7 +126,7 @@ try {
   assert.equal(records.length, 1);
   console.log(JSON.stringify({
     success: true, prototype: true, notForPublication: true, bytes: info.size,
-    output: published, sha256: result.artifact.output.sha256,
+    output: exportDir ? exportedTo : "ephemeral; removed after smoke", exportedTo, sha256: result.artifact.output.sha256,
     durationSec: result.artifact.output.durationSec, fps: result.artifact.output.fps,
     narration: "espeak", music: "432 Hz ambient test tone", artwork: "10 authored vector scenes",
     qc: result.artifact.quality
