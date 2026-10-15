@@ -83,9 +83,15 @@ test('peer API bridge requires auth and keeps app references in separate stores'
     if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE; else process.env.APEX_APP_NAMESPACE = previousApp;
     await assert.rejects(client.writeRef('state', 'item-1', { marker: 'stale' }, { expectedHash: '0'.repeat(64) }),
       error => error.code === 'CAS_CONFLICT');
-    const crossAppCredential = await request(socketPath, tokens.KernelVision, { app: 'XShield', operation: 'readRef',
-      args: { namespace: 'state', key: 'item-1' } });
-    assert.equal(crossAppCredential.status, 401);
+    // Exhaustively check every credential against every other canonical app.
+    for (const sourceApp of APEX_APPS) {
+      for (const targetApp of APEX_APPS) {
+        if (sourceApp === targetApp) continue;
+        const denied = await request(socketPath, tokens[sourceApp], { app: targetApp, operation: 'readRef',
+          args: { namespace: 'state', key: 'item-1' } });
+        assert.equal(denied.status, 401, `${sourceApp} credential must not access ${targetApp}`);
+      }
+    }
     const other = await request(socketPath, tokens.XShield, { app: 'XShield', operation: 'readRef',
       args: { namespace: 'state', key: 'item-1' } });
     assert.equal(other.body.result, null);
