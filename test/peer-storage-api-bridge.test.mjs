@@ -112,6 +112,41 @@ test('peer API bridge requires auth and keeps app references in separate stores'
 });
 
 
+
+test('peer storage bridge denies tensor-rejected operations before mutating CAS', async () => {
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
+  const socketPath = '/tmp/apex-storage-deny-test-' + randomUUID() + '.sock';
+  const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
+  let authorizationCalls = 0;
+  const bridge = createPeerStorageApiBridge({
+    stores, tokens, socketPath,
+    authorize: async ({ app, operation, args }) => {
+      authorizationCalls++;
+      assert.equal(app, 'KernelVision');
+      assert.equal(operation, 'writeRef');
+      assert.equal(args.key, 'blocked-record');
+      throw Object.assign(new Error('tensor deny'), { code: 'ACCESS_DENIED' });
+    }
+  });
+  try {
+    await bridge.listen();
+    const denied = await request(socketPath, tokens.KernelVision, {
+      app: 'KernelVision', operation: 'writeRef',
+      args: { namespace: 'state', key: 'blocked-record', value: { secret: true }, expectedHash: null }
+    });
+    assert.equal(denied.status, 403);
+    assert.equal(denied.body.code, 'ACCESS_DENIED');
+    assert.equal(authorizationCalls, 1);
+    const readback = await request(socketPath, tokens.KernelVision, {
+      app: 'KernelVision', operation: 'readRef', args: { namespace: 'state', key: 'blocked-record' }
+    });
+    assert.equal(readback.status, 403, 'the same denying tensor also blocks readback');
+  } finally {
+    await bridge.close();
+    await rm(socketPath, { force: true }).catch(() => {});
+  }
+});
+
 test('API client chunks and verifies large binary assets through peer bridge', async () => {
   const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
   const socketPath = '/tmp/apex-storage-blob-test-' + randomUUID() + '.sock';
