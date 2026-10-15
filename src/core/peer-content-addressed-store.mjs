@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
+import { LocalCasFastPath } from './local-cas-fast-path.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
@@ -50,8 +51,7 @@ export class PeerContentAddressedStore {
         !Number.isSafeInteger(this.memoryCacheTtlMs) || this.memoryCacheTtlMs < 1) {
       throw new TypeError('memory cache requires a nonnegative byte budget and positive TTL');
     }
-    this.verifiedMemoryCache = new Map();
-    this.verifiedMemoryCacheSize = 0;
+    this.localFastPath = new LocalCasFastPath({ maxBytes: this.memoryCacheBytes, ttlMs: this.memoryCacheTtlMs, maxHeads: 4096 });
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
@@ -108,33 +108,17 @@ export class PeerContentAddressedStore {
 
   cacheVerifiedObject(hash, value) {
     if (this.memoryCacheBytes === 0) return;
-    const bytes = encodeCanonical(value);
-    if (bytes.length > this.memoryCacheBytes) return;
-    const prior = this.verifiedMemoryCache.get(hash);
-    if (prior) this.verifiedMemoryCacheSize -= prior.bytes.length;
-    this.verifiedMemoryCache.delete(hash);
-    const entry = { bytes, expiresAt: Date.now() + this.memoryCacheTtlMs };
-    this.verifiedMemoryCache.set(hash, entry);
-    this.verifiedMemoryCacheSize += bytes.length;
-    while (this.verifiedMemoryCacheSize > this.memoryCacheBytes) {
-      const oldestKey = this.verifiedMemoryCache.keys().next().value;
-      const oldest = this.verifiedMemoryCache.get(oldestKey);
-      this.verifiedMemoryCache.delete(oldestKey);
-      this.verifiedMemoryCacheSize -= oldest.bytes.length;
-    }
+    const stored = this.localFastPath.putImmutable(encodeCanonical(value));
+    if (!stored.cached) return;
+    const current = this.localFastPath.readHead(hash);
+    this.localFastPath.compareAndSwap(hash, current, stored.cid);
   }
 
   readVerifiedMemoryCache(hash) {
-    const entry = this.verifiedMemoryCache.get(hash);
-    if (!entry) return null;
-    if (entry.expiresAt <= Date.now()) {
-      this.verifiedMemoryCache.delete(hash);
-      this.verifiedMemoryCacheSize -= entry.bytes.length;
-      return null;
-    }
-    this.verifiedMemoryCache.delete(hash);
-    this.verifiedMemoryCache.set(hash, entry);
-    return decodeCanonical(entry.bytes);
+    const cid = this.localFastPath.readHead(hash);
+    if (!cid) return null;
+    const bytes = this.localFastPath.getImmutable(cid);
+    return bytes === null ? null : decodeCanonical(bytes);
   }
 
   async request(peerId, request) {
