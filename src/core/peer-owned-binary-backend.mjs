@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, sign as signBytes, verify as verifyBytes } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { encodeCanonical, decodeCanonical } from './apex-cbor.mjs';
@@ -38,12 +38,18 @@ async function withRefLock(lockPath, operation, timeoutMs = 10000) {
  */
 export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}) {
   const root = path.resolve(String(process.env.APEX_PEER_OWNED_STORAGE_ROOT || '').trim());
-  const signingSecret = Buffer.from(String(process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 || ''), 'base64');
+  const privateKeyEncoded = String(process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64 || '');
+  let signingKey;
+  try {
+    const der = Buffer.from(privateKeyEncoded, 'base64');
+    if (!privateKeyEncoded || der.toString('base64') !== privateKeyEncoded) throw new Error('non-canonical key');
+    signingKey = createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+    if (signingKey.asymmetricKeyType !== 'ed25519') throw new Error('wrong key type');
+  } catch {
+    throw new Error('APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64 must contain this peer’s Ed25519 PKCS#8 private key in canonical base64');
+  }
   if (!process.env.APEX_PEER_OWNED_STORAGE_ROOT?.trim()) throw new Error('APEX_PEER_OWNED_STORAGE_ROOT must explicitly name peer-owned durable capacity');
   if (!peerId || typeof peerId !== 'string') throw new Error('authenticated local peer ID is required');
-  if (signingSecret.length < 32 || signingSecret.toString('base64') !== process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64) {
-    throw new Error('APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 must be canonical base64 containing at least 32 secret bytes');
-  }
   let acl = namespaceAcl && typeof namespaceAcl === 'object' ? namespaceAcl : null;
   if (typeof namespaceAcl === 'string' && namespaceAcl.trim()) {
     acl = Object.create(null);
@@ -90,7 +96,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
 
   const receiptFor = claims => {
     const body = encodeCanonical(claims);
-    return { body: body.toString('base64'), mac: createHmac('sha256', signingSecret).update(body).digest('base64') };
+    return { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, signingKey).toString('base64') };
   };
   return Object.freeze({
     async putBytes(hash, input) {
@@ -164,30 +170,27 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       refs.sort((a, b) => a.key.localeCompare(b.key));
       return refs;
     },
-    async health({ namespace, peerId: requestedPeerId }) {
+    async health({ namespace, peerId: requestedPeerId, operation = 'storage.health', objectHash = null, key = null }) {
       if (requestedPeerId !== peerId || !Array.isArray(acl[namespace]) || !acl[namespace].length) throw new Error('peer CAS health claim does not match peer identity or ACL');
       await verifyDisk();
-      const claims = { version: 1, peerId, namespace, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
+      if (objectHash !== null && !/^[a-f0-9]{64}$/.test(String(objectHash))) throw new Error('durability receipt object hash is invalid');
+      const claims = { version: 1, peerId, namespace, operation, objectHash, key, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
       return { ...claims, receipt: receiptFor(claims), receiptId: sha256(encodeCanonical(claims)) };
     },
     async verifyDurabilityReceipt(receipt, claims) {
       try {
-        if (!receipt || typeof receipt.body !== 'string' || typeof receipt.mac !== 'string' ||
-            !claims || typeof claims.peerId !== 'string' || typeof claims.namespace !== 'string') return false;
+        if (!receipt || receipt.algorithm !== 'Ed25519' || typeof receipt.body !== 'string' ||
+            typeof receipt.signature !== 'string' || !claims ||
+            typeof claims.peerId !== 'string' || typeof claims.namespace !== 'string') return false;
         const body = Buffer.from(receipt.body, 'base64');
-        const mac = Buffer.from(receipt.mac, 'base64');
-        if (body.toString('base64') !== receipt.body || mac.toString('base64') !== receipt.mac) return false;
-        const expectedMac = createHmac('sha256', signingSecret).update(body).digest();
-        if (mac.length !== expectedMac.length || !timingSafeEqual(mac, expectedMac)) return false;
+        const signature = Buffer.from(receipt.signature, 'base64');
+        if (body.toString('base64') !== receipt.body || signature.toString('base64') !== receipt.signature ||
+            !verifyBytes(null, body, createPublicKey(signingKey), signature)) return false;
         const signed = decodeCanonical(body);
         const required = {
-          version: 1,
-          peerId: claims.peerId,
-          namespace: claims.namespace,
-          ownership: 'peer-owned',
-          durable: true,
-          atomicReferencesVerified: true,
-          restartRecoveryVerified: true
+          version: 1, peerId: claims.peerId, namespace: claims.namespace,
+          ownership: 'peer-owned', durable: true,
+          atomicReferencesVerified: true, restartRecoveryVerified: true
         };
         return Object.entries(required).every(([key, value]) => signed[key] === value) &&
           Object.entries(claims).every(([key, value]) => signed[key] === value);

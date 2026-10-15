@@ -41,19 +41,7 @@ function queueManifestWrite(task) {
 }
 
 export async function initStorage() {
-  await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
-  try {
-    await fs.access(PROJECT_FILE);
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-    await fs.writeFile(PROJECT_FILE, JSON.stringify({ assets: [], exports: [] }, null, 2), {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx"
-    }).catch((writeError) => {
-      if (writeError?.code !== "EEXIST") throw writeError;
-    });
-  }
+  throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] Project asset storage still targets local disk and a JSON manifest; peer-only binary persistence is not wired.");
 }
 
 export async function saveProjectAssetFromFile(type, sourcePath, extension) {

@@ -135,6 +135,7 @@ export class ApexRingWAL {
     try{await this._readAndVerify();this.ready=true;return this;}finally{await release();}
   }
   async append(type,payload={},meta={}){
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] Local WAL append is disabled; use verified peer-only persistence.");
     await this.init();
     const run=async()=>{
       const release=await this._acquireLock();

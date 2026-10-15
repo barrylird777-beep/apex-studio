@@ -1,13 +1,38 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createPublicKey, verify as verifyBytes, randomBytes } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
-const hasVerifiedDurabilityReceipt = response =>
-  response?.durable === true && response?.ownership === 'peer-owned' &&
-  response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
-  response?.atomicReferencesVerified === true && Boolean(response?.receipt) &&
-  typeof response?.receiptId === 'string' && response.receiptId.length > 0;
+const hasVerifiedDurabilityReceipt = (response, peerId, publicKeys, expected = {}) => {
+  if (!(response?.durable === true && response?.ownership === 'peer-owned' &&
+      response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
+      response?.atomicReferencesVerified === true && response?.receipt?.algorithm === 'Ed25519' &&
+      typeof response?.receipt?.body === 'string' && typeof response?.receipt?.signature === 'string' &&
+      typeof response?.receiptId === 'string' && response.receiptId.length > 0)) return false;
+  try {
+    const encodedKey = publicKeys?.[peerId];
+    if (typeof encodedKey !== 'string' || !encodedKey) return false;
+    const der = Buffer.from(encodedKey, 'base64');
+    if (der.toString('base64') !== encodedKey) return false;
+    const key = createPublicKey({ key: der, format: 'der', type: 'spki' });
+    if (key.asymmetricKeyType !== 'ed25519') return false;
+    const body = Buffer.from(response.receipt.body, 'base64');
+    const signature = Buffer.from(response.receipt.signature, 'base64');
+    if (body.toString('base64') !== response.receipt.body ||
+        signature.toString('base64') !== response.receipt.signature ||
+        !verifyBytes(null, body, key, signature)) return false;
+    const claims = decodeCanonical(body);
+    const required = {
+      version: 1, peerId, namespace: expected.namespace,
+      operation: expected.operation, objectHash: expected.objectHash ?? null,
+      key: expected.key ?? null, ownership: 'peer-owned', durable: true,
+      atomicReferencesVerified: true, restartRecoveryVerified: true
+    };
+    return Object.entries(required).every(([name, value]) => claims?.[name] === value) &&
+      response.peerId === peerId && response.namespace === expected.namespace &&
+      response.receiptId === sha256(body);
+  } catch { return false; }
+};
 
 /**
  * Peer-backed immutable object replication primitive.
@@ -15,7 +40,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, receiptPublicKeysByPeerId = {}, requestTimeoutMs = 5000 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -29,6 +54,9 @@ export class PeerContentAddressedStore {
     this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
     this.namespace = namespace;
     this.encryptionKey = key;
+    this.receiptPublicKeysByPeerId = Object.fromEntries(Object.entries(receiptPublicKeysByPeerId || {}).map(([id, value]) => [String(id), String(value)]));
+    this.requestTimeoutMs = Number(requestTimeoutMs);
+    if (!Number.isSafeInteger(this.requestTimeoutMs) || this.requestTimeoutMs < 1 || this.requestTimeoutMs > 120000) throw new TypeError('requestTimeoutMs must be between 1 and 120000 milliseconds');
     this.maxObjectBytes = Number(maxObjectBytes);
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
@@ -84,12 +112,31 @@ export class PeerContentAddressedStore {
     return decodeCanonical(plaintext);
   }
 
-  async request(peerId, request) {
-    const response = await this.transport.request(peerId, request);
-    if (!response || response.peerId !== peerId || response.accepted !== true) {
-      throw new Error('peer storage response identity or acceptance verification failed');
+  async request(peerId, request, { signal, timeoutMs = this.requestTimeoutMs } = {}) {
+    const controller = new AbortController();
+    const abortFromCaller = () => controller.abort(signal?.reason || new Error('peer request cancelled'));
+    if (signal?.aborted) abortFromCaller();
+    else signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const timeout = setTimeout(() => controller.abort(new Error('peer storage request timed out')), timeoutMs);
+    try {
+      const operation = Promise.resolve().then(() =>
+        this.transport.request(peerId, request, { signal: controller.signal })
+      );
+      const aborted = new Promise((_, reject) => {
+        const fail = () => reject(controller.signal.reason || new Error('peer storage request cancelled'));
+        if (controller.signal.aborted) fail();
+        else controller.signal.addEventListener('abort', fail, { once: true });
+      });
+      const response = await Promise.race([operation, aborted]);
+      if (!response || response.peerId !== peerId || response.accepted !== true) {
+        throw new Error('peer storage response identity or acceptance verification failed');
+      }
+      return response;
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abortFromCaller);
+      if (!controller.signal.aborted) controller.abort(new Error('peer request completed'));
     }
-    return response;
   }
 
   async putObject(value) {
@@ -104,29 +151,42 @@ export class PeerContentAddressedStore {
     const hash = sha256(bytes);
     const receipts = [];
     const failures = [];
-    for (const peerId of this.peers) {
+    let contradiction = null;
+    const outcomes = await Promise.all(this.peers.map(async peerId => {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1',
-          operation: 'object.put',
-          namespace: this.namespace,
-          hash,
-          bytesBase64: bytes.toString('base64')
+          protocol: 'apex.cas.v1', operation: 'object.put', namespace: this.namespace,
+          hash, bytesBase64: bytes.toString('base64')
         });
-        if (response.hash !== hash || response.bytes !== bytes.length || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
+        if (response.namespace !== this.namespace ||
+            (typeof response.hash === 'string' && /^[a-f0-9]{64}$/.test(response.hash) && response.hash !== hash)) {
+          const error = new Error('authenticated peer returned a contradictory object hash or namespace');
+          error.code = 'CONTRADICTORY_REPLICA';
+          error.peerId = peerId;
+          throw error;
         }
-        receipts.push({
-          peerId, hash, bytes: response.bytes, namespace: this.namespace,
-          receiptId: response.receiptId, durabilityReceipt: response.receipt,
-          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
-        });
-        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
+        if (response.hash !== hash || response.bytes !== bytes.length ||
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, {
+              namespace: this.namespace, operation: 'object.put', objectHash: hash, key: null
+            })) throw new Error('peer returned an invalid, cross-namespace, or unverified durability receipt');
+        return { peerId, response };
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        if (error?.code === 'CONTRADICTORY_REPLICA') contradiction ||= error;
+        return { peerId, error };
       }
+    }));
+    if (contradiction) throw contradiction;
+    for (const outcome of outcomes) {
+      if (outcome.error) {
+        failures.push({ peerId: outcome.peerId, error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error) });
+        continue;
+      }
+      const { peerId, response } = outcome;
+      receipts.push({
+        peerId, hash, bytes: response.bytes, namespace: this.namespace,
+        receiptId: response.receiptId, durabilityReceipt: response.receipt,
+        failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
+      });
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
     if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
@@ -171,7 +231,7 @@ export class PeerContentAddressedStore {
         });
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response) ||
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.get', objectHash: hash, key: null }) ||
             bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash) {
           throw new Error('repair source failed object hash, namespace, or durability receipt verification');
         }
@@ -203,7 +263,7 @@ export class PeerContentAddressedStore {
           bytesBase64: sourceBytes.toString('base64')
         });
         if (response.hash !== hash || response.bytes !== sourceBytes.length || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'object.put', objectHash: hash, key: null })) {
           throw new Error('repair target returned an invalid or unverified durability receipt');
         }
         repaired.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
@@ -291,29 +351,52 @@ export class PeerContentAddressedStore {
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
     const failures = [];
-    for (const peerId of this.peers) {
+    let contradiction = null;
+    const outcomes = await Promise.all(this.peers.map(async peerId => {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1',
-          operation: 'object.get',
-          namespace: this.namespace,
-          hash
+          protocol: 'apex.cas.v1', operation: 'object.get',
+          namespace: this.namespace, hash
         });
+        if (response.namespace !== this.namespace ||
+            (typeof response.hash === 'string' && /^[a-f0-9]{64}$/.test(response.hash) && response.hash !== hash)) {
+          const error = new Error('authenticated peer returned a contradictory immutable object hash or namespace');
+          error.code = 'CONTRADICTORY_REPLICA';
+          error.peerId = peerId;
+          throw error;
+        }
         const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
         if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash ||
-            response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
-        }
-        return this.decrypt(decodeCanonical(bytes));
+            response.hash !== hash ||
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, {
+              namespace: this.namespace, operation: 'object.get', objectHash: hash, key: null
+            })) throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+        return { peerId, response, bytes };
       } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+        if (error?.code === 'CONTRADICTORY_REPLICA') contradiction ||= error;
+        return { peerId, error };
       }
+    }));
+    if (contradiction) throw contradiction;
+    const verified = outcomes.filter(item => !item.error);
+    failures.push(...outcomes.filter(item => item.error).map(item => ({
+      peerId: item.peerId, error: item.error instanceof Error ? item.error.message : String(item.error)
+    })));
+    if (verified.length === 0) {
+      const error = new Error('immutable object was not recoverable from any verified peer');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.requiredReplicas = 1;
+      error.verifiedReplicas = 0;
+      error.failures = failures;
+      throw error;
     }
-    const error = new Error('object was not recoverable from any configured peer');
-    error.code = 'OBJECT_UNAVAILABLE';
-    error.failures = failures;
-    throw error;
+    const firstBytes = verified[0].bytes;
+    if (verified.some(item => !item.bytes.equals(firstBytes))) {
+      const error = new Error('verified replicas returned contradictory bytes for the same immutable object hash');
+      error.code = 'CONTRADICTORY_REPLICA';
+      throw error;
+    }
+    return this.decrypt(decodeCanonical(firstBytes));
   }
 
   async listRefs(namespace = this.namespace) {
@@ -327,7 +410,7 @@ export class PeerContentAddressedStore {
         const response = await this.request(peerId, {
           protocol: 'apex.cas.v1', operation: 'ref.list', namespace
         });
-        if (response.namespace !== namespace || !hasVerifiedDurabilityReceipt(response) || !Array.isArray(response.refs)) {
+        if (response.namespace !== namespace || !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace, operation: 'ref.list', objectHash: null, key: null }) || !Array.isArray(response.refs)) {
           throw new Error('peer reference listing lacks a verified durability receipt or valid reference list');
         }
         const peerKeys = new Set();
@@ -388,7 +471,7 @@ export class PeerContentAddressedStore {
           protocol: 'apex.cas.v1', operation: 'ref.get',
           namespace: this.namespace, key
         });
-        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response)) {
+        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, { namespace: this.namespace, operation: 'ref.get', objectHash: null, key })) {
           throw new Error('peer reference read failed namespace or durability receipt verification');
         }
         if (response.hash === null) {
@@ -418,6 +501,15 @@ export class PeerContentAddressedStore {
       error.hashes = results.map(result => ({ peerId: result.peerId, hash: result.hash }));
       throw error;
     }
+    const domains = new Set(results.map(result => this.failureDomainsByPeerId[result.peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
+    if (results.length < this.replicaCount || domains.size < this.minFailureDomains) {
+      const error = new Error('peer reference read did not reach configured verified replica quorum');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = results.length;
+      error.failures = failures;
+      throw error;
+    }
     const first = results[0];
     return first.hash === null ? null : { value: first.value, hash: first.hash };
   }
@@ -432,26 +524,41 @@ export class PeerContentAddressedStore {
     const hash = sha256(bytes);
     const receipts = [];
     const failures = [];
-    for (const peerId of this.peers) {
+    let contradiction = null;
+    const outcomes = await Promise.all(this.peers.map(async peerId => {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1', operation: 'ref.cas',
-          namespace: this.namespace, key, expectedHash, hash,
-          bytesBase64: bytes.toString('base64')
+          protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: this.namespace,
+          key, expectedHash, hash, bytesBase64: bytes.toString('base64')
         });
-        if (response.namespace !== this.namespace || response.hash !== hash ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
+        if (response.namespace !== this.namespace ||
+            (typeof response.hash === 'string' && /^[a-f0-9]{64}$/.test(response.hash) && response.hash !== hash)) {
+          const error = new Error('authenticated peer returned a contradictory reference hash or namespace');
+          error.code = 'CONTRADICTORY_REPLICA';
+          error.peerId = peerId;
+          throw error;
         }
-        receipts.push({
-          peerId, hash, receiptId: response.receiptId,
-          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
-        });
-        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
+        if (response.hash !== hash ||
+            !hasVerifiedDurabilityReceipt(response, peerId, this.receiptPublicKeysByPeerId, {
+              namespace: this.namespace, operation: 'ref.cas', objectHash: hash, key
+            })) throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
+        return { peerId, response };
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        if (error?.code === 'CONTRADICTORY_REPLICA') contradiction ||= error;
+        return { peerId, error };
       }
+    }));
+    if (contradiction) throw contradiction;
+    for (const outcome of outcomes) {
+      if (outcome.error) {
+        failures.push({ peerId: outcome.peerId, error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error) });
+        continue;
+      }
+      const { peerId, response } = outcome;
+      receipts.push({
+        peerId, hash, receiptId: response.receiptId,
+        failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
+      });
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
     if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
@@ -459,6 +566,9 @@ export class PeerContentAddressedStore {
       error.code = 'INSUFFICIENT_REPLICAS';
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
+      error.partialCommit = receipts.length > 0;
+      error.committedPeers = receipts.map(receipt => receipt.peerId);
+      error.reconciliationRequired = receipts.length > 0;
       error.failures = failures;
       throw error;
     }
@@ -483,17 +593,31 @@ export function createPeerObjectStorageHandler({
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
   const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function';
-  const capacityReceipt = async (namespace, expectedPeerId) => {
+  const capacityReceipt = async (namespace, expectedPeerId, binding = {}) => {
     if (!hasReferenceBackend || typeof store.health !== 'function' ||
         typeof store.verifyDurabilityReceipt !== 'function') {
       return { durable: false, ownership: 'unverified', recoveryVerified: false, restartRecoveryVerified: false, atomicReferencesVerified: false };
     }
-    const proof = await store.health({ namespace, peerId: expectedPeerId });
+    const proof = await store.health({ namespace, peerId: expectedPeerId, ...binding });
     const verified = proof?.durable === true && proof?.ownership === 'peer-owned'
       && proof?.restartRecoveryVerified === true && proof?.atomicReferencesVerified === true
       && proof?.peerId === expectedPeerId && proof?.namespace === namespace
-      && proof?.receipt && await store.verifyDurabilityReceipt(proof.receipt, {
-        namespace, peerId: expectedPeerId, restartRecoveryVerified: true, atomicReferencesVerified: true
+      && proof?.operation === (binding.operation || 'storage.health')
+      && proof?.objectHash === (binding.objectHash ?? null)
+      && proof?.key === (binding.key ?? null)
+      && proof?.receipt && proof?.receiptId === sha256(encodeCanonical({
+        version: 1, peerId: expectedPeerId, namespace,
+        operation: binding.operation || 'storage.health',
+        objectHash: binding.objectHash ?? null, key: binding.key ?? null,
+        ownership: 'peer-owned', durable: true,
+        atomicReferencesVerified: true, restartRecoveryVerified: true
+      }))
+      && await store.verifyDurabilityReceipt(proof.receipt, {
+        version: 1, namespace, peerId: expectedPeerId,
+        operation: binding.operation || 'storage.health',
+        objectHash: binding.objectHash ?? null, key: binding.key ?? null,
+        ownership: 'peer-owned', durable: true,
+        restartRecoveryVerified: true, atomicReferencesVerified: true
       }) === true;
     return {
       durable: verified,
@@ -524,7 +648,7 @@ export function createPeerObjectStorageHandler({
     if (!localPeerId) throw new Error('local peer identity is not ready');
 
     if (operation === 'storage.health') {
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt(envelope.namespace, localPeerId) };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null }) };
     }
 
     if (operation === 'object.put') {
@@ -546,7 +670,7 @@ export function createPeerObjectStorageHandler({
       if (saved.hash !== envelope.hash || saved.bytes !== bytes.length) {
         throw new Error('persistent peer store did not preserve the requested object');
       }
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes, ...await capacityReceipt(envelope.namespace, localPeerId) };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, bytes: saved.bytes, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null }) };
     }
 
     if (operation === 'object.get') {
@@ -558,10 +682,10 @@ export function createPeerObjectStorageHandler({
           value?.algorithm !== 'aes-256-gcm' || value?.version !== 1) {
         throw new Error('persistent peer object failed integrity or namespace verification');
       }
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId) };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: envelope.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null }) };
     }
 
-    const capacity = await capacityReceipt(envelope.namespace, localPeerId);
+    const capacity = await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null });
     if (capacity.durable !== true || capacity.ownership !== 'peer-owned') {
       throw new Error('peer reference operations require verified durable peer-owned storage with restart recovery');
     }
@@ -576,7 +700,7 @@ export function createPeerObjectStorageHandler({
         }
         return { key: ref.key, hash: ref.hash, bytesBase64: bytes.toString('base64') };
       });
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...capacity };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: null, key: null }) };
     }
 
     if (typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512) {
@@ -584,12 +708,12 @@ export function createPeerObjectStorageHandler({
     }
     if (operation === 'ref.get') {
       const current = await store.readRef(envelope.namespace, envelope.key);
-      if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
+      if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: null, key: envelope.key }) };
       const bytes = Buffer.from(current.bytes);
       if (!validHash(current.hash) || sha256(bytes) !== current.hash) {
         throw new Error('peer reference failed integrity verification');
       }
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...capacity };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: current.hash, bytesBase64: bytes.toString('base64'), ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: null, key: envelope.key }) };
     }
 
     if (envelope.expectedHash !== null && !validHash(envelope.expectedHash)) {
@@ -604,6 +728,6 @@ export function createPeerObjectStorageHandler({
     }
     const saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
     if (!saved || saved.hash !== envelope.hash) throw new Error('peer reference backend did not confirm atomic reference update');
-    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...capacity };
+    return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash, key: envelope.key }) };
   };
 }
