@@ -19,20 +19,20 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Atomic CAS conflict surfaced distinctly from replica failure.
 - [x] Bounded TTL RAM cache for verified immutable object bytes; cache is non-durable.
 - [x] Parallel peer reads for immutable objects and bounded concurrent chunk assembly.
-- [ ] Rarest-first scheduling based on authenticated, expiring chunk-availability advertisements.
-- [ ] Peer-driven replication-factor monitoring and automatic repair after peer loss.
+- [x] Rarest-first scheduling primitive and verified-advertisement ordering are implemented; live multi-peer advertisement gossip and production proof remain open.
+- [x] Bounded pull-based repair loop and replica reconciliation are implemented; peer-loss convergence remains unverified in a live mesh.
 - [ ] Hardware-root attestation and physical failure-domain proof; current environment-variable failure-domain labels are not hardware proof.
-- [ ] Connection-scoped trust elevation with explicit credential rotation, connection teardown, and revocation behavior.
-- [ ] Signed peer heartbeats and decentralized liveness expiry.
-- [ ] Signed peer capability advertisements for app permissions, trusted hardware roots, and held CIDs.
-- [ ] Versioned access-control tensors stored as CIDs and atomically published through a CAS pointer.
-- [ ] Short-lived cross-app capability CIDs with path scope, operation scope, expiry, issuer binding, and replay protection.
+- [x] Connection-scoped trust-session primitive rejects stale challenges and revokes on connection close/credential change; transport integration remains open.
+- [x] Signed heartbeat primitive verifies freshness, peer identity, and hardware-root evidence; decentralized gossip/liveness integration remains open.
+- [x] Signed capability-advertisement primitive and CID availability planner exist; live advertisement exchange remains open.
+- [x] Versioned access-tensor CID and atomic pointer publication primitive exist; initial policy provisioning and enforcement coverage remain open.
+- [x] Signed short-lived cross-app capability primitive includes scope, expiry, issuer/subject binding, and replay protection; production key lifecycle/integration remains open.
 - [ ] Deterministic distributed job claims with lease fencing under simultaneous worker races.
 - [x] Job completion publishes an immutable result CID and validates the configured replica receipts; cross-peer retrieval regression coverage is still required before this is considered launch-verified.
 - [ ] Optional erasure-coded shard storage and k-of-n reconstruction.
 - [ ] Bounded speculative prefetch of referenced small CIDs.
-- [ ] Per-app CPU, memory, storage, and concurrent-job quotas enforced inside the runtime.
-- [ ] End-to-end performance and fault-injection suite, with published measurements.
+- [ ] Quota tensor evaluation exists and now fails closed when a configured metric is missing; trusted per-app usage metering is not yet wired, so quota-enabled storage remains blocked.
+- [ ] Unit/fault tests exist for core primitives; end-to-end Byzantine/restart/peer-loss measurements are not yet published.
 
 ## Required prelaunch evidence
 
