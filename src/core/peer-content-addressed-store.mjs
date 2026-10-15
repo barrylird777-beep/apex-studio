@@ -549,34 +549,46 @@ export class PeerContentAddressedStore {
     const cached = this.cacheGet(hash);
     if (cached) return this.decrypt(decodeCanonical(cached));
     const failures = [];
-    const attempts = this.peers.map(async peerId => {
-      const response = await this.request(peerId, {
-        protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
-      });
-      const encoded = String(response.bytesBase64 || '');
-      const bytes = Buffer.from(encoded, 'base64');
-      if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
-          response.hash !== hash || response.namespace !== this.namespace ||
-          !hasVerifiedDurabilityReceipt(response)) {
-        throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+    const configured = Number(process.env.APEX_PEER_CAS_READ_CONCURRENCY || 8);
+    const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configured) ? configured : 8, this.peers.length));
+    let next = 0;
+    let won = false;
+    const worker = async () => {
+      while (!won) {
+        const index = next++;
+        if (index >= this.peers.length) throw new Error('no untried peers remain');
+        const peerId = this.peers[index];
+        try {
+          const response = await this.request(peerId, {
+            protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
+          });
+          const encoded = String(response.bytesBase64 || '');
+          const bytes = Buffer.from(encoded, 'base64');
+          if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
+              response.hash !== hash || response.namespace !== this.namespace ||
+              !hasVerifiedDurabilityReceipt(response)) {
+            throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+          }
+          const value = this.decrypt(decodeCanonical(bytes));
+          if (!won) {
+            won = true;
+            this.cacheSet(hash, bytes);
+            return value;
+          }
+        } catch (error) {
+          failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        }
       }
-      // Authenticate the encrypted envelope before it can enter the RAM cache.
-      const value = this.decrypt(decodeCanonical(bytes));
-      return { bytes, value };
-    });
+      throw new Error('another peer already satisfied the object read');
+    };
     try {
-      const verified = await Promise.any(attempts);
-      this.cacheSet(hash, verified.bytes);
-      return verified.value;
-    } catch (aggregate) {
-      for (const reason of aggregate?.errors || [aggregate]) {
-        failures.push(reason instanceof Error ? reason.message : String(reason));
-      }
+      return await Promise.any(Array.from({ length: concurrency }, worker));
+    } catch {
+      const error = new Error('object was not recoverable from any configured peer');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.failures = failures;
+      throw error;
     }
-    const error = new Error('object was not recoverable from any configured peer');
-    error.code = 'OBJECT_UNAVAILABLE';
-    error.failures = failures;
-    throw error;
   }
 
   async listRefs(namespace = this.namespace) {
