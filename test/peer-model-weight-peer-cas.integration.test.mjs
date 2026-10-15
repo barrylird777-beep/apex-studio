@@ -31,6 +31,44 @@ function mesh() {
         refs.set(k, { hash, bytes: Buffer.from(bytes) });
         return { hash };
       },
+      async prepareRef({ transactionId, namespace, key, expectedHash, hash, bytes, participants }) {
+        const prior = transactions.get(id + ':' + transactionId);
+        if (prior) return { transactionId, state: prior.state, hash: prior.hash };
+        if ((refs.get(id + ':' + namespace + ':' + key)?.hash ?? null) !== expectedHash) throw new Error('prepare CAS conflict');
+        await this.putBytes(hash, bytes);
+        const tx = { transactionId, namespace, key, expectedHash, hash, bytes: Buffer.from(bytes), participants: [...participants].sort(), state: 'prepared' };
+        transactions.set(id + ':' + transactionId, tx);
+        return { transactionId, state: tx.state, hash };
+      },
+      async decideRefCommit(transactionId, participants) {
+        const tx = transactions.get(id + ':' + transactionId);
+        if (!tx || JSON.stringify([...participants].sort()) !== JSON.stringify(tx.participants)) throw new Error('prepare/participant mismatch');
+        if (tx.state === 'prepared') tx.state = 'commit-decided';
+        return { transactionId, state: tx.state, hash: tx.hash };
+      },
+      async commitPreparedRef(transactionId) {
+        const tx = transactions.get(id + ':' + transactionId);
+        if (!tx || !['commit-decided', 'committed'].includes(tx.state)) throw new Error('missing commit decision');
+        const k = id + ':' + tx.namespace + ':' + tx.key;
+        const current = refs.get(k);
+        if ((current?.hash ?? null) === tx.expectedHash) refs.set(k, { hash: tx.hash, bytes: Buffer.from(tx.bytes) });
+        else if (current?.hash !== tx.hash) throw new Error('commit divergence');
+        tx.state = 'committed';
+        return { transactionId, state: tx.state, hash: tx.hash };
+      },
+      async abortPreparedRef(transactionId) {
+        const tx = transactions.get(id + ':' + transactionId);
+        if (!tx) return { transactionId, state: 'absent' };
+        if (tx.state !== 'prepared' && tx.state !== 'aborted') throw new Error('cannot abort decided transaction');
+        tx.state = 'aborted';
+        return { transactionId, state: tx.state };
+      },
+      async getRefTransaction(transactionId) {
+        const tx = transactions.get(id + ':' + transactionId);
+        if (!tx) return null;
+        const { transactionId: txId, namespace, key, expectedHash, hash, participants, state } = tx;
+        return { transactionId: txId, namespace, key, expectedHash, hash, participants, state };
+      },
       async health({ namespace, peerId: requestedPeer }) {
         return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
           atomicReferencesVerified: true, peerId: requestedPeer, namespace,
@@ -46,6 +84,7 @@ function mesh() {
       remotePeerId === 'weight-writer' && namespace === 'KernelVision'
   })]));
   const refs = new Map();
+  const transactions = new Map();
   const transport = { async request(id, envelope) {
     if (unavailable.has(id)) throw new Error('peer unavailable');
     return handlers.get(id)(envelope, { remotePeerId: 'weight-writer' });
