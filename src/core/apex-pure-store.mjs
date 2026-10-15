@@ -428,6 +428,8 @@ export class ApexPureStore {
     catch(e){throw e;}
   }
   async put(collection,id,record){
+    // Reject malformed keys before initialization or any peer/network side effect.
+    safeSegment(collection,"collection");safeSegment(id,"record id");
     await this.init();
     const run=async()=>{
       const target=this.remoteMode?null:await this.checkedFile(collection,id,{createDir:true});
@@ -440,10 +442,11 @@ export class ApexPureStore {
     return this.remoteMode?this.withMutationLock(run):run();
   }
   async create(collection,record={}){const id=String(record.id||randomUUID());return this.put(collection,id,{...record,id});}
-  async get(collection,id){await this.init();const key=this.key(collection,id);const ref=await this.cas.readRef("state",this.refKey(collection,id));const v=ref?.value;if(v?.collection&&v?.id!=null&&!v.deleted){this.state.set(key,clone(v.record));return clone(v.record);}this.state.delete(key);return null;}
-  async list(collection){await this.refreshState();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
+  async get(collection,id){safeSegment(collection,"collection");safeSegment(id,"record id");await this.init();const key=this.key(collection,id);const ref=await this.cas.readRef("state",this.refKey(collection,id));const v=ref?.value;if(v?.collection&&v?.id!=null&&!v.deleted){this.state.set(key,clone(v.record));return clone(v.record);}this.state.delete(key);return null;}
+  async list(collection){safeSegment(collection,"collection");await this.refreshState();return [...this.state.entries()].filter(([k])=>k.startsWith(String(collection)+"::")).map(([,v])=>clone(v));}
   async query(collection,predicate=()=>true,{sort,limit=10000}={}){let rows=(await this.list(collection)).filter(predicate);if(sort)rows.sort(sort);return rows.slice(0,Math.max(1,Number(limit)||10000));}
   async delete(collection,id){
+    safeSegment(collection,"collection");safeSegment(id,"record id");
     await this.init();
     const run=async()=>{
       const target=this.remoteMode?null:await this.checkedFile(collection,id);
