@@ -26,6 +26,31 @@ function parsePeers(value) {
 }
 
 
+function collectReferencedCids(value, output = new Set(), key = '') {
+  if (Array.isArray(value)) {
+    for (const item of value) collectReferencedCids(item, output, key);
+    return output;
+  }
+  if (!value || typeof value !== 'object') {
+    if (['cid', 'tensorCid', 'resultCid', 'objectCid', 'assetCid', 'chunkCid'].includes(key) ||
+        (key === 'hash' && Array.isArray(value?.chunks))) {
+      if (/^[a-f0-9]{64}$/.test(String(value || ''))) output.add(String(value));
+    }
+    return output;
+  }
+  for (const [childKey, child] of Object.entries(value)) {
+    if (['cid', 'tensorCid', 'resultCid', 'objectCid', 'assetCid', 'chunkCid'].includes(childKey) &&
+        /^[a-f0-9]{64}$/.test(String(child || ''))) output.add(String(child));
+    if (childKey === 'chunks' && Array.isArray(child)) {
+      for (const chunk of child) {
+        if (/^[a-f0-9]{64}$/.test(String(chunk?.hash || ''))) output.add(String(chunk.hash));
+      }
+    }
+    collectReferencedCids(child, output, childKey);
+  }
+  return output;
+}
+
 /** Create the app-scoped peer CAS used by the mesh engine; no model bridge. */
 export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceOverride, encryptionKeyBase64: keyOverride } = {}) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('started sovereign peer node required');
@@ -47,7 +72,23 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   });
   // This read requires verified responses from the configured replica quorum.
   await store.listRefs();
-  return Object.freeze({ store, namespace, peers, replicaCount, minFailureDomains });
+  let repairLoop = null;
+  if (String(process.env.APEX_PEER_CAS_REPAIR_ENABLED || '').toLowerCase() === 'true') {
+    repairLoop = store.startRepairLoop({
+      intervalMs: Number(process.env.APEX_PEER_CAS_REPAIR_INTERVAL_MS || 30000),
+      concurrency: Number(process.env.APEX_PEER_CAS_REPAIR_CONCURRENCY || 2),
+      getCids: async () => {
+        const refs = await store.listRefs();
+        const cids = new Set();
+        for (const ref of refs) collectReferencedCids(ref.value, cids);
+        return [...cids];
+      },
+      onError: (error, cid) => console.error('[PEER CAS REPAIR]', JSON.stringify({
+        namespace, cid, code: error?.code || null, error: String(error?.message || error)
+      }))
+    });
+  }
+  return Object.freeze({ store, namespace, peers, replicaCount, minFailureDomains, repairLoop });
 }
 
 export async function startPeerCasRuntime({ peerNode }) {
