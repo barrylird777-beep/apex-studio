@@ -87,7 +87,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       if (sha256(object) !== value.hash || !object.equals(value.bytes)) throw new Error('peer CAS startup integrity failure: reference target does not match immutable object ' + value.hash);
     }
     for (const name of await readdir(transactionsDir)) {
-      if (!/^[a-f0-9]{64}\\.cbor$/.test(name)) continue;
+      if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
       const tx = decodeCanonical(await readFile(path.join(transactionsDir, name)));
       if (!tx || tx.version !== 1 || typeof tx.transactionId !== 'string' ||
           sha256(Buffer.from(tx.transactionId)) + '.cbor' !== name ||
@@ -178,7 +178,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           return { transactionId, state: existingTx.state, hash: existingTx.hash };
         }
         for (const name of await readdir(transactionsDir)) {
-          if (!/^[a-f0-9]{64}\\.cbor$/.test(name)) continue;
+          if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
           const pending = decodeCanonical(await readFile(path.join(transactionsDir, name)));
           if (pending.namespace === namespace && pending.key === key &&
               ['prepared', 'commit-decided'].includes(pending.state)) {
