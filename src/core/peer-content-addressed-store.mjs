@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
+import { LocalCasFastPath } from './local-cas-fast-path.mjs';
 import { verifyCapabilityAdvertisement, planRarestFirstChunks } from './peer-runtime-controls.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -41,8 +42,7 @@ export class PeerContentAddressedStore {
     }
     this.cacheTtlMs = Math.max(0, Number(cacheTtlMs) || 0);
     this.cacheMaxBytes = Math.max(0, Number(cacheMaxBytes) || 0);
-    this.verifiedObjectCache = new Map();
-    this.verifiedObjectCacheBytes = 0;
+    this.localFastPath = new LocalCasFastPath({ maxBytes: this.cacheMaxBytes, ttlMs: Math.max(1, this.cacheTtlMs), maxHeads: 4096 });
     this.cacheMetrics = { hits: 0, misses: 0, evictions: 0 };
     // Rarest-first is an optimization only. Missing or invalid advertisements
     // never grant trust or block the normal integrity-checked peer-read path.
@@ -607,42 +607,34 @@ export class PeerContentAddressedStore {
   }
 
   cacheGet(hash) {
-    const entry = this.verifiedObjectCache.get(hash);
-    if (!entry) { this.cacheMetrics.misses++; return null; }
-    if (entry.expiresAt <= Date.now() || sha256(entry.bytes) !== hash) {
-      this.verifiedObjectCache.delete(hash);
-      this.verifiedObjectCacheBytes -= entry.bytes.length;
+    if (!this.cacheTtlMs || !this.cacheMaxBytes) { this.cacheMetrics.misses++; return null; }
+    const cid = this.localFastPath.readHead(hash);
+    if (!cid) { this.cacheMetrics.misses++; return null; }
+    const bytes = this.localFastPath.getImmutable(cid);
+    if (!bytes || sha256(bytes) !== hash) {
+      try { this.localFastPath.compareAndSwap(hash, cid, null); } catch {}
       this.cacheMetrics.evictions++;
       this.cacheMetrics.misses++;
       return null;
     }
-    // Refresh insertion order for bounded LRU eviction; payload stays RAM-only.
-    this.verifiedObjectCache.delete(hash);
-    this.verifiedObjectCache.set(hash, entry);
     this.cacheMetrics.hits++;
-    return Buffer.from(entry.bytes);
+    return bytes;
   }
 
   cacheSet(hash, bytes) {
     if (!this.cacheTtlMs || !this.cacheMaxBytes || bytes.length > this.cacheMaxBytes) return;
-    const prior = this.verifiedObjectCache.get(hash);
-    if (prior) this.verifiedObjectCacheBytes -= prior.bytes.length;
-    this.verifiedObjectCache.delete(hash);
-    const copy = Buffer.from(bytes);
-    this.verifiedObjectCache.set(hash, { bytes: copy, expiresAt: Date.now() + this.cacheTtlMs });
-    this.verifiedObjectCacheBytes += copy.length;
-    while (this.verifiedObjectCacheBytes > this.cacheMaxBytes && this.verifiedObjectCache.size) {
-      const oldestKey = this.verifiedObjectCache.keys().next().value;
-      const oldest = this.verifiedObjectCache.get(oldestKey);
-      this.verifiedObjectCache.delete(oldestKey);
-      this.verifiedObjectCacheBytes -= oldest.bytes.length;
-      this.cacheMetrics.evictions++;
-    }
+    const stored = this.localFastPath.putImmutable(bytes);
+    // The immutable cache CID must equal the already verified peer object CID.
+    if (stored.cid !== hash || !stored.cached) return;
+    const current = this.localFastPath.readHead(hash);
+    try { this.localFastPath.compareAndSwap(hash, current, stored.cid); }
+    catch { this.cacheMetrics.evictions++; }
   }
 
   cacheSnapshot() {
-    return Object.freeze({ ...this.cacheMetrics, entries: this.verifiedObjectCache.size,
-      bytes: this.verifiedObjectCacheBytes, ttlMs: this.cacheTtlMs, maxBytes: this.cacheMaxBytes });
+    const stats = this.localFastPath.stats();
+    return Object.freeze({ ...this.cacheMetrics, entries: stats.objectCount,
+      bytes: stats.objectBytes, ttlMs: this.cacheTtlMs, maxBytes: this.cacheMaxBytes });
   }
 
   async getObjectFromPeer(hash, peerId) {
