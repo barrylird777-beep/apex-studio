@@ -7,10 +7,10 @@ import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mj
 
 const receiptPair = generateKeyPairSync('ed25519');
 const receiptPublicKey = receiptPair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
-function signedReceipt({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) {
+function signedReceipt({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null, pair = receiptPair }) {
   const claims = { version: 1, peerId, namespace, operation, objectHash, key, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
   const body = encodeCanonical(claims);
-  return { receipt: { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, receiptPair.privateKey).toString('base64') }, receiptId: createHash('sha256').update(body).digest('hex') };
+  return { receipt: { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, pair.privateKey).toString('base64') }, receiptId: createHash('sha256').update(body).digest('hex') };
 }
 
 function binaryMemoryStore() {
@@ -146,5 +146,46 @@ test('six-app namespace ACL allows only each app’s explicitly listed peer', as
         );
       }
     }
+  }
+});
+
+
+test('writer rejects forged, cross-peer, altered-hash, and altered-namespace durability receipts', async () => {
+  const otherPair = generateKeyPairSync('ed25519');
+  const publicKeys = { 'storage-peer': receiptPublicKey };
+  const value = { object: 'receipt-negative-test' };
+  const variants = [
+    ['forged signature', ({ receipt }) => ({ ...receipt, signature: Buffer.alloc(64, 1).toString('base64') })],
+    ['another peer signature', ({ namespace, peerId, operation, objectHash, key }) => signedReceipt({ namespace, peerId, operation, objectHash, key, pair: otherPair }).receipt],
+    ['altered object hash', ({ namespace, peerId, operation, key }) => signedReceipt({ namespace, peerId, operation, objectHash: '0'.repeat(64), key }).receipt],
+    ['altered namespace', ({ peerId, operation, objectHash, key }) => signedReceipt({ namespace: 'XShield', peerId, operation, objectHash, key }).receipt]
+  ];
+  for (const [name, mutate] of variants) {
+    const transport = {
+      async request(peerId, request) {
+        const signed = signedReceipt({
+          namespace: request.namespace, peerId, operation: request.operation,
+          objectHash: request.hash ?? null, key: request.key ?? null
+        });
+        const receipt = mutate({ ...request, peerId, ...signed.claims, receipt: signed.receipt });
+        return {
+          accepted: true, peerId, namespace: request.namespace, hash: request.hash,
+          bytes: Buffer.from(request.bytesBase64, 'base64').length,
+          durable: true, ownership: 'peer-owned', recoveryVerified: true,
+          restartRecoveryVerified: true, atomicReferencesVerified: true,
+          receipt, receiptId: signed.receiptId
+        };
+      }
+    };
+    const client = new PeerContentAddressedStore({
+      transport, peers: ['storage-peer'], replicaCount: 1,
+      failureDomainsByPeerId: { 'storage-peer': 'test-domain' },
+      namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 29),
+      receiptPublicKeysByPeerId: publicKeys
+    });
+    await assert.rejects(client.putObject(value), error =>
+      error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 0,
+      name + ' must not count as a durable replica'
+    );
   }
 });
