@@ -4,6 +4,13 @@ on:
     paths:
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
+      - "src/core/peer-content-addressed-store.mjs"
+      - "src/core/peer-mesh-cas-adapter.mjs"
+      - "src/core/peer-cas-runtime.mjs"
+      - "src/core/sovereign-runtime-daemon.mjs"
+      - "src/core/apex-pure-store.mjs"
+      - "src/core/storage.mjs"
+      - "server.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
   push:
@@ -25,5 +32,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Syntax-check integrated runtime modules
+        run: >-
+          node --check src/core/peer-storage-api-bridge.mjs &&
+          node --check src/core/peer-storage-api-client.mjs &&
+          node --check src/core/peer-content-addressed-store.mjs &&
+          node --check src/core/peer-mesh-cas-adapter.mjs &&
+          node --check src/core/peer-cas-runtime.mjs &&
+          node --check src/core/sovereign-runtime-daemon.mjs &&
+          node --check src/core/apex-pure-store.mjs &&
+          node --check src/core/storage.mjs &&
+          node --check server.mjs
       - name: Test bridge authentication and app isolation
         run: node --test test/peer-storage-api-bridge.test.mjs
