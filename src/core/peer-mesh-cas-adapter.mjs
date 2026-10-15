@@ -41,7 +41,17 @@ export class PeerMeshCasAdapter {
     return ref?.value?.__apexDeleted === true ? null : ref;
   }
   async writeRef(namespace, key, value, options = {}) {
-    return this.store.writeRef(this.refKey(namespace, key), value, options);
+    const refKey = this.refKey(namespace, key);
+    if (Object.hasOwn(options, 'expectedHash')) return this.store.writeRef(refKey, value, options);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const current = await this.store.readRef(refKey);
+      try {
+        return await this.store.writeRef(refKey, value, { expectedHash: current?.hash ?? null });
+      } catch (error) {
+        if (error.code !== 'CAS_CONFLICT' || attempt === 7) throw error;
+      }
+    }
+    throw new Error('peer reference CAS retries exhausted');
   }
   async deleteRef(namespace, key, { expectedHash = null } = {}) {
     const current = await this.store.readRef(this.refKey(namespace, key));
