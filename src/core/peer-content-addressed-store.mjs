@@ -439,6 +439,13 @@ export class PeerContentAddressedStore {
           namespace: this.namespace, key, expectedHash, hash,
           bytesBase64: bytes.toString('base64')
         });
+        if (response.code === 'CAS_CONFLICT' || response.conflict === true) {
+          const error = new Error('peer reference changed before the atomic update');
+          error.code = 'CAS_CONFLICT';
+          error.peerId = peerId;
+          error.currentHash = response.hash ?? null;
+          throw error;
+        }
         if (response.namespace !== this.namespace || response.hash !== hash ||
             !hasVerifiedDurabilityReceipt(response)) {
           throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
