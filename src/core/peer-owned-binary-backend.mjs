@@ -46,8 +46,10 @@ async function withRefLock(lockPath, operation, timeoutMs = 10000) {
             catch (probeError) { if (probeError.code === 'ESRCH') stale = true; }
           }
         } catch (ownerError) {
-          if (ownerError.code === 'ENOENT' || ownerError instanceof Error) {
+          if (ownerError.code === 'ENOENT' || !ownerError.code) {
             stale = Date.now() - info.mtimeMs > 10000;
+          } else {
+            throw ownerError;
           }
         }
       } catch (statError) {
