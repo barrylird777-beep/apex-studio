@@ -29,7 +29,7 @@ function readBody(req) {
 }
 
 /** Authenticated API-to-peer-runtime IPC with six fixed, isolated CAS instances. */
-export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/apex-storage-api.sock' } = {}) {
+export function createPeerStorageApiBridge({ stores, tokens, authorize, socketPath = '/tmp/apex-storage-api.sock' } = {}) {
   if (!stores || typeof stores !== 'object') throw new TypeError('six app-scoped peer stores are required');
   for (const app of APEX_APPS) {
     const entry = stores[app];
@@ -39,6 +39,7 @@ export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/
       throw new Error('missing or incorrectly scoped peer store: ' + app);
     }
   }
+  if (typeof authorize !== 'function') throw new TypeError('a fail-closed peer access-tensor authorizer is required');
   if (!tokens || typeof tokens !== 'object') throw new TypeError('per-app bridge tokens are required');
   for (const app of APEX_APPS) if (typeof tokens[app] !== 'string' || tokens[app].length < 32) throw new TypeError('missing per-app bridge token: ' + app);
   if (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..')) {
@@ -60,6 +61,9 @@ export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/
       if (actual.length !== appToken.length || !timingSafeEqual(actual, appToken)) return send(401, { error: 'unauthorized' });
       const { cas, objects } = stores[body.app];
       const args = body.args || {};
+      // Every operation is checked against the latest verified app-scoped CID tensor.
+      // Policy lookup failure, missing tensor, or quota exhaustion fails closed.
+      await authorize({ app: body.app, operation: body.operation, args });
       let result;
       switch (body.operation) {
         case 'readRef':
@@ -95,8 +99,9 @@ export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/
       }
       return send(200, { ok: true, app: body.app, result });
     } catch (error) {
-      const code = ['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE'].includes(error?.code) ? error.code : undefined;
-      return send(Number(error?.statusCode) || 503, { error: 'peer storage operation failed closed', ...(code ? { code } : {}) });
+      const code = ['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE', 'ACCESS_DENIED', 'ACCESS_POLICY_UNAVAILABLE', 'QUOTA_EXCEEDED'].includes(error?.code) ? error.code : undefined;
+      const statusCode = Number(error?.statusCode) || (code === 'ACCESS_DENIED' ? 403 : code === 'QUOTA_EXCEEDED' ? 429 : 503);
+      return send(statusCode, { error: 'peer storage operation failed closed', ...(code ? { code } : {}) });
     }
   });
   let socketIdentity = null;
