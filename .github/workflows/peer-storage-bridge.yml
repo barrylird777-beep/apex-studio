@@ -28,6 +28,7 @@ on:
       - "test/schedule-api.smoke.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
       - "test/peer-content-addressed-store.test.mjs"
+      - "test/peer-content-addressed-store.test.mjs"
       - "test/peer-runtime-launch-gates.test.mjs"
       - "src/core/peer-runtime-controls.mjs"
       - "test/peer-runtime-controls.test.mjs"
@@ -84,7 +85,7 @@ jobs:
           node --check test/schedule-api.smoke.mjs &&
           node --check test/peer-content-addressed-store.test.mjs
       - name: Test bridge authentication and app isolation
-        run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-runtime-launch-gates.test.mjs
+        run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-content-addressed-store.test.mjs test/peer-runtime-launch-gates.test.mjs
       - name: Test signed runtime controls and access tensors
         run: node --test test/peer-runtime-controls.test.mjs
       - name: Test encrypted reference storage and peer recovery
