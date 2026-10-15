@@ -69,6 +69,12 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
   const refsDir = path.join(root, 'refs');
   await mkdir(objectsDir, { recursive: true, mode: 0o700 });
   await mkdir(refsDir, { recursive: true, mode: 0o700 });
+  for (const directory of [root, objectsDir, refsDir]) {
+    const stat = await lstat(directory);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error('peer CAS storage root and namespaces must be real directories, not symlinks');
+    }
+  }
 
   // Startup integrity pass fails closed. Corrupt data is quarantined by refusal,
   // never silently deleted or treated as a cache miss.
