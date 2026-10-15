@@ -16,6 +16,8 @@ on:
       - "src/core/peer-mesh-cas-adapter.mjs"
       - "test/peer-mesh-cas-adapter.test.mjs"
       - "src/core/peer-runtime-controls.mjs"
+      - "src/core/peer-storage-libp2p-transport.mjs"
+      - "src/network/sovereign-peer.mjs"
       - "src/core/peer-runtime-launch-gates.mjs"
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
@@ -77,6 +79,8 @@ jobs:
           node --check src/core/peer-mesh-cas-adapter.mjs &&
           node --check src/core/peer-cas-runtime.mjs &&
           node --check src/core/peer-runtime-controls.mjs &&
+          node --check src/core/peer-storage-libp2p-transport.mjs &&
+          node --check src/network/sovereign-peer.mjs &&
           node --check src/core/peer-runtime-launch-gates.mjs &&
           node --check src/core/sovereign-runtime-daemon.mjs &&
           node --check src/core/apex-pure-store.mjs &&
