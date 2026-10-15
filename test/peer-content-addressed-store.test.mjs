@@ -543,7 +543,7 @@ test('peer CAS aborts a prepared write when a participant is unavailable before 
     mesh.client.writeRef('partial-commit-case', { version: 1, payload: 'must-not-be-blindly-retried' }),
     error => {
       transactionId = error.transactionId;
-      return error.code === 'PREPARE_INCOMPLETE' && Boolean(transactionId) &&
+      return error.code === 'TRANSACTION_RECOVERY_REQUIRED' && Boolean(transactionId) &&
         error.preparedPeers.includes('peer-a');
     }
   );
