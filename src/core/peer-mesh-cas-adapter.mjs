@@ -94,7 +94,18 @@ export class PeerMeshCasAdapter {
 
   jobs() { return [...this.jobCache.values()].map(clone); }
   async refreshJobs() {
-    const refs = await this.store.listRefs();
+    let refs;
+    for (let retry = 0; retry < 4; retry++) {
+      try {
+        refs = await this.store.listRefs();
+        break;
+      } catch (error) {
+        const convergenceError = ['REFERENCE_DIVERGENCE', 'REFERENCE_LISTING_DIVERGENCE', 'INSUFFICIENT_REPLICAS'].includes(error?.code);
+        if (!convergenceError || retry === 3) throw error;
+        await new Promise(resolve => setTimeout(resolve, 5 * (2 ** retry)));
+      }
+    }
+    if (!Array.isArray(refs)) throw new Error('peer job index could not reach a consistent replica view');
     this.jobCache.clear();
     for (const ref of refs) {
       if (ref.namespace === this.appNamespace && ref.key.startsWith('jobs/')) {
