@@ -606,3 +606,28 @@ test('distributed job claims have one CAS winner and reject stale lease fencing 
   assert.equal(final.value.job.status, 'completed');
   assert.match(final.value.job.resultCid, /^[a-f0-9]{64}$/);
 });
+
+
+test('expired distributed job leases are reclaimed with a higher fence and reject the old worker', async () => {
+  const mesh = makeMesh();
+  const firstWorker = new PeerMeshCasAdapter({ store: mesh.client, appNamespace: 'PlanetApeX' });
+  const secondWorker = new PeerMeshCasAdapter({ store: mesh.client, appNamespace: 'PlanetApeX' });
+  const id = 'job-lease-reclaim-' + Date.now();
+  await firstWorker.enqueue({ id, type: 'test.lease', payload: { input: 'lease recovery' } });
+  const [oldLease] = await firstWorker.claim({ workerId: 'worker-old', onlyId: id });
+  assert.ok(oldLease);
+
+  const current = await firstWorker.readRef('jobs', id);
+  const expired = { ...current.value.job, leaseExpiresAt: Date.now() - 1 };
+  await firstWorker.writeRef('jobs', id, { id, job: expired }, { expectedHash: current.hash });
+
+  const [newLease] = await secondWorker.claim({ workerId: 'worker-new', onlyId: id });
+  assert.ok(newLease, 'an expired running job must be reclaimable');
+  assert.ok(newLease.leaseFence > oldLease.leaseFence, 'reclaim must advance the fencing value');
+  assert.equal(await firstWorker.transition(id, 'complete', {
+    leaseToken: oldLease.leaseToken, leaseFence: oldLease.leaseFence, result: { stale: true }
+  }), false, 'the previous worker must be fenced out');
+  assert.equal(await secondWorker.transition(id, 'complete', {
+    leaseToken: newLease.leaseToken, leaseFence: newLease.leaseFence, result: { recovered: true }
+  }), true);
+});
