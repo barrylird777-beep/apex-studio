@@ -187,7 +187,11 @@ async function main() {
   process.env.APEX_SOVEREIGN_PEER_ID = peerNode.peerId.toString();
 
   if (peerStorageRuntime.enabled) {
-    const storageNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || 'KernelVision');
+    const storageNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || '').trim();
+    const canonicalApps = new Set(['PlanetApeX', 'XShield', 'KernelVision', 'KoinKob', 'KashKorner', 'Kernelodies']);
+    if (!canonicalApps.has(storageNamespace)) {
+      throw new Error('APEX_PEER_CAS_NAMESPACE must explicitly name this deployment\'s canonical app; implicit KernelVision fallback is forbidden');
+    }
     const proof = await peerStorageStore.health?.({ namespace: storageNamespace, peerId: peerNode.peerId.toString() });
     runtimeReadiness.peerStorageVerified = proof?.durable === true &&
       proof?.ownership === 'peer-owned' && proof?.restartRecoveryVerified === true &&
