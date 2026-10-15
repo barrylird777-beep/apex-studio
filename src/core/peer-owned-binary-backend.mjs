@@ -222,8 +222,16 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           atomicReferencesVerified: true,
           restartRecoveryVerified: true
         };
-        return Object.entries(required).every(([key, value]) => signed[key] === value) &&
-          Object.entries(claims).every(([key, value]) => signed[key] === value);
+        if (!Object.entries(required).every(([key, value]) => signed[key] === value)) return false;
+        // The signed receipt attests peer-owned durability/recovery for this
+        // namespace. Object hash/byte integrity is checked against the signed
+        // transport peer's operation response, not against this health receipt.
+        if (claims.response && (claims.response.peerId !== signed.peerId ||
+            claims.response.namespace !== signed.namespace ||
+            (claims.hash !== null && claims.response.hash !== claims.hash) ||
+            (claims.bytes !== null && claims.response.bytes !== claims.bytes) ||
+            claims.response.durable !== true || claims.response.ownership !== 'peer-owned')) return false;
+        return true;
       } catch { return false; }
     }
   });
