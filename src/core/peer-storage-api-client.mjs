@@ -115,7 +115,7 @@ export class PeerStorageApiClient {
         catch (error) {
           if (error.code !== 'CAS_CONFLICT') throw error;
           const prior = await this.readRef('asset-manifest-nodes', hash);
-          if (!prior || JSON.stringify(prior.value) !== JSON.stringify(node) ||
+          if (!prior || !encodeCanonical(prior.value).equals(encodeCanonical(node)) ||
               createHash('sha256').update(encodeCanonical(prior.value)).digest('hex') !== hash) throw error;
         }
         return { hash, level: node.level };
