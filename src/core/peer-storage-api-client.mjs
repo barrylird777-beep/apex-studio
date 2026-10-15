@@ -176,9 +176,11 @@ export class PeerStorageApiClient {
         const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
         const stored = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'putBlob',
           args: { bytesBase64: piece.toString('base64') } });
-        if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash) ||
+        const requiredReplicas = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
+        if (!Number.isSafeInteger(requiredReplicas) || requiredReplicas < 1 ||
+            !stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash) ||
             !Array.isArray(stored.replicas) || !Array.isArray(stored.receipts) ||
-            stored.replicas.length === 0 || stored.receipts.length !== stored.replicas.length ||
+            stored.replicas.length < requiredReplicas || stored.receipts.length !== stored.replicas.length ||
             new Set(stored.replicas).size !== stored.replicas.length ||
             new Set(stored.receipts.map(receipt => receipt?.peerId)).size !== stored.receipts.length ||
             stored.replicas.some(peerId => !stored.receipts.some(receipt => receipt?.peerId === peerId)) ||
