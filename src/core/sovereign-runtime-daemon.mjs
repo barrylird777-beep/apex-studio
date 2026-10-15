@@ -201,9 +201,9 @@ async function main() {
   const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode });
   const appStores = Object.create(null);
   for (const app of APEX_APPS) {
-    const runtime = app === meshCasRuntime.namespace
-      ? meshCasRuntime
-      : await createPeerMeshCasRuntime({ peerNode, namespace: app });
+    // The API bridge uses the dedicated per-app key, never the runtime's
+    // general mesh key. Each app gets an independently configured CAS object.
+    const runtime = await createPeerMeshCasRuntime({ peerNode, namespace: app });
     appStores[app] = {
       cas: new PeerMeshCasAdapter({ store: runtime.store, appNamespace: app }),
       objects: runtime.store
