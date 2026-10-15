@@ -178,7 +178,10 @@ export class PeerStorageApiClient {
           args: { bytesBase64: piece.toString('base64') } });
         if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash) ||
             !Array.isArray(stored.replicas) || !Array.isArray(stored.receipts) ||
-            stored.replicas.length === 0 || stored.receipts.length < stored.replicas.length ||
+            stored.replicas.length === 0 || stored.receipts.length !== stored.replicas.length ||
+            new Set(stored.replicas).size !== stored.replicas.length ||
+            new Set(stored.receipts.map(receipt => receipt?.peerId)).size !== stored.receipts.length ||
+            stored.replicas.some(peerId => !stored.receipts.some(receipt => receipt?.peerId === peerId)) ||
             stored.receipts.some(receipt => !receipt || receipt.namespace !== this.namespace ||
               receipt.hash !== stored.hash || typeof receipt.peerId !== 'string' || !receipt.peerId ||
               typeof receipt.receiptId !== 'string' || !receipt.receiptId)) {
