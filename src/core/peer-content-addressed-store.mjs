@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
+import { verifyCapabilityAdvertisement, planRarestFirstChunks } from './peer-runtime-controls.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
@@ -15,7 +16,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024 } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -35,6 +36,18 @@ export class PeerContentAddressedStore {
     this.verifiedObjectCache = new Map();
     this.verifiedObjectCacheBytes = 0;
     this.cacheMetrics = { hits: 0, misses: 0, evictions: 0 };
+    // Rarest-first is an optimization only. Missing or invalid advertisements
+    // never grant trust or block the normal integrity-checked peer-read path.
+    this.getPeerAdvertisements = getPeerAdvertisements;
+    this.getPeerPublicKey = getPeerPublicKey;
+    this.verifyHardwareRoot = verifyHardwareRoot;
+    this.advertisementMaxAgeMs = Number(advertisementMaxAgeMs);
+    if (!Number.isSafeInteger(this.advertisementMaxAgeMs) || this.advertisementMaxAgeMs < 1000 || this.advertisementMaxAgeMs > 300000) {
+      throw new TypeError('advertisementMaxAgeMs must be between 1 second and 5 minutes');
+    }
+    if ([getPeerAdvertisements, getPeerPublicKey, verifyHardwareRoot].some(value => value !== null && typeof value !== 'function')) {
+      throw new TypeError('peer advertisement discovery, public-key lookup, and hardware-root verification must be functions');
+    }
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
@@ -370,10 +383,51 @@ export class PeerContentAddressedStore {
     const parts = new Array(descriptors.length);
     let nextIndex = 0;
     let total = 0;
+
+    // Authenticated, fresh hardware-root-bound advertisements affect only fetch
+    // order. Each object still goes through getObject's CID + receipt checks.
+    // Duplicate chunk CIDs are collapsed for planning, then mapped back to all
+    // original positions so repeated content remains valid.
+    let rarestRank = new Map();
+    if (this.getPeerAdvertisements && this.getPeerPublicKey && this.verifyHardwareRoot) {
+      try {
+        const uniqueCids = [...new Set(descriptors.map(item => item.hash))];
+        const candidates = await this.getPeerAdvertisements({ app: this.namespace, cids: uniqueCids });
+        if (Array.isArray(candidates) && candidates.length <= 4096) {
+          const verified = [];
+          for (const advertisement of candidates) {
+            const peerId = advertisement?.payload?.peerId;
+            if (!this.peers.includes(peerId)) continue;
+            let publicKey;
+            try { publicKey = await this.getPeerPublicKey(peerId); } catch { continue; }
+            if (!publicKey) continue;
+            try {
+              if (await verifyCapabilityAdvertisement(advertisement, {
+                publicKey, expectedPeerId: peerId, app: this.namespace,
+                verifyHardwareRoot: this.verifyHardwareRoot, maxAgeMs: this.advertisementMaxAgeMs
+              })) verified.push(advertisement);
+            } catch { /* invalid advertisements are discarded */ }
+          }
+          const plan = planRarestFirstChunks(uniqueCids.map(hash => ({ hash })), verified, {
+            app: this.namespace, maxPeersPerChunk: Math.min(16, Math.max(1, this.peers.length))
+          });
+          rarestRank = new Map(plan.map((item, rank) => [item.cid, { rank, count: item.availablePeerCount }]));
+        }
+      } catch {
+        // Discovery is optional and pull-based. Continue with normal verified reads.
+        rarestRank = new Map();
+      }
+    }
+    const fetchOrder = descriptors.map((item, index) => ({
+      index, hash: item.hash, rank: rarestRank.get(item.hash)?.rank ?? Number.MAX_SAFE_INTEGER,
+      count: rarestRank.get(item.hash)?.count ?? 0
+    })).sort((a, b) => a.count - b.count || a.rank - b.rank || a.index - b.index);
     const worker = async () => {
       while (true) {
-        const index = nextIndex++;
-        if (index >= descriptors.length) return;
+        const taskIndex = nextIndex++;
+        if (taskIndex >= fetchOrder.length) return;
+        const task = fetchOrder[taskIndex];
+        const index = task.index;
         const item = descriptors[index];
         const chunk = await this.getObject(item.hash);
         if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
