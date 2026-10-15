@@ -119,7 +119,9 @@ export class PeerContentAddressedStore {
   }
 
   async hasVerifiedDurabilityReceipt(response, peerId) {
-    if (!(await this.hasVerifiedDurabilityReceipt(response, peerId)) || typeof this.verifyDurabilityReceipt !== 'function') return false;
+    // First enforce the local receipt shape, then require the independently configured
+    // cryptographic verifier. Never recurse or accept a self-asserted receipt.
+    if (!hasVerifiedDurabilityReceipt(response) || typeof this.verifyDurabilityReceipt !== 'function') return false;
     try {
       return await this.verifyDurabilityReceipt(response.receipt, Object.freeze({
         peerId, namespace: this.namespace, hash: response.hash ?? null,
