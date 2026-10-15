@@ -243,8 +243,12 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         for (const name of await readdir(transactionHeadsDir)) {
           if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
           const head = decodeCanonical(await readFile(path.join(transactionHeadsDir, name)));
-          const recordBytes = await readFile(path.join(transactionsDir, head.recordHash + '.cbor'));
-          const pending = decodeCanonical(recordBytes);
+          if (sha256(Buffer.from(String(head.transactionId || ''))) + '.cbor' !== name) {
+            throw new Error('peer CAS transaction head index integrity failure');
+          }
+          const result = await readTransaction(head.transactionId);
+          if (!result) continue;
+          const pending = result.tx;
           if (pending.namespace === namespace && pending.key === key &&
               ['prepared', 'commit-decided'].includes(pending.state)) {
             const error = new Error('reference has an unresolved prepared transaction; recovery is required');
