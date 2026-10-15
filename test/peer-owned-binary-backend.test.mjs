@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign as signBytes } from 'node:crypto';
 import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { createPeerOwnedBinaryBackend } from '../src/core/peer-owned-binary-backend.mjs';
 import { PeerContentAddressedStore, createPeerObjectStorageHandler } from '../src/core/peer-content-addressed-store.mjs';
@@ -12,15 +12,16 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'apex-peer-cas-'));
   const priorRoot = process.env.APEX_PEER_OWNED_STORAGE_ROOT;
-  const priorKey = process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64;
+  const priorKey = process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64;
+  const pair = generateKeyPairSync('ed25519');
   process.env.APEX_PEER_OWNED_STORAGE_ROOT = root;
-  process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 = Buffer.alloc(32, 19).toString('base64');
+  process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64 = pair.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
   t.after(async () => {
     await rm(root, { recursive: true, force: true });
     if (priorRoot === undefined) delete process.env.APEX_PEER_OWNED_STORAGE_ROOT;
     else process.env.APEX_PEER_OWNED_STORAGE_ROOT = priorRoot;
-    if (priorKey === undefined) delete process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64;
-    else process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 = priorKey;
+    if (priorKey === undefined) delete process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64;
+    else process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64 = priorKey;
   });
   const options = { peerId: 'peer-owner', namespaceAcl: 'PlanetApeX=writer-peer' };
   return { root, options, backend: await createPeerOwnedBinaryBackend(options) };
@@ -77,10 +78,10 @@ test('receipt is bound to peer and namespace; missing owner root fails closed', 
 
 test('durability receipt rejects validly signed mismatched or weakened claims', async t => {
   const { backend } = await fixture(t);
-  const key = Buffer.from(process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64, 'base64');
+  const privateKey = (await import('node:crypto')).createPrivateKey({ key: Buffer.from(process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64, 'base64'), format: 'der', type: 'pkcs8' });
   const sign = claims => {
     const body = encodeCanonical(claims);
-    return { body: body.toString('base64'), mac: createHmac('sha256', key).update(body).digest('base64') };
+    return { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, privateKey).toString('base64') };
   };
   const expected = {
     version: 1, peerId: 'peer-owner', namespace: 'PlanetApeX', ownership: 'peer-owned',
@@ -106,7 +107,7 @@ test('durability receipt rejects validly signed mismatched or weakened claims', 
 test('two independently persisted peers recover encrypted content after one peer disappears and the survivor restarts', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'apex-peer-loss-'));
   const priorRoot = process.env.APEX_PEER_OWNED_STORAGE_ROOT;
-  const priorKey = process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64;
+  const priorKey = process.env.APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64;
   process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 = Buffer.alloc(32, 37).toString('base64');
   t.after(async () => {
     await rm(root, { recursive: true, force: true });
