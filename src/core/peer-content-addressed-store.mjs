@@ -514,7 +514,7 @@ export function createPeerObjectStorageHandler({
         typeof store.verifyDurabilityReceipt !== 'function') {
       return { durable: false, ownership: 'unverified', recoveryVerified: false, restartRecoveryVerified: false, atomicReferencesVerified: false };
     }
-    const proof = await store.health({ namespace, peerId: expectedPeerId });
+    const proof = await store.health({ namespace, peerId: expectedPeerId, ...binding });
     const verified = proof?.durable === true && proof?.ownership === 'peer-owned'
       && proof?.restartRecoveryVerified === true && proof?.atomicReferencesVerified === true
       && proof?.peerId === expectedPeerId && proof?.namespace === namespace
@@ -550,7 +550,7 @@ export function createPeerObjectStorageHandler({
     if (!localPeerId) throw new Error('local peer identity is not ready');
 
     if (operation === 'storage.health') {
-      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt(envelope.namespace, localPeerId) };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, ...await capacityReceipt(envelope.namespace, localPeerId, { operation, objectHash: envelope.hash ?? null, key: envelope.key ?? null }) };
     }
 
     if (operation === 'object.put') {
