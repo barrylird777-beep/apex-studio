@@ -174,3 +174,13 @@ test('peer-owned backend enforces namespace ACL for reads, writes, and listings'
     error => error.code === 'NAMESPACE_DENIED');
   assert.deepEqual(await backend.listRefs('PlanetApeX'), []);
 });
+
+test('concurrent writes of the same immutable CID converge without temp-file collisions', async t => {
+  const { backend } = await fixture(t);
+  const bytes = encodeCanonical({ immutable: true, payload: Buffer.alloc(4096, 23) });
+  const id = hash(bytes);
+  const results = await Promise.all(Array.from({ length: 16 }, () => backend.putBytes(id, bytes)));
+  assert.equal(results.length, 16);
+  assert.ok(results.every(result => result.hash === id && result.bytes === bytes.length));
+  assert.deepEqual(await backend.getBytes(id), bytes);
+});
