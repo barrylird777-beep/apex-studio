@@ -39,6 +39,50 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
       refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
       return { hash };
     };
+    const transactions = new Map();
+    store.prepareRef = async ({ transactionId, namespace, key, expectedHash, hash, bytes, participants }) => {
+      const prior = transactions.get(transactionId);
+      if (prior) return { transactionId, state: prior.state, hash: prior.hash };
+      const current = refs.get(namespace + ':' + key);
+      if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('reference prepare conflict'), { code: 'REFERENCE_CONFLICT' });
+      for (const tx of transactions.values()) {
+        if (tx.namespace === namespace && tx.key === key && ['prepared', 'commit-decided'].includes(tx.state)) {
+          throw Object.assign(new Error('unresolved transaction'), { code: 'REFERENCE_TRANSACTION_BLOCKED' });
+        }
+      }
+      await store.putBytes(hash, bytes);
+      transactions.set(transactionId, { transactionId, namespace, key, expectedHash, hash, bytes: Buffer.from(bytes), participants: [...participants].sort(), state: 'prepared' });
+      return { transactionId, state: 'prepared', hash };
+    };
+    store.decideRefCommit = async (transactionId, participants) => {
+      const tx = transactions.get(transactionId);
+      if (!tx || digest(Buffer.from(JSON.stringify([...participants].sort()))) !== digest(Buffer.from(JSON.stringify(tx.participants)))) throw new Error('missing transaction or participant mismatch');
+      if (tx.state === 'prepared') tx.state = 'commit-decided';
+      if (!['commit-decided', 'committed'].includes(tx.state)) throw new Error('transaction not committable');
+      return { transactionId, state: tx.state, hash: tx.hash };
+    };
+    store.commitPreparedRef = async transactionId => {
+      const tx = transactions.get(transactionId);
+      if (!tx || !['commit-decided', 'committed'].includes(tx.state)) throw new Error('no durable decision');
+      const current = refs.get(tx.namespace + ':' + tx.key);
+      if ((current?.hash ?? null) === tx.expectedHash) refs.set(tx.namespace + ':' + tx.key, { hash: tx.hash, bytes: Buffer.from(tx.bytes) });
+      else if (current?.hash !== tx.hash) throw Object.assign(new Error('reference divergence'), { code: 'REFERENCE_DIVERGENCE' });
+      tx.state = 'committed';
+      return { transactionId, state: tx.state, hash: tx.hash };
+    };
+    store.abortPreparedRef = async transactionId => {
+      const tx = transactions.get(transactionId);
+      if (!tx) return { transactionId, state: 'absent' };
+      if (tx.state === 'prepared') tx.state = 'aborted';
+      else if (tx.state !== 'aborted') throw new Error('cannot abort committed decision');
+      return { transactionId, state: tx.state };
+    };
+    store.getRefTransaction = async transactionId => {
+      const tx = transactions.get(transactionId);
+      if (!tx) return null;
+      const { transactionId: id, namespace, key, expectedHash, hash, participants, state } = tx;
+      return { transactionId: id, namespace, key, expectedHash, hash, participants, state };
+    };
     store.health = async ({ namespace, peerId }) => ({
       durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
       atomicReferencesVerified: true, peerId, namespace,
