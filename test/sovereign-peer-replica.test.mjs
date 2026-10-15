@@ -1,13 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import SovereignMeshEngine, { sovereignRecordChecksum } from '../src/core/sovereign-mesh-engine.mjs';
 import { readSovereignPeerReplica } from '../src/core/sovereign-peer-replica.mjs';
+import { MemoryMeshCAS } from './helpers/memory-mesh-cas.mjs';
 
 test('peer replica readback returns only the checksummed source record from its authenticated origin peer', async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-peer-replica-read-'));
   const previousPeer = process.env.APEX_SOVEREIGN_PEER_ID;
   process.env.APEX_SOVEREIGN_PEER_ID = 'receiving-peer';
   const sourceRecord = {
@@ -23,7 +20,7 @@ test('peer replica readback returns only the checksummed source record from its 
   sourceRecord.checksum = sovereignRecordChecksum(sourceRecord);
 
   try {
-    const engine = await new SovereignMeshEngine(dir).ready();
+    const engine = await new SovereignMeshEngine({ cas: new MemoryMeshCAS() }).ready();
     await engine.dispatchAutonomousPayload({
       waveId: 'local-receipt-7',
       peerId: 'origin-peer',
@@ -54,6 +51,5 @@ test('peer replica readback returns only the checksummed source record from its 
   } finally {
     if (previousPeer === undefined) delete process.env.APEX_SOVEREIGN_PEER_ID;
     else process.env.APEX_SOVEREIGN_PEER_ID = previousPeer;
-    await fs.rm(dir, { recursive: true, force: true });
   }
 });
