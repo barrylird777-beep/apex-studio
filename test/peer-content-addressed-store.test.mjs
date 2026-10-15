@@ -6,6 +6,7 @@ import {
   createPeerObjectStorageHandler
 } from '../src/core/peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
+import { decodeCanonical } from '../src/core/apex-cbor.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -107,6 +108,12 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   const restored = await mesh.client.readRef('project-project-1');
   assert.deepEqual(restored.value, manifest);
   assert.equal(restored.hash, saved.hash);
+  const rawReference = await mesh.stores.get('peer-a').readRef('PlanetApeX', 'project-project-1');
+  const encryptedReference = decodeCanonical(rawReference.bytes);
+  assert.equal(encryptedReference.algorithm, 'aes-256-gcm');
+  assert.equal(encryptedReference.namespace, 'PlanetApeX');
+  assert.equal(rawReference.bytes.includes(Buffer.from('project-1')), false,
+    'peer-owned storage must not see plaintext reference payloads');
   mesh.unavailable.add('peer-a');
   assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
 });
