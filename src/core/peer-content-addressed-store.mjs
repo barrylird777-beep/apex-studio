@@ -614,7 +614,7 @@ export function createPeerObjectStorageHandler({
     try {
       saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
     } catch (error) {
-      if (error?.code === 'CAS_CONFLICT') {
+      if (error?.code === 'CAS_CONFLICT' || error?.code === 'REFERENCE_CONFLICT') {
         const current = typeof store.readRef === 'function'
           ? await store.readRef(envelope.namespace, envelope.key)
           : null;
