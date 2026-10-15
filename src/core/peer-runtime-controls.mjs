@@ -26,7 +26,7 @@ export function createAccessTensor({ version = 1, parentCid = null, rules = [], 
   if (!Number.isSafeInteger(version) || version < 1 || (parentCid != null && !/^[a-f0-9]{64}$/.test(String(parentCid))) || (version > 1 && parentCid == null)) {
     throw new TypeError('access tensor versions after the first must name a valid parent CID');
   }
-  const normalized = stableRules(rules);
+  const normalized = Object.freeze(stableRules(rules));
   const seen = new Set();
   for (const rule of normalized) {
     const key = rule.app + '\\0' + rule.action + '\\0' + rule.path;
@@ -50,8 +50,14 @@ export function createAccessTensor({ version = 1, parentCid = null, rules = [], 
   return Object.freeze({ tensor, cid: cidFor(tensor) });
 }
 
-export function evaluateAccessTensor(tensor, { app, action, path, usage = {} } = {}) {
+export function verifyAccessTensor(tensor, expectedCid) {
+  if (!tensor || tensor.kind !== 'apex.access-tensor.v1' || !/^[a-f0-9]{64}$/.test(String(expectedCid || ''))) return false;
+  try { return cidFor(tensor) === expectedCid; } catch { return false; }
+}
+
+export function evaluateAccessTensor(tensor, { app, action, path, usage = {}, expectedCid = null } = {}) {
   if (!tensor || tensor.kind !== 'apex.access-tensor.v1' || !Number.isSafeInteger(tensor.version) || tensor.version < 1 ||
+      (expectedCid !== null && !verifyAccessTensor(tensor, expectedCid)) ||
       !APPS.has(app) || !ACTIONS.has(action) || !safePath(path)) return Object.freeze({ allowed: false, reason: 'invalid-request' });
   // Most-specific path rule wins. Deny is the default; wildcard matching is intentionally absent.
   const matches = tensor.rules.filter(rule => rule.app === app && rule.action === action &&
