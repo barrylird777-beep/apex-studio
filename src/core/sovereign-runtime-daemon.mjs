@@ -209,11 +209,17 @@ async function main() {
       objects: runtime.store
     };
   }
-  const apiBridgeToken = String(process.env.APEX_PEER_STORAGE_API_TOKEN || '');
-  if (apiBridgeToken.length < 32) throw new Error('APEX_PEER_STORAGE_API_TOKEN must be at least 32 characters; API bridge remains closed');
+  const apiBridgeTokens = Object.fromEntries(APEX_APPS.map(app => [
+    app, String(process.env['APEX_PEER_STORAGE_API_TOKEN_' + app.toUpperCase()] || '')
+  ]));
+  for (const app of APEX_APPS) {
+    if (apiBridgeTokens[app].length < 32) {
+      throw new Error('Missing app-scoped APEX_PEER_STORAGE_API_TOKEN_' + app.toUpperCase() + '; API bridge remains closed');
+    }
+  }
   storageApiBridge = createPeerStorageApiBridge({
     stores: appStores,
-    token: apiBridgeToken,
+    tokens: apiBridgeTokens,
     socketPath: process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock'
   });
   await storageApiBridge.listen();
