@@ -166,21 +166,18 @@ export class PeerMeshCasAdapter {
     const patch = { updatedAt: new Date().toISOString() };
     if (operation === 'heartbeat') patch.leaseExpiresAt = Date.now() + Math.max(1000, Number(leaseMs) || 45000);
     else if (operation === 'complete') {
-      let resultCid = null;
-      if (result !== null && result !== undefined) {
-        if (typeof this.store.putObject !== 'function') {
-          throw new Error('peer CAS object writer is required to publish a first-class job result CID');
-        }
-        const receipt = await this.store.putObject({
-          kind: 'apex.job-result.v1', version: 1, namespace: this.appNamespace,
-          jobId: String(id), result: clone(result), completedAt: new Date().toISOString()
-        });
-        if (!/^[a-f0-9]{64}$/.test(String(receipt?.hash || '')) || receipt.namespace !== this.appNamespace ||
-            !Array.isArray(receipt.receipts) || receipt.receipts.length < Number(this.store.replicaCount || 1)) {
-          throw new Error('peer CAS did not verify the job result CID replica receipts');
-        }
-        resultCid = receipt.hash;
+      if (typeof this.store.putObject !== 'function') {
+        throw new Error('peer CAS object writer is required to publish a first-class job result CID');
       }
+      const receipt = await this.store.putObject({
+        kind: 'apex.job-result.v1', version: 1, namespace: this.appNamespace,
+        jobId: String(id), result: clone(result), completedAt: new Date().toISOString()
+      });
+      if (!/^[a-f0-9]{64}$/.test(String(receipt?.hash || '')) || receipt.namespace !== this.appNamespace ||
+          !Array.isArray(receipt.receipts) || receipt.receipts.length < Number(this.store.replicaCount || 1)) {
+        throw new Error('peer CAS did not verify the job result CID replica receipts');
+      }
+      const resultCid = receipt.hash;
       Object.assign(patch, { status: 'completed', result: clone(result), resultCid,
         leaseOwner: null, leaseToken: null, leaseExpiresAt: 0, completedAt: new Date().toISOString() });
     }
