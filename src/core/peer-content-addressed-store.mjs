@@ -529,7 +529,7 @@ export class PeerContentAddressedStore {
           protocol: 'apex.cas.v1', operation: 'ref.tx.get',
           namespace: this.namespace, transactionId
         });
-        if (response.transaction) states.push({ peerId, ...response.transaction });
+        states.push(response.transaction ? { peerId, ...response.transaction } : { peerId, state: 'absent' });
       } catch (error) { failures.push({ peerId, error: error instanceof Error ? error.message : String(error) }); }
     }
     if (failures.length || states.length !== this.peers.length) {
@@ -542,6 +542,13 @@ export class PeerContentAddressedStore {
     }
     const decisions = states.filter(state => ['commit-decided', 'committed'].includes(state.state));
     if (decisions.length) {
+      if (states.some(state => state.state === 'absent')) {
+        const error = new Error('a participant lacks the transaction record despite a durable commit decision; refusing unsafe reconstruction');
+        error.code = 'TRANSACTION_STATE_DIVERGENCE';
+        error.transactionId = transactionId;
+        error.states = states;
+        throw error;
+      }
       const participants = [...this.peers].sort();
       for (const peerId of participants) {
         const state = states.find(item => item.peerId === peerId);
@@ -557,15 +564,15 @@ export class PeerContentAddressedStore {
       if (results.some(result => result.state !== 'committed')) throw new Error('transaction recovery failed to converge every participant to committed');
       return { transactionId, state: 'committed', peers: results.map(result => result.peerId) };
     }
-    if (states.every(state => state.state === 'prepared')) {
+    if (states.every(state => ['prepared', 'aborted', 'absent'].includes(state.state))) {
       const results = [];
-      for (const peerId of this.peers) {
-        const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
-        results.push({ peerId, state: response.transaction?.state });
+      for (const state of states) {
+        if (state.state !== 'prepared') continue;
+        const response = await this.request(state.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
+        results.push({ peerId: state.peerId, state: response.transaction?.state });
       }
-      return { transactionId, state: 'aborted', peers: results.map(result => result.peerId) };
+      return { transactionId, state: 'aborted', peers: states.map(state => state.peerId) };
     }
-    if (states.every(state => state.state === 'aborted')) return { transactionId, state: 'aborted', peers: states.map(state => state.peerId) };
     if (states.every(state => state.state === 'committed')) return { transactionId, state: 'committed', peers: states.map(state => state.peerId) };
     const error = new Error('transaction participants have incompatible durable states; refusing automatic repair');
     error.code = 'TRANSACTION_STATE_DIVERGENCE';
