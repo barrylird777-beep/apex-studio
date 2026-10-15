@@ -455,7 +455,7 @@ export class PeerContentAddressedStore {
             !hasVerifiedDurabilityReceipt(response)) throw new Error('peer did not durably prepare the requested CAS transaction');
         prepared.push({ peerId, receiptId: response.receiptId, failureDomain: this.failureDomainsByPeerId[peerId] || null });
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
       }
     }
     if (prepared.length !== participants.length) {
@@ -466,7 +466,9 @@ export class PeerContentAddressedStore {
         } catch (error) { abortFailures.push({ peerId: item.peerId, error: error instanceof Error ? error.message : String(error) }); }
       }
       const error = new Error('distributed CAS did not prepare on every participant; no commit decision was intentionally issued');
-      error.code = abortFailures.length ? 'TRANSACTION_RECOVERY_REQUIRED' : 'PREPARE_INCOMPLETE';
+      const cleanConflict = prepared.length === 0 && failures.length > 0 &&
+        failures.every(failure => failure.code === 'REFERENCE_CONFLICT');
+      error.code = abortFailures.length ? 'TRANSACTION_RECOVERY_REQUIRED' : cleanConflict ? 'CAS_CONFLICT' : 'PREPARE_INCOMPLETE';
       error.transactionId = transactionId;
       error.preparedPeers = prepared.map(item => item.peerId);
       error.failures = failures;
