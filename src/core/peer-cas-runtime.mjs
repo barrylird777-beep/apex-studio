@@ -10,6 +10,32 @@ function required(name) {
   return value;
 }
 
+async function loadPeerTrustProvider() {
+  const specifier = String(process.env.APEX_PEER_TRUST_PROVIDER_MODULE || '').trim();
+  const requiredProvider = String(process.env.APEX_PEER_RAREST_FIRST_REQUIRED || '').toLowerCase() === 'true';
+  if (!specifier) {
+    if (requiredProvider) {
+      throw new Error('APEX_PEER_TRUST_PROVIDER_MODULE is required when rarest-first hardware-rooted peer reads are mandatory');
+    }
+    return {};
+  }
+  let provider;
+  try { provider = await import(specifier); }
+  catch (cause) {
+    throw new Error('configured peer trust provider could not be loaded; peer CAS startup refused', { cause });
+  }
+  for (const name of ['getPeerAdvertisements', 'getPeerPublicKey', 'verifyHardwareRoot']) {
+    if (typeof provider[name] !== 'function') {
+      throw new Error('peer trust provider must export ' + name + '; peer CAS startup refused');
+    }
+  }
+  return {
+    getPeerAdvertisements: provider.getPeerAdvertisements,
+    getPeerPublicKey: provider.getPeerPublicKey,
+    verifyHardwareRoot: provider.verifyHardwareRoot
+  };
+}
+
 async function loadDurabilityReceiptVerifier() {
   const specifier = required('APEX_PEER_RECEIPT_VERIFIER_MODULE');
   let verifierModule;
@@ -80,8 +106,10 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
+  const peerTrustProvider = await loadPeerTrustProvider();
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains, verifyDurabilityReceipt,
+    ...peerTrustProvider,
     failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
   });
   // This read requires verified responses from the configured replica quorum.
