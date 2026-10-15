@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import {
   PeerContentAddressedStore,
   createPeerObjectStorageHandler
@@ -39,6 +40,59 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
       refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
       return { hash };
     };
+    const transactions = new Map();
+    const preparingKeys = new Set();
+    store.prepareRef = async ({ transactionId, namespace, key, expectedHash, hash, bytes, participants }) => {
+      const prior = transactions.get(transactionId);
+      if (prior) return { transactionId, state: prior.state, hash: prior.hash };
+      const refKey = namespace + ':' + key;
+      if (preparingKeys.has(refKey)) throw Object.assign(new Error('reference prepare is concurrently locked'), { code: 'REFERENCE_TRANSACTION_BLOCKED' });
+      preparingKeys.add(refKey);
+      try {
+        const current = refs.get(refKey);
+        if ((current?.hash ?? null) !== expectedHash) throw Object.assign(new Error('reference prepare conflict'), { code: 'REFERENCE_CONFLICT' });
+        for (const tx of transactions.values()) {
+          if (tx.namespace === namespace && tx.key === key && ['prepared', 'commit-decided'].includes(tx.state)) {
+            throw Object.assign(new Error('unresolved transaction'), { code: 'REFERENCE_TRANSACTION_BLOCKED' });
+          }
+        }
+        await store.putBytes(hash, bytes);
+        transactions.set(transactionId, { transactionId, namespace, key, expectedHash, hash, bytes: Buffer.from(bytes), participants: [...participants].sort(), state: 'prepared' });
+        return { transactionId, state: 'prepared', hash };
+      } finally { preparingKeys.delete(refKey); }
+    };
+    store.decideRefCommit = async (transactionId, participants) => {
+      const tx = transactions.get(transactionId);
+      if (!tx || digest(Buffer.from(JSON.stringify([...participants].sort()))) !== digest(Buffer.from(JSON.stringify(tx.participants)))) throw new Error('missing transaction or participant mismatch');
+      if (tx.state === 'prepared') tx.state = 'commit-decided';
+      if (!['commit-decided', 'committed'].includes(tx.state)) throw new Error('transaction not committable');
+      return { transactionId, state: tx.state, hash: tx.hash };
+    };
+    store.commitPreparedRef = async transactionId => {
+      const tx = transactions.get(transactionId);
+      if (!tx || !['commit-decided', 'committed'].includes(tx.state)) throw new Error('no durable decision');
+      const current = refs.get(tx.namespace + ':' + tx.key);
+      if ((current?.hash ?? null) === tx.expectedHash) refs.set(tx.namespace + ':' + tx.key, { hash: tx.hash, bytes: Buffer.from(tx.bytes) });
+      else if (current?.hash !== tx.hash) throw Object.assign(new Error('reference divergence'), { code: 'REFERENCE_DIVERGENCE' });
+      tx.state = 'committed';
+      return { transactionId, state: tx.state, hash: tx.hash };
+    };
+    store.abortPreparedRef = async transactionId => {
+      const tx = transactions.get(transactionId);
+      if (!tx) return { transactionId, state: 'absent' };
+      if (tx.state === 'prepared') tx.state = 'aborted';
+      else if (tx.state !== 'aborted') throw new Error('cannot abort committed decision');
+      return { transactionId, state: tx.state };
+    };
+    store.getRefTransaction = async transactionId => {
+      const tx = transactions.get(transactionId);
+      if (!tx) return null;
+      const { transactionId: id, namespace, key, expectedHash, hash, participants, state } = tx;
+      return { transactionId: id, namespace, key, expectedHash, hash, participants, state };
+    };
+    store.listRefTransactions = async namespace => [...transactions.values()]
+      .filter(tx => tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state))
+      .map(tx => ({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state }));
     store.health = async ({ namespace, peerId }) => ({
       durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
       atomicReferencesVerified: true, peerId, namespace,
@@ -99,7 +153,7 @@ test('peer CAS stores identical immutable bytes on independent peers and verifie
   assert.equal(mesh.stores.get('peer-a').objects.get(result.hash).includes(Buffer.from('manuscript')), false);
 });
 
-test('peer CAS atomically replicates mutable references and recovers them from a surviving peer', async () => {
+test('peer CAS replicates mutable references and fails closed when a participant disappears', async () => {
   const mesh = makeMesh();
   const manifest = { version: 1, app: 'PlanetApeX', projectId: 'project-1', assets: [{ id: 'cover', hash: 'a'.repeat(64) }] };
   const saved = await mesh.client.writeRef('project-project-1', manifest);
@@ -108,7 +162,10 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   assert.deepEqual(restored.value, manifest);
   assert.equal(restored.hash, saved.hash);
   mesh.unavailable.add('peer-a');
-  assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
+  await assert.rejects(
+    mesh.client.readRef('project-project-1'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
 });
 
 test('peer CAS refuses to choose between divergent mutable references', async () => {
@@ -372,7 +429,7 @@ test('single-replica durability policy does not require failure-domain labels', 
   assert.deepEqual(await client.getObject(receipt.hash), { noDomainMapNeeded: true });
 });
 
-test('peer CAS protocol exposes durable health and atomic namespaced references only for verified peer-owned backends', async () => {
+test('peer CAS refuses to advertise distributed atomicity when a backend lacks transaction recovery primitives', async () => {
   const objects = new Map();
   const refs = new Map();
   const durableStore = {
@@ -417,24 +474,20 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   });
   const context = { remotePeerId: 'writer-peer' };
   const health = await handler({ protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'PlanetApeX' }, context);
-  assert.equal(health.durable, true);
-  assert.equal(health.ownership, 'peer-owned');
-  assert.equal(health.recoveryVerified, true);
-  assert.equal(health.restartRecoveryVerified, true);
-  assert.equal(health.atomicReferencesVerified, true);
-  assert.equal(health.receiptId, 'test-proof-1');
+  assert.equal(health.durable, false);
+  assert.equal(health.ownership, 'unverified');
+  assert.equal(health.recoveryVerified, false);
+  assert.equal(health.restartRecoveryVerified, false);
+  assert.equal(health.atomicReferencesVerified, false);
+  assert.equal(health.receiptId, undefined);
 
-  const refBytes = Buffer.from('canonical reference bytes');
-  const hash = digest(refBytes);
-  const written = await handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context);
-  assert.equal(written.hash, hash);
-  assert.equal(written.durable, true);
-  const read = await handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context);
-  assert.equal(read.hash, hash);
-  assert.equal(Buffer.from(read.bytesBase64, 'base64').toString(), refBytes.toString());
   await assert.rejects(
-    handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context),
-    /compare-and-swap conflict/
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash: 'a'.repeat(64), bytesBase64: Buffer.from('legacy').toString('base64') }, context),
+    /unsupported peer storage operation/
+  );
+  await assert.rejects(
+    handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, context),
+    /verified durable peer-owned storage/
   );
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'KashKorner', key: 'root' }, context),
@@ -482,4 +535,150 @@ test('peer CAS rejects unverified durability claims even when backend self-label
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
     /verified durable peer-owned storage/
   );
+});
+
+
+test('peer CAS aborts a prepared write when a participant is unavailable before decision', async () => {
+  const mesh = makeMesh();
+  mesh.unavailable.add('peer-b');
+  let transactionId;
+  await assert.rejects(
+    mesh.client.writeRef('partial-commit-case', { version: 1, payload: 'must-not-be-blindly-retried' }),
+    error => {
+      transactionId = error.transactionId;
+      return error.code === 'TRANSACTION_RECOVERY_REQUIRED' && Boolean(transactionId) &&
+        error.preparedPeers.includes('peer-a');
+    }
+  );
+  mesh.unavailable.delete('peer-b');
+  assert.equal(await mesh.client.readRef('partial-commit-case'), null);
+  assert.equal((await mesh.client.recoverRefTransaction(transactionId)).state, 'aborted');
+});
+
+test('peer CAS refuses to abort a prepared-only transaction until coordinator shutdown is confirmed', async () => {
+  const mesh = makeMesh();
+  const bytes = encodeCanonical({ pending: 'must not be aborted while writer may be live' });
+  const hash = digest(bytes);
+  const transactionId = 'prepared-only-coordinator-live';
+  const participants = ['peer-a', 'peer-b'];
+  for (const peerId of participants) {
+    await mesh.stores.get(peerId).prepareRef({
+      transactionId, namespace: 'PlanetApeX', key: 'prepared-only-ref',
+      expectedHash: null, hash, bytes, participants
+    });
+  }
+  await assert.rejects(
+    mesh.client.recoverRefTransaction(transactionId),
+    error => error.code === 'RECOVERY_BLOCKED'
+  );
+  assert.equal((await mesh.client.recoverRefTransaction(transactionId, { coordinatorStopped: true })).state, 'aborted');
+});
+
+test('peer CAS concurrent writers using one expected head cannot both commit', async () => {
+  const mesh = makeMesh();
+  const outcomes = await Promise.allSettled([
+    mesh.client.writeRef('concurrent-ref', { writer: 'a' }, { expectedHash: null }),
+    mesh.client.writeRef('concurrent-ref', { writer: 'b' }, { expectedHash: null })
+  ]);
+  const successes = outcomes.filter(item => item.status === 'fulfilled');
+  assert.ok(successes.length <= 1, 'at most one writer may commit from the same expected head');
+  const winner = await mesh.client.readRef('concurrent-ref');
+  if (successes.length === 1) assert.ok(['a', 'b'].includes(winner.value.writer));
+  else assert.equal(winner, null);
+});
+
+test('peer CAS rolls forward when a partition interrupts durable decision replication', async () => {
+  const mesh = makeMesh();
+  const baseTransport = mesh.client.transport;
+  let failDecision = true;
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (request.operation === 'ref.decision' && peerId === 'peer-b' && failDecision) {
+        failDecision = false;
+        throw new Error('simulated partition during decision replication');
+      }
+      return baseTransport.request(peerId, request);
+    }
+  };
+  let transactionId;
+  await assert.rejects(
+    mesh.client.writeRef('decision-partition-ref', { revision: 2 }, { expectedHash: null }),
+    error => {
+      transactionId = error.transactionId;
+      return error.code === 'COMMIT_OUTCOME_UNKNOWN' && Boolean(transactionId);
+    }
+  );
+  mesh.client.transport = baseTransport;
+  const recovered = await mesh.client.recoverPendingRefTransactions();
+  assert.equal(recovered.recovered, 1);
+  assert.equal(recovered.outcomes[0].state, 'committed');
+  assert.equal((await mesh.client.readRef('decision-partition-ref')).value.revision, 2);
+});
+
+test('peer CAS refuses recovery across an active partition', async () => {
+  const mesh = makeMesh();
+  const baseTransport = mesh.client.transport;
+  let failCommit = true;
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (request.operation === 'ref.commit' && peerId === 'peer-b' && failCommit) {
+        failCommit = false;
+        throw new Error('simulated peer partition');
+      }
+      return baseTransport.request(peerId, request);
+    }
+  };
+  await assert.rejects(
+    mesh.client.writeRef('partitioned-recovery-ref', { revision: 3 }, { expectedHash: null }),
+    error => error.code === 'COMMIT_OUTCOME_UNKNOWN'
+  );
+  mesh.unavailable.add('peer-b');
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (mesh.unavailable.has(peerId)) throw new Error('peer unavailable');
+      return baseTransport.request(peerId, request);
+    }
+  };
+  await assert.rejects(
+    mesh.client.recoverPendingRefTransactions(),
+    error => error.code === 'RECOVERY_BLOCKED'
+  );
+  await assert.rejects(
+    mesh.client.readRef('partitioned-recovery-ref'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
+  mesh.unavailable.delete('peer-b');
+});
+
+test('peer CAS recovers a durable commit decision after a peer commit failure', async () => {
+  const mesh = makeMesh();
+  const baseTransport = mesh.client.transport;
+  let failCommit = true;
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (request.operation === 'ref.commit' && peerId === 'peer-b' && failCommit) {
+        failCommit = false;
+        throw new Error('simulated crash after durable commit decision');
+      }
+      return baseTransport.request(peerId, request);
+    }
+  };
+  let transactionId;
+  await assert.rejects(
+    mesh.client.writeRef('recoverable-ref', { revision: 1 }, { expectedHash: null }),
+    error => {
+      transactionId = error.transactionId;
+      return error.code === 'COMMIT_OUTCOME_UNKNOWN' && Boolean(transactionId);
+    }
+  );
+  mesh.client.transport = baseTransport;
+  await assert.rejects(
+    mesh.client.readRef('recoverable-ref'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
+  const recovery = await mesh.client.recoverPendingRefTransactions();
+  assert.equal(recovery.recovered, 1);
+  assert.equal(recovery.outcomes[0].transactionId, transactionId);
+  assert.equal(recovery.outcomes[0].state, 'committed');
+  assert.equal((await mesh.client.readRef('recoverable-ref')).value.revision, 1);
 });

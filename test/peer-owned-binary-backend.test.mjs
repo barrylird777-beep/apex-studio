@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, createHmac } from 'node:crypto';
@@ -45,6 +45,69 @@ test('peer-owned binary backend survives backend re-instantiation and verifies C
   }), true);
 });
 
+test('durable peer CAS serializes competing transaction prepares for one reference', async t => {
+  const { backend } = await fixture(t);
+  const proposals = [
+    { transactionId: 'concurrent-durable-a', value: { writer: 'a' } },
+    { transactionId: 'concurrent-durable-b', value: { writer: 'b' } }
+  ].map(proposal => {
+    const bytes = encodeCanonical(proposal.value);
+    return { ...proposal, bytes, hash: hash(bytes) };
+  });
+  const outcomes = await Promise.allSettled(proposals.map(proposal => backend.prepareRef({
+    transactionId: proposal.transactionId, namespace: 'PlanetApeX', key: 'single-writer-ref',
+    expectedHash: null, hash: proposal.hash, bytes: proposal.bytes, participants: ['peer-owner']
+  })));
+  const winners = outcomes.flatMap((outcome, index) => outcome.status === 'fulfilled' ? [proposals[index]] : []);
+  assert.equal(winners.length, 1, 'only one transaction may reserve a reference from the same expected head');
+  const winner = winners[0];
+  assert.equal((await backend.decideRefCommit(winner.transactionId, ['peer-owner'])).state, 'commit-decided');
+  assert.equal((await backend.commitPreparedRef(winner.transactionId)).state, 'committed');
+  const current = await backend.readRef('PlanetApeX', 'single-writer-ref');
+  assert.equal(current.hash, winner.hash);
+  assert.deepEqual(current.bytes, winner.bytes);
+});
+
+test('durable CAS commit decision survives backend restart and rolls the reference forward', async t => {
+  const { root, options, backend } = await fixture(t);
+  const bytes = encodeCanonical({ value: 'recover-after-decision' });
+  const proposedHash = hash(bytes);
+  const transactionId = 'restart-recovery-transaction-1';
+  const participants = ['peer-owner', 'peer-other'];
+  await backend.prepareRef({
+    transactionId, namespace: 'PlanetApeX', key: 'recovery-ref',
+    expectedHash: null, hash: proposedHash, bytes, participants
+  });
+  await backend.decideRefCommit(transactionId, participants);
+
+  const restarted = await createPeerOwnedBinaryBackend(options);
+  assert.equal((await restarted.getRefTransaction(transactionId)).state, 'commit-decided');
+  const committed = await restarted.commitPreparedRef(transactionId);
+  assert.equal(committed.state, 'committed');
+  assert.deepEqual(await restarted.readRef('PlanetApeX', 'recovery-ref'), { hash: proposedHash, bytes });
+  assert.equal((await restarted.getRefTransaction(transactionId)).state, 'committed');
+  const immutableRecords = await readdir(path.join(root, 'transactions'));
+  assert.equal(immutableRecords.length, 3, 'prepare, decision, and commit must append distinct immutable CID records');
+  assert.ok(immutableRecords.every(name => /^[a-f0-9]{64}\.cbor$/.test(name)));
+  assert.ok((await readdir(path.join(root, 'transaction-heads'))).includes(hash(Buffer.from(transactionId)) + '.cbor'));
+});
+
+test('durable CAS refuses abort after a commit decision and allows idempotent commit replay', async t => {
+  const { backend } = await fixture(t);
+  const bytes = encodeCanonical({ value: 'decision-is-irreversible' });
+  const proposedHash = hash(bytes);
+  const transactionId = 'irreversible-decision-1';
+  const participants = ['peer-owner'];
+  await backend.prepareRef({
+    transactionId, namespace: 'PlanetApeX', key: 'decision-ref',
+    expectedHash: null, hash: proposedHash, bytes, participants
+  });
+  await backend.decideRefCommit(transactionId, participants);
+  await assert.rejects(backend.abortPreparedRef(transactionId), /cannot abort/);
+  assert.equal((await backend.commitPreparedRef(transactionId)).state, 'committed');
+  assert.equal((await backend.commitPreparedRef(transactionId)).state, 'committed');
+});
+
 test('concurrent reference compare-and-swap allows exactly one writer', async t => {
   const { backend } = await fixture(t);
   const a = encodeCanonical({ value: 'writer-a' }), b = encodeCanonical({ value: 'writer-b' });
@@ -54,6 +117,20 @@ test('concurrent reference compare-and-swap allows exactly one writer', async t 
   ]);
   assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
   assert.equal(outcomes.filter(item => item.status === 'rejected' && item.reason.code === 'REFERENCE_CONFLICT').length, 1);
+});
+
+test('peer CAS reclaims an abandoned lock left by a crashed process', async t => {
+  const { root, backend } = await fixture(t);
+  const key = 'stale-lock-ref';
+  const lockId = hash(Buffer.from('PlanetApeX\0' + key));
+  const lockPath = path.join(root, 'refs', lockId + '.lock');
+  await mkdir(lockPath, { recursive: true });
+  await writeFile(path.join(lockPath, 'owner.cbor'), encodeCanonical({ pid: 99999999, createdAt: 0 }));
+  const bytes = encodeCanonical({ recovered: true });
+  const refHash = hash(bytes);
+  const saved = await backend.writeRef('PlanetApeX', key, null, refHash, bytes);
+  assert.equal(saved.hash, refHash);
+  assert.deepEqual(await backend.readRef('PlanetApeX', key), { hash: refHash, bytes });
 });
 
 test('corrupt immutable objects fail startup closed instead of being silently discarded', async t => {
@@ -154,7 +231,10 @@ test('two independently persisted peers recover encrypted content after one peer
   online.set('peer-a', false);
   await startPeer('peer-b'); // new backend instance; data is recovered from peer-b's independent root
   assert.deepEqual(await client.getObject(written.hash), value);
-  assert.deepEqual((await client.readRef('project-main')).value, { objectHash: written.hash, revision: 4 });
+  await assert.rejects(
+    client.readRef('project-main'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
 
   await assert.rejects(
     client.putObject({ mustNotBeAcknowledged: true }),

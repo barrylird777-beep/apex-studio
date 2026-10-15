@@ -405,10 +405,12 @@ export class PeerContentAddressedStore {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (results.length === 0) {
-      const error = new Error('peer reference was not recoverable from any verified peer');
-      error.code = 'OBJECT_UNAVAILABLE';
+    if (failures.length || results.length !== this.peers.length) {
+      const error = new Error('peer reference reads require every configured participant; refusing to return a potentially stale head during a partition');
+      error.code = 'REFERENCE_READ_INCOMPLETE';
       error.failures = failures;
+      error.verifiedPeers = results.map(result => result.peerId);
+      error.requiredPeers = [...this.peers];
       throw error;
     }
     const hashes = new Set(results.map(result => result.hash));
@@ -424,45 +426,208 @@ export class PeerContentAddressedStore {
 
   async writeRef(key, value, { expectedHash = null } = {}) {
     if (typeof key !== 'string' || !key || key.length > 512) throw new TypeError('invalid peer reference key');
-    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) {
-      throw new TypeError('invalid expected peer reference hash');
-    }
+    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) throw new TypeError('invalid expected peer reference hash');
     const bytes = encodeCanonical(value);
     if (bytes.length > this.maxObjectBytes) throw new Error('peer reference exceeds the safe single-envelope limit');
     const hash = sha256(bytes);
-    const receipts = [];
+    const participants = [...this.peers].sort();
+    const domains = new Set(participants.map(id => this.failureDomainsByPeerId[id]).filter(Boolean));
+    if (participants.length < this.replicaCount || domains.size < this.minFailureDomains) {
+      const error = new Error('distributed CAS requires the full configured participant set to meet durability policy');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      throw error;
+    }
+    const transactionId = sha256(Buffer.concat([
+      Buffer.from(this.namespace + '\0' + key + '\0' + String(expectedHash) + '\0' + hash + '\0'),
+      randomBytes(32)
+    ]));
+    const prepared = [];
+    const failures = [];
+    for (const peerId of participants) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.prepare',
+          namespace: this.namespace, transactionId, participants,
+          key, expectedHash, hash, bytesBase64: bytes.toString('base64')
+        });
+        if (response.namespace !== this.namespace || response.transaction?.transactionId !== transactionId || response.transaction?.hash !== hash ||
+            !['prepared', 'commit-decided', 'committed'].includes(response.transaction?.state) ||
+            !hasVerifiedDurabilityReceipt(response)) throw new Error('peer did not durably prepare the requested CAS transaction');
+        prepared.push({ peerId, receiptId: response.receiptId, failureDomain: this.failureDomainsByPeerId[peerId] || null });
+      } catch (error) {
+        failures.push({ peerId, code: error?.code || null, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (prepared.length !== participants.length) {
+      const abortFailures = [];
+      for (const item of prepared) {
+        try {
+          await this.request(item.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
+        } catch (error) { abortFailures.push({ peerId: item.peerId, error: error instanceof Error ? error.message : String(error) }); }
+      }
+      const cleanConflict = prepared.length === 0 && failures.length > 0 &&
+        failures.every(failure => failure.code === 'REFERENCE_CONFLICT');
+      const uncertainPrepare = failures.some(failure => failure.code !== 'REFERENCE_CONFLICT');
+      const error = new Error(uncertainPrepare
+        ? 'distributed CAS did not confirm prepare on every participant; at least one prepare outcome may be unknown, so recovery is required'
+        : 'distributed CAS prepare was rejected by a conflicting reference head');
+      error.code = abortFailures.length || uncertainPrepare ? 'TRANSACTION_RECOVERY_REQUIRED' : cleanConflict ? 'CAS_CONFLICT' : 'PREPARE_INCOMPLETE';
+      error.transactionId = transactionId;
+      error.preparedPeers = prepared.map(item => item.peerId);
+      error.failures = failures;
+      error.abortFailures = abortFailures;
+      throw error;
+    }
+    const decisionFailures = [];
+    for (const peerId of participants) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.decision', namespace: this.namespace,
+          transactionId, participants
+        });
+        if (response.transaction?.state !== 'commit-decided' && response.transaction?.state !== 'committed') {
+          throw new Error('peer did not durably record the commit decision');
+        }
+      } catch (error) {
+        decisionFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (decisionFailures.length) {
+      const error = new Error('distributed CAS decision replication is incomplete; outcome is unknown and recovery must roll forward if any decision exists');
+      error.code = 'COMMIT_OUTCOME_UNKNOWN';
+      error.transactionId = transactionId;
+      error.proposedHash = hash;
+      error.expectedHash = expectedHash;
+      error.preparedPeers = prepared.map(item => item.peerId);
+      error.decisionFailures = decisionFailures;
+      throw error;
+    }
+    const commitFailures = [];
+    for (const peerId of participants) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.commit', namespace: this.namespace, transactionId
+        });
+        if (response.transaction?.state !== 'committed') throw new Error('peer did not confirm committed reference');
+      } catch (error) {
+        commitFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (commitFailures.length) {
+      const error = new Error('commit decision is durable but not yet applied on every peer; recovery must roll forward');
+      error.code = 'COMMIT_OUTCOME_UNKNOWN';
+      error.transactionId = transactionId;
+      error.proposedHash = hash;
+      error.expectedHash = expectedHash;
+      error.preparedPeers = prepared.map(item => item.peerId);
+      error.commitFailures = commitFailures;
+      throw error;
+    }
+    return { hash, transactionId, replicas: participants, receipts: prepared };
+  }
+
+  async recoverPendingRefTransactions({ coordinatorStopped = false } = {}) {
+    const pending = new Set();
     const failures = [];
     for (const peerId of this.peers) {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1', operation: 'ref.cas',
-          namespace: this.namespace, key, expectedHash, hash,
-          bytesBase64: bytes.toString('base64')
+          protocol: 'apex.cas.v1', operation: 'ref.tx.list', namespace: this.namespace
         });
-        if (response.namespace !== this.namespace || response.hash !== hash ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
+        if (response.namespace !== this.namespace || !Array.isArray(response.transactions) ||
+            !hasVerifiedDurabilityReceipt(response)) throw new Error('peer returned an invalid pending transaction list');
+        for (const tx of response.transactions) {
+          if (tx?.namespace !== this.namespace || typeof tx.transactionId !== 'string' ||
+              !['prepared', 'commit-decided'].includes(tx.state)) throw new Error('peer listed an invalid transaction record');
+          pending.add(tx.transactionId);
         }
-        receipts.push({
-          peerId, hash, receiptId: response.receiptId,
-          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
-        });
-        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
-      } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
-      }
+      } catch (error) { failures.push({ peerId, error: error instanceof Error ? error.message : String(error) }); }
     }
-    const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
-    if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
-      const error = new Error('peer reference update did not satisfy required replica count and independent failure-domain policy');
-      error.code = 'INSUFFICIENT_REPLICAS';
-      error.requiredReplicas = this.replicaCount;
-      error.verifiedReplicas = receipts.length;
+    if (failures.length) {
+      const error = new Error('pending transaction discovery requires every configured peer; recovery is blocked by a partition');
+      error.code = 'RECOVERY_BLOCKED';
       error.failures = failures;
       throw error;
     }
-    return { hash, replicas: receipts.map(receipt => receipt.peerId), receipts };
+    const outcomes = [];
+    for (const transactionId of [...pending].sort()) {
+      outcomes.push(await this.recoverRefTransaction(transactionId, { coordinatorStopped }));
+    }
+    return { recovered: outcomes.length, outcomes };
+  }
+
+  async recoverRefTransaction(transactionId, { coordinatorStopped = false } = {}) {
+    if (typeof transactionId !== 'string' || !transactionId || transactionId.length > 256) throw new TypeError('invalid transaction ID');
+    const states = [];
+    const failures = [];
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.tx.get',
+          namespace: this.namespace, transactionId
+        });
+        states.push(response.transaction ? { peerId, ...response.transaction } : { peerId, state: 'absent' });
+      } catch (error) { failures.push({ peerId, error: error instanceof Error ? error.message : String(error) }); }
+    }
+    if (failures.length || states.length !== this.peers.length) {
+      const error = new Error('transaction recovery requires every configured participant; refusing to guess across a partition');
+      error.code = 'RECOVERY_BLOCKED';
+      error.transactionId = transactionId;
+      error.states = states;
+      error.failures = failures;
+      throw error;
+    }
+    const decisions = states.filter(state => ['commit-decided', 'committed'].includes(state.state));
+    if (decisions.length) {
+      if (states.some(state => state.state === 'aborted')) {
+        const error = new Error('a participant recorded abort while another recorded commit; refusing to cross an impossible transaction decision');
+        error.code = 'TRANSACTION_STATE_DIVERGENCE';
+        error.transactionId = transactionId;
+        error.states = states;
+        throw error;
+      }
+      if (states.some(state => state.state === 'absent')) {
+        const error = new Error('a participant lacks the transaction record despite a durable commit decision; refusing unsafe reconstruction');
+        error.code = 'TRANSACTION_STATE_DIVERGENCE';
+        error.transactionId = transactionId;
+        error.states = states;
+        throw error;
+      }
+      const participants = [...this.peers].sort();
+      for (const peerId of participants) {
+        const state = states.find(item => item.peerId === peerId);
+        if (state.state === 'prepared') {
+          await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.decision', namespace: this.namespace, transactionId, participants });
+        }
+      }
+      const results = [];
+      for (const peerId of participants) {
+        const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.commit', namespace: this.namespace, transactionId });
+        results.push({ peerId, state: response.transaction?.state });
+      }
+      if (results.some(result => result.state !== 'committed')) throw new Error('transaction recovery failed to converge every participant to committed');
+      return { transactionId, state: 'committed', peers: results.map(result => result.peerId) };
+    }
+    if (states.every(state => ['prepared', 'aborted', 'absent'].includes(state.state))) {
+      if (states.some(state => state.state === 'prepared') && coordinatorStopped !== true) {
+        const error = new Error('prepared-only transaction may still have a live coordinator; explicit coordinatorStopped confirmation is required before abort');
+        error.code = 'RECOVERY_BLOCKED';
+        error.transactionId = transactionId;
+        error.states = states;
+        throw error;
+      }
+      for (const state of states) {
+        if (state.state !== 'prepared') continue;
+        await this.request(state.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
+      }
+      return { transactionId, state: 'aborted', peers: states.map(state => state.peerId) };
+    }
+    if (states.every(state => state.state === 'committed')) return { transactionId, state: 'committed', peers: states.map(state => state.peerId) };
+    const error = new Error('transaction participants have incompatible durable states; refusing automatic repair');
+    error.code = 'TRANSACTION_STATE_DIVERGENCE';
+    error.transactionId = transactionId;
+    error.states = states;
+    throw error;
   }
 }
 
@@ -482,7 +647,10 @@ export function createPeerObjectStorageHandler({
   if (typeof authorizeNamespace !== 'function') throw new TypeError('an explicit per-app namespace authorization policy is required');
   const limit = Number(maxObjectBytes);
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('maxObjectBytes must be a positive integer');
-  const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function';
+  const hasReferenceBackend = typeof store.readRef === 'function' && typeof store.writeRef === 'function' &&
+    typeof store.prepareRef === 'function' && typeof store.decideRefCommit === 'function' &&
+    typeof store.commitPreparedRef === 'function' && typeof store.abortPreparedRef === 'function' &&
+    typeof store.getRefTransaction === 'function' && typeof store.listRefTransactions === 'function';
   const capacityReceipt = async (namespace, expectedPeerId) => {
     if (!hasReferenceBackend || typeof store.health !== 'function' ||
         typeof store.verifyDurabilityReceipt !== 'function') {
@@ -514,7 +682,7 @@ export function createPeerObjectStorageHandler({
     if (envelope?.protocol !== 'apex.cas.v1') return false;
     if (!validNamespace(envelope.namespace)) throw new Error('invalid peer storage namespace');
     const operation = String(envelope.operation || '');
-    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.cas', 'ref.list'].includes(operation)) {
+    if (!['storage.health', 'object.put', 'object.get', 'ref.get', 'ref.list', 'ref.prepare', 'ref.decision', 'ref.commit', 'ref.abort', 'ref.tx.get', 'ref.tx.list'].includes(operation)) {
       throw new Error('unsupported peer storage operation');
     }
     if (await authorizeNamespace({ remotePeerId, namespace: envelope.namespace, operation }) !== true) {
@@ -567,6 +735,13 @@ export function createPeerObjectStorageHandler({
     }
     if (operation === 'ref.list') {
       if (typeof store.listRefs !== 'function') throw new Error('peer reference listing is unsupported by this durable backend');
+      const pending = await store.listRefTransactions(envelope.namespace);
+      if (pending.length) {
+        const error = new Error('reference listing is blocked while distributed CAS transactions are unresolved');
+        error.code = 'REFERENCE_TRANSACTION_PENDING';
+        error.transactions = pending.map(tx => tx.transactionId);
+        throw error;
+      }
       const refs = await store.listRefs(envelope.namespace);
       const listed = refs.map(ref => {
         const bytes = Buffer.from(ref.bytes);
@@ -579,10 +754,66 @@ export function createPeerObjectStorageHandler({
       return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, refs: listed, ...capacity };
     }
 
+    if (operation === 'ref.tx.list') {
+      if (typeof store.listRefTransactions !== 'function') throw new Error('peer backend lacks pending transaction enumeration');
+      const transactions = await store.listRefTransactions(envelope.namespace);
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transactions, ...capacity };
+    }
+    if (operation === 'ref.tx.get') {
+      if (typeof envelope.transactionId !== 'string' || !envelope.transactionId) throw new Error('invalid transaction ID');
+      const tx = await store.getRefTransaction?.(envelope.transactionId);
+      if (!tx || tx.namespace !== envelope.namespace) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: null, ...capacity };
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: tx, ...capacity };
+    }
+    if (operation === 'ref.prepare') {
+      if (typeof store.prepareRef !== 'function') throw new Error('peer backend lacks durable transaction prepare support');
+      if (typeof envelope.transactionId !== 'string' || !envelope.transactionId ||
+          typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512 ||
+          !validHash(envelope.hash) || typeof envelope.bytesBase64 !== 'string' ||
+          (envelope.expectedHash !== null && !validHash(envelope.expectedHash)) ||
+          !Array.isArray(envelope.participants) || !envelope.participants.includes(localPeerId)) throw new Error('invalid distributed reference prepare request or participant set');
+      const bytes = Buffer.from(envelope.bytesBase64, 'base64');
+      if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) throw new Error('distributed reference prepare failed size, byte, or hash verification');
+      const prepared = await store.prepareRef({
+        transactionId: envelope.transactionId, namespace: envelope.namespace, key: envelope.key,
+        expectedHash: envelope.expectedHash ?? null, hash: envelope.hash, bytes,
+        participants: envelope.participants
+      });
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: prepared, ...capacity };
+    }
+    if (['ref.decision', 'ref.commit', 'ref.abort'].includes(operation)) {
+      if (typeof envelope.transactionId !== 'string' || !envelope.transactionId) throw new Error('invalid transaction ID');
+      const existingTransaction = await store.getRefTransaction?.(envelope.transactionId);
+      if (existingTransaction && existingTransaction.namespace !== envelope.namespace) throw new Error('transaction namespace mismatch');
+      if (!existingTransaction && operation !== 'ref.abort') throw new Error('transaction record not found in the requested namespace');
+      let result;
+      if (operation === 'ref.decision') {
+        if (typeof store.decideRefCommit !== 'function') throw new Error('peer backend lacks durable commit-decision support');
+        result = await store.decideRefCommit(envelope.transactionId, envelope.participants);
+      } else if (operation === 'ref.commit') {
+        if (typeof store.commitPreparedRef !== 'function') throw new Error('peer backend lacks transaction commit/recovery support');
+        result = await store.commitPreparedRef(envelope.transactionId);
+      } else {
+        if (typeof store.abortPreparedRef !== 'function') throw new Error('peer backend lacks safe transaction abort support');
+        result = await store.abortPreparedRef(envelope.transactionId);
+      }
+      const tx = await store.getRefTransaction?.(envelope.transactionId);
+      if (tx && tx.namespace !== envelope.namespace) throw new Error('transaction namespace mismatch');
+      return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, transaction: result, ...capacity };
+    }
+
     if (typeof envelope.key !== 'string' || !envelope.key || envelope.key.length > 512) {
       throw new Error('invalid peer reference key');
     }
     if (operation === 'ref.get') {
+      const pending = await store.listRefTransactions(envelope.namespace);
+      const unresolved = pending.find(tx => tx.key === envelope.key);
+      if (unresolved) {
+        const error = new Error('reference read is blocked while its distributed CAS transaction is unresolved');
+        error.code = 'REFERENCE_TRANSACTION_PENDING';
+        error.transactionId = unresolved.transactionId;
+        throw error;
+      }
       const current = await store.readRef(envelope.namespace, envelope.key);
       if (current == null) return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: null, ...capacity };
       const bytes = Buffer.from(current.bytes);

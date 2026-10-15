@@ -52,6 +52,49 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
     return { hash };
   };
+  const transactions = new Map();
+  store.prepareRef = async ({ transactionId, namespace, key, expectedHash, hash, bytes, participants }) => {
+    if (transactions.has(transactionId)) {
+      const prior = transactions.get(transactionId);
+      return { transactionId, state: prior.state, hash: prior.hash };
+    }
+    if ((refs.get(namespace + ':' + key)?.hash ?? null) !== expectedHash) throw new Error('prepare conflict');
+    await store.putBytes(hash, bytes);
+    const tx = { transactionId, namespace, key, expectedHash, hash, bytes: Buffer.from(bytes), participants: [...participants].sort(), state: 'prepared' };
+    transactions.set(transactionId, tx);
+    return { transactionId, state: tx.state, hash };
+  };
+  store.decideRefCommit = async (transactionId, participants) => {
+    const tx = transactions.get(transactionId);
+    if (!tx || JSON.stringify([...participants].sort()) !== JSON.stringify(tx.participants)) throw new Error('prepare/participant mismatch');
+    if (tx.state === 'prepared') tx.state = 'commit-decided';
+    return { transactionId, state: tx.state, hash: tx.hash };
+  };
+  store.commitPreparedRef = async transactionId => {
+    const tx = transactions.get(transactionId);
+    if (!tx || !['commit-decided', 'committed'].includes(tx.state)) throw new Error('missing commit decision');
+    const current = refs.get(tx.namespace + ':' + tx.key);
+    if ((current?.hash ?? null) === tx.expectedHash) refs.set(tx.namespace + ':' + tx.key, { hash: tx.hash, bytes: Buffer.from(tx.bytes) });
+    else if (current?.hash !== tx.hash) throw new Error('commit divergence');
+    tx.state = 'committed';
+    return { transactionId, state: tx.state, hash: tx.hash };
+  };
+  store.abortPreparedRef = async transactionId => {
+    const tx = transactions.get(transactionId);
+    if (!tx) return { transactionId, state: 'absent' };
+    if (tx.state !== 'prepared' && tx.state !== 'aborted') throw new Error('cannot abort decided transaction');
+    tx.state = 'aborted';
+    return { transactionId, state: tx.state };
+  };
+  store.getRefTransaction = async transactionId => {
+    const tx = transactions.get(transactionId);
+    if (!tx) return null;
+    const { transactionId: id, namespace, key, expectedHash, hash, participants, state } = tx;
+    return { transactionId: id, namespace, key, expectedHash, hash, participants, state };
+  };
+  store.listRefTransactions = async namespace => [...transactions.values()]
+    .filter(tx => tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state))
+    .map(tx => ({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state }));
   store.listRefs = async namespace => [...refs.entries()]
     .filter(([refKey]) => refKey.startsWith(namespace + ':'))
     .map(([refKey, ref]) => ({ key: refKey.slice(namespace.length + 1), hash: ref.hash, bytes: Buffer.from(ref.bytes) }));
