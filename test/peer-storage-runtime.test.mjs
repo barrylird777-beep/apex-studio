@@ -10,7 +10,7 @@ const receiptPublicKey = receiptPair.publicKey.export({ format: 'der', type: 'sp
 function signedReceipt({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null, pair = receiptPair }) {
   const claims = { version: 1, peerId, namespace, operation, objectHash, key, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
   const body = encodeCanonical(claims);
-  return { receipt: { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, pair.privateKey).toString('base64') }, receiptId: createHash('sha256').update(body).digest('hex') };
+  return { ...claims, receipt: { algorithm: 'Ed25519', body: body.toString('base64'), signature: signBytes(null, body, pair.privateKey).toString('base64') }, receiptId: createHash('sha256').update(body).digest('hex') };
 }
 
 function binaryMemoryStore() {
@@ -68,10 +68,18 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
     atomicReferencesVerified: true, peerId, namespace, ...signedReceipt({ namespace, peerId, operation, objectHash, key })
   });
-  store.verifyDurabilityReceipt = async (receipt, claims) =>
-    receipt?.algorithm === 'Ed25519' && claims.peerId === 'storage-peer' &&
-    claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
-    claims.atomicReferencesVerified === true;
+  store.verifyDurabilityReceipt = async (receipt, claims) => {
+    if (receipt?.algorithm !== 'Ed25519' || claims.peerId !== 'storage-peer' ||
+        claims.namespace !== 'PlanetApeX' || claims.restartRecoveryVerified !== true ||
+        claims.atomicReferencesVerified !== true) return false;
+    try {
+      const body = Buffer.from(receipt.body, 'base64');
+      const signed = (await import('../src/core/apex-cbor.mjs')).decodeCanonical(body);
+      return body.toString('base64') === receipt.body &&
+        signed.peerId === claims.peerId && signed.namespace === claims.namespace &&
+        signed.operation === claims.operation && signed.objectHash === claims.objectHash && signed.key === claims.key;
+    } catch { return false; }
+  };
   const runtime = await initializePeerObjectStorage({
     enabled: true,
     store,
