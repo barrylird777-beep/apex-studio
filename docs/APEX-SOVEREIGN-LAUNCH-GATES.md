@@ -18,6 +18,8 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Content-addressed chunked asset manifest and integrity verification.
 - [x] Atomic CAS conflict surfaced distinctly from replica failure.
 - [x] Bounded TTL RAM cache for verified immutable object bytes; cache is non-durable.
+- [x] Synchronous in-memory CID index and atomic pointer swap primitive integrated only beneath the disposable verified-object cache; it never substitutes for distributed CAS or peer durability.
+- [x] Local CAS microbenchmark command added; measured numbers are not release evidence until run on the candidate environment and reported with the runtime context.
 - [x] Parallel peer reads for immutable objects and bounded concurrent chunk assembly.
 - [x] Rarest-first scheduling primitive and verified-advertisement ordering are implemented; live multi-peer advertisement gossip and production proof remain open.
 - [x] Bounded pull-based repair loop and replica reconciliation are implemented; peer-loss convergence remains unverified in a live mesh.
