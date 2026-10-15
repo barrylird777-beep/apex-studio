@@ -15,6 +15,7 @@ This document records implementation status, not a sovereignty or production-rea
 - Ed25519-signed capability envelopes, scoped cross-app capability verification, revocation callback, signed heartbeats, signed peer capability advertisements, and a rarest-first planning function that consumes already-verified advertisements.
 - Connection-scoped trust-session primitive with explicit credential and attestation verifier callbacks; credential rotation and connection closure invalidate elevation.
 - Job completion publishes an immutable apex.job-result.v1 object and records its CID in the CAS-backed job state.
+- Distributed job claims use CAS expected hashes, lease tokens, monotonically increasing fencing values, and a concurrent-winner regression test; release verification remains pending.
 
 ## Not yet launch-verified
 
