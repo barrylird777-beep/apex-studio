@@ -9,6 +9,7 @@ import { ApexRingWAL } from '../src/core/apex-ring-wal.mjs';
 import SovereignMeshEngine from '../src/core/sovereign-mesh-engine.mjs';
 import { createSovereignAppFabric } from '../src/core/sovereign-app-fabric.mjs';
 import { drainSovereignAppDispatchQueue } from '../src/core/sovereign-app-dispatch-queue.mjs';
+import { MemoryMeshCAS } from './helpers/memory-mesh-cas.mjs';
 import { savePlanetApexRecord, getPlanetApexRecord } from '../src/apps/planet-apex.mjs';
 import { saveKoBlocksRecord, getKoBlocksRecord } from '../src/apps/ko-blocks.mjs';
 import { saveXShieldRecord, getXShieldRecord } from '../src/apps/xshield.mjs';
@@ -22,7 +23,7 @@ test('one Pure-WAL fabric gives all six canonical apps isolated durable namespac
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-six-app-fabric-'));
   try {
     const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
-    const fabric=createSovereignAppFabric({store,engineFactory:()=>new SovereignMeshEngine(path.join(dir,'mesh'))});
+    const fabric=createSovereignAppFabric({store});
     const apps=fabric.apps();
     assert.equal(apps.length,6);
     assert.deepEqual(new Set(apps.map(app=>app.id)),new Set(Object.values(APEX_APPS).map(app=>app.id)));
@@ -61,7 +62,7 @@ test('KoBlocks reusable capability records have an isolated non-app namespace', 
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
-test('phone dispatch is durably queued and the runtime daemon alone writes the mesh WAL', async () => {
+test('phone dispatch is queued and drained into peer-CAS mesh state', async () => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'apex-phone-sovereign-'));
   const prior=process.env.APEX_SOVEREIGN_PEER_ID;
   delete process.env.APEX_SOVEREIGN_PEER_ID;
@@ -77,7 +78,7 @@ test('phone dispatch is durably queued and the runtime daemon alone writes the m
     assert.equal(store.jobs().some(job=>job.id===queued.jobId&&job.type==='sovereign.app.dispatch'),true);
     assert.equal((await store.claim({workerId:'generic-worker',limit:8})).length,0,'generic workers must not steal sovereign dispatches');
 
-    const engine=new SovereignMeshEngine(path.join(dir,'mesh'));
+    const engine=new SovereignMeshEngine({cas:new MemoryMeshCAS()});
     await engine.ready();
     const drained=await drainSovereignAppDispatchQueue({store,engine,peerId:'test-peer',workerId:'test-runtime'});
     assert.equal(drained.dispatched,1);

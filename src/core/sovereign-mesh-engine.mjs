@@ -1,95 +1,64 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { ContentAddressedStore } from "./content-addressed-store.mjs";
-import { RemoteContentAddressedStore } from "./remote-content-addressed-store.mjs";
+import { encodeCanonical } from "./apex-cbor.mjs";
 
-const DEFAULT_STORAGE_DIR = process.env.APEX_SOVEREIGN_STORAGE_DIR || "/srv/apex/se-x/projects";
-function stableJson(value) {
-  const normalize = input => {
-    if (Array.isArray(input)) return input.map(normalize);
-    if (input && typeof input === "object") return Object.fromEntries(Object.keys(input).sort().map(key => [key, normalize(input[key])]));
-    return input;
-  };
-  return JSON.stringify(normalize(value));
-}
 const digest = value => createHash("sha256").update(String(value)).digest("hex");
+const recordDigest = record => createHash("sha256").update(encodeCanonical({
+  seq: record.seq, waveId: record.waveId, peerId: record.peerId,
+  action: record.action, timestamp: record.timestamp, status: record.status, payload: record.payload
+})).digest("hex");
 
 export function sovereignRecordChecksum(record) {
-  return createHash("sha256").update(stableJson({
-    seq: record.seq, waveId: record.waveId, peerId: record.peerId,
-    action: record.action, timestamp: record.timestamp, status: record.status, payload: record.payload
-  })).digest("hex");
+  return recordDigest(record);
 }
 export function verifySovereignRecord(record) {
-  return Boolean(record && typeof record === "object" && typeof record.checksum === "string" && sovereignRecordChecksum(record) === record.checksum);
+  try {
+    return Boolean(record && typeof record === "object" &&
+      typeof record.checksum === "string" && sovereignRecordChecksum(record) === record.checksum);
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Sovereign mesh state uses immutable SHA-256 objects and atomic per-wave manifests.
- * The former NDJSON log is read once for migration only; this engine never appends to it.
+ * Mesh engine backed exclusively by an injected peer-owned CAS adapter.
+ * There is deliberately no default filesystem store or legacy-log migration.
  */
 export class SovereignMeshEngine {
-  constructor(storageDir = DEFAULT_STORAGE_DIR, { cas = null, remoteMode = undefined } = {}) {
-    this.storageDir = path.resolve(storageDir);
-    this.legacyLogPath = path.join(this.storageDir, "apex-ring-wal.ndjson");
-    this.migrationFile = path.join(this.storageDir, ".sovereign-cas-migrated-v1.json");
-    this.remoteMode = remoteMode === undefined ? (Boolean(cas) || String(process.env.APEX_CAS_REMOTE_ENABLED || "").toLowerCase() === "true") : Boolean(remoteMode);
-    this.cas = cas || (this.remoteMode ? new RemoteContentAddressedStore() : new ContentAddressedStore({ root: path.join(this.storageDir, ".sovereign-cas") }));
+  constructor({ cas } = {}) {
+    if (!cas || typeof cas.init !== "function" || typeof cas.readRef !== "function" ||
+        typeof cas.writeRef !== "function" || typeof cas.listRefs !== "function") {
+      throw new TypeError("SovereignMeshEngine requires a verified peer-backed CAS; local fallback is forbidden");
+    }
+    this.cas = cas;
     this.state = new Map();
     this._writeTail = Promise.resolve();
     this._writeError = null;
     this._initialized = this._initializeStorage();
   }
+
   key(waveId) { return digest(waveId); }
   async ready() { await this._initialized; return this; }
 
   async _initializeStorage() {
-    if (!this.remoteMode) await fs.mkdir(this.storageDir, { recursive: true, mode: 0o700 });
     await this.cas.init();
-    const scope = String(process.env.APEX_SERVICE_SCOPE || "apex").replace(/[^a-zA-Z0-9._:-]/g, "-").slice(0, 100);
-    const remoteMarkerKey = "mesh-migration-v1-" + scope;
-    const remoteMarker = { version: 1, storage: "remote-content-addressed", service: scope, migratedAt: new Date().toISOString() };
-    let migrated = false;
-    if (this.remoteMode) migrated = Boolean(await this.cas.readRef("system", remoteMarkerKey));
-    else {
-      try { await fs.stat(this.migrationFile); migrated = true; }
-      catch (error) { if (error.code !== "ENOENT") throw error; }
-    }
-    if (!migrated) {
-      let raw = "";
-      try { raw = await fs.readFile(this.legacyLogPath, "utf8"); }
-      catch (error) { if (error.code !== "ENOENT") throw error; }
-      let lastSeq = 0;
-      for (const [index, lineRaw] of raw.split("\n").entries()) {
-        const line = lineRaw.trim();
-        if (!line) continue;
-        let entry;
-        try { entry = JSON.parse(line); }
-        catch (error) { throw new Error("Legacy mesh migration failed at line " + (index + 1) + ": invalid JSON (" + error.message + ")"); }
-        if (!Number.isSafeInteger(entry.seq) || entry.seq <= lastSeq || !entry.waveId || !entry.timestamp || !verifySovereignRecord(entry)) {
-          throw new Error("Legacy mesh migration integrity failure at line " + (index + 1));
-        }
-        const key = this.key(entry.waveId);
-        const current = this.remoteMode ? await this.cas.readRef("waves", key) : null;
-        if (!current) await this.cas.writeRef("waves", key, entry, this.remoteMode ? { expectedHash: null } : {});
-        lastSeq = entry.seq;
-      }
-      const currentSequence = await this.cas.readRef("meta", "sequence");
-      if (!currentSequence) await this.cas.writeRef("meta", "sequence", { next: lastSeq + 1 }, this.remoteMode ? { expectedHash: null } : {});
-      if (this.remoteMode) {
-        await this.cas.writeRef("system", remoteMarkerKey, remoteMarker, { expectedHash: null });
-      } else {
-        const marker = this.migrationFile + "." + randomUUID() + ".tmp";
-        await fs.writeFile(marker, JSON.stringify({ version: 1, storage: "content-addressed", migratedAt: remoteMarker.migratedAt }) + "\n", { flag: "wx", mode: 0o600 });
-        await fs.rename(marker, this.migrationFile);
-      }
-    }
     const refs = await this.cas.listRefs("waves");
+    const seen = new Set();
     for (const ref of refs) {
       const entry = ref.value;
-      if (!verifySovereignRecord(entry)) throw new Error("Content-addressed sovereign record integrity failure");
+      if (!verifySovereignRecord(entry) || this.key(entry.waveId) !== ref.key || seen.has(entry.waveId)) {
+        throw new Error("Peer-backed sovereign record integrity or reference-key verification failed");
+      }
+      seen.add(entry.waveId);
       this.state.set(entry.waveId, entry);
+    }
+    const sequence = await this.cas.readRef("meta", "sequence");
+    if (!sequence) {
+      try {
+        await this.cas.writeRef("meta", "sequence", { next: 1 }, { expectedHash: null });
+      } catch (error) {
+        if (error.code !== "CAS_CONFLICT") throw error;
+        if (!(await this.cas.readRef("meta", "sequence"))) throw error;
+      }
     }
   }
 
@@ -104,7 +73,7 @@ export class SovereignMeshEngine {
         if (error.code !== "CAS_CONFLICT") throw error;
       }
     }
-    throw new Error("Could not reserve sovereign sequence after CAS retries");
+    throw new Error("Could not reserve sovereign sequence after peer CAS retries");
   }
 
   async dispatchAutonomousPayload(payload) {

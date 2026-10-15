@@ -25,6 +25,30 @@ function parsePeers(value) {
   return result;
 }
 
+
+/** Create the app-scoped peer CAS used by the mesh engine; no model bridge. */
+export async function createPeerMeshCasRuntime({ peerNode } = {}) {
+  if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('started sovereign peer node required');
+  const namespace = required('APEX_PEER_CAS_NAMESPACE');
+  if (!APPS.has(namespace)) throw new Error('APEX_PEER_CAS_NAMESPACE must name one canonical app');
+  const encodedKey = required('APEX_PEER_CAS_ENCRYPTION_KEY_BASE64');
+  const key = Buffer.from(encodedKey, 'base64');
+  if (key.length !== 32 || key.toString('base64') !== encodedKey) throw new Error('Peer-CAS encryption key must be canonical base64 for exactly 32 bytes');
+  const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
+  const peers = Object.keys(addressesByPeerId);
+  const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
+  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1);
+  if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
+  const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
+  const store = new PeerContentAddressedStore({
+    transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains,
+    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
+  });
+  // This read requires verified responses from the configured replica quorum.
+  await store.listRefs();
+  return Object.freeze({ store, namespace, peers, replicaCount, minFailureDomains });
+}
+
 export async function startPeerCasRuntime({ peerNode }) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('started sovereign peer node required');
   const namespace = required('APEX_PEER_CAS_NAMESPACE');

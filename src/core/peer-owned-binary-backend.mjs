@@ -145,6 +145,25 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         return { hash };
       });
     },
+    async listRefs(namespace) {
+      if (typeof namespace !== 'string' || !namespace) throw new Error('explicit reference namespace is required');
+      const names = await readdir(refsDir);
+      const refs = [];
+      for (const name of names) {
+        if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
+        const bytes = await readFile(path.join(refsDir, name));
+        const value = decodeCanonical(bytes);
+        if (!value || typeof value.namespace !== 'string' || typeof value.key !== 'string' ||
+            refId(value.namespace, value.key) + '.cbor' !== name ||
+            !/^[a-f0-9]{64}$/.test(String(value.hash || '')) ||
+            !Buffer.isBuffer(value.bytes) || sha256(value.bytes) !== value.hash) {
+          throw new Error('peer CAS reference listing encountered corrupt reference metadata');
+        }
+        if (value.namespace === namespace) refs.push({ key: value.key, hash: value.hash, bytes: Buffer.from(value.bytes) });
+      }
+      refs.sort((a, b) => a.key.localeCompare(b.key));
+      return refs;
+    },
     async health({ namespace, peerId: requestedPeerId }) {
       if (requestedPeerId !== peerId || !Array.isArray(acl[namespace]) || !acl[namespace].length) throw new Error('peer CAS health claim does not match peer identity or ACL');
       await verifyDisk();

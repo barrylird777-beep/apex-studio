@@ -111,7 +111,7 @@ test('independent peer processes recover encrypted objects and refs after outage
   const roots = { 'peer-a': path.join(root, 'peer-a'), 'peer-b': path.join(root, 'peer-b') };
   let peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], receiptKey });
   let peerB = startPeer(t, { peerId: 'peer-b', root: roots['peer-b'], receiptKey });
-  const a = await peerA.ready;
+  let a = await peerA.ready;
   let b = await peerB.ready;
   const transport = {
     async request(peerId, request) {
@@ -142,6 +142,9 @@ test('independent peer processes recover encrypted objects and refs after outage
   const ref = await client.writeRef('project-main', { objectHash: written.hash, revision: 1 }, { expectedHash: null });
   assert.deepEqual(new Set(written.replicas), new Set(['peer-a', 'peer-b']));
   assert.deepEqual(new Set(ref.replicas), new Set(['peer-a', 'peer-b']));
+  assert.deepEqual(await client.listRefs(), [
+    { namespace: 'PlanetApeX', key: 'project-main', hash: ref.hash, value: { objectHash: written.hash, revision: 1 } }
+  ]);
 
   await stopPeer(peerA);
   await stopPeer(peerB);
@@ -150,8 +153,15 @@ test('independent peer processes recover encrypted objects and refs after outage
 
   assert.deepEqual(await client.getObject(written.hash), value);
   assert.deepEqual((await client.readRef('project-main')).value, { objectHash: written.hash, revision: 1 });
+  await assert.rejects(client.listRefs(), error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1);
   await assert.rejects(
     client.putObject({ mustNotBeAcknowledged: true }),
     error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
   );
+
+  peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], receiptKey });
+  a = await peerA.ready;
+  assert.deepEqual(await client.listRefs(), [
+    { namespace: 'PlanetApeX', key: 'project-main', hash: ref.hash, value: { objectHash: written.hash, revision: 1 } }
+  ]);
 });
