@@ -4,9 +4,49 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import SovereignMeshEngine, { sovereignRecordChecksum } from '../src/core/sovereign-mesh-engine.mjs';
+import { createHash } from 'node:crypto';
+import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { ApexRingWAL } from '../src/core/apex-ring-wal.mjs';
 import { ApexPureStore } from '../src/core/apex-pure-store.mjs';
 import { createSovereignDurableBridge } from '../src/core/sovereign-durable-bridge.mjs';
+
+// Test-only CAS adapter. It is intentionally in-memory and is not a production
+// durability implementation; these bridge tests exercise bridge behavior only.
+const testCasByRoot = new Map();
+function createTestCas(root) {
+  let refs = testCasByRoot.get(root);
+  if (!refs) {
+    refs = new Map();
+    testCasByRoot.set(root, refs);
+  }
+  const hash = value => createHash('sha256').update(encodeCanonical(value)).digest('hex');
+  return {
+    async init() {},
+    async readRef(namespace, key) {
+      const entry = refs.get(namespace + '\\0' + key);
+      return entry ? { ...entry } : null;
+    },
+    async writeRef(namespace, key, value, { expectedHash } = {}) {
+      const id = namespace + '\\0' + key;
+      const current = refs.get(id);
+      if ((current?.hash ?? null) !== (expectedHash ?? null)) {
+        const error = new Error('test CAS conflict');
+        error.code = 'CAS_CONFLICT';
+        throw error;
+      }
+      const entry = { value, hash: hash(value) };
+      refs.set(id, entry);
+      return { ...entry };
+    },
+    async listRefs(namespace) {
+      const prefix = namespace + '\\0';
+      return [...refs.entries()]
+        .filter(([id]) => id.startsWith(prefix))
+        .map(([id, entry]) => ({ key: id.slice(prefix.length), ...entry }));
+    }
+  };
+}
+
 
 test('sovereign bridge persists a wave to Pure-WAL without a database client', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-pure-wal-bridge-'));
@@ -19,7 +59,7 @@ test('sovereign bridge persists a wave to Pure-WAL without a database client', a
       root: path.join(dir, 'projects'),
       wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
     });
-    const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+    const engine = new SovereignMeshEngine({ cas: createTestCas(path.join(dir, 'sovereign')) });
     await store.init();
     await engine.ready();
 
@@ -60,7 +100,7 @@ test('bridge preserves a pending mesh record instead of faking peer acknowledgem
   delete process.env.APEX_REQUIRE_PEER_ACK;
   try {
     const store=new ApexPureStore({root:path.join(dir,'projects'),wal:new ApexRingWAL({file:path.join(dir,'wal','ring.wal.jsonl')})});
-    const engine=new SovereignMeshEngine(path.join(dir,'mesh'));
+    const engine=new SovereignMeshEngine({ cas: createTestCas(path.join(dir, 'sovereign')) });
     await store.init();await engine.ready();
     const bridge=createSovereignDurableBridge({engine,store,workerId:'peer-required-test'});
     await assert.rejects(bridge.dispatch({waveId:'peer-pending-wave',action:'test',payload:{}}),/peer acknowledgement is required/);
@@ -84,7 +124,7 @@ test('peer acknowledgement carries the checksummed payload and is persisted', as
       root: path.join(dir, 'projects'),
       wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
     });
-    const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+    const engine = new SovereignMeshEngine({ cas: createTestCas(path.join(dir, 'sovereign')) });
     await store.init();
     await engine.ready();
     const sent = [];
@@ -157,7 +197,7 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
     root: path.join(dir, 'projects'),
     wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
   });
-  const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+  const engine = new SovereignMeshEngine({ cas: createTestCas(path.join(dir, 'sovereign')) });
   try {
     await store.init();
     await engine.ready();
@@ -172,7 +212,7 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
     assert.equal(await acknowledgePendingLocalPeerReceives(engine), 1);
     assert.equal(engine.get('local-peer-receive-wave').status, 'ACKNOWLEDGED');
 
-    const reopenedEngine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+    const reopenedEngine = new SovereignMeshEngine({ cas: createTestCas(path.join(dir, 'sovereign')) });
     await reopenedEngine.ready();
     assert.equal(reopenedEngine.get('local-peer-receive-wave').waveId, 'local-peer-receive-wave');
     assert.equal(reopenedEngine.get('local-peer-receive-wave').status, 'ACKNOWLEDGED');
@@ -190,37 +230,11 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
 });
 
 
-test('legacy mesh migration preserves the sequence counter without continuing WAL writes', async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-mesh-sequence-migration-'));
-  try {
-    const storageDir = path.join(dir, 'sovereign');
-    await fs.mkdir(storageDir, { recursive: true });
-    const legacy = {
-      seq: 7,
-      waveId: 'legacy-wave-7',
-      peerId: 'legacy-peer',
-      action: 'LegacyReceipt',
-      timestamp: new Date().toISOString(),
-      status: 'ACKNOWLEDGED',
-      payload: { legacy: true }
-    };
-    legacy.checksum = sovereignRecordChecksum(legacy);
-    await fs.writeFile(path.join(storageDir, 'apex-ring-wal.ndjson'), JSON.stringify(legacy) + '\n', { mode: 0o600 });
-
-    const engine = new SovereignMeshEngine(storageDir);
-    await engine.ready();
-    assert.equal(engine.get('legacy-wave-7').seq, 7);
-    const next = await engine.dispatchAutonomousPayload({
-      waveId: 'new-wave-after-migration',
-      peerId: 'new-peer',
-      action: 'MigrationSequenceCheck',
-      payload: { migrated: true }
-    });
-    assert.equal(next.seq, 8);
-    assert.equal(await fs.readFile(path.join(storageDir, 'apex-ring-wal.ndjson'), 'utf8'), JSON.stringify(legacy) + '\n');
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
+test('mesh engine refuses legacy filesystem persistence without an injected peer CAS', async () => {
+  assert.throws(
+    () => new SovereignMeshEngine('/legacy/sovereign'),
+    /verified peer-backed CAS; local fallback is forbidden/
+  );
 });
 
 test('bridge leaves a wave unacknowledged when peer replica readback fails', async () => {
@@ -234,7 +248,7 @@ test('bridge leaves a wave unacknowledged when peer replica readback fails', asy
       root: path.join(dir, 'projects'),
       wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
     });
-    const engine = new SovereignMeshEngine(path.join(dir, 'sovereign'));
+    const engine = new SovereignMeshEngine({ cas: createTestCas(path.join(dir, 'sovereign')) });
     await store.init();
     await engine.ready();
     const bridge = createSovereignDurableBridge({
