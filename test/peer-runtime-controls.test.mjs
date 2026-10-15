@@ -5,7 +5,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import {
   createAccessTensor, evaluateAccessTensor, verifyAccessTensor, mintCapability, verifyCapability,
   createSignedHeartbeat, verifySignedHeartbeat, createCapabilityAdvertisement,
-  verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor, planRarestFirstChunks, CapabilityReplayGuard
+  verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor, planRarestFirstChunks, CapabilityReplayGuard, createPeerStorageTensorAuthorizer
 } from '../src/core/peer-runtime-controls.mjs';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -128,3 +128,19 @@ test('rarest-first planner orders scarce chunks before common chunks and lists v
   assert.equal(plan[1].cid, common);
   assert.equal(plan[1].availablePeerCount, 2);
 });
+
+
+test('storage authorization fails closed when a tensor quota has no trusted usage measurement', async () => {
+  const built = createAccessTensor({
+    rules: [{ app: 'KernelVision', action: 'read', path: 'assets', allow: true }],
+    quotas: { KernelVision: { maxConcurrentJobs: 2 } }
+  });
+  const authorize = createPeerStorageTensorAuthorizer({
+    getTensor: async app => app === 'KernelVision' ? { tensor: built.tensor, tensorCid: built.cid } : null
+  });
+  await assert.rejects(
+    authorize({ app: 'KernelVision', operation: 'readRef', args: { namespace: 'assets', key: 'clip' } }),
+    error => error.code === 'QUOTA_USAGE_UNAVAILABLE' && error.quota === 'maxConcurrentJobs'
+  );
+});
+
