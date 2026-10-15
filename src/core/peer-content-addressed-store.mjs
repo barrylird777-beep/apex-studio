@@ -16,7 +16,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000 } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -31,6 +31,10 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.writeConcurrency = Number(writeConcurrency);
+    if (!Number.isSafeInteger(this.writeConcurrency) || this.writeConcurrency < 1 || this.writeConcurrency > 32) {
+      throw new TypeError('writeConcurrency must be an integer between 1 and 32');
+    }
     this.cacheTtlMs = Math.max(0, Number(cacheTtlMs) || 0);
     this.cacheMaxBytes = Math.max(0, Number(cacheMaxBytes) || 0);
     this.verifiedObjectCache = new Map();
