@@ -99,7 +99,7 @@ test('concurrent reference compare-and-swap allows exactly one writer', async t 
 test('peer CAS reclaims an abandoned lock left by a crashed process', async t => {
   const { root, backend } = await fixture(t);
   const key = 'stale-lock-ref';
-  const lockId = hash(Buffer.from('PlanetApeX\\0' + key));
+  const lockId = hash(Buffer.from('PlanetApeX\0' + key));
   const lockPath = path.join(root, 'refs', lockId + '.lock');
   await mkdir(lockPath, { recursive: true });
   await writeFile(path.join(lockPath, 'owner.cbor'), encodeCanonical({ pid: 99999999, createdAt: 0 }));
