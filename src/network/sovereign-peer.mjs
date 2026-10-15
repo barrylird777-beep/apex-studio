@@ -356,7 +356,7 @@ export async function startSovereignPeer(options) {
   return node;
 }
 
-export async function sendToPeer(node, multiaddr, envelope) {
+export async function sendToPeer(node, multiaddr, envelope, { signal } = {}) {
   const address = String(multiaddr || '');
   const match = address.match(/\/p2p\/([^/]+)$/);
   const destinationPeerId = match?.[1] || '';
@@ -373,11 +373,18 @@ export async function sendToPeer(node, multiaddr, envelope) {
   // Retry only transport failures on a fresh stream; never retry peer rejection.
   for (let attempt = 0; attempt < 2; attempt++) {
     let stream;
+    let abortStream;
     try {
       console.info('[HEARTBEAT_DIAL_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, attempt: attempt + 1 }));
-      stream = await node.dialProtocol(target, PROTOCOL, {
-        signal: AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000))
-      });
+      const timeoutSignal = AbortSignal.timeout(Number(process.env.APEX_PEER_DIAL_TIMEOUT_MS || 10000));
+      const dialSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+      stream = await node.dialProtocol(target, PROTOCOL, { signal: dialSignal });
+      abortStream = () => {
+        try { stream?.abort?.(signal?.reason || new Error('peer request cancelled')); } catch {}
+        try { void stream?.close?.(); } catch {}
+      };
+      if (signal?.aborted) abortStream();
+      else signal?.addEventListener('abort', abortStream, { once: true });
       console.info('[HEARTBEAT_DIAL_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[SOVEREIGN PEER] outbound stream opened', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       // Attach the reader before writing so event-based streams cannot lose a fast ACK,
@@ -401,6 +408,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ destinationPeerId, attempt: attempt + 1, error: message }));
     } finally {
       console.info('[HEARTBEAT_CLOSE_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1 }));
+      signal?.removeEventListener('abort', abortStream);
       try { await stream?.close?.(); } catch (closeError) {
         console.warn('[HEARTBEAT_CLOSE_FAILED]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, error: closeError instanceof Error ? closeError.message : String(closeError), attempt: attempt + 1 }));
       }

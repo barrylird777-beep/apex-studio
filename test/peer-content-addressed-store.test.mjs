@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign as signBytes, verify as verifyBytes } from 'node:crypto';
+import { encodeCanonical, decodeCanonical } from '../src/core/apex-cbor.mjs';
 import {
   PeerContentAddressedStore,
   createPeerObjectStorageHandler
@@ -27,6 +28,8 @@ function memoryStore() {
 }
 
 function makeMesh(ids = ['peer-a', 'peer-b']) {
+  const keyPairs = Object.fromEntries(ids.map(id => [id, generateKeyPairSync('ed25519')]));
+  const receiptPublicKeysByPeerId = Object.fromEntries(ids.map(id => [id, keyPairs[id].publicKey.export({ format: 'der', type: 'spki' }).toString('base64')]));
   const stores = new Map();
   const handlers = new Map();
   for (const id of ids) {
@@ -39,22 +42,38 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
       refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
       return { hash };
     };
-    store.health = async ({ namespace, peerId }) => ({
-      durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
-      atomicReferencesVerified: true, peerId, namespace,
-      receipt: 'test-receipt-' + id + '-' + namespace,
-      receiptId: 'test-proof-' + id + '-' + namespace
-    });
-    store.verifyDurabilityReceipt = async (receipt, claims) =>
-      receipt === 'test-receipt-' + id + '-' + claims.namespace &&
-      claims.peerId === id && claims.namespace === 'PlanetApeX' &&
-      claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true;
+    store.health = async ({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) => {
+      const claims = { version: 1, peerId, namespace, operation, objectHash, key,
+        ownership: 'peer-owned', durable: true, atomicReferencesVerified: true,
+        restartRecoveryVerified: true };
+      const body = encodeCanonical(claims);
+      return { ...claims, receipt: { algorithm: 'Ed25519', body: body.toString('base64'),
+        signature: signBytes(null, body, keyPairs[id].privateKey).toString('base64') },
+        receiptId: digest(body) };
+    };
+    store.verifyDurabilityReceipt = async (receipt, claims) => {
+      try {
+        const body = Buffer.from(receipt.body, 'base64');
+        const signed = decodeCanonical(body);
+        return receipt.algorithm === 'Ed25519' && body.toString('base64') === receipt.body &&
+          verifyBytes(null, body, keyPairs[id].publicKey, Buffer.from(receipt.signature, 'base64')) &&
+          claims.peerId === id && claims.namespace === 'PlanetApeX' &&
+          claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true &&
+          signed.peerId === id && signed.namespace === claims.namespace;
+      } catch { return false; }
+    };
     stores.set(id, store);
     handlers.set(id, createPeerObjectStorageHandler({ store, peerId: id, maxObjectBytes: 1024 * 1024, authorizeNamespace: ({ remotePeerId, namespace }) => remotePeerId === 'writer-peer' && namespace === 'PlanetApeX' }));
   }
   const unavailable = new Set();
+  const stalled = new Set();
   const transport = {
-    async request(peerId, envelope) {
+    async request(peerId, envelope, { signal } = {}) {
+      if (stalled.has(peerId)) return new Promise((resolve, reject) => {
+        const cancel = () => reject(signal?.reason || new Error('peer request cancelled'));
+        if (signal?.aborted) cancel();
+        else signal?.addEventListener('abort', cancel, { once: true });
+      });
       if (unavailable.has(peerId)) throw new Error('peer unavailable');
       const handler = handlers.get(peerId);
       if (!handler) throw new Error('unknown peer');
@@ -65,7 +84,9 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     stores,
     handlers,
     unavailable,
-    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
+    stalled,
+    transport,
+    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId })
   };
 }
 
@@ -108,7 +129,9 @@ test('peer CAS atomically replicates mutable references and recovers them from a
   assert.deepEqual(restored.value, manifest);
   assert.equal(restored.hash, saved.hash);
   mesh.unavailable.add('peer-a');
-  assert.deepEqual((await mesh.client.readRef('project-project-1')).value, manifest);
+  await assert.rejects(mesh.client.readRef('project-project-1'), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
 });
 
 test('peer CAS refuses to choose between divergent mutable references', async () => {
@@ -182,7 +205,7 @@ test('peer CAS authenticates the app namespace as AES-GCM additional data', () =
     replicaCount: 2,
     failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
     namespace: 'KernelVision',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   assert.throws(
     () => otherNamespace.decrypt({ ...envelope, namespace: 'KernelVision' }),
@@ -199,7 +222,7 @@ test('peer CAS cannot decrypt an object under a different app namespace', async 
     replicaCount: 2,
     failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
     namespace: 'KernelVision',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   await assert.rejects(otherNamespace.getObject(result.hash), error => error.code === 'OBJECT_UNAVAILABLE');
 });
@@ -290,7 +313,7 @@ test('peer CAS verifies replica count and distinct failure domains before report
     minFailureDomains: 2,
     failureDomainsByPeerId: { 'peer-a': 'region-1', 'peer-b': 'region-2' },
     namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   const result = await client.putObject({ critical: 'must survive a domain loss' });
   assert.equal(result.replicas.length, 2);
@@ -365,7 +388,7 @@ test('single-replica durability policy does not require failure-domain labels', 
     replicaCount: 1,
     minFailureDomains: 1,
     namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7), receiptPublicKeysByPeerId: mesh.client.receiptPublicKeysByPeerId
   });
   const receipt = await client.putObject({ noDomainMapNeeded: true });
   assert.equal(receipt.replicas.length, 1);
@@ -378,13 +401,17 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   const durableStore = {
     durable: true,
     ownership: 'peer-owned',
-    async health({ namespace, peerId }) {
-      return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true, atomicReferencesVerified: true, peerId, namespace, receipt: 'signed-test-receipt', receiptId: 'test-proof-1' };
+    async health({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) {
+      const claims = { version: 1, peerId, namespace, operation, objectHash, key,
+        ownership: 'peer-owned', durable: true, atomicReferencesVerified: true,
+        restartRecoveryVerified: true };
+      return { ...claims, receipt: 'signed-test-receipt', receiptId: digest(encodeCanonical(claims)) };
     },
     async verifyDurabilityReceipt(receipt, claims) {
       return receipt === 'signed-test-receipt' && claims.peerId === 'capacity-peer' &&
         claims.namespace === 'PlanetApeX' && claims.restartRecoveryVerified === true &&
-        claims.atomicReferencesVerified === true;
+        claims.atomicReferencesVerified === true && typeof claims.operation === 'string' &&
+        Object.hasOwn(claims, 'objectHash') && Object.hasOwn(claims, 'key');
     },
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
@@ -422,7 +449,8 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   assert.equal(health.recoveryVerified, true);
   assert.equal(health.restartRecoveryVerified, true);
   assert.equal(health.atomicReferencesVerified, true);
-  assert.equal(health.receiptId, 'test-proof-1');
+  assert.equal(typeof health.receiptId, 'string');
+  assert.equal(health.receiptId.length, 64);
 
   const refBytes = Buffer.from('canonical reference bytes');
   const hash = digest(refBytes);
@@ -481,5 +509,109 @@ test('peer CAS rejects unverified durability claims even when backend self-label
   await assert.rejects(
     handler({ protocol: 'apex.cas.v1', operation: 'ref.get', namespace: 'PlanetApeX', key: 'root' }, { remotePeerId: 'writer-peer' }),
     /verified durable peer-owned storage/
+  );
+});
+
+
+test('bounded concurrent writes contact healthy peers while a stalled peer is cancelled', async () => {
+  const mesh = makeMesh();
+  mesh.stalled.add('peer-a');
+  mesh.client.requestTimeoutMs = 80;
+  const started = Date.now();
+  await assert.rejects(mesh.client.putObject({ concurrent: true }), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
+  assert.ok(Date.now() - started < 1000, 'request deadline must bound the stalled peer');
+  assert.ok(mesh.stores.get('peer-b').objects.size > 0, 'healthy peer must receive the write without waiting for stalled peer');
+});
+
+test('a contradictory authenticated object hash aborts the entire write', async () => {
+  const mesh = makeMesh();
+  const original = mesh.transport.request.bind(mesh.transport);
+  mesh.transport.request = async (peerId, envelope, options) => {
+    const response = await original(peerId, envelope, options);
+    if (peerId === 'peer-b' && envelope.operation === 'object.put') return { ...response, hash: 'f'.repeat(64) };
+    return response;
+  };
+  await assert.rejects(mesh.client.putObject({ contradiction: true }), error =>
+    error.code === 'CONTRADICTORY_REPLICA' && error.peerId === 'peer-b'
+  );
+});
+
+
+test('immutable reads fail closed when any authenticated replica contradicts the requested content hash', async () => {
+  const mesh = makeMesh();
+  const written = await mesh.client.putObject({ integrity: 'immutable' });
+  const original = mesh.transport.request.bind(mesh.transport);
+  mesh.transport.request = async (peerId, envelope, options) => {
+    const response = await original(peerId, envelope, options);
+    if (peerId === 'peer-b' && envelope.operation === 'object.get') {
+      return { ...response, hash: 'f'.repeat(64) };
+    }
+    return response;
+  };
+  await assert.rejects(mesh.client.getObject(written.hash), error =>
+    error.code === 'CONTRADICTORY_REPLICA' && error.peerId === 'peer-b'
+  );
+});
+
+test('reference reads require configured replica quorum even when one peer has a valid signed stale view', async () => {
+  const mesh = makeMesh();
+  const written = await mesh.client.putObject({ root: 'canonical' });
+  await mesh.client.writeRef('main', { objectHash: written.hash }, { expectedHash: null });
+  mesh.unavailable.add('peer-b');
+  await assert.rejects(mesh.client.readRef('main'), error =>
+    error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
+});
+
+
+test('peer CAS rejects forged, cross-peer, altered-hash, and altered-namespace receipts', async () => {
+  const scenarios = ['forged-signature', 'cross-peer-signature', 'altered-hash', 'altered-namespace'];
+  for (const scenario of scenarios) {
+    const mesh = makeMesh();
+    const originalRequest = mesh.transport.request.bind(mesh.transport);
+    mesh.client.transport.request = async (peerId, request, options) => {
+      const response = await originalRequest(peerId, request, options);
+      if (peerId !== 'peer-a' || request.operation !== 'object.put') return response;
+      if (scenario === 'forged-signature') {
+        return { ...response, receipt: { ...response.receipt, signature: Buffer.alloc(64, 3).toString('base64') } };
+      }
+      if (scenario === 'cross-peer-signature') {
+        const other = await originalRequest('peer-b', request, options);
+        return { ...response, receipt: other.receipt, receiptId: other.receiptId };
+      }
+      if (scenario === 'altered-hash') {
+        return { ...response, hash: 'f'.repeat(64) };
+      }
+      return { ...response, namespace: 'XShield' };
+    };
+    await assert.rejects(mesh.client.putObject({ scenario }), error =>
+      error.code === 'INSUFFICIENT_REPLICAS' || error.code === 'CONTRADICTORY_REPLICA'
+    , scenario);
+  }
+});
+
+
+test('partial multi-peer reference commit is never reported successful and reads fail closed on divergence', async () => {
+  const mesh = makeMesh();
+  const originalRequest = mesh.transport.request.bind(mesh.transport);
+  let failPeerBCommit = true;
+  mesh.transport.request = async (peerId, request, options) => {
+    if (failPeerBCommit && peerId === 'peer-b' && request.operation === 'ref.cas') {
+      throw Object.assign(new Error('injected peer-b commit failure'), { code: 'INJECTED_FAILURE' });
+    }
+    return originalRequest(peerId, request, options);
+  };
+  await assert.rejects(
+    mesh.client.writeRef('partial-commit', { revision: 1 }, { expectedHash: null }),
+    error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1 &&
+      error.partialCommit === true && error.reconciliationRequired === true &&
+      error.committedPeers.includes('peer-a')
+  );
+  failPeerBCommit = false;
+  await assert.rejects(
+    mesh.client.readRef('partial-commit'),
+    error => error.code === 'REFERENCE_DIVERGENCE'
   );
 });

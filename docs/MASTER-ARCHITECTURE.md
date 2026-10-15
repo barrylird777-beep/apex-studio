@@ -18,7 +18,7 @@ ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex, TeeVee, and
 ## Sovereignty and storage
 
 - **Target:** no WAL, no local disk as the system of record, no PostgreSQL, and no persisted JSON records. Use authenticated remote CAS/peer-backed persistence with isolated per-app namespaces and verified replica/peer receipts.
-- **Current implementation is not yet compliant:** local and remote WAL classes remain in the codebase, the store can select a local fallback when remote mode is disabled, and the remote CAS serializes objects/manifests as JSON. A remote-CAS readiness probe is only a probe; it does not prove all production writes use the intended storage path.
+- **Fail-closed storage status (2026-10-14):** the default `ApexPureStore` refuses initialization without a verified peer-only store; filesystem CAS writes, JSON/S3 CAS writes, and local WAL appends throw `NONCOMPLIANT_STORAGE_DISABLED`. Legacy implementations remain in source for audit/recovery. This disables durable writes rather than silently falling back; it does not establish that the peer-only data plane is wired or production-ready.
 - Keep each app's records isolated. Shared handoffs must be authenticated, validated, durable, idempotent, and acknowledged by the receiving peer before being reported delivered.
 - PostgreSQL-era modules, scripts, and instructions are legacy until proven unused and retired safely. Never delete old data or infrastructure as a shortcut.
 - A live service or passing unit test is not proof of full product behavior. Release evidence must include real artifacts, restart/failure recovery, working iPhone controls, and confirmed cross-app handoffs.

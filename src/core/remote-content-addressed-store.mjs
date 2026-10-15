@@ -53,6 +53,7 @@ export class RemoteContentAddressedStore {
   refKey(namespace, key) { return `${this.prefix}/refs/${safe(namespace)}/${safe(key)}.json`; }
   async init() { return this; }
   async putObject(value) {
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] JSON/S3 CAS writes are disabled; use verified peer-only persistence.");
     const bytes = canonical(value), digest = hash(bytes), key = this.objectKey(digest);
     try {
       await this.client.send(new PutObjectCommand({
@@ -91,6 +92,7 @@ export class RemoteContentAddressedStore {
     return { ...manifest, value: await this.getObject(manifest.hash) };
   }
   async writeRef(namespace, key, value, { expectedHash = undefined } = {}) {
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] JSON/S3 CAS reference writes are disabled; use verified peer-only persistence.");
     await this.init();
     const initial = await this.readManifest(namespace, key);
     const actual = initial?.hash ?? null;
@@ -151,6 +153,7 @@ export class RemoteContentAddressedStore {
     return out;
   }
   async deleteRef(namespace, key, { expectedHash = undefined } = {}) {
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] JSON/S3 CAS reference deletes are disabled; use verified peer-only persistence.");
     await this.init();
     const current = await this.readManifest(namespace, key);
     if (!current) return false;

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign as signBytes, verify as verifyBytes } from 'node:crypto';
+import { encodeCanonical, decodeCanonical } from '../src/core/apex-cbor.mjs';
 import { PeerContentAddressedStore, createPeerObjectStorageHandler } from '../src/core/peer-content-addressed-store.mjs';
 import { publishPeerModelWeights, fetchPeerModelWeights } from '../src/core/peer-model-weight-distributor.mjs';
 
@@ -8,6 +9,8 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function mesh() {
   const peers = ['weight-peer-a', 'weight-peer-b'];
+  const keyPairs = Object.fromEntries(peers.map(id => [id, generateKeyPairSync('ed25519')]));
+  const receiptPublicKeysByPeerId = Object.fromEntries(peers.map(id => [id, keyPairs[id].publicKey.export({ format: 'der', type: 'spki' }).toString('base64')]));
   const objects = new Map(peers.map(id => [id, new Map()]));
   const unavailable = new Set();
   const handlers = new Map(peers.map(id => [id, createPeerObjectStorageHandler({
@@ -31,15 +34,24 @@ function mesh() {
         refs.set(k, { hash, bytes: Buffer.from(bytes) });
         return { hash };
       },
-      async health({ namespace, peerId: requestedPeer }) {
-        return { durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
-          atomicReferencesVerified: true, peerId: requestedPeer, namespace,
-          receipt: 'receipt-' + id, receiptId: 'receipt-id-' + id };
+      async health({ namespace, peerId: requestedPeer, operation = 'storage.health', objectHash = null, key = null }) {
+        const claims = { version: 1, peerId: requestedPeer, namespace, operation, objectHash, key,
+          ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
+        const body = encodeCanonical(claims);
+        return { ...claims, receipt: { algorithm: 'Ed25519', body: body.toString('base64'),
+          signature: signBytes(null, body, keyPairs[id].privateKey).toString('base64') },
+          receiptId: sha256(body) };
       },
       async verifyDurabilityReceipt(receipt, claims) {
-        return receipt === 'receipt-' + id && claims.peerId === id &&
-          claims.namespace === 'KernelVision' && claims.restartRecoveryVerified === true &&
-          claims.atomicReferencesVerified === true;
+        try {
+          const body = Buffer.from(receipt.body, 'base64');
+          const signed = decodeCanonical(body);
+          return receipt.algorithm === 'Ed25519' && body.toString('base64') === receipt.body &&
+            verifyBytes(null, body, keyPairs[id].publicKey, Buffer.from(receipt.signature, 'base64')) &&
+            claims.peerId === id && claims.namespace === 'KernelVision' &&
+            claims.restartRecoveryVerified === true && claims.atomicReferencesVerified === true &&
+            signed.peerId === id && signed.namespace === claims.namespace;
+        } catch { return false; }
       }
     },
     authorizeNamespace: ({ remotePeerId, namespace }) =>
@@ -53,7 +65,7 @@ function mesh() {
   const store = new PeerContentAddressedStore({
     transport, peers, replicaCount: 2, minFailureDomains: 2,
     failureDomainsByPeerId: { 'weight-peer-a': 'domain-a', 'weight-peer-b': 'domain-b' },
-    namespace: 'KernelVision', encryptionKey: Buffer.alloc(32, 19)
+    namespace: 'KernelVision', encryptionKey: Buffer.alloc(32, 19), receiptPublicKeysByPeerId
   });
   return { store, unavailable, objects };
 }

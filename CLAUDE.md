@@ -6,7 +6,7 @@ Exactly six canonical apps: PlanetApeX, XShield, KernelVision, KoinKob, KashKorn
 ## Runtime and sovereignty
 - JavaScript ES modules on Node.js 22+; production API entrypoint is `server.mjs` via `npm run start:sovereign-stack`.
 - Storage target: no WAL, no local disk as the system of record, no PostgreSQL, and no persisted JSON records. Prefer authenticated remote CAS/peer-backed storage with isolated app namespaces.
-- **Known implementation gap:** local and remote WAL code remains; local persistence fallback remains possible; remote CAS still serializes records/manifests as JSON. Do not claim compliance until production write paths and recovery tests prove these paths are retired.
+- **Fail-closed storage status (2026-10-14):** default `ApexPureStore` initialization refuses to run without a verified peer-only store; filesystem CAS writes, JSON/S3 CAS writes, and local WAL appends throw `NONCOMPLIANT_STORAGE_DISABLED`. Legacy implementations remain in source for audit/recovery, but are not approved for production. Durable writes are currently unavailable until the peer-only adapter is wired and tested. Do not claim full sovereignty.
 - PostgreSQL-era modules, migrations, and old worker instructions are legacy; verify active reachability before changing or removing them. Do not run legacy PostgreSQL migration or backup commands as part of current production setup.
 - The production API and sovereign runtime are separate processes supervised by `scripts/start-apex-stack.mjs`.
 - Durable tasks must be idempotent, lease-safe, retry-safe, recoverable after restart, and confined to the correct app namespace.

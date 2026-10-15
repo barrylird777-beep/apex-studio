@@ -39,3 +39,24 @@ test('mesh engine has no implicit local persistence fallback', () => {
   assert.throws(() => new SovereignMeshEngine(), /peer-backed CAS; local fallback is forbidden/);
   assert.throws(() => new SovereignMeshEngine('/tmp/legacy-path'), /peer-backed CAS; local fallback is forbidden/);
 });
+
+
+test('mesh namespace freezes after a failed peer write and never silently resumes', async () => {
+  const cas = new MemoryMeshCAS();
+  const engine = await new SovereignMeshEngine({ cas }).ready();
+  const writeRef = cas.writeRef.bind(cas);
+  cas.writeRef = async (...args) => {
+    if (args[0] === 'waves') throw Object.assign(new Error('injected quorum failure'), { code: 'INSUFFICIENT_REPLICAS' });
+    return writeRef(...args);
+  };
+  await assert.rejects(
+    engine.dispatchAutonomousPayload({ waveId: 'wave-fail-closed', peerId: 'test-peer', action: 'test' }),
+    /injected quorum failure/
+  );
+  assert.equal(engine.namespaceFrozen, true);
+  await assert.rejects(
+    engine.dispatchAutonomousPayload({ waveId: 'wave-after-freeze', peerId: 'test-peer', action: 'test' }),
+    error => error.code === 'NAMESPACE_FROZEN'
+  );
+  assert.equal(engine.size, 0);
+});

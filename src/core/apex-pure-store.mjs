@@ -31,7 +31,7 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({cas=null}={}){this.cas=cas;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();}
   async init(){
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
@@ -40,6 +40,12 @@ export class ApexPureStore {
     catch(error){this.initPromise=null;throw error;}
   }
   async initialize(){
+    // Fail closed: legacy WAL, filesystem CAS, migration markers, and JSON-backed
+    // object-store CAS are disabled. A verified peer-only adapter must be wired
+    // before durable operations can be enabled.
+    throw new Error("[SOVEREIGN_STORAGE_UNAVAILABLE] Legacy WAL/local/JSON persistence is disabled; no verified peer-only store is wired.");
+    /* Retained below temporarily for non-production migration analysis only.
+       It is unreachable and must not be re-enabled as a fallback. */
     if(this.remoteMode){await this.initializeRemote();this.ready=true;return this;}
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
