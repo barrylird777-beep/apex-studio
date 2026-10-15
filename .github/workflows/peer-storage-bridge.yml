@@ -39,7 +39,10 @@ on:
     paths:
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
+      - "src/core/peer-content-addressed-store.mjs"
+      - "src/core/peer-runtime-controls.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
+      - "test/peer-content-addressed-store-cache.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
 permissions:
   contents: read
