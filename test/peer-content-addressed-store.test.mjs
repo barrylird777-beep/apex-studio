@@ -584,6 +584,69 @@ test('peer CAS concurrent writers using one expected head cannot both commit', a
   else assert.equal(winner, null);
 });
 
+test('peer CAS rolls forward when a partition interrupts durable decision replication', async () => {
+  const mesh = makeMesh();
+  const baseTransport = mesh.client.transport;
+  let failDecision = true;
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (request.operation === 'ref.decision' && peerId === 'peer-b' && failDecision) {
+        failDecision = false;
+        throw new Error('simulated partition during decision replication');
+      }
+      return baseTransport.request(peerId, request);
+    }
+  };
+  let transactionId;
+  await assert.rejects(
+    mesh.client.writeRef('decision-partition-ref', { revision: 2 }, { expectedHash: null }),
+    error => {
+      transactionId = error.transactionId;
+      return error.code === 'COMMIT_OUTCOME_UNKNOWN' && Boolean(transactionId);
+    }
+  );
+  mesh.client.transport = baseTransport;
+  const recovered = await mesh.client.recoverPendingRefTransactions();
+  assert.equal(recovered.recovered, 1);
+  assert.equal(recovered.outcomes[0].state, 'committed');
+  assert.equal((await mesh.client.readRef('decision-partition-ref')).value.revision, 2);
+});
+
+test('peer CAS refuses recovery across an active partition', async () => {
+  const mesh = makeMesh();
+  const baseTransport = mesh.client.transport;
+  let failCommit = true;
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (request.operation === 'ref.commit' && peerId === 'peer-b' && failCommit) {
+        failCommit = false;
+        throw new Error('simulated peer partition');
+      }
+      return baseTransport.request(peerId, request);
+    }
+  };
+  await assert.rejects(
+    mesh.client.writeRef('partitioned-recovery-ref', { revision: 3 }, { expectedHash: null }),
+    error => error.code === 'COMMIT_OUTCOME_UNKNOWN'
+  );
+  mesh.unavailable.add('peer-b');
+  mesh.client.transport = {
+    async request(peerId, request) {
+      if (mesh.unavailable.has(peerId)) throw new Error('peer unavailable');
+      return baseTransport.request(peerId, request);
+    }
+  };
+  await assert.rejects(
+    mesh.client.recoverPendingRefTransactions(),
+    error => error.code === 'RECOVERY_BLOCKED'
+  );
+  await assert.rejects(
+    mesh.client.readRef('partitioned-recovery-ref'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
+  mesh.unavailable.delete('peer-b');
+});
+
 test('peer CAS recovers a durable commit decision after a peer commit failure', async () => {
   const mesh = makeMesh();
   const baseTransport = mesh.client.transport;
