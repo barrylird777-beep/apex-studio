@@ -6,6 +6,7 @@ import {
   createPeerObjectStorageHandler
 } from '../src/core/peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
+import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { decodeCanonical } from '../src/core/apex-cbor.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -122,7 +123,7 @@ test('peer CAS refuses to choose between divergent mutable references', async ()
   const mesh = makeMesh();
   await mesh.client.writeRef('project-project-2', { version: 1, app: 'PlanetApeX', assets: [] });
   const store = mesh.stores.get('peer-b');
-  const conflicting = Buffer.from((await import('../src/core/apex-cbor.mjs')).encodeCanonical({ version: 1, app: 'PlanetApeX', assets: [{ id: 'unexpected' }] }));
+  const conflicting = Buffer.from(encodeCanonical(mesh.client.encrypt({ version: 1, app: 'PlanetApeX', assets: [{ id: 'unexpected' }] })));
   const { createHash } = await import('node:crypto');
   const hash = createHash('sha256').update(conflicting).digest('hex');
   await store.writeRef('PlanetApeX', 'project-project-2', (await mesh.client.readRef('project-project-2')).hash, hash, conflicting).catch(() => {});
@@ -431,7 +432,9 @@ test('peer CAS protocol exposes durable health and atomic namespaced references 
   assert.equal(health.atomicReferencesVerified, true);
   assert.equal(health.receiptId, 'test-proof-1');
 
-  const refBytes = Buffer.from('canonical reference bytes');
+  const refBytes = Buffer.from(encodeCanonical({ version: 1, algorithm: 'aes-256-gcm', namespace: 'PlanetApeX',
+    iv: Buffer.alloc(12, 1).toString('base64'), tag: Buffer.alloc(16, 2).toString('base64'),
+    ciphertext: Buffer.from('encrypted-payload').toString('base64') }));
   const hash = digest(refBytes);
   const written = await handler({ protocol: 'apex.cas.v1', operation: 'ref.cas', namespace: 'PlanetApeX', key: 'root', expectedHash: null, hash, bytesBase64: refBytes.toString('base64') }, context);
   assert.equal(written.hash, hash);
