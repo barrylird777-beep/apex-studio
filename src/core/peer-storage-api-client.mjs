@@ -95,14 +95,27 @@ export class PeerStorageApiClient {
       if (!recovered.equals(buffer)) throw new Error('existing peer asset failed deduplication integrity verification');
       return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, deduplicated: true };
     }
-    const chunks = [];
-    // The bridge accepts a 16 MiB JSON envelope; 8 MiB binary chunks fit after base64\n    // expansion and reduce manifest fan-out. The peer CAS subdivides each chunk internally.\n    const chunkSize = 8 * 1024 * 1024;
-    for (let offset = 0; offset < buffer.length; offset += chunkSize) {
-      const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
-      const stored = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'putBlob', args: { bytesBase64: piece.toString('base64') } });
-      if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash)) throw new Error('peer did not return a valid chunk manifest hash');
-      chunks.push({ hash: stored.hash, bytes: piece.length, sha256: createHash('sha256').update(piece).digest('hex') });
-    }
+    // The bridge accepts a 16 MiB JSON envelope; 8 MiB chunks fit after base64 expansion.
+    // The peer CAS subdivides each chunk internally.
+    const chunkSize = 8 * 1024 * 1024;
+    const chunkCount = Math.ceil(buffer.length / chunkSize);
+    const chunks = new Array(chunkCount);
+    const configuredPutConcurrency = Number(process.env.APEX_PEER_STORAGE_PUT_CONCURRENCY || 4);
+    const putConcurrency = Math.max(1, Math.min(8, Number.isSafeInteger(configuredPutConcurrency) ? configuredPutConcurrency : 4));
+    let nextChunk = 0;
+    const putWorker = async () => {
+      while (true) {
+        const index = nextChunk++;
+        if (index >= chunkCount) return;
+        const offset = index * chunkSize;
+        const piece = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
+        const stored = await rpc({ socketPath: this.socketPath, token: this.token, app: this.app, operation: 'putBlob',
+          args: { bytesBase64: piece.toString('base64') } });
+        if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash)) throw new Error('peer did not return a valid chunk manifest hash');
+        chunks[index] = { hash: stored.hash, bytes: piece.length, sha256: createHash('sha256').update(piece).digest('hex') };
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(putConcurrency, chunkCount) }, putWorker));
     let manifest;
     if (chunks.length <= 64) {
       manifest = { version: 1, kind: 'apex.api.asset-manifest.v1', namespace: this.namespace,
@@ -121,12 +134,15 @@ export class PeerStorageApiClient {
         return { hash, level: node.level };
       };
       const writeLevel = async (entries, level, type) => {
-        const nodes = [];
+        const specifications = [];
         for (let offset = 0; offset < entries.length; offset += fanout) {
           const group = entries.slice(offset, offset + fanout);
-          const node = { version: 1, kind: 'apex.api.asset-manifest-node.v1', namespace: this.namespace,
-            level, entries: group.map(item => type === 'chunk' ? { type: 'chunk', ...item } : { type: 'node', hash: item.hash }) };
-          nodes.push(await writeNode(node));
+          specifications.push({ version: 1, kind: 'apex.api.asset-manifest-node.v1', namespace: this.namespace,
+            level, entries: group.map(item => type === 'chunk' ? { type: 'chunk', ...item } : { type: 'node', hash: item.hash }) });
+        }
+        const nodes = [];
+        for (let offset = 0; offset < specifications.length; offset += 16) {
+          nodes.push(...await Promise.all(specifications.slice(offset, offset + 16).map(writeNode)));
         }
         return nodes;
       };
