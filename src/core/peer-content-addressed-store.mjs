@@ -651,7 +651,9 @@ export class PeerContentAddressedStore {
       if (budget <= 0) { result.skipped++; continue; }
       try {
         const value = await this.getObject(cid, { maxCacheObjectBytes: budget });
-        const size = encodeCanonical(value).length;
+        // The cache stores the encrypted canonical envelope, not the decoded value.
+        // Budget against that stored representation so prefetch cannot overshoot its RAM allowance.
+        const size = encodeCanonical(this.encrypt(value)).length;
         if (size > budget) { result.skipped++; continue; }
         budget -= size;
         result.bytes += size;
@@ -708,7 +710,7 @@ export class PeerContentAddressedStore {
       throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
     }
     const value = this.decrypt(decodeCanonical(bytes));
-    if (encodeCanonical(value).length <= maxCacheObjectBytes) this.cacheSet(hash, bytes);
+    if (bytes.length <= maxCacheObjectBytes) this.cacheSet(hash, bytes);
     return value;
   }
 
