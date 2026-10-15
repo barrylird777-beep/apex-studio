@@ -38,7 +38,11 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     store.readRef = async (namespace, key) => refs.get(namespace + ':' + key) ?? null;
     store.writeRef = async (namespace, key, expectedHash, hash, bytes) => {
       const refKey = namespace + ':' + key;
-      if ((refs.get(refKey)?.hash ?? null) !== expectedHash) throw new Error('reference compare-and-swap conflict');
+      if ((refs.get(refKey)?.hash ?? null) !== expectedHash) {
+        const error = new Error('reference compare-and-swap conflict');
+        error.code = 'CAS_CONFLICT';
+        throw error;
+      }
       refs.set(refKey, { hash, bytes: Buffer.from(bytes) });
       return { hash };
     };
