@@ -6,6 +6,7 @@
 export const PEER_RUNTIME_LAUNCH_GATES = Object.freeze({
   contentAddressedEncryptedCas: 'implemented-unit-tested',
   atomicReferenceCas: 'implemented-unit-tested',
+  bftCasConsensus: 'blocked-sequential-replica-cas-not-global-atomic',
   perAppCredentialsAndNamespaces: 'implemented-unit-tested',
   verifiedRamCache: 'implemented-unit-tested',
   parallelChunkAssembly: 'implemented-unit-tested',
@@ -16,6 +17,7 @@ export const PEER_RUNTIME_LAUNCH_GATES = Object.freeze({
   signedHeartbeats: 'implemented-primitive-no-gossip',
   capabilityAdvertisements: 'implemented-primitive-no-live-gossip',
   connectionScopedTrust: 'implemented-primitive-not-transport-wired',
+  allRuntimeOperationsTensorGated: 'bridge-gated-direct-runtime-paths-unverified',
   hardwareRootAttestation: 'blocked-no-platform-verifier',
   runtimeQuotas: 'primitive-only-not-runtime-enforced',
   erasureCoding: 'optional-not-implemented',
@@ -28,6 +30,9 @@ export const PEER_RUNTIME_LAUNCH_GATES = Object.freeze({
 
 export const PEER_RUNTIME_REQUIRED_EVIDENCE = Object.freeze([
   'hardwareRootAttestationVerified',
+  'bftCasSafetyVerified',
+  'connectionScopedTrustTransportWired',
+  'allRuntimeOperationsTensorGated',
   'allSixAppsIsolationVerified',
   'replicaReceiptsVerified',
   'restartRecoveryVerified',
