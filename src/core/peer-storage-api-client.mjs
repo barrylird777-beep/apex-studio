@@ -36,7 +36,8 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
 export class PeerStorageApiClient {
   constructor({ app = process.env.APEX_APP_NAMESPACE, token = undefined,
     socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock',
-    chunkSize = Number(process.env.APEX_PEER_STORAGE_CHUNK_BYTES || 8 * 1024 * 1024) } = {}) {
+    chunkSize = Number(process.env.APEX_PEER_STORAGE_CHUNK_BYTES || 8 * 1024 * 1024),
+    maxAssetBytes = Number(process.env.APEX_PEER_STORAGE_MAX_ASSET_BYTES || 1024 * 1024 * 1024) } = {}) {
     const configuredApp = String(process.env.APEX_APP_NAMESPACE || '');
     if (!APPS.has(configuredApp) || app !== configuredApp) {
       throw new TypeError('API process must use its configured canonical app namespace; per-request app switching is forbidden');
@@ -49,12 +50,16 @@ export class PeerStorageApiClient {
     if (!Number.isSafeInteger(chunkSize) || chunkSize < 8 * 1024 || chunkSize > 8 * 1024 * 1024) {
       throw new TypeError('peer storage chunk size must be between 8 KiB and 8 MiB');
     }
+    if (!Number.isSafeInteger(maxAssetBytes) || maxAssetBytes < 1 || maxAssetBytes > 8 * 1024 * 1024 * 1024) {
+      throw new TypeError('maximum peer asset size must be between 1 byte and 8 GiB');
+    }
     Object.defineProperties(this, {
       namespace: { value: configuredApp, enumerable: true },
       app: { value: configuredApp, enumerable: true },
       token: { value: token },
       socketPath: { value: socketPath, enumerable: true },
-      chunkSize: { value: chunkSize, enumerable: true }
+      chunkSize: { value: chunkSize, enumerable: true },
+      maxAssetBytes: { value: maxAssetBytes, enumerable: true }
     });
   }
 
@@ -91,6 +96,13 @@ export class PeerStorageApiClient {
   async putBlob(bytes) {
     const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
     if (!buffer.length) throw new TypeError('cannot store an empty asset');
+    if (buffer.length > this.maxAssetBytes) {
+      const error = new Error('asset exceeds the configured bounded peer-storage memory budget');
+      error.code = 'ASSET_TOO_LARGE';
+      error.maxAssetBytes = this.maxAssetBytes;
+      error.actualBytes = buffer.length;
+      throw error;
+    }
     const digest = createHash('sha256').update(buffer).digest('hex');
     const existing = await this.readRef('asset-manifests', digest);
     if (['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(existing?.value?.kind) &&
@@ -177,7 +189,7 @@ export class PeerStorageApiClient {
     const ref = await this.readRef('asset-manifests', hash);
     if (!ref?.value || !['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(ref.value.kind) ||
         ref.value.namespace !== this.namespace || ref.value.sha256 !== hash ||
-        !Number.isSafeInteger(ref.value.bytes) || ref.value.bytes < 0) {
+        !Number.isSafeInteger(ref.value.bytes) || ref.value.bytes < 0 || ref.value.bytes > this.maxAssetBytes) {
       throw new Error('peer asset manifest is missing or invalid');
     }
     let descriptors;
