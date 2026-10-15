@@ -96,3 +96,46 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     /namespace access denied/
   );
 });
+
+
+test('six-app namespace ACL allows only each app’s explicitly listed peer', async () => {
+  const apps = ['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob'];
+  const acl = apps.map((app, index) => app + '=writer-' + index).join(';');
+  const store = binaryMemoryStore();
+  store.readRef = async () => null;
+  store.writeRef = async () => { throw new Error('not used by health ACL test'); };
+  store.health = async ({ namespace, peerId }) => ({
+    durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
+    atomicReferencesVerified: true, peerId, namespace,
+    receipt: 'receipt:' + namespace, receiptId: 'receipt-id:' + namespace
+  });
+  store.verifyDurabilityReceipt = async (receipt, claims) =>
+    receipt === 'receipt:' + claims.namespace &&
+    claims.peerId === 'storage-peer' &&
+    claims.restartRecoveryVerified === true &&
+    claims.atomicReferencesVerified === true;
+  const runtime = await initializePeerObjectStorage({
+    enabled: true, store, namespaceAcl: acl, peerId: () => 'storage-peer'
+  });
+
+  for (let i = 0; i < apps.length; i += 1) {
+    for (let j = 0; j < apps.length; j += 1) {
+      const request = {
+        protocol: 'apex.cas.v1',
+        operation: 'storage.health',
+        namespace: apps[i]
+      };
+      if (i === j) {
+        const result = await runtime.handle(request, { remotePeerId: 'writer-' + j });
+        assert.equal(result.accepted, true, apps[i] + ' should accept its assigned peer');
+        assert.equal(result.namespace, apps[i]);
+      } else {
+        await assert.rejects(
+          runtime.handle(request, { remotePeerId: 'writer-' + j }),
+          /namespace access denied/,
+          apps[j] + ' must not access ' + apps[i]
+        );
+      }
+    }
+  }
+});
