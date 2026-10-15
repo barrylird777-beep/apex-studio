@@ -11,6 +11,12 @@ on:
       - "src/core/apex-pure-store.mjs"
       - "src/core/storage.mjs"
       - "server.mjs"
+      - "scripts/run-tests-with-diagnostics.mjs"
+      - "test/helpers/test-peer-storage-bridge.mjs"
+      - "test/storage-scenes.test.mjs"
+      - "test/remote-apex-pure-store.test.mjs"
+      - "test/sovereign-pure-wal-bridge.test.mjs"
+      - "test/schedule-api.smoke.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
   push:
@@ -42,6 +48,12 @@ jobs:
           node --check src/core/sovereign-runtime-daemon.mjs &&
           node --check src/core/apex-pure-store.mjs &&
           node --check src/core/storage.mjs &&
-          node --check server.mjs
+          node --check server.mjs &&
+          node --check scripts/run-tests-with-diagnostics.mjs &&
+          node --check test/helpers/test-peer-storage-bridge.mjs &&
+          node --check test/storage-scenes.test.mjs &&
+          node --check test/remote-apex-pure-store.test.mjs &&
+          node --check test/sovereign-pure-wal-bridge.test.mjs &&
+          node --check test/schedule-api.smoke.mjs
       - name: Test bridge authentication and app isolation
         run: node --test test/peer-storage-api-bridge.test.mjs
