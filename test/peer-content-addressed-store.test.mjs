@@ -640,3 +640,40 @@ test('production peer CAS refuses mutable-reference writes without a configured 
     encryptionKey: Buffer.alloc(32, 7), requireBftConsensus: true, membershipEpoch: 1
   }), error => error.code === 'BFT_CONSENSUS_UNAVAILABLE');
 });
+
+
+test('BFT reference path requires a verified commit certificate and independent durability receipt', async () => {
+  const provider = async proposal => ({
+    committed: true, operationId: proposal.operationId, membershipEpoch: proposal.membershipEpoch,
+    namespace: proposal.namespace, key: proposal.key, expectedHash: proposal.expectedHash, hash: proposal.hash,
+    certificate: { operationId: proposal.operationId, membershipEpoch: proposal.membershipEpoch, hash: proposal.hash },
+    receipts: [{
+      peerId: 'peer-a', namespace: proposal.namespace, hash: proposal.hash,
+      bytes: Buffer.from(proposal.bytesBase64, 'base64').length,
+      durable: true, ownership: 'peer-owned', recoveryVerified: true, restartRecoveryVerified: true,
+      atomicReferencesVerified: true, receipt: 'signed-receipt', receiptId: 'receipt-' + proposal.operationId
+    }]
+  });
+  const makeStore = verifyCommitCertificate => new PeerContentAddressedStore({
+    transport: { request: async () => { throw new Error('BFT provider path must not use sequential replica writes'); } },
+    peers: ['peer-a'], replicaCount: 1, namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7), requireBftConsensus: true, membershipEpoch: 1,
+    commitReference: provider,
+    verifyCommitCertificate,
+    verifyDurabilityReceipt: async (receipt, claims) =>
+      receipt === 'signed-receipt' && claims.peerId === 'peer-a' &&
+      claims.namespace === 'PlanetApeX' && claims.hash === claims.response.hash
+  });
+  const invalid = makeStore(async () => false);
+  await assert.rejects(invalid.writeRef('state/item', { value: 1 }, { expectedHash: null }),
+    error => error.code === 'BFT_COMMIT_UNVERIFIED');
+
+  const valid = makeStore(async (certificate, claims) =>
+    certificate?.operationId === claims.operationId &&
+    certificate?.membershipEpoch === claims.membershipEpoch &&
+    certificate?.hash === claims.hash);
+  const result = await valid.writeRef('state/item', { value: 1 }, { expectedHash: null });
+  assert.match(result.hash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(result.replicas, ['peer-a']);
+  assert.equal(result.consensus.membershipEpoch, 1);
+});
