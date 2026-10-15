@@ -10,7 +10,7 @@ import { RemoteApexRingWAL } from "../src/core/remote-apex-ring-wal.mjs";
 
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 class MemoryCAS {
-  constructor() { this.namespace = 'KernelVision'; this.refs = new Map(); this.listCalls = new Map(); }
+  constructor() { this.namespace = 'KernelVision'; this.refs = new Map(); this.blobs = new Map(); this.listCalls = new Map(); }
   async init() { return this; }
   async readRef(ns, key) {
     const row = this.refs.get(ns + "/" + key);
@@ -28,6 +28,17 @@ class MemoryCAS {
     if (!current) return false;
     if (expectedHash !== undefined && current.hash !== expectedHash) throw Object.assign(new Error("CAS conflict"), { code: "CAS_CONFLICT" });
     this.refs.delete(id); return true;
+  }
+  async putBlob(input) {
+    const bytes = Buffer.from(input);
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    this.blobs.set(hash, Buffer.from(bytes));
+    return { hash, bytes: bytes.length, contentSha256: hash, namespace: this.namespace };
+  }
+  async getBlob(hash) {
+    const bytes = this.blobs.get(hash);
+    if (!bytes) throw Object.assign(new Error("object unavailable"), { code: "OBJECT_UNAVAILABLE" });
+    return Buffer.from(bytes);
   }
   async listRefs(ns) {
     this.listCalls.set(ns, (this.listCalls.get(ns) || 0) + 1);
