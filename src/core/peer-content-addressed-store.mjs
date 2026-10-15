@@ -424,57 +424,154 @@ export class PeerContentAddressedStore {
 
   async writeRef(key, value, { expectedHash = null } = {}) {
     if (typeof key !== 'string' || !key || key.length > 512) throw new TypeError('invalid peer reference key');
-    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) {
-      throw new TypeError('invalid expected peer reference hash');
-    }
+    if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) throw new TypeError('invalid expected peer reference hash');
     const bytes = encodeCanonical(value);
     if (bytes.length > this.maxObjectBytes) throw new Error('peer reference exceeds the safe single-envelope limit');
     const hash = sha256(bytes);
-    const receipts = [];
+    const participants = [...this.peers].sort();
+    const domains = new Set(participants.map(id => this.failureDomainsByPeerId[id]).filter(Boolean));
+    if (participants.length < this.replicaCount || domains.size < this.minFailureDomains) {
+      const error = new Error('distributed CAS requires the full configured participant set to meet durability policy');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      throw error;
+    }
+    const transactionId = sha256(Buffer.concat([
+      Buffer.from(this.namespace + '\0' + key + '\0' + String(expectedHash) + '\0' + hash + '\0'),
+      randomBytes(32)
+    ]));
+    const prepared = [];
     const failures = [];
-    for (const peerId of this.peers) {
+    for (const peerId of participants) {
       try {
         const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1', operation: 'ref.cas',
-          namespace: this.namespace, key, expectedHash, hash,
-          bytesBase64: bytes.toString('base64')
+          protocol: 'apex.cas.v1', operation: 'ref.prepare',
+          namespace: this.namespace, transactionId, participants,
+          key, expectedHash, hash, bytesBase64: bytes.toString('base64')
         });
-        if (response.namespace !== this.namespace || response.hash !== hash ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer reference write failed hash, namespace, or durability receipt verification');
-        }
-        receipts.push({
-          peerId, hash, receiptId: response.receiptId,
-          failureDomain: this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)
-        });
-        const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
-        if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
+        if (response.namespace !== this.namespace || response.transaction?.transactionId !== transactionId ||
+            !['prepared', 'commit-decided', 'committed'].includes(response.transaction?.state) ||
+            !hasVerifiedDurabilityReceipt(response)) throw new Error('peer did not durably prepare the requested CAS transaction');
+        prepared.push({ peerId, receiptId: response.receiptId, failureDomain: this.failureDomainsByPeerId[peerId] || null });
       } catch (error) {
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
-    if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
-      // A peer may have atomically advanced its local ref before another peer
-      // failed. This is not a clean rejection: callers must not blindly retry
-      // as though no mutation occurred.
-      const partialCommit = receipts.length > 0;
-      const error = new Error(partialCommit
-        ? 'peer reference update has an unknown distributed outcome; at least one peer accepted the new head'
-        : 'peer reference update did not satisfy required replica count and independent failure-domain policy');
-      error.code = partialCommit ? 'COMMIT_OUTCOME_UNKNOWN' : 'INSUFFICIENT_REPLICAS';
-      error.expectedHash = expectedHash;
+    if (prepared.length !== participants.length) {
+      const abortFailures = [];
+      for (const item of prepared) {
+        try {
+          await this.request(item.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
+        } catch (error) { abortFailures.push({ peerId: item.peerId, error: error instanceof Error ? error.message : String(error) }); }
+      }
+      const error = new Error('distributed CAS did not prepare on every participant; no commit decision was intentionally issued');
+      error.code = abortFailures.length ? 'TRANSACTION_RECOVERY_REQUIRED' : 'PREPARE_INCOMPLETE';
+      error.transactionId = transactionId;
+      error.preparedPeers = prepared.map(item => item.peerId);
+      error.failures = failures;
+      error.abortFailures = abortFailures;
+      throw error;
+    }
+    const decisionFailures = [];
+    for (const peerId of participants) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.decision', namespace: this.namespace,
+          transactionId, participants
+        });
+        if (response.transaction?.state !== 'commit-decided' && response.transaction?.state !== 'committed') {
+          throw new Error('peer did not durably record the commit decision');
+        }
+      } catch (error) {
+        decisionFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (decisionFailures.length) {
+      const error = new Error('distributed CAS decision replication is incomplete; outcome is unknown and recovery must roll forward if any decision exists');
+      error.code = 'COMMIT_OUTCOME_UNKNOWN';
+      error.transactionId = transactionId;
       error.proposedHash = hash;
-      error.requiredReplicas = this.replicaCount;
-      error.verifiedReplicas = receipts.length;
-      error.requiredFailureDomains = this.minFailureDomains;
-      error.verifiedFailureDomains = verifiedFailureDomains;
-      error.acceptedPeers = receipts.map(receipt => receipt.peerId);
-      error.receipts = receipts;
+      error.expectedHash = expectedHash;
+      error.preparedPeers = prepared.map(item => item.peerId);
+      error.decisionFailures = decisionFailures;
+      throw error;
+    }
+    const commitFailures = [];
+    for (const peerId of participants) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.commit', namespace: this.namespace, transactionId
+        });
+        if (response.transaction?.state !== 'committed') throw new Error('peer did not confirm committed reference');
+      } catch (error) {
+        commitFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (commitFailures.length) {
+      const error = new Error('commit decision is durable but not yet applied on every peer; recovery must roll forward');
+      error.code = 'COMMIT_OUTCOME_UNKNOWN';
+      error.transactionId = transactionId;
+      error.proposedHash = hash;
+      error.expectedHash = expectedHash;
+      error.preparedPeers = prepared.map(item => item.peerId);
+      error.commitFailures = commitFailures;
+      throw error;
+    }
+    return { hash, transactionId, replicas: participants, receipts: prepared };
+  }
+
+  async recoverRefTransaction(transactionId) {
+    if (typeof transactionId !== 'string' || !transactionId || transactionId.length > 256) throw new TypeError('invalid transaction ID');
+    const states = [];
+    const failures = [];
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.tx.get',
+          namespace: this.namespace, transactionId
+        });
+        if (response.transaction) states.push({ peerId, ...response.transaction });
+      } catch (error) { failures.push({ peerId, error: error instanceof Error ? error.message : String(error) }); }
+    }
+    if (failures.length || states.length !== this.peers.length) {
+      const error = new Error('transaction recovery requires every configured participant; refusing to guess across a partition');
+      error.code = 'RECOVERY_BLOCKED';
+      error.transactionId = transactionId;
+      error.states = states;
       error.failures = failures;
       throw error;
     }
-    return { hash, replicas: receipts.map(receipt => receipt.peerId), receipts };
+    const decisions = states.filter(state => ['commit-decided', 'committed'].includes(state.state));
+    if (decisions.length) {
+      const participants = [...this.peers].sort();
+      for (const peerId of participants) {
+        const state = states.find(item => item.peerId === peerId);
+        if (state.state === 'prepared') {
+          await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.decision', namespace: this.namespace, transactionId, participants });
+        }
+      }
+      const results = [];
+      for (const peerId of participants) {
+        const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.commit', namespace: this.namespace, transactionId });
+        results.push({ peerId, state: response.transaction?.state });
+      }
+      if (results.some(result => result.state !== 'committed')) throw new Error('transaction recovery failed to converge every participant to committed');
+      return { transactionId, state: 'committed', peers: results.map(result => result.peerId) };
+    }
+    if (states.every(state => state.state === 'prepared')) {
+      const results = [];
+      for (const peerId of this.peers) {
+        const response = await this.request(peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
+        results.push({ peerId, state: response.transaction?.state });
+      }
+      return { transactionId, state: 'aborted', peers: results.map(result => result.peerId) };
+    }
+    if (states.every(state => state.state === 'aborted')) return { transactionId, state: 'aborted', peers: states.map(state => state.peerId) };
+    if (states.every(state => state.state === 'committed')) return { transactionId, state: 'committed', peers: states.map(state => state.peerId) };
+    const error = new Error('transaction participants have incompatible durable states; refusing automatic repair');
+    error.code = 'TRANSACTION_STATE_DIVERGENCE';
+    error.transactionId = transactionId;
+    error.states = states;
+    throw error;
   }
 }
 
