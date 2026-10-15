@@ -15,7 +15,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024 } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -30,6 +30,11 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.cacheTtlMs = Math.max(0, Number(cacheTtlMs) || 0);
+    this.cacheMaxBytes = Math.max(0, Number(cacheMaxBytes) || 0);
+    this.verifiedObjectCache = new Map();
+    this.verifiedObjectCacheBytes = 0;
+    this.cacheMetrics = { hits: 0, misses: 0, evictions: 0 };
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
@@ -288,26 +293,72 @@ export class PeerContentAddressedStore {
     return blob;
   }
 
+  cacheGet(hash) {
+    const entry = this.verifiedObjectCache.get(hash);
+    if (!entry) { this.cacheMetrics.misses++; return null; }
+    if (entry.expiresAt <= Date.now()) {
+      this.verifiedObjectCache.delete(hash);
+      this.verifiedObjectCacheBytes -= entry.bytes.length;
+      this.cacheMetrics.evictions++;
+      this.cacheMetrics.misses++;
+      return null;
+    }
+    // Refresh insertion order for bounded LRU eviction; payload stays RAM-only.
+    this.verifiedObjectCache.delete(hash);
+    this.verifiedObjectCache.set(hash, entry);
+    this.cacheMetrics.hits++;
+    return Buffer.from(entry.bytes);
+  }
+
+  cacheSet(hash, bytes) {
+    if (!this.cacheTtlMs || !this.cacheMaxBytes || bytes.length > this.cacheMaxBytes) return;
+    const prior = this.verifiedObjectCache.get(hash);
+    if (prior) this.verifiedObjectCacheBytes -= prior.bytes.length;
+    this.verifiedObjectCache.delete(hash);
+    const copy = Buffer.from(bytes);
+    this.verifiedObjectCache.set(hash, { bytes: copy, expiresAt: Date.now() + this.cacheTtlMs });
+    this.verifiedObjectCacheBytes += copy.length;
+    while (this.verifiedObjectCacheBytes > this.cacheMaxBytes && this.verifiedObjectCache.size) {
+      const oldestKey = this.verifiedObjectCache.keys().next().value;
+      const oldest = this.verifiedObjectCache.get(oldestKey);
+      this.verifiedObjectCache.delete(oldestKey);
+      this.verifiedObjectCacheBytes -= oldest.bytes.length;
+      this.cacheMetrics.evictions++;
+    }
+  }
+
+  cacheSnapshot() {
+    return Object.freeze({ ...this.cacheMetrics, entries: this.verifiedObjectCache.size,
+      bytes: this.verifiedObjectCacheBytes, ttlMs: this.cacheTtlMs, maxBytes: this.cacheMaxBytes });
+  }
+
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+    const cached = this.cacheGet(hash);
+    if (cached) return this.decrypt(decodeCanonical(cached));
     const failures = [];
-    for (const peerId of this.peers) {
-      try {
-        const response = await this.request(peerId, {
-          protocol: 'apex.cas.v1',
-          operation: 'object.get',
-          namespace: this.namespace,
-          hash
-        });
-        const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
-        if (bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== hash ||
-            response.hash !== hash || response.namespace !== this.namespace ||
-            !hasVerifiedDurabilityReceipt(response)) {
-          throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
-        }
-        return this.decrypt(decodeCanonical(bytes));
-      } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+    const attempts = this.peers.map(async peerId => {
+      const response = await this.request(peerId, {
+        protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
+      });
+      const encoded = String(response.bytesBase64 || '');
+      const bytes = Buffer.from(encoded, 'base64');
+      if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
+          response.hash !== hash || response.namespace !== this.namespace ||
+          !hasVerifiedDurabilityReceipt(response)) {
+        throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+      }
+      // Authenticate the encrypted envelope before it can enter the RAM cache.
+      const value = this.decrypt(decodeCanonical(bytes));
+      return { bytes, value };
+    });
+    try {
+      const verified = await Promise.any(attempts);
+      this.cacheSet(hash, verified.bytes);
+      return verified.value;
+    } catch (aggregate) {
+      for (const reason of aggregate?.errors || [aggregate]) {
+        failures.push(reason instanceof Error ? reason.message : String(reason));
       }
     }
     const error = new Error('object was not recoverable from any configured peer');
