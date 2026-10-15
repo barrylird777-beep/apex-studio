@@ -68,7 +68,7 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
     stores,
     handlers,
     unavailable,
-    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7) })
+    client: new PeerContentAddressedStore({ transport, peers: ids, replicaCount: Math.min(2, ids.length), failureDomainsByPeerId: Object.fromEntries(ids.map(id => [id, 'test-domain-' + id])), namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7), verifyDurabilityReceipt: async () => true })
   };
 }
 
