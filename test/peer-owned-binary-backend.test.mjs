@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink, unlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, createHmac } from 'node:crypto';
@@ -184,3 +184,19 @@ test('concurrent writes of the same immutable CID converge without temp-file col
   assert.ok(results.every(result => result.hash === id && result.bytes === bytes.length));
   assert.deepEqual(await backend.getBytes(id), bytes);
 });
+
+test('peer-owned backend rejects a symlinked storage root', async t => {
+  const { root, options } = await fixture(t);
+  const link = root + '-link';
+  await symlink(root, link, 'dir');
+  t.after(async () => { await unlink(link).catch(() => {}); });
+  const priorRoot = process.env.APEX_PEER_OWNED_STORAGE_ROOT;
+  process.env.APEX_PEER_OWNED_STORAGE_ROOT = link;
+  try {
+    await assert.rejects(createPeerOwnedBinaryBackend(options), /must be real directories, not symlinks/);
+  } finally {
+    if (priorRoot === undefined) delete process.env.APEX_PEER_OWNED_STORAGE_ROOT;
+    else process.env.APEX_PEER_OWNED_STORAGE_ROOT = priorRoot;
+  }
+});
+
