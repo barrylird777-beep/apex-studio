@@ -3071,7 +3071,6 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
 
     const bgmRecord = [...(Array.isArray(state.assets) ? state.assets : []), ...(Array.isArray(state.exports) ? state.exports : [])]
       .find(asset => ['bgm', 'background-music'].includes(String(asset?.type || '').toLowerCase()) && asset?.url);
-    if (!bgmRecord) return res.status(409).json({ success: false, error: 'Background music is not registered in peer storage; local files are not used as fallback' });
 
     workDir = await mkdtemp(path.join(tmpdir(), 'apex-peer-render-'));
     const clips = [];
@@ -3087,8 +3086,11 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
     if (clips.some(clip => !clip.audioUri)) {
       return res.status(409).json({ success: false, error: 'Every exported scene must have a peer-persisted audio asset' });
     }
-    const bgmExt = String(bgmRecord.extension || 'wav').replace(/[^A-Za-z0-9]/g, '') || 'wav';
-    const bgmPath = await materializePeerAsset(bgmRecord.url, path.join(workDir, 'background-music.' + bgmExt));
+    let bgmPath = null;
+    if (bgmRecord?.url) {
+      const bgmExt = String(bgmRecord.extension || 'wav').replace(/[^A-Za-z0-9]/g, '') || 'wav';
+      bgmPath = await materializePeerAsset(bgmRecord.url, path.join(workDir, 'background-music.' + bgmExt));
+    }
     const stamp = Date.now();
     const suffix = Math.random().toString(36).slice(2, 8);
     stitchedVideoPath = path.join(workDir, 'render_stitched_' + stamp + '_' + suffix + '.mp4');
