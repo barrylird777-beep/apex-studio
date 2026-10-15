@@ -400,6 +400,64 @@ export class PeerContentAddressedStore {
     return blob;
   }
 
+  /** Reconcile one known immutable CID against the configured replica policy. */
+  async reconcileObject(hash) {
+    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new TypeError('invalid SHA-256 object CID');
+    const present = new Set();
+    const failures = [];
+    for (const peerId of this.peers) {
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
+        });
+        const encoded = String(response.bytesBase64 || '');
+        const bytes = Buffer.from(encoded, 'base64');
+        if (response.namespace !== this.namespace || response.hash !== hash ||
+            bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
+            !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('replica failed CID, namespace, or durability receipt verification');
+        }
+        this.decrypt(decodeCanonical(bytes));
+        present.add(peerId);
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (present.size === 0) {
+      const error = new Error('no verified source replica is available for CID repair');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.failures = failures;
+      throw error;
+    }
+    const repaired = [];
+    for (const peerId of this.peers) {
+      if (present.has(peerId)) continue;
+      try {
+        const result = await this.repairObject(hash, [peerId]);
+        repaired.push(...result.repaired);
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    const verifiedReplicas = present.size + repaired.length;
+    const failureDomains = new Set([
+      ...[...present].map(peerId => this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)),
+      ...repaired.map(receipt => receipt.failureDomain)
+    ].filter(Boolean));
+    if (verifiedReplicas < this.replicaCount || failureDomains.size < this.minFailureDomains) {
+      const error = new Error('CID repair could not restore the configured replica and failure-domain policy');
+      error.code = 'REPAIR_INCOMPLETE';
+      error.hash = hash;
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = verifiedReplicas;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = failureDomains.size;
+      error.failures = failures;
+      throw error;
+    }
+    return { hash, namespace: this.namespace, verifiedReplicas, failureDomains: failureDomains.size, repaired, failures };
+  }
+
   cacheGet(hash) {
     const entry = this.verifiedObjectCache.get(hash);
     if (!entry) { this.cacheMetrics.misses++; return null; }
