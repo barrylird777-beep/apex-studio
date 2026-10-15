@@ -240,6 +240,18 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       await durableWrite(txFile, encodeCanonical(tx));
       return { transactionId, state: tx.state };
     },
+    async listRefTransactions(namespace) {
+      if (typeof namespace !== 'string' || !namespace) throw new Error('explicit transaction namespace is required');
+      const pending = [];
+      for (const name of await readdir(transactionsDir)) {
+        if (!/^[a-f0-9]{64}\.cbor$/.test(name)) continue;
+        const tx = decodeCanonical(await readFile(path.join(transactionsDir, name)));
+        if (tx.namespace === namespace && ['prepared', 'commit-decided'].includes(tx.state)) {
+          pending.push({ transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, state: tx.state });
+        }
+      }
+      return pending.sort((a, b) => a.transactionId.localeCompare(b.transactionId));
+    },
     async getRefTransaction(transactionId) {
       const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
       try {
