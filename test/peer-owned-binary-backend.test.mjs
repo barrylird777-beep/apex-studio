@@ -157,7 +157,10 @@ test('two independently persisted peers recover encrypted content after one peer
   online.set('peer-a', false);
   await startPeer('peer-b'); // new backend instance; data is recovered from peer-b's independent root
   assert.deepEqual(await client.getObject(written.hash), value);
-  assert.deepEqual((await client.readRef('project-main')).value, { objectHash: written.hash, revision: 4 });
+  await assert.rejects(
+    client.readRef('project-main'),
+    error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
+  );
 
   await assert.rejects(
     client.putObject({ mustNotBeAcknowledged: true }),
