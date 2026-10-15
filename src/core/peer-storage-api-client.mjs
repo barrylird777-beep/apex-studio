@@ -30,10 +30,10 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
 
 /** Fixed app identity: callers cannot change the app namespace per operation. */
 export class PeerStorageApiClient {
-  constructor({ app = process.env.APEX_APP_NAMESPACE, token = process.env.APEX_PEER_STORAGE_API_TOKEN,
+  constructor({ app = process.env.APEX_APP_NAMESPACE, token = process.env['APEX_PEER_STORAGE_API_TOKEN_' + String(app || '').toUpperCase()],
     socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock' } = {}) {
     if (!APPS.has(app)) throw new TypeError('APEX_APP_NAMESPACE must name one canonical app');
-    if (typeof token !== 'string' || token.length < 32) throw new TypeError('peer storage bridge token must be at least 32 characters');
+    if (typeof token !== 'string' || token.length < 32) throw new TypeError('app-scoped peer storage bridge token must be at least 32 characters');
     if (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..')) {
       throw new TypeError('peer storage bridge socket must be a safe path under /tmp');
     }
