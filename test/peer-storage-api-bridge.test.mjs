@@ -295,6 +295,37 @@ test('API client refuses incomplete peer receipt evidence and does not publish a
 });
 
 
+test('API client rejects replica evidence scoped to another app namespace', async () => {
+  const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
+  const socketPath = '/tmp/apex-storage-wrong-namespace-' + randomUUID() + '.sock';
+  const stores = Object.fromEntries(APEX_APPS.map(app => [app, fakeStore(app)]));
+  stores.KernelVision.objects.putBlob = async bytes => ({
+    hash: createHash('sha256').update(bytes).digest('hex'),
+    bytes: bytes.length,
+    namespace: 'XShield',
+    replicas: ['peer-a', 'peer-b'],
+    receipts: ['peer-a', 'peer-b'].map(peerId => ({
+      hash: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length,
+      namespace: 'XShield', peerId, receiptId: 'receipt-' + peerId
+    }))
+  });
+  const bridge = createPeerStorageApiBridge({ stores, tokens, socketPath, authorize: async () => ({ allowed: true }) });
+  const previousApp = process.env.APEX_APP_NAMESPACE;
+  try {
+    await bridge.listen();
+    process.env.APEX_APP_NAMESPACE = 'KernelVision';
+    const client = new PeerStorageApiClient({ token: tokens.KernelVision, socketPath, chunkSize: 8 * 1024 });
+    await assert.rejects(client.putBlob(Buffer.from('cross-app receipt must be rejected')),
+      /complete namespace-bound replica receipt evidence/);
+    assert.deepEqual(await client.listRefs('asset-manifests'), []);
+  } finally {
+    if (previousApp === undefined) delete process.env.APEX_APP_NAMESPACE;
+    else process.env.APEX_APP_NAMESPACE = previousApp;
+    await bridge.close();
+    await rm(socketPath, { force: true }).catch(() => {});
+  }
+});
+
 test('peer bridge preserves the fail-closed BFT consensus blocker for API callers', async () => {
   const tokens = Object.fromEntries(APEX_APPS.map(app => [app, 'test-token-' + app + '-' + randomUUID().repeat(2)]));
   const socketPath = '/tmp/apex-storage-bft-gate-' + randomUUID() + '.sock';
