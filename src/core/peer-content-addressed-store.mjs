@@ -321,6 +321,7 @@ export class PeerContentAddressedStore {
     const byKey = new Map();
     const failures = [];
     let verifiedPeers = 0;
+    let canonicalListing = null;
     for (const peerId of this.peers) {
       try {
         const response = await this.request(peerId, {
@@ -330,6 +331,7 @@ export class PeerContentAddressedStore {
           throw new Error('peer reference listing lacks a verified durability receipt or valid reference list');
         }
         const peerKeys = new Set();
+        const peerListing = new Map();
         for (const ref of response.refs) {
           if (!ref || typeof ref.key !== 'string' || !ref.key || ref.key.length > 512 ||
               !/^[a-f0-9]{64}$/.test(String(ref.hash || '')) || typeof ref.bytesBase64 !== 'string') {
@@ -340,6 +342,7 @@ export class PeerContentAddressedStore {
             throw new Error('peer reference listing failed integrity or duplicate-key verification');
           }
           peerKeys.add(ref.key);
+          peerListing.set(ref.key, ref.hash);
           const value = decodeCanonical(bytes);
           const prior = byKey.get(ref.key);
           if (prior && prior.hash !== ref.hash) {
@@ -350,9 +353,17 @@ export class PeerContentAddressedStore {
           }
           byKey.set(ref.key, { namespace, key: ref.key, hash: ref.hash, value });
         }
+        if (canonicalListing === null) {
+          canonicalListing = peerListing;
+        } else if (canonicalListing.size !== peerListing.size ||
+          [...canonicalListing].some(([key, hash]) => peerListing.get(key) !== hash)) {
+          const error = new Error('peer reference listings differ in key coverage or hashes; refusing incomplete recovery state');
+          error.code = 'REFERENCE_LISTING_DIVERGENCE';
+          throw error;
+        }
         verifiedPeers++;
       } catch (error) {
-        if (error?.code === 'REFERENCE_DIVERGENCE') throw error;
+        if (error?.code === 'REFERENCE_DIVERGENCE' || error?.code === 'REFERENCE_LISTING_DIVERGENCE') throw error;
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
