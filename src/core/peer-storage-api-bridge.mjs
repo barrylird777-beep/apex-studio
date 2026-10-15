@@ -29,7 +29,7 @@ function readBody(req) {
 }
 
 /** Authenticated API-to-peer-runtime IPC with six fixed, isolated CAS instances. */
-export function createPeerStorageApiBridge({ stores, token, socketPath = '/tmp/apex-storage-api.sock' } = {}) {
+export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/apex-storage-api.sock' } = {}) {
   if (!stores || typeof stores !== 'object') throw new TypeError('six app-scoped peer stores are required');
   for (const app of APEX_APPS) {
     const entry = stores[app];
@@ -39,23 +39,25 @@ export function createPeerStorageApiBridge({ stores, token, socketPath = '/tmp/a
       throw new Error('missing or incorrectly scoped peer store: ' + app);
     }
   }
-  if (typeof token !== 'string' || token.length < 32) throw new TypeError('bridge token must be at least 32 characters');
+  if (!tokens || typeof tokens !== 'object') throw new TypeError('per-app bridge tokens are required');
+  for (const app of APEX_APPS) if (typeof tokens[app] !== 'string' || tokens[app].length < 32) throw new TypeError('missing per-app bridge token: ' + app);
   if (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..')) {
     throw new TypeError('bridge socket must be a safe path under /tmp');
   }
-  const expected = Buffer.from(token);
+  const expected = Object.fromEntries(APEX_APPS.map(app => [app, Buffer.from(tokens[app])]));
   const server = createServer(async (req, res) => {
     const send = (status, body) => {
       res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
       res.end(JSON.stringify(body));
     };
     try {
-      const authorization = String(req.headers.authorization || '');
-      const actual = Buffer.from(authorization.startsWith('Bearer ') ? authorization.slice(7) : '');
-      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(401, { error: 'unauthorized' });
       if (req.method !== 'POST' || req.url !== '/v1/storage') return send(404, { error: 'not found' });
       const body = await readBody(req);
       if (!APP_SET.has(body.app)) return send(403, { error: 'unknown app namespace' });
+      const authorization = String(req.headers.authorization || '');
+      const actual = Buffer.from(authorization.startsWith('Bearer ') ? authorization.slice(7) : '');
+      const appToken = expected[body.app];
+      if (actual.length !== appToken.length || !timingSafeEqual(actual, appToken)) return send(401, { error: 'unauthorized' });
       const { cas, objects } = stores[body.app];
       const args = body.args || {};
       let result;
