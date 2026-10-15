@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
+import { createCapabilityAdvertisement } from '../src/core/peer-runtime-controls.mjs';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 
 function makeStore({ cacheTtlMs = 1000, cacheMaxBytes = 8 } = {}) {
@@ -136,4 +137,47 @@ test('replica reconciliation repairs a missing CID from a verified peer source',
   assert.equal(repaired.repaired, 1);
   assert.ok(peerObjects.get('peer-2').has(saved.hash));
   assert.equal((await store.getObject(saved.hash)).value, 'recover-me');
+});
+
+
+test('asset chunk scheduler verifies hardware-root-bound advertisements and fetches rarest chunks first', async () => {
+  const keys = new Map([
+    ['peer-a', generateKeyPairSync('ed25519')],
+    ['peer-b', generateKeyPairSync('ed25519')]
+  ]);
+  const rare = '1'.repeat(64);
+  const common = '2'.repeat(64);
+  const first = Buffer.from('rare-piece');
+  const second = Buffer.from('common-piece');
+  const whole = Buffer.concat([first, second]);
+  const manifestHash = 'f'.repeat(64);
+  const advertisements = [
+    createCapabilityAdvertisement({ peerId: 'peer-a', app: 'KernelVision', hardwareRootCid: 'a'.repeat(64),
+      cids: [rare, common], privateKey: keys.get('peer-a').privateKey }),
+    createCapabilityAdvertisement({ peerId: 'peer-b', app: 'KernelVision', hardwareRootCid: 'b'.repeat(64),
+      cids: [common], privateKey: keys.get('peer-b').privateKey })
+  ];
+  const store = makeStore();
+  store.peers = ['peer-a', 'peer-b'];
+  store.getPeerAdvertisements = async () => advertisements;
+  store.getPeerPublicKey = async peerId => keys.get(peerId).publicKey;
+  store.verifyHardwareRoot = async evidence => evidence.hardwareRootCid === (evidence.peerId === 'peer-a' ? 'a'.repeat(64) : 'b'.repeat(64));
+  const requested = [];
+  store.getObject = async cid => {
+    if (cid === manifestHash) return { kind: 'apex.blob-manifest.v1', version: 1, namespace: 'KernelVision',
+      totalBytes: whole.length, sha256: createHash('sha256').update(whole).digest('hex'),
+      chunks: [
+        { hash: common, bytes: second.length, sha256: createHash('sha256').update(second).digest('hex') },
+        { hash: rare, bytes: first.length, sha256: createHash('sha256').update(first).digest('hex') }
+      ] };
+    requested.push(cid);
+    if (cid === rare) return { kind: 'apex.blob-chunk.v1', namespace: 'KernelVision', bytes: first.length,
+      sha256: createHash('sha256').update(first).digest('hex'), dataBase64: first.toString('base64') };
+    if (cid === common) return { kind: 'apex.blob-chunk.v1', namespace: 'KernelVision', bytes: second.length,
+      sha256: createHash('sha256').update(second).digest('hex'), dataBase64: second.toString('base64') };
+    throw new Error('unexpected CID');
+  };
+  const recovered = await store.getBlob(manifestHash);
+  assert.deepEqual(recovered, whole);
+  assert.deepEqual(requested, [rare, common], 'the chunk held by fewer verified peers must be fetched first');
 });
