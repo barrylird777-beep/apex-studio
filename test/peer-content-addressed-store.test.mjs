@@ -580,6 +580,10 @@ test('peer CAS recovers a durable commit decision after a peer commit failure', 
     }
   );
   mesh.client.transport = baseTransport;
+  await assert.rejects(
+    mesh.client.readRef('recoverable-ref'),
+    error => error.code === 'REFERENCE_READ_INCOMPLETE'
+  );
   const recovery = await mesh.client.recoverPendingRefTransactions();
   assert.equal(recovery.recovered, 1);
   assert.equal(recovery.outcomes[0].transactionId, transactionId);
