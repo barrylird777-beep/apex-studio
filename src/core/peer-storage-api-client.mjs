@@ -47,7 +47,7 @@ export class PeerStorageApiClient {
     Object.defineProperties(this, {
       namespace: { value: configuredApp, enumerable: true },
       app: { value: configuredApp, enumerable: true },
-      token: { value: token },
+      token: { value: token, enumerable: true },
       socketPath: { value: socketPath, enumerable: true }
     });
   }
