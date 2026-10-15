@@ -174,7 +174,10 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         const existingTx = await readFile(txFile).then(decodeCanonical).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
         if (existingTx) {
           if (existingTx.namespace !== namespace || existingTx.key !== key || existingTx.hash !== hash ||
-              existingTx.expectedHash !== expectedHash) throw new Error('transaction ID reused for a different proposal');
+              existingTx.expectedHash !== expectedHash ||
+              encodeCanonical([...participants].sort()).compare(encodeCanonical(existingTx.participants)) !== 0) {
+            throw new Error('transaction ID reused for a different proposal or participant set');
+          }
           return { transactionId, state: existingTx.state, hash: existingTx.hash };
         }
         for (const name of await readdir(transactionsDir)) {
