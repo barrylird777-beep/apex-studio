@@ -107,6 +107,9 @@ test("remote queue index keeps claim, heartbeat, and completion off full job sca
     assert.equal(await store.transition("indexed-job", "complete", {
       leaseToken: claimed[0].leaseToken, leaseFence: claimed[0].leaseFence, result: { ok: true }
     }), true);
+    const completedRef = await cas.readRef("jobs", store.refKey("job", "indexed-job"));
+    assert.match(completedRef.value.job.resultCid, /^[a-f0-9]{64}$/);
+    assert.deepEqual(await store.getJobResult(completedRef.value.job.resultCid), { ok: true });
     assert.equal((await cas.listRefs("running")).some(ref => ref.value.id === "indexed-job"), false);
     assert.equal(cas.listCalls.get("jobs") || 0, baseline, "claim and transitions must use targeted refs, not full job scans");
   } finally { await rm(root, { recursive: true, force: true }); }
