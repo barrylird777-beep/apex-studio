@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -46,13 +47,13 @@ server.listen(0, '127.0.0.1', () => {
 });
 `;
 
-function startPeer(t, { peerId, root, receiptKey }) {
+function startPeer(t, { peerId, root, signingPrivateKey }) {
   const child = spawn(process.execPath, ['--input-type=module', '-e', worker], {
     cwd: process.cwd(),
     env: {
       ...process.env,
       APEX_PEER_OWNED_STORAGE_ROOT: root,
-      APEX_PEER_STORAGE_RECEIPT_KEY_BASE64: receiptKey,
+      APEX_PEER_STORAGE_RECEIPT_PRIVATE_KEY_PKCS8_BASE64: signingPrivateKey,
       APEX_TEST_PEER_ID: peerId,
       APEX_TEST_BACKEND_MODULE: pathToFileURL(path.resolve('src/core/peer-owned-binary-backend.mjs')).href,
       APEX_TEST_HANDLER_MODULE: pathToFileURL(path.resolve('src/core/peer-content-addressed-store.mjs')).href
@@ -106,11 +107,13 @@ async function stopPeer(peer) {
 
 test('independent peer processes recover encrypted objects and refs after outage and restart', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'apex-independent-peers-'));
-  const receiptKey = Buffer.alloc(32, 51).toString('base64');
+  const keyPairs = Object.fromEntries(['peer-a', 'peer-b'].map(peerId => [peerId, generateKeyPairSync('ed25519')]));
+  const publicKeys = Object.fromEntries(Object.entries(keyPairs).map(([peerId, pair]) => [peerId, pair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64')]));
+  const signingKeys = Object.fromEntries(Object.entries(keyPairs).map(([peerId, pair]) => [peerId, pair.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')]));
   t.after(() => rm(root, { recursive: true, force: true }));
   const roots = { 'peer-a': path.join(root, 'peer-a'), 'peer-b': path.join(root, 'peer-b') };
-  let peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], receiptKey });
-  let peerB = startPeer(t, { peerId: 'peer-b', root: roots['peer-b'], receiptKey });
+  let peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], signingPrivateKey: signingKeys['peer-a'] });
+  let peerB = startPeer(t, { peerId: 'peer-b', root: roots['peer-b'], signingPrivateKey: signingKeys['peer-b'] });
   let a = await peerA.ready;
   let b = await peerB.ready;
   const transport = {
@@ -134,7 +137,8 @@ test('independent peer processes recover encrypted objects and refs after outage
     minFailureDomains: 2,
     failureDomainsByPeerId: { 'peer-a': 'process-a', 'peer-b': 'process-b' },
     namespace: 'PlanetApeX',
-    encryptionKey: Buffer.alloc(32, 7)
+    encryptionKey: Buffer.alloc(32, 7),
+    receiptPublicKeysByPeerId: publicKeys
   });
 
   const value = { project: 'cross-process-recovery', revision: 1, payload: 'survives process loss' };
