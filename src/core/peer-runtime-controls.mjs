@@ -195,6 +195,35 @@ export async function verifyCapabilityAdvertisement(advertisement, {
   }) === true;
 }
 
+/** Plan bounded multi-peer fetches; caller must supply already signature-verified advertisements. */
+export function planRarestFirstChunks(chunks, verifiedAdvertisements, { app, maxPeersPerChunk = 4 } = {}) {
+  if (!APPS.has(app) || !Array.isArray(chunks) || !Array.isArray(verifiedAdvertisements) ||
+      !Number.isSafeInteger(maxPeersPerChunk) || maxPeersPerChunk < 1 || maxPeersPerChunk > 16) {
+    throw new TypeError('invalid rarest-first chunk planning input');
+  }
+  const availability = new Map();
+  for (const advertisement of verifiedAdvertisements) {
+    const payload = advertisement?.payload;
+    if (advertisement?.kind !== 'apex.peer-capabilities.v1' || payload?.app !== app ||
+        !Array.isArray(payload.cids) || typeof payload.peerId !== 'string') continue;
+    for (const cid of new Set(payload.cids)) {
+      if (!/^[a-f0-9]{64}$/.test(String(cid))) continue;
+      const peers = availability.get(cid) || new Set();
+      peers.add(payload.peerId);
+      availability.set(cid, peers);
+    }
+  }
+  const seen = new Set();
+  const planned = chunks.map(chunk => {
+    const cid = String(chunk?.hash || chunk?.cid || '');
+    if (!/^[a-f0-9]{64}$/.test(cid) || seen.has(cid)) throw new TypeError('chunk plan contains an invalid or duplicate CID');
+    seen.add(cid);
+    const peers = [...(availability.get(cid) || [])].sort();
+    return { ...chunk, cid, availablePeerCount: peers.length, sourcePeers: peers.slice(0, maxPeersPerChunk) };
+  });
+  return planned.sort((a, b) => a.availablePeerCount - b.availablePeerCount || a.cid.localeCompare(b.cid));
+}
+
 /** Connection-local elevation expires on connection close or credential rotation. */
 export class ConnectionTrustSessions {
   #sessions = new WeakMap();
