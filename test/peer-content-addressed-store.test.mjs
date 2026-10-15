@@ -8,6 +8,7 @@ import {
 import { createLibp2pPeerStorageTransport } from '../src/core/peer-storage-libp2p-transport.mjs';
 import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { decodeCanonical } from '../src/core/apex-cbor.mjs';
+import { PeerMeshCasAdapter } from '../src/core/peer-mesh-cas-adapter.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -542,4 +543,29 @@ test('peer CAS fans out bounded writes concurrently and still waits for verified
   assert.ok(peakInFlight <= 3, 'write concurrency must remain bounded');
   assert.equal(result.receipts.length >= 2, true);
   assert.equal(result.receipts.every(receipt => receipt.hash === result.hash && receipt.namespace === 'PlanetApeX'), true);
+});
+
+
+test('job result CID is retrievable by another peer-backed adapter without the original worker', async () => {
+  const mesh = makeMesh();
+  const producer = new PeerMeshCasAdapter({ store: mesh.client, appNamespace: 'PlanetApeX' });
+  await producer.enqueue({ id: 'result-cid-cross-peer', type: 'test.result', payload: { input: 'source' } });
+  const [job] = await producer.claim({ workerId: 'worker-origin', onlyId: 'result-cid-cross-peer' });
+  assert.ok(job, 'job must be atomically claimed before completion');
+  const output = { assetCid: 'c'.repeat(64), summary: 'completed on a peer' };
+  assert.equal(await producer.transition(job.id, 'complete', {
+    leaseToken: job.leaseToken, leaseFence: job.leaseFence, result: output
+  }), true);
+  const finished = await producer.readRef('jobs', job.id);
+  const resultCid = finished?.value?.job?.resultCid;
+  assert.match(resultCid, /^[a-f0-9]{64}$/);
+
+  const consumerStore = new PeerContentAddressedStore({
+    transport: mesh.client.transport, peers: ['peer-a', 'peer-b'], replicaCount: 2,
+    failureDomainsByPeerId: { 'peer-a': 'domain-a', 'peer-b': 'domain-b' },
+    namespace: 'PlanetApeX', encryptionKey: Buffer.alloc(32, 7)
+  });
+  const consumer = new PeerMeshCasAdapter({ store: consumerStore, appNamespace: 'PlanetApeX' });
+  assert.deepEqual(await consumer.getJobResult(resultCid), output,
+    'a different peer-backed client must recover the result using only its CID');
 });
