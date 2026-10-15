@@ -455,10 +455,22 @@ export class PeerContentAddressedStore {
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
     if (receipts.length < this.replicaCount || verifiedFailureDomains < this.minFailureDomains) {
-      const error = new Error('peer reference update did not satisfy required replica count and independent failure-domain policy');
-      error.code = 'INSUFFICIENT_REPLICAS';
+      // A peer may have atomically advanced its local ref before another peer
+      // failed. This is not a clean rejection: callers must not blindly retry
+      // as though no mutation occurred.
+      const partialCommit = receipts.length > 0;
+      const error = new Error(partialCommit
+        ? 'peer reference update has an unknown distributed outcome; at least one peer accepted the new head'
+        : 'peer reference update did not satisfy required replica count and independent failure-domain policy');
+      error.code = partialCommit ? 'COMMIT_OUTCOME_UNKNOWN' : 'INSUFFICIENT_REPLICAS';
+      error.expectedHash = expectedHash;
+      error.proposedHash = hash;
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = receipts.length;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = verifiedFailureDomains;
+      error.acceptedPeers = receipts.map(receipt => receipt.peerId);
+      error.receipts = receipts;
       error.failures = failures;
       throw error;
     }
