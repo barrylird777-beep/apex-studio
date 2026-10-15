@@ -602,7 +602,19 @@ export function createPeerObjectStorageHandler({
     if (bytes.length > limit || bytes.toString('base64') !== envelope.bytesBase64 || sha256(bytes) !== envelope.hash) {
       throw new Error('peer reference write failed size, encoding, or hash verification');
     }
-    const saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
+    let saved;
+    try {
+      saved = await store.writeRef(envelope.namespace, envelope.key, envelope.expectedHash ?? null, envelope.hash, bytes);
+    } catch (error) {
+      if (error?.code === 'CAS_CONFLICT') {
+        const current = typeof store.readRef === 'function'
+          ? await store.readRef(envelope.namespace, envelope.key)
+          : null;
+        return { accepted: true, peerId: localPeerId, namespace: envelope.namespace,
+          code: 'CAS_CONFLICT', conflict: true, hash: current?.hash ?? null, ...capacity };
+      }
+      throw error;
+    }
     if (!saved || saved.hash !== envelope.hash) throw new Error('peer reference backend did not confirm atomic reference update');
     return { accepted: true, peerId: localPeerId, namespace: envelope.namespace, hash: saved.hash, ...capacity };
   };
