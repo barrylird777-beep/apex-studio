@@ -17,8 +17,14 @@ export class PeerMeshCasAdapter {
   }
 
   refKey(namespace, key) {
-    if (!validPart(namespace) || !validPart(key)) throw new TypeError('invalid peer reference namespace or key');
-    return namespace + '/' + key;
+    // Composite collection/record keys use slash-delimited validated segments.
+    // Validate every segment independently so nested keys stay confined without
+    // rejecting the adapter's own collection/id key format.
+    const segments = typeof key === 'string' ? key.split('/') : [];
+    if (!validPart(namespace) || !segments.length || !segments.every(validPart)) {
+      throw new TypeError('invalid peer reference namespace or key');
+    }
+    return namespace + '/' + segments.join('/');
   }
 
   async init() {

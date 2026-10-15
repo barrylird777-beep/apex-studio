@@ -3,6 +3,20 @@ import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const validNamespace = value => /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(String(value || ''));
+async function mapConcurrent(items, limit, mapper) {
+  const output = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(items.length, Math.max(1, limit)) }, async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      output[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+}
+
 const hasVerifiedDurabilityReceipt = response =>
   response?.durable === true && response?.ownership === 'peer-owned' &&
   response?.recoveryVerified === true && response?.restartRecoveryVerified === true &&
@@ -15,7 +29,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -30,6 +44,14 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.memoryCacheBytes = Number(memoryCacheBytes);
+    this.memoryCacheTtlMs = Number(memoryCacheTtlMs);
+    if (!Number.isSafeInteger(this.memoryCacheBytes) || this.memoryCacheBytes < 0 ||
+        !Number.isSafeInteger(this.memoryCacheTtlMs) || this.memoryCacheTtlMs < 1) {
+      throw new TypeError('memory cache requires a nonnegative byte budget and positive TTL');
+    }
+    this.verifiedMemoryCache = new Map();
+    this.verifiedMemoryCacheSize = 0;
     if (!Number.isSafeInteger(this.maxObjectBytes) || this.maxObjectBytes < 1 || this.maxObjectBytes > 32 * 1024) {
       throw new TypeError('maxObjectBytes must be between 1 byte and 32 KiB until authenticated transport chunking is implemented');
     }
@@ -82,6 +104,37 @@ export class PeerContentAddressedStore {
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     return decodeCanonical(plaintext);
+  }
+
+  cacheVerifiedObject(hash, value) {
+    if (this.memoryCacheBytes === 0) return;
+    const bytes = encodeCanonical(value);
+    if (bytes.length > this.memoryCacheBytes) return;
+    const prior = this.verifiedMemoryCache.get(hash);
+    if (prior) this.verifiedMemoryCacheSize -= prior.bytes.length;
+    this.verifiedMemoryCache.delete(hash);
+    const entry = { bytes, expiresAt: Date.now() + this.memoryCacheTtlMs };
+    this.verifiedMemoryCache.set(hash, entry);
+    this.verifiedMemoryCacheSize += bytes.length;
+    while (this.verifiedMemoryCacheSize > this.memoryCacheBytes) {
+      const oldestKey = this.verifiedMemoryCache.keys().next().value;
+      const oldest = this.verifiedMemoryCache.get(oldestKey);
+      this.verifiedMemoryCache.delete(oldestKey);
+      this.verifiedMemoryCacheSize -= oldest.bytes.length;
+    }
+  }
+
+  readVerifiedMemoryCache(hash) {
+    const entry = this.verifiedMemoryCache.get(hash);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.verifiedMemoryCache.delete(hash);
+      this.verifiedMemoryCacheSize -= entry.bytes.length;
+      return null;
+    }
+    this.verifiedMemoryCache.delete(hash);
+    this.verifiedMemoryCache.set(hash, entry);
+    return decodeCanonical(entry.bytes);
   }
 
   async request(peerId, request) {
@@ -260,14 +313,15 @@ export class PeerContentAddressedStore {
         !Array.isArray(manifest.chunks)) {
       throw new Error('invalid or cross-namespace blob manifest');
     }
-    const parts = [];
-    let total = 0;
+    if (manifest.chunks.length > 8192) throw new Error('blob manifest exceeds the 8192-chunk safety limit');
     for (const item of manifest.chunks) {
       if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
           !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
           !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
         throw new Error('invalid blob chunk reference');
       }
+    }
+    const parts = await mapConcurrent(manifest.chunks, 8, async item => {
       const chunk = await this.getObject(item.hash);
       if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
           chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
@@ -277,7 +331,10 @@ export class PeerContentAddressedStore {
       if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
         throw new Error('blob chunk integrity verification failed');
       }
-      parts.push(bytes);
+      return bytes;
+    });
+    let total = 0;
+    for (const bytes of parts) {
       total += bytes.length;
       if (total > manifest.totalBytes) throw new Error('blob chunks exceed manifest length');
     }
@@ -290,6 +347,8 @@ export class PeerContentAddressedStore {
 
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+    const cached = this.readVerifiedMemoryCache(hash);
+    if (cached !== null) return cached;
     const failures = [];
     for (const peerId of this.peers) {
       try {
@@ -305,7 +364,9 @@ export class PeerContentAddressedStore {
             !hasVerifiedDurabilityReceipt(response)) {
           throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
         }
-        return this.decrypt(decodeCanonical(bytes));
+        const value = this.decrypt(decodeCanonical(bytes));
+        this.cacheVerifiedObject(hash, value);
+        return value;
       } catch (error) {
         failures.push(error instanceof Error ? error.message : String(error));
       }
