@@ -156,7 +156,7 @@ export class PeerStorageApiClient {
     if (['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(existing?.value?.kind) &&
         existing.value.namespace === this.namespace && existing.value.sha256 === digest &&
         existing.value.bytes === buffer.length) {
-      const recovered = await this.getBlob(digest);
+      const recovered = await this.getBlob(digest, { forcePeerRead: true });
       if (!recovered.equals(buffer)) throw new Error('existing peer asset failed deduplication integrity verification');
       return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, deduplicated: true };
     }
@@ -232,10 +232,12 @@ export class PeerStorageApiClient {
     return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, replicasVerifiedPerChunk: true };
   }
 
-  async getBlob(hash) {
+  async getBlob(hash, { forcePeerRead = false } = {}) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new TypeError('invalid asset hash');
-    const cached = this.#cacheGet(hash);
-    if (cached) return cached;
+    if (!forcePeerRead) {
+      const cached = this.#cacheGet(hash);
+      if (cached) return cached;
+    }
     const ref = await this.readRef('asset-manifests', hash);
     if (!ref?.value || !['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(ref.value.kind) ||
         ref.value.namespace !== this.namespace || ref.value.sha256 !== hash ||
