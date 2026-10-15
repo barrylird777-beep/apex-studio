@@ -158,7 +158,8 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
     root: path.join(dir, 'projects'),
     wal: new ApexRingWAL({ file: path.join(dir, 'wal', 'ring.wal.jsonl') })
   });
-  const engine = new SovereignMeshEngine({ cas: new MemoryMeshCAS() });
+  const meshCas = new MemoryMeshCAS();
+  const engine = new SovereignMeshEngine({ cas: meshCas });
   try {
     await store.init();
     await engine.ready();
@@ -173,7 +174,7 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
     assert.equal(await acknowledgePendingLocalPeerReceives(engine), 1);
     assert.equal(engine.get('local-peer-receive-wave').status, 'ACKNOWLEDGED');
 
-    const reopenedEngine = new SovereignMeshEngine({ cas: new MemoryMeshCAS() });
+    const reopenedEngine = new SovereignMeshEngine({ cas: meshCas });
     await reopenedEngine.ready();
     assert.equal(reopenedEngine.get('local-peer-receive-wave').waveId, 'local-peer-receive-wave');
     assert.equal(reopenedEngine.get('local-peer-receive-wave').status, 'ACKNOWLEDGED');
