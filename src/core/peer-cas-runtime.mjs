@@ -19,7 +19,9 @@ async function loadPeerTrustProvider() {
     throw new Error('configured hardware-root trust provider could not be loaded; peer CAS startup refused', { cause });
   }
   for (const name of ['getPeerAdvertisements', 'getPeerPublicKey', 'verifyHardwareRoot',
-    'attestPeerHardwareRoot', 'getHardwareFailureDomain']) {
+    'attestPeerHardwareRoot', 'getHardwareFailureDomain', 'getConnectionForStream',
+    'getConnectionCredentialFingerprint', 'attestConnection', 'verifyConnectionCredential',
+    'verifyConnectionAttestation']) {
     if (typeof provider[name] !== 'function') {
       throw new Error('hardware-root provider must export ' + name + '; peer CAS startup refused');
     }
@@ -29,7 +31,12 @@ async function loadPeerTrustProvider() {
     getPeerPublicKey: provider.getPeerPublicKey,
     verifyHardwareRoot: provider.verifyHardwareRoot,
     attestPeerHardwareRoot: provider.attestPeerHardwareRoot,
-    getHardwareFailureDomain: provider.getHardwareFailureDomain
+    getHardwareFailureDomain: provider.getHardwareFailureDomain,
+    getConnectionForStream: provider.getConnectionForStream,
+    getConnectionCredentialFingerprint: provider.getConnectionCredentialFingerprint,
+    attestConnection: provider.attestConnection,
+    verifyConnectionCredential: provider.verifyConnectionCredential,
+    verifyConnectionAttestation: provider.verifyConnectionAttestation
   });
 }
 
@@ -153,10 +160,10 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
   const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1);
   if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
-  const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
   const bftCasProvider = await loadBftCasProvider();
   const peerTrustProvider = await loadPeerTrustProvider();
+  const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId, appNamespace: namespace, connectionTrust: peerTrustProvider });
   const failureDomainsByPeerId = await attestConfiguredPeerRoots({ peers, namespace, provider: peerTrustProvider });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains, verifyDurabilityReceipt,
@@ -192,10 +199,10 @@ export async function startPeerCasRuntime({ peerNode }) {
   if (key.length !== 32 || key.toString('base64') !== encodedKey) throw new Error('Peer-CAS encryption key must be canonical base64 for exactly 32 bytes');
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const peers = Object.keys(addressesByPeerId);
-  const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
   const bftCasProvider = await loadBftCasProvider();
   const peerTrustProvider = await loadPeerTrustProvider();
+  const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId, appNamespace: namespace, connectionTrust: peerTrustProvider });
   const failureDomainsByPeerId = await attestConfiguredPeerRoots({ peers, namespace, provider: peerTrustProvider });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt, ...bftCasProvider,
