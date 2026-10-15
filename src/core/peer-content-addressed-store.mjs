@@ -755,6 +755,7 @@ export class PeerContentAddressedStore {
     const byKey = new Map();
     const failures = [];
     let verifiedPeers = 0;
+    const verifiedPeerIds = new Set();
     let canonicalListing = null;
     for (const peerId of this.peers) {
       try {
@@ -796,16 +797,21 @@ export class PeerContentAddressedStore {
           throw error;
         }
         verifiedPeers++;
+        verifiedPeerIds.add(peerId);
       } catch (error) {
         if (error?.code === 'REFERENCE_DIVERGENCE' || error?.code === 'REFERENCE_LISTING_DIVERGENCE') throw error;
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
-    if (verifiedPeers < this.replicaCount) {
-      const error = new Error('peer reference listing did not reach the configured verified replica count');
+    const listingDomains = new Set([...verifiedPeerIds].map(peerId =>
+      this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
+    if (verifiedPeers < this.replicaCount || listingDomains.size < this.minFailureDomains) {
+      const error = new Error('peer reference listing did not reach the configured replica and failure-domain quorum');
       error.code = 'INSUFFICIENT_REPLICAS';
       error.requiredReplicas = this.replicaCount;
       error.verifiedReplicas = verifiedPeers;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = listingDomains.size;
       error.failures = failures;
       throw error;
     }
@@ -842,6 +848,18 @@ export class PeerContentAddressedStore {
     if (results.length === 0) {
       const error = new Error('peer reference was not recoverable from any verified peer');
       error.code = 'OBJECT_UNAVAILABLE';
+      error.failures = failures;
+      throw error;
+    }
+    const readDomains = new Set(results.map(result =>
+      this.failureDomainsByPeerId[result.peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
+    if (results.length < this.replicaCount || readDomains.size < this.minFailureDomains) {
+      const error = new Error('peer reference read did not reach the configured verified replica and failure-domain quorum');
+      error.code = 'INSUFFICIENT_REPLICAS';
+      error.requiredReplicas = this.replicaCount;
+      error.verifiedReplicas = results.length;
+      error.requiredFailureDomains = this.minFailureDomains;
+      error.verifiedFailureDomains = readDomains.size;
       error.failures = failures;
       throw error;
     }
