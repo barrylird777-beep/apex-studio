@@ -14,6 +14,7 @@ on:
       - "src/core/peer-cas-runtime.mjs"
       - "src/core/peer-content-addressed-store.mjs"
       - "src/core/peer-mesh-cas-adapter.mjs"
+      - "test/peer-mesh-cas-adapter.test.mjs"
       - "src/core/peer-runtime-controls.mjs"
       - "src/core/peer-runtime-launch-gates.mjs"
       - "src/core/peer-storage-api-bridge.mjs"
@@ -88,7 +89,9 @@ jobs:
       - name: Test signed runtime controls and access tensors
         run: node --test test/peer-runtime-controls.test.mjs
       - name: Test challenge-bound hardware-root admission
-        run: node --test test/peer-cas-runtime.test.mjs test/namespace-access-tensor.test.mjs
+        run: node --test test/peer-cas-runtime.test.mjs
+      - name: Test distributed job lease recovery and fencing
+        run: node --test test/peer-mesh-cas-adapter.test.mjs test/namespace-access-tensor.test.mjs
       - name: Test launch gates and runtime wiring
         run: node --test test/peer-runtime-launch-gates.test.mjs test/peer-cas-runtime.test.mjs test/remote-apex-pure-store.test.mjs test/sovereign-app-fabric.test.mjs
       - name: Test peer-only asset storage and API smoke
