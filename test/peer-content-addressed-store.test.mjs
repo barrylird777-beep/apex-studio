@@ -521,3 +521,25 @@ test('peer storage runtime rejects plaintext mutable references', async () => {
     /encryption/
   );
 });
+
+
+test('peer CAS fans out bounded writes concurrently and still waits for verified quorum', async () => {
+  const mesh = makeMesh(['peer-a', 'peer-b', 'peer-c', 'peer-d']);
+  mesh.client.writeConcurrency = 3;
+  const originalRequest = mesh.client.transport.request.bind(mesh.client.transport);
+  let inFlight = 0;
+  let peakInFlight = 0;
+  mesh.client.transport.request = async (peerId, envelope) => {
+    if (envelope.operation !== 'object.put') return originalRequest(peerId, envelope);
+    inFlight++;
+    peakInFlight = Math.max(peakInFlight, inFlight);
+    await new Promise(resolve => setTimeout(resolve, 15));
+    try { return await originalRequest(peerId, envelope); }
+    finally { inFlight--; }
+  };
+  const result = await mesh.client.putObject({ parallel: true, immutable: true });
+  assert.ok(peakInFlight >= 2, 'replica writes should overlap instead of serializing peer round trips');
+  assert.ok(peakInFlight <= 3, 'write concurrency must remain bounded');
+  assert.equal(result.receipts.length >= 2, true);
+  assert.equal(result.receipts.every(receipt => receipt.hash === result.hash && receipt.namespace === 'PlanetApeX'), true);
+});
