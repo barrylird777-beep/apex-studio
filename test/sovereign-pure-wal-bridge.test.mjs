@@ -211,7 +211,7 @@ test('peer-only mesh startup ignores coordinator-local legacy WAL files', async 
 
     const engine = new SovereignMeshEngine({ cas: new MemoryMeshCAS() });
     await engine.ready();
-    assert.equal(engine.get('legacy-wave-7'), null, 'local legacy records are not imported into peer state');
+    assert.equal(engine.get('legacy-wave-7') ?? null, null, 'local legacy records are not imported into peer state');
     const next = await engine.dispatchAutonomousPayload({
       waveId: 'new-wave-after-migration',
       peerId: 'new-peer',
