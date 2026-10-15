@@ -574,3 +574,31 @@ test('job result CID is retrievable by another peer-backed adapter without the o
   assert.deepEqual(await consumer.getJobResult(resultCid), output,
     'a different peer-backed client must recover the result using only its CID');
 });
+
+
+test('distributed job claims have one CAS winner and reject stale lease fencing tokens', async () => {
+  const mesh = makeMesh();
+  const workerA = new PeerMeshCasAdapter({ store: mesh.client, appNamespace: 'PlanetApeX' });
+  const workerB = new PeerMeshCasAdapter({ store: mesh.client, appNamespace: 'PlanetApeX' });
+  const id = 'job-claim-race-' + Date.now();
+  await workerA.enqueue({ id, type: 'test.race', payload: { input: 'one job' } });
+
+  const [a, b] = await Promise.all([
+    workerA.claim({ workerId: 'worker-a', onlyId: id }),
+    workerB.claim({ workerId: 'worker-b', onlyId: id })
+  ]);
+  assert.equal(a.length + b.length, 1, 'exactly one worker may win the distributed CAS');
+  const winner = a[0] || b[0];
+  const winnerAdapter = a[0] ? workerA : workerB;
+  const loserAdapter = a[0] ? workerB : workerA;
+
+  assert.equal(await loserAdapter.transition(id, 'complete', {
+    leaseToken: winner.leaseToken, leaseFence: winner.leaseFence - 1, result: { invalid: true }
+  }), false, 'a stale fencing token cannot transition the job');
+  assert.equal(await winnerAdapter.transition(id, 'complete', {
+    leaseToken: winner.leaseToken, leaseFence: winner.leaseFence, result: { accepted: true }
+  }), true, 'the winning lease can publish the result');
+  const final = await winnerAdapter.readRef('jobs', id);
+  assert.equal(final.value.job.status, 'completed');
+  assert.match(final.value.job.resultCid, /^[a-f0-9]{64}$/);
+});
