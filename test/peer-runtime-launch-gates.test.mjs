@@ -26,6 +26,10 @@ test('peer runtime launch requires every current-head evidence gate', () => {
 
 test('hardware attestation and end-to-end recovery remain explicitly unverified', () => {
   assert.equal(PEER_RUNTIME_LAUNCH_GATES.hardwareRootAttestation, 'blocked-no-platform-verifier');
+  assert.equal(PEER_RUNTIME_LAUNCH_GATES.bftCasConsensus, 'blocked-sequential-replica-cas-not-global-atomic');
+  assert.ok(PEER_RUNTIME_REQUIRED_EVIDENCE.includes('bftCasSafetyVerified'));
+  assert.ok(PEER_RUNTIME_REQUIRED_EVIDENCE.includes('connectionScopedTrustTransportWired'));
+  assert.ok(PEER_RUNTIME_REQUIRED_EVIDENCE.includes('allRuntimeOperationsTensorGated'));
   assert.equal(PEER_RUNTIME_LAUNCH_GATES.sixAppRestartRecovery, 'not-live-verified');
   assert.equal(PEER_RUNTIME_LAUNCH_GATES.peerLossConvergence, 'not-live-verified');
 });
