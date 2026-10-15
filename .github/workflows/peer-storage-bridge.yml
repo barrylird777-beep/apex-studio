@@ -19,6 +19,8 @@ on:
       - "test/sovereign-pure-wal-bridge.test.mjs"
       - "test/schedule-api.smoke.mjs"
       - "test/peer-storage-api-bridge.test.mjs"
+      - "src/core/peer-runtime-controls.mjs"
+      - "test/peer-runtime-controls.test.mjs"
       - "test/peer-runtime-controls.test.mjs"
       - "test/peer-content-addressed-store-cache.test.mjs"
       - ".github/workflows/peer-storage-bridge.yml"
@@ -61,5 +63,7 @@ jobs:
           node --check test/schedule-api.smoke.mjs
       - name: Test bridge authentication and app isolation
         run: node --test test/peer-storage-api-bridge.test.mjs
+      - name: Test signed runtime controls and access tensors
+        run: node --test test/peer-runtime-controls.test.mjs
       - name: Test bounded verified RAM cache
         run: node --test test/peer-content-addressed-store-cache.test.mjs
