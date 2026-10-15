@@ -12,6 +12,7 @@ export class PeerMeshCasAdapter {
     if (!validPart(appNamespace)) throw new TypeError('a canonical application namespace is required');
     this.store = store;
     this.appNamespace = appNamespace;
+    this.namespace = appNamespace;
     this.jobCache = new Map();
     this.initialized = false;
   }
@@ -35,15 +36,29 @@ export class PeerMeshCasAdapter {
     return this;
   }
 
-  async readRef(namespace, key) { return this.store.readRef(this.refKey(namespace, key)); }
+  async readRef(namespace, key) {
+    const ref = await this.store.readRef(this.refKey(namespace, key));
+    return ref?.value?.__apexDeleted === true ? null : ref;
+  }
   async writeRef(namespace, key, value, options = {}) {
     return this.store.writeRef(this.refKey(namespace, key), value, options);
+  }
+  async deleteRef(namespace, key, { expectedHash = null } = {}) {
+    const current = await this.store.readRef(this.refKey(namespace, key));
+    if (!current) return false;
+    if (expectedHash != null && current.hash !== expectedHash) {
+      const error = new Error('peer reference changed before deletion');
+      error.code = 'CAS_CONFLICT';
+      throw error;
+    }
+    await this.store.writeRef(this.refKey(namespace, key), { __apexDeleted: true }, { expectedHash: current.hash });
+    return true;
   }
   async listRefs(namespace) {
     if (!validPart(namespace)) throw new TypeError('invalid mesh reference namespace');
     const prefix = namespace + '/';
     return (await this.store.listRefs())
-      .filter(ref => ref.namespace === this.appNamespace && ref.key.startsWith(prefix))
+      .filter(ref => ref.namespace === this.appNamespace && ref.key.startsWith(prefix) && ref.value?.__apexDeleted !== true)
       .map(ref => ({ ...ref, namespace, key: ref.key.slice(prefix.length) }))
       .sort((a, b) => a.key.localeCompare(b.key));
   }
