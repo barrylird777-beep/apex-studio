@@ -35,7 +35,8 @@ function rpc({ socketPath, token, app, operation, args = {} }) {
 /** Fixed app identity: callers cannot change the app namespace per operation. */
 export class PeerStorageApiClient {
   constructor({ app = process.env.APEX_APP_NAMESPACE, token = undefined,
-    socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock' } = {}) {
+    socketPath = process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock',
+    chunkSize = Number(process.env.APEX_PEER_STORAGE_CHUNK_BYTES || 8 * 1024 * 1024) } = {}) {
     const configuredApp = String(process.env.APEX_APP_NAMESPACE || '');
     if (!APPS.has(configuredApp) || app !== configuredApp) {
       throw new TypeError('API process must use its configured canonical app namespace; per-request app switching is forbidden');
@@ -45,11 +46,15 @@ export class PeerStorageApiClient {
     if (typeof socketPath !== 'string' || !socketPath.startsWith('/tmp/') || socketPath.includes('..')) {
       throw new TypeError('peer storage bridge socket must be a safe path under /tmp');
     }
+    if (!Number.isSafeInteger(chunkSize) || chunkSize < 8 * 1024 || chunkSize > 8 * 1024 * 1024) {
+      throw new TypeError('peer storage chunk size must be between 8 KiB and 8 MiB');
+    }
     Object.defineProperties(this, {
       namespace: { value: configuredApp, enumerable: true },
       app: { value: configuredApp, enumerable: true },
       token: { value: token },
-      socketPath: { value: socketPath, enumerable: true }
+      socketPath: { value: socketPath, enumerable: true },
+      chunkSize: { value: chunkSize, enumerable: true }
     });
   }
 
@@ -97,7 +102,7 @@ export class PeerStorageApiClient {
     }
     // The bridge accepts a 16 MiB JSON envelope; 8 MiB chunks fit after base64 expansion.
     // The peer CAS subdivides each chunk internally.
-    const chunkSize = 8 * 1024 * 1024;
+    const chunkSize = this.chunkSize;
     const chunkCount = Math.ceil(buffer.length / chunkSize);
     const chunks = new Array(chunkCount);
     const configuredPutConcurrency = Number(process.env.APEX_PEER_STORAGE_PUT_CONCURRENCY || 4);
