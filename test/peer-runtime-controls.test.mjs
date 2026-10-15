@@ -60,14 +60,26 @@ test('signed heartbeats and capability advertisements require verified hardware 
 test('connection elevation is bound to a live connection and credential fingerprint', async () => {
   const sessions = new ConnectionTrustSessions();
   const connection = { closed: false };
+  const challenge = sessions.createChallenge(connection, 'credential-v1');
   await sessions.elevate(connection, {
-    credentialFingerprint: 'credential-v1', attestation: { challenge: 'fresh' },
-    verifyCredential: async () => true, verifyAttestation: async () => true
+    credentialFingerprint: 'credential-v1', attestation: { challenge },
+    verifyCredential: async () => true,
+    verifyAttestation: async (attestation, _connection, context) => attestation.challenge === context.challenge
   });
   assert.equal(sessions.isElevated(connection, 'credential-v1'), true);
   assert.equal(sessions.isElevated(connection, 'credential-v2'), false);
   sessions.revoke(connection);
   assert.equal(sessions.isElevated(connection, 'credential-v1'), false);
+  const staleConnection = { closed: false };
+  const staleChallenge = sessions.createChallenge(staleConnection, 'credential-v1');
+  await assert.rejects(sessions.elevate(staleConnection, {
+    credentialFingerprint: 'credential-v1', attestation: { challenge: 'replayed-challenge' },
+    verifyCredential: async () => true, verifyAttestation: async () => true
+  }), /failed closed/);
+  await assert.rejects(sessions.elevate(staleConnection, {
+    credentialFingerprint: 'credential-v1', attestation: { challenge: staleChallenge },
+    verifyCredential: async () => true, verifyAttestation: async () => true
+  }), /failed closed/, 'a challenge can be attempted only once');
 });
 
 test('tensor pointer is swapped only after a replicated immutable object is stored', async () => {
