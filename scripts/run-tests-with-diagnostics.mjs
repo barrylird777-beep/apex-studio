@@ -19,6 +19,7 @@ const peerBridgeFiles = new Set([
   "test/durable-worker-race.test.mjs",
   "test/apex-intelligence.test.mjs",
   "test/apex-worker-dispatch.test.mjs",
+  "test/sovereign-pure-wal-bridge.test.mjs",
   "test/sovereign-app-fabric.test.mjs",
   "test/teevee-production-api.test.mjs",
   "test/engine-apex-chat-runtime.test.mjs",
