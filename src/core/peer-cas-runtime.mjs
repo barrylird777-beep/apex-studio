@@ -54,7 +54,7 @@ export async function startPeerCasRuntime({ peerNode }) {
   if (!peerNode || typeof peerNode.dialProtocol !== 'function') throw new TypeError('started sovereign peer node required');
   const namespace = required('APEX_PEER_CAS_NAMESPACE');
   if (!APPS.has(namespace)) throw new Error('APEX_PEER_CAS_NAMESPACE must name one canonical app');
-  const encodedKey = required('APEX_PEER_CAS_ENCRYPTION_KEY_BASE64');
+  const encodedKey = required('APEX_PEER_CAS_ENCRYPTION_KEY_BASE64_' + namespace.toUpperCase());
   const key = Buffer.from(encodedKey, 'base64');
   if (key.length !== 32 || key.toString('base64') !== encodedKey) throw new Error('Peer-CAS encryption key must be canonical base64 for exactly 32 bytes');
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
