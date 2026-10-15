@@ -457,6 +457,7 @@ export class PeerContentAddressedStore {
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
+        if (error?.code === 'CAS_CONFLICT') throw error;
         failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
       }
     }
