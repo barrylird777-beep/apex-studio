@@ -86,6 +86,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           refId(value.namespace, value.key) + '.cbor' !== name ||
           !/^[a-f0-9]{64}$/.test(value.hash) || !Buffer.isBuffer(value.bytes) ||
           sha256(value.bytes) !== value.hash) throw new Error('peer CAS startup integrity failure: invalid reference ' + name);
+      assertNamespace(value.namespace);
       const object = await readFile(path.join(objectsDir, value.hash + '.bin')).catch(error => {
         if (error.code === 'ENOENT') throw new Error('peer CAS startup recovery failure: reference target is missing ' + value.hash);
         throw error;
