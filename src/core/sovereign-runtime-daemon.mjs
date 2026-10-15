@@ -16,6 +16,7 @@ import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
 import { initializePeerObjectStorage } from './peer-storage-runtime.mjs';
 import { startPeerCasRuntime, createPeerMeshCasRuntime } from './peer-cas-runtime.mjs';
 import { createPeerStorageApiBridge, APEX_APPS } from './peer-storage-api-bridge.mjs';
+import { createPeerStorageTensorAuthorizer } from './peer-runtime-controls.mjs';
 
 const workerId = process.env.APEX_SOVEREIGN_WORKER_ID || `sovereign-${os.hostname()}-${process.pid}`;
 const reconcileMs = Math.max(1000, Number(process.env.APEX_SOVEREIGN_RECONCILE_MS || 10000));
@@ -221,9 +222,23 @@ async function main() {
       throw new Error('Missing app-scoped APEX_PEER_STORAGE_API_TOKEN_' + app.toUpperCase() + '; API bridge remains closed');
     }
   }
+  const authorizeStorage = createPeerStorageTensorAuthorizer({
+    getTensor: async app => {
+      const store = appStores[app]?.objects;
+      if (!store || store.namespace !== app) throw new Error('app-scoped peer CAS unavailable');
+      // The policy pointer and immutable tensor are read from the peer mesh,
+      // never from environment JSON or local persistent state.
+      const pointer = await store.readRef('access-tensor/current');
+      if (!pointer?.value || typeof pointer.value.cid !== 'string' ||
+          typeof pointer.value.tensorCid !== 'string') return null;
+      const tensor = await store.getObject(pointer.value.cid);
+      return { tensor, tensorCid: pointer.value.tensorCid };
+    }
+  });
   storageApiBridge = createPeerStorageApiBridge({
     stores: appStores,
     tokens: apiBridgeTokens,
+    authorize: authorizeStorage,
     socketPath: process.env.APEX_PEER_STORAGE_API_SOCKET || '/tmp/apex-storage-api.sock'
   });
   await storageApiBridge.listen();
