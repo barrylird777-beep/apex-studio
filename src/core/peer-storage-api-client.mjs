@@ -87,7 +87,7 @@ export class PeerStorageApiClient {
     if (!buffer.length) throw new TypeError('cannot store an empty asset');
     const digest = createHash('sha256').update(buffer).digest('hex');
     const existing = await this.readRef('asset-manifests', digest);
-    if (existing?.value?.kind === 'apex.api.asset-manifest.v1' &&
+    if (['apex.api.asset-manifest.v1', 'apex.api.asset-manifest.v2'].includes(existing?.value?.kind) &&
         existing.value.namespace === this.namespace && existing.value.sha256 === digest &&
         existing.value.bytes === buffer.length) {
       const recovered = await this.getBlob(digest);
@@ -102,14 +102,50 @@ export class PeerStorageApiClient {
       if (!stored?.hash || !/^[a-f0-9]{64}$/.test(stored.hash)) throw new Error('peer did not return a valid chunk manifest hash');
       chunks.push({ hash: stored.hash, bytes: piece.length, sha256: createHash('sha256').update(piece).digest('hex') });
     }
-    const manifest = { version: 1, kind: 'apex.api.asset-manifest.v1', namespace: this.namespace,
-      sha256: digest, bytes: buffer.length, chunks };
+    let manifest;
+    if (chunks.length <= 64) {
+      manifest = { version: 1, kind: 'apex.api.asset-manifest.v1', namespace: this.namespace,
+        sha256: digest, bytes: buffer.length, chunks };
+    } else {
+      const fanout = 64;
+      const writeNode = async node => {
+        const hash = createHash('sha256').update(JSON.stringify(node)).digest('hex');
+        try { await this.writeRef('asset-manifest-nodes', hash, node, { expectedHash: null }); }
+        catch (error) {
+          if (error.code !== 'CAS_CONFLICT') throw error;
+          const prior = await this.readRef('asset-manifest-nodes', hash);
+          if (!prior || JSON.stringify(prior.value) !== JSON.stringify(node) ||
+              createHash('sha256').update(JSON.stringify(prior.value)).digest('hex') !== hash) throw error;
+        }
+        return { hash, level: node.level };
+      };
+      const writeLevel = async (entries, level, type) => {
+        const nodes = [];
+        for (let offset = 0; offset < entries.length; offset += fanout) {
+          const group = entries.slice(offset, offset + fanout);
+          const node = { version: 1, kind: 'apex.api.asset-manifest-node.v1', namespace: this.namespace,
+            level, entries: group.map(item => type === 'chunk' ? { type: 'chunk', ...item } : { type: 'node', hash: item.hash }) };
+          nodes.push(await writeNode(node));
+        }
+        return nodes;
+      };
+      let level = 0;
+      let nodes = await writeLevel(chunks, level, 'chunk');
+      while (nodes.length > 1) {
+        level++;
+        nodes = await writeLevel(nodes, level, 'node');
+        if (level > 20) throw new Error('API asset manifest exceeds maximum supported tree depth');
+      }
+      manifest = { version: 2, kind: 'apex.api.asset-manifest.v2', namespace: this.namespace,
+        sha256: digest, bytes: buffer.length, root: nodes[0].hash, rootLevel: nodes[0].level };
+    }
     try {
       await this.writeRef('asset-manifests', digest, manifest, { expectedHash: existing?.hash ?? null });
     } catch (error) {
       if (error.code !== 'CAS_CONFLICT') throw error;
       const raced = await this.readRef('asset-manifests', digest);
-      if (raced?.value?.sha256 !== digest || raced.value.bytes !== buffer.length) throw error;
+      if (raced?.value?.sha256 !== digest || raced.value.bytes !== buffer.length ||
+          raced.value.namespace !== this.namespace) throw error;
     }
     return { hash: digest, bytes: buffer.length, contentSha256: digest, namespace: this.namespace, replicasVerifiedPerChunk: true };
   }
@@ -122,8 +158,56 @@ export class PeerStorageApiClient {
         !Number.isSafeInteger(ref.value.bytes) || !Array.isArray(ref.value.chunks)) {
       throw new Error('peer asset manifest is missing or invalid');
     }
-    const descriptors = ref.value.chunks;
-    if (descriptors.some(item => !item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+    let descriptors;
+    if (ref.value.kind === 'apex.api.asset-manifest.v1' && ref.value.version === 1 && Array.isArray(ref.value.chunks)) {
+      descriptors = ref.value.chunks;
+    } else if (ref.value.kind === 'apex.api.asset-manifest.v2' && ref.value.version === 2 &&
+        /^[a-f0-9]{64}$/.test(String(ref.value.root || '')) &&
+        Number.isSafeInteger(ref.value.rootLevel) && ref.value.rootLevel >= 0 && ref.value.rootLevel <= 20) {
+      const configured = Number(process.env.APEX_PEER_STORAGE_FETCH_CONCURRENCY || 8);
+      const concurrency = Math.max(1, Math.min(32, Number.isSafeInteger(configured) ? configured : 8));
+      let nodes = [ref.value.root];
+      descriptors = [];
+      for (let level = ref.value.rootLevel; level >= 0; level--) {
+        const loaded = new Array(nodes.length);
+        let nextNode = 0;
+        const worker = async () => {
+          while (true) {
+            const index = nextNode++;
+            if (index >= nodes.length) return;
+            const nodeRef = await this.readRef('asset-manifest-nodes', nodes[index]);
+            const node = nodeRef?.value;
+            if (!node || node.kind !== 'apex.api.asset-manifest-node.v1' || node.version !== 1 ||
+                node.namespace !== this.namespace || node.level !== level || !Array.isArray(node.entries) ||
+                node.entries.length < 1 || node.entries.length > 64 ||
+                createHash('sha256').update(JSON.stringify(node)).digest('hex') !== nodes[index]) {
+              throw new Error('API asset manifest node failed CID, version, or namespace verification');
+            }
+            loaded[index] = node.entries;
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(concurrency, nodes.length) }, worker));
+        if (level === 0) {
+          for (const entries of loaded) for (const item of entries) {
+            if (item?.type !== 'chunk') throw new Error('API manifest leaf contains a non-chunk entry');
+            descriptors.push({ hash: item.hash, bytes: item.bytes, sha256: item.sha256 });
+          }
+        } else {
+          const next = [];
+          for (const entries of loaded) for (const item of entries) {
+            if (item?.type !== 'node' || !/^[a-f0-9]{64}$/.test(String(item.hash || ''))) {
+              throw new Error('API manifest intermediate node reference is invalid');
+            }
+            next.push(item.hash);
+          }
+          nodes = next;
+        }
+      }
+    } else {
+      throw new Error('peer asset manifest version is unsupported or malformed');
+    }
+    if (!Array.isArray(descriptors) || descriptors.some(item => !item ||
+        !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
         !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
         !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')))) {
       throw new Error('invalid asset chunk descriptor');
