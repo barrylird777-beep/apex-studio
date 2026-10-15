@@ -2,62 +2,56 @@ name: Peer Storage API Bridge
 on:
   pull_request:
     paths:
-      - "src/core/peer-storage-api-bridge.mjs"
-      - "src/core/peer-storage-api-client.mjs"
-      - "src/core/local-cas-fast-path.mjs"
-      - "test/local-cas-fast-path.test.mjs"
+      - ".github/workflows/peer-storage-bridge.yml"
+      - "package.json"
+      - "server.mjs"
       - "scripts/benchmark-local-cas-fast-path.mjs"
-      - "package.json"
+      - "scripts/run-tests-with-diagnostics.mjs"
+      - "src/core/apex-pure-store.mjs"
       - "src/core/content-addressed-store.mjs"
-      - "src/core/autonomous-swarm-daemon.mjs"
-      - "src/core/peer-content-addressed-store.mjs"
       - "src/core/local-cas-fast-path.mjs"
-      - "test/local-cas-fast-path.test.mjs"
-      - "package.json"
+      - "src/core/namespace-access-tensor.mjs"
+      - "src/core/peer-cas-runtime.mjs"
+      - "src/core/peer-content-addressed-store.mjs"
+      - "src/core/peer-mesh-cas-adapter.mjs"
       - "src/core/peer-runtime-controls.mjs"
       - "src/core/peer-runtime-launch-gates.mjs"
-      - "src/core/content-addressed-store.mjs"
-      - "src/core/autonomous-swarm-daemon.mjs"
-      - "src/core/peer-mesh-cas-adapter.mjs"
-      - "src/core/peer-cas-runtime.mjs"
+      - "src/core/peer-storage-api-bridge.mjs"
+      - "src/core/peer-storage-api-client.mjs"
       - "src/core/sovereign-runtime-daemon.mjs"
-      - "src/core/apex-pure-store.mjs"
       - "src/core/storage.mjs"
-      - "server.mjs"
-      - "scripts/run-tests-with-diagnostics.mjs"
-      - "scripts/smoke-production.mjs"
-      - "test/helpers/memory-mesh-cas.mjs"
-      - "test/sovereign-app-fabric.test.mjs"
-      - "test/helpers/test-peer-storage-bridge.mjs"
-      - "test/storage-scenes.test.mjs"
-      - "test/remote-apex-pure-store.test.mjs"
-      - "test/sovereign-pure-wal-bridge.test.mjs"
-      - "test/schedule-api.smoke.mjs"
-      - "test/peer-storage-api-bridge.test.mjs"
-      - "test/peer-content-addressed-store.test.mjs"
-      - "test/peer-content-addressed-store.test.mjs"
-      - "test/peer-runtime-launch-gates.test.mjs"
-      - "src/core/peer-runtime-controls.mjs"
-      - "test/peer-runtime-controls.test.mjs"
-      - "test/peer-runtime-launch-gates.test.mjs"
-      - "test/peer-runtime-controls.test.mjs"
+      - "test/content-addressed-store.test.mjs"
+      - "test/local-cas-fast-path.test.mjs"
+      - "test/namespace-access-tensor.test.mjs"
+      - "test/peer-cas-runtime.test.mjs"
       - "test/peer-content-addressed-store-cache.test.mjs"
       - "test/peer-content-addressed-store.test.mjs"
-      - ".github/workflows/peer-storage-bridge.yml"
+      - "test/peer-runtime-controls.test.mjs"
+      - "test/peer-runtime-launch-gates.test.mjs"
+      - "test/peer-storage-api-bridge.test.mjs"
+      - "test/remote-apex-pure-store.test.mjs"
+      - "test/schedule-api.smoke.mjs"
+      - "test/sovereign-app-fabric.test.mjs"
+      - "test/sovereign-pure-wal-bridge.test.mjs"
+      - "test/sovereign-pure-wal-security.test.mjs"
+      - "test/storage-scenes.test.mjs"
+      - "test/storage-stream.test.mjs"
   push:
     branches:
       - main
       - "apex/api-peer-runtime-six-app-bridge"
     paths:
+      - ".github/workflows/peer-storage-bridge.yml"
+      - "package.json"
+      - "scripts/benchmark-local-cas-fast-path.mjs"
+      - "src/core/local-cas-fast-path.mjs"
+      - "src/core/peer-content-addressed-store.mjs"
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
-      - "src/core/peer-content-addressed-store.mjs"
-      - "src/core/peer-runtime-controls.mjs"
-      - "test/peer-storage-api-bridge.test.mjs"
-      - "test/peer-content-addressed-store.test.mjs"
+      - "test/local-cas-fast-path.test.mjs"
       - "test/peer-content-addressed-store-cache.test.mjs"
-      - "test/peer-runtime-controls.test.mjs"
-      - ".github/workflows/peer-storage-bridge.yml"
+      - "test/peer-content-addressed-store.test.mjs"
+      - "test/peer-storage-api-bridge.test.mjs"
 permissions:
   contents: read
 jobs:
@@ -74,34 +68,28 @@ jobs:
         run: >-
           node --check src/core/peer-storage-api-bridge.mjs &&
           node --check src/core/peer-storage-api-client.mjs &&
-          node --check src/core/content-addressed-store.mjs &&
-          node --check src/core/autonomous-swarm-daemon.mjs &&
-          node --check src/core/peer-content-addressed-store.mjs &&
           node --check src/core/local-cas-fast-path.mjs &&
           node --check scripts/benchmark-local-cas-fast-path.mjs &&
-          node --check src/core/peer-runtime-controls.mjs &&
+          node --check src/core/content-addressed-store.mjs &&
+          node --check src/core/namespace-access-tensor.mjs &&
+          node --check src/core/peer-content-addressed-store.mjs &&
           node --check src/core/peer-mesh-cas-adapter.mjs &&
           node --check src/core/peer-cas-runtime.mjs &&
+          node --check src/core/peer-runtime-controls.mjs &&
+          node --check src/core/peer-runtime-launch-gates.mjs &&
           node --check src/core/sovereign-runtime-daemon.mjs &&
           node --check src/core/apex-pure-store.mjs &&
           node --check src/core/storage.mjs &&
-          node --check server.mjs &&
-          node --check scripts/run-tests-with-diagnostics.mjs &&
-          node --check test/helpers/test-peer-storage-bridge.mjs &&
-          node --check test/storage-scenes.test.mjs &&
-          node --check test/remote-apex-pure-store.test.mjs &&
-          node --check test/sovereign-pure-wal-bridge.test.mjs &&
-          node --check test/schedule-api.smoke.mjs &&
-          node --check test/peer-content-addressed-store.test.mjs
+          node --check server.mjs
       - name: Test local CAS fast path invariants
         run: node --test test/local-cas-fast-path.test.mjs
-      - name: Test bridge authentication and app isolation
-        run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-content-addressed-store.test.mjs test/peer-runtime-launch-gates.test.mjs
+      - name: Test bridge and peer CAS correctness
+        run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-content-addressed-store-cache.test.mjs
       - name: Test signed runtime controls and access tensors
-        run: node --test test/peer-runtime-controls.test.mjs
-      - name: Test encrypted reference storage and peer recovery
-        run: node --test test/peer-content-addressed-store.test.mjs
-      - name: Test bounded verified RAM cache
-        run: node --test test/peer-content-addressed-store-cache.test.mjs
+        run: node --test test/peer-runtime-controls.test.mjs test/namespace-access-tensor.test.mjs
+      - name: Test launch gates and runtime wiring
+        run: node --test test/peer-runtime-launch-gates.test.mjs test/peer-cas-runtime.test.mjs test/remote-apex-pure-store.test.mjs test/sovereign-app-fabric.test.mjs
+      - name: Test peer-only asset storage and API smoke
+        run: node --test test/storage-scenes.test.mjs test/storage-stream.test.mjs test/schedule-api.smoke.mjs
       - name: Test coordinator-local CAS remains disabled
         run: node --test test/content-addressed-store.test.mjs
