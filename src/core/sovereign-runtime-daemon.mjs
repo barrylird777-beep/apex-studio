@@ -34,6 +34,7 @@ let cycleFailed = false;
 let bridge;
 let modelBridge;
 let storageApiBridge;
+const peerCasRepairLoops = [];
 let peerStorageRuntime = { enabled: false, handle: async () => { throw new Error('peer object storage is disabled'); } };
 let peerStorageStore;
 const runtimeReadiness = { storageReady: false, peerReady: false, remotePersistenceVerified: false, remotePersistenceHash: null, peerStorageVerified: false, dispatchReady: false };
@@ -200,11 +201,13 @@ async function main() {
   // Construct the mesh only after the live peer and required app-scoped quorum are verified.
   const meshNamespace = String(process.env.APEX_PEER_CAS_NAMESPACE || '').trim();
   const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode, namespace: meshNamespace });
+  if (meshCasRuntime.repairLoop) peerCasRepairLoops.push(meshCasRuntime.repairLoop);
   const appStores = Object.create(null);
   for (const app of APEX_APPS) {
     // The API bridge uses the dedicated per-app key, never the runtime's
     // general mesh key. Each app gets an independently configured CAS object.
     const runtime = await createPeerMeshCasRuntime({ peerNode, namespace: app });
+    if (runtime.repairLoop) peerCasRepairLoops.push(runtime.repairLoop);
     appStores[app] = {
       cas: new PeerMeshCasAdapter({ store: runtime.store, appNamespace: app }),
       objects: runtime.store
@@ -390,6 +393,7 @@ async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   if (timer) clearInterval(timer);
+  for (const repairLoop of peerCasRepairLoops) repairLoop.stop();
   const shutdownEvidence = {
     signal,
     finalCycleSettled: false,
