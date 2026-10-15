@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { PeerContentAddressedStore } from './peer-content-addressed-store.mjs';
 import { createLibp2pPeerStorageTransport } from './peer-storage-libp2p-transport.mjs';
 import { createPeerModelBridgeServer } from './peer-model-bridge.mjs';
@@ -11,29 +12,58 @@ function required(name) {
 }
 
 async function loadPeerTrustProvider() {
-  const specifier = String(process.env.APEX_PEER_TRUST_PROVIDER_MODULE || '').trim();
-  const requiredProvider = String(process.env.APEX_PEER_RAREST_FIRST_REQUIRED || '').toLowerCase() === 'true';
-  if (!specifier) {
-    if (requiredProvider) {
-      throw new Error('APEX_PEER_TRUST_PROVIDER_MODULE is required when rarest-first hardware-rooted peer reads are mandatory');
-    }
-    return {};
-  }
+  const specifier = required('APEX_PEER_TRUST_PROVIDER_MODULE');
   let provider;
   try { provider = await import(specifier); }
   catch (cause) {
-    throw new Error('configured peer trust provider could not be loaded; peer CAS startup refused', { cause });
+    throw new Error('configured hardware-root trust provider could not be loaded; peer CAS startup refused', { cause });
   }
-  for (const name of ['getPeerAdvertisements', 'getPeerPublicKey', 'verifyHardwareRoot']) {
+  for (const name of ['getPeerAdvertisements', 'getPeerPublicKey', 'verifyHardwareRoot',
+    'attestPeerHardwareRoot', 'getHardwareFailureDomain']) {
     if (typeof provider[name] !== 'function') {
-      throw new Error('peer trust provider must export ' + name + '; peer CAS startup refused');
+      throw new Error('hardware-root provider must export ' + name + '; peer CAS startup refused');
     }
   }
-  return {
+  return Object.freeze({
     getPeerAdvertisements: provider.getPeerAdvertisements,
     getPeerPublicKey: provider.getPeerPublicKey,
-    verifyHardwareRoot: provider.verifyHardwareRoot
-  };
+    verifyHardwareRoot: provider.verifyHardwareRoot,
+    attestPeerHardwareRoot: provider.attestPeerHardwareRoot,
+    getHardwareFailureDomain: provider.getHardwareFailureDomain
+  });
+}
+
+/**
+ * Require a fresh, challenge-bound platform attestation for every configured
+ * peer before it can count toward a replica or failure-domain quorum.
+ */
+export async function attestConfiguredPeerRoots({ peers, namespace, provider, now = Date.now } = {}) {
+  if (!Array.isArray(peers) || !peers.length || !APPS.has(namespace) ||
+      !provider || typeof provider.attestPeerHardwareRoot !== 'function' ||
+      typeof provider.verifyHardwareRoot !== 'function' ||
+      typeof provider.getHardwareFailureDomain !== 'function') {
+    throw new TypeError('peer list, canonical app, and complete hardware-root provider are required');
+  }
+  const domains = Object.create(null);
+  for (const peerId of peers) {
+    const issuedAt = now();
+    const challenge = randomBytes(32).toString('base64url');
+    const evidence = await provider.attestPeerHardwareRoot({ peerId, app: namespace, challenge, issuedAt });
+    if (!evidence || evidence.peerId !== peerId || evidence.app !== namespace ||
+        evidence.challenge !== challenge || !/^[a-f0-9]{64}$/.test(String(evidence.hardwareRootCid || '')) ||
+        !Number.isSafeInteger(evidence.issuedAt) || Math.abs(evidence.issuedAt - issuedAt) > 5000 ||
+        !Number.isSafeInteger(evidence.expiresAt) || evidence.expiresAt <= now() ||
+        evidence.expiresAt > issuedAt + 60000 ||
+        await provider.verifyHardwareRoot(evidence, { peerId, app: namespace, challenge, now: now() }) !== true) {
+      throw new Error('peer hardware-root attestation is invalid, stale, or not bound to the live challenge; startup refused');
+    }
+    const domain = await provider.getHardwareFailureDomain(evidence, { peerId, app: namespace });
+    if (typeof domain !== 'string' || !domain.trim() || domain.length > 256) {
+      throw new Error('hardware-root provider did not return a verified physical failure-domain identity');
+    }
+    domains[peerId] = 'hardware-root:' + domain.trim();
+  }
+  return Object.freeze(domains);
 }
 
 async function loadDurabilityReceiptVerifier() {
@@ -107,10 +137,10 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
   const peerTrustProvider = await loadPeerTrustProvider();
+  const failureDomainsByPeerId = await attestConfiguredPeerRoots({ peers, namespace, provider: peerTrustProvider });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, replicaCount, minFailureDomains, verifyDurabilityReceipt,
-    ...peerTrustProvider,
-    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
+    ...peerTrustProvider, failureDomainsByPeerId
   });
   // This read requires verified responses from the configured replica quorum.
   await store.listRefs();
@@ -145,11 +175,12 @@ export async function startPeerCasRuntime({ peerNode }) {
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
   const peerTrustProvider = await loadPeerTrustProvider();
+  const failureDomainsByPeerId = await attestConfiguredPeerRoots({ peers, namespace, provider: peerTrustProvider });
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt, ...peerTrustProvider,
     replicaCount: Number(process.env.APEX_PEER_CAS_REPLICAS || 2),
     minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
-    failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
+    failureDomainsByPeerId
   });
   const allowed = new Set(required('APEX_PEER_CAS_ALLOWED_MODELS').split(';').map(x => x.trim()).filter(Boolean));
   if (!allowed.size || [...allowed].some(x => !/^[A-Za-z0-9._-]{1,128}@[A-Za-z0-9._-]{1,128}$/.test(x))) {
