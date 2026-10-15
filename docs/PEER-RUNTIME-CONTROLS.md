@@ -6,6 +6,7 @@ This document records implementation status, not a sovereignty or production-rea
 
 - Per-app bridge credentials and six distinct app-scoped peer CAS instances.
 - CAS conflict handling that distinguishes a conflict from replica failure.
+- Bounded concurrent immutable-object replication with a configurable write concurrency ceiling; writes still count only verified durability receipts toward the configured quorum.
 - Encrypted immutable peer objects, verified replica receipts, bounded TTL/LRU RAM cache, and chunked binary manifests with end-to-end SHA-256 verification.
 - Parallel immutable-object reads and bounded parallel chunk assembly.
 - PeerContentAddressedStore.reconcileObject(cid) verifies source replicas and attempts to restore missing replicas without accepting unverified bytes.
