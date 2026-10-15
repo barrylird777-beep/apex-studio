@@ -10,13 +10,15 @@ const KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,511}$/;
  * mutable; callers cannot mutate the bytes held by this cache.
  */
 export class LocalCasFastPath {
-  constructor({ maxBytes = 8 * 1024 * 1024, ttlMs = 30_000, maxHeads = 4096, now = Date.now } = {}) {
+  constructor({ maxBytes = 8 * 1024 * 1024, ttlMs = 30_000, maxObjects = 4096, maxHeads = 4096, now = Date.now } = {}) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new TypeError('maxBytes must be a nonnegative safe integer');
     if (!Number.isSafeInteger(ttlMs) || ttlMs < 1) throw new TypeError('ttlMs must be a positive safe integer');
+    if (!Number.isSafeInteger(maxObjects) || maxObjects < 1) throw new TypeError('maxObjects must be a positive safe integer');
     if (!Number.isSafeInteger(maxHeads) || maxHeads < 1) throw new TypeError('maxHeads must be a positive safe integer');
     if (typeof now !== 'function') throw new TypeError('now must be a function');
     this.maxBytes = maxBytes;
     this.ttlMs = ttlMs;
+    this.maxObjects = maxObjects;
     this.maxHeads = maxHeads;
     this.now = now;
     this.objects = new Map();
@@ -45,7 +47,7 @@ export class LocalCasFastPath {
     }
     this.objects.set(cid, { bytes, expiresAt: this.now() + this.ttlMs });
     this.objectBytes += bytes.length;
-    while (this.objectBytes > this.maxBytes) this.evictOldestObject();
+    while (this.objectBytes > this.maxBytes || this.objects.size > this.maxObjects) this.evictOldestObject();
     return { cid, bytes: bytes.length, cached: this.objects.has(cid) };
   }
 
@@ -116,6 +118,7 @@ export class LocalCasFastPath {
       headCount: this.heads.size,
       maxBytes: this.maxBytes,
       ttlMs: this.ttlMs,
+      maxObjects: this.maxObjects,
       maxHeads: this.maxHeads
     };
   }
