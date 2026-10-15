@@ -21,6 +21,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Synchronous in-memory CID index and atomic pointer swap primitive integrated only beneath the disposable verified-object cache; it never substitutes for distributed CAS or peer durability.
 - [x] Local CAS microbenchmark command added; measured numbers are not release evidence until run on the candidate environment and reported with the runtime context.
 - [x] Parallel peer reads for immutable objects and bounded concurrent chunk assembly.
+- [x] Mutable-reference reads and listings require the configured verified replica count and independent failure-domain quorum; they fail closed when the read quorum is unavailable.
 - [x] Rarest-first planning and `getBlob` source selection use fresh, signature-verified advertisements; live multi-peer advertisement gossip and production source-selection proof remain open.
 - [x] Bounded pull-based repair loop and replica reconciliation are implemented; peer-loss convergence remains unverified in a live mesh.
 - [x] Runtime now requires fresh challenge-bound hardware-root evidence for every configured peer and derives failure-domain labels from the verifier provider; production remains blocked until a real platform-backed provider is configured and its evidence is validated.
