@@ -21,9 +21,43 @@ async function withRefLock(lockPath, operation, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   let acquired = false;
   while (!acquired) {
-    try { await mkdir(lockPath, { mode: 0o700 }); acquired = true; }
-    catch (error) {
+    try {
+      await mkdir(lockPath, { mode: 0o700 });
+      acquired = true;
+      const owner = await open(path.join(lockPath, 'owner.cbor'), 'wx', 0o600);
+      try {
+        await owner.writeFile(encodeCanonical({ pid: process.pid, createdAt: Date.now() }));
+        await owner.sync();
+      } finally { await owner.close(); }
+    } catch (error) {
+      if (acquired) {
+        await rm(lockPath, { recursive: true, force: true });
+        throw error;
+      }
       if (error.code !== 'EEXIST') throw error;
+      let stale = false;
+      try {
+        const info = await lstat(lockPath);
+        try {
+          const owner = decodeCanonical(await readFile(path.join(lockPath, 'owner.cbor')));
+          if (!Number.isSafeInteger(owner.pid) || owner.pid < 1) stale = Date.now() - info.mtimeMs > 10000;
+          else {
+            try { process.kill(owner.pid, 0); }
+            catch (probeError) { if (probeError.code === 'ESRCH') stale = true; }
+          }
+        } catch (ownerError) {
+          if (ownerError.code === 'ENOENT' || ownerError instanceof Error) {
+            stale = Date.now() - info.mtimeMs > 10000;
+          }
+        }
+      } catch (statError) {
+        if (statError.code === 'ENOENT') continue;
+        throw statError;
+      }
+      if (stale) {
+        await rm(lockPath, { recursive: true, force: true });
+        continue;
+      }
       if (Date.now() >= deadline) throw new Error('reference lock timed out; refusing non-atomic update');
       await wait(5 + Math.floor(Math.random() * 15));
     }
