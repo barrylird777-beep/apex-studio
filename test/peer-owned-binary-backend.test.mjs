@@ -45,6 +45,42 @@ test('peer-owned binary backend survives backend re-instantiation and verifies C
   }), true);
 });
 
+test('durable CAS commit decision survives backend restart and rolls the reference forward', async t => {
+  const { options, backend } = await fixture(t);
+  const bytes = encodeCanonical({ value: 'recover-after-decision' });
+  const proposedHash = hash(bytes);
+  const transactionId = 'restart-recovery-transaction-1';
+  const participants = ['peer-owner', 'peer-other'];
+  await backend.prepareRef({
+    transactionId, namespace: 'PlanetApeX', key: 'recovery-ref',
+    expectedHash: null, hash: proposedHash, bytes, participants
+  });
+  await backend.decideRefCommit(transactionId, participants);
+
+  const restarted = await createPeerOwnedBinaryBackend(options);
+  assert.equal((await restarted.getRefTransaction(transactionId)).state, 'commit-decided');
+  const committed = await restarted.commitPreparedRef(transactionId);
+  assert.equal(committed.state, 'committed');
+  assert.deepEqual(await restarted.readRef('PlanetApeX', 'recovery-ref'), { hash: proposedHash, bytes });
+  assert.equal((await restarted.getRefTransaction(transactionId)).state, 'committed');
+});
+
+test('durable CAS refuses abort after a commit decision and allows idempotent commit replay', async t => {
+  const { backend } = await fixture(t);
+  const bytes = encodeCanonical({ value: 'decision-is-irreversible' });
+  const proposedHash = hash(bytes);
+  const transactionId = 'irreversible-decision-1';
+  const participants = ['peer-owner'];
+  await backend.prepareRef({
+    transactionId, namespace: 'PlanetApeX', key: 'decision-ref',
+    expectedHash: null, hash: proposedHash, bytes, participants
+  });
+  await backend.decideRefCommit(transactionId, participants);
+  await assert.rejects(backend.abortPreparedRef(transactionId), /cannot abort/);
+  assert.equal((await backend.commitPreparedRef(transactionId)).state, 'committed');
+  assert.equal((await backend.commitPreparedRef(transactionId)).state, 'committed');
+});
+
 test('concurrent reference compare-and-swap allows exactly one writer', async t => {
   const { backend } = await fixture(t);
   const a = encodeCanonical({ value: 'writer-a' }), b = encodeCanonical({ value: 'writer-b' });
