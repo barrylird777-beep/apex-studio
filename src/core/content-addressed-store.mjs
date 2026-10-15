@@ -61,6 +61,7 @@ export class ContentAddressedStore {
   }
 
   async putObject(value) {
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] Filesystem CAS writes are disabled; use verified peer-only persistence.");
     await this.init();
     const bytes = canonical(value);
     const digest = hash(bytes);
@@ -155,6 +156,7 @@ export class ContentAddressedStore {
   }
 
   async writeRef(namespace, key, value, { expectedHash = undefined } = {}) {
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] Filesystem CAS reference writes are disabled; use verified peer-only persistence.");
     await this.init();
     const file = this.refPath(namespace, key);
     return this.withRefLock(file, async () => {
@@ -210,6 +212,7 @@ export class ContentAddressedStore {
   }
 
   async deleteRef(namespace, key, { expectedHash = undefined } = {}) {
+    throw new Error("[NONCOMPLIANT_STORAGE_DISABLED] Filesystem CAS reference deletes are disabled; use verified peer-only persistence.");
     await this.init();
     const file = this.refPath(namespace, key);
     return this.withRefLock(file, async () => {
