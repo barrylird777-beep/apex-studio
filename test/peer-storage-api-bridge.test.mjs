@@ -190,3 +190,70 @@ test('API client chunks and verifies large binary assets through peer bridge', a
     await rm(socketPath, { force: true }).catch(() => {});
   }
 });
+
+
+import { generateKeyPairSync } from 'node:crypto';
+import {
+  createAccessTensor, evaluateAccessTensor, verifyAccessTensor,
+  planRarestFirstChunks, ConnectionTrustSessions,
+  createSignedHeartbeat, verifySignedHeartbeat
+} from '../src/core/peer-runtime-controls.mjs';
+
+const testCid = value => String(value).padStart(64, '0').slice(-64);
+
+test('access tensor is CID-bound, deny-by-default, and quota bounded', () => {
+  const { tensor, cid } = createAccessTensor({
+    version: 1,
+    rules: [{ app: 'KernelVision', action: 'read', path: 'assets', allow: true }],
+    quotas: { KernelVision: { maxConcurrentJobs: 2 } }
+  });
+  assert.equal(verifyAccessTensor(tensor, cid), true);
+  assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'read', path: 'assets/abc', expectedCid: cid }).allowed, true);
+  assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'write', path: 'assets/abc', expectedCid: cid }).allowed, false);
+  assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'read', path: 'assets/abc', usage: { concurrentJobs: 3 }, expectedCid: cid }).reason, 'quota-exceeded');
+  assert.equal(verifyAccessTensor(tensor, testCid('1')), false);
+});
+
+test('rarest-first planning ranks scarce CIDs and does not mix app advertisements', () => {
+  const rare = testCid('1'), common = testCid('2'), absent = testCid('3');
+  const ads = [
+    { kind: 'apex.peer-capabilities.v1', payload: { app: 'KernelVision', peerId: 'peer-a', cids: [rare, common] } },
+    { kind: 'apex.peer-capabilities.v1', payload: { app: 'KernelVision', peerId: 'peer-b', cids: [common] } },
+    { kind: 'apex.peer-capabilities.v1', payload: { app: 'XShield', peerId: 'peer-c', cids: [absent] } }
+  ];
+  const plan = planRarestFirstChunks([{ hash: common }, { hash: absent }, { hash: rare }], ads, { app: 'KernelVision' });
+  assert.deepEqual(plan.map(item => item.cid), [absent, rare, common]);
+  assert.equal(plan[0].availablePeerCount, 0);
+  assert.deepEqual(plan[1].sourcePeers, ['peer-a']);
+  assert.deepEqual(plan[2].sourcePeers, ['peer-a', 'peer-b']);
+});
+
+test('connection trust elevation consumes a challenge and revokes on close or credential rotation', async () => {
+  const trust = new ConnectionTrustSessions();
+  const connection = { closed: false, listeners: new Map(), once(event, callback) { this.listeners.set(event, callback); } };
+  const fingerprint = 'credential-fingerprint-v1';
+  const challenge = trust.createChallenge(connection, fingerprint);
+  const attestation = { challenge, hardwareRootCid: testCid('9'), createdAt: Date.now() };
+  await trust.elevate(connection, {
+    credentialFingerprint: fingerprint, attestation,
+    verifyCredential: async (_connection, input) => input.credentialFingerprint === fingerprint,
+    verifyAttestation: async (proof, _connection, context) => proof.challenge === context.challenge
+  });
+  assert.equal(trust.isElevated(connection, fingerprint), true);
+  assert.equal(trust.isElevated(connection, 'credential-rotated'), false);
+  connection.listeners.get('close')();
+  assert.equal(trust.isElevated(connection, fingerprint), false);
+  await assert.rejects(trust.elevate(connection, {
+    credentialFingerprint: fingerprint, attestation,
+    verifyCredential: async () => true, verifyAttestation: async () => true
+  }), /failed closed/);
+});
+
+test('signed heartbeat requires the expected peer and hardware-root verifier', async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const heartbeat = createSignedHeartbeat({ peerId: 'peer-a', hardwareRootCid: testCid('7'), privateKey });
+  const verifyHardwareRoot = async ({ peerId, hardwareRootCid }) => peerId === 'peer-a' && hardwareRootCid === testCid('7');
+  assert.equal(await verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-a', verifyHardwareRoot }), true);
+  assert.equal(await verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-b', verifyHardwareRoot }), false);
+  assert.equal(await verifySignedHeartbeat(heartbeat, { publicKey, expectedPeerId: 'peer-a' }), false);
+});
