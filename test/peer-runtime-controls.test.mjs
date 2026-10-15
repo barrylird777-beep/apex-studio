@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import {
-  createAccessTensor, evaluateAccessTensor, mintCapability, verifyCapability,
+  createAccessTensor, evaluateAccessTensor, verifyAccessTensor, mintCapability, verifyCapability,
   createSignedHeartbeat, verifySignedHeartbeat, createCapabilityAdvertisement,
   verifyCapabilityAdvertisement, ConnectionTrustSessions, publishAccessTensor, planRarestFirstChunks, CapabilityReplayGuard
 } from '../src/core/peer-runtime-controls.mjs';
@@ -18,7 +18,7 @@ test('access tensors default deny, enforce path specificity, and apply per-app q
     ],
     quotas: { KernelVision: { maxConcurrentJobs: 2 } }
   });
-  assert.match(cid, /^[a-f0-9]{64}$/);
+  assert.match(cid, /^[a-f0-9]{64}$/);\n  assert.equal(verifyAccessTensor(tensor, cid), true);\n  assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'read', path: 'assets/clip', expectedCid: '0'.repeat(64) }).allowed, false);
   assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'read', path: 'assets/clip' }).allowed, true);
   assert.equal(evaluateAccessTensor(tensor, { app: 'KernelVision', action: 'read', path: 'assets/private/clip' }).allowed, false);
   assert.equal(evaluateAccessTensor(tensor, { app: 'XShield', action: 'read', path: 'assets/clip' }).allowed, false);
