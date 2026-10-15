@@ -465,10 +465,13 @@ export class PeerContentAddressedStore {
           await this.request(item.peerId, { protocol: 'apex.cas.v1', operation: 'ref.abort', namespace: this.namespace, transactionId });
         } catch (error) { abortFailures.push({ peerId: item.peerId, error: error instanceof Error ? error.message : String(error) }); }
       }
-      const error = new Error('distributed CAS did not prepare on every participant; no commit decision was intentionally issued');
       const cleanConflict = prepared.length === 0 && failures.length > 0 &&
         failures.every(failure => failure.code === 'REFERENCE_CONFLICT');
-      error.code = abortFailures.length ? 'TRANSACTION_RECOVERY_REQUIRED' : cleanConflict ? 'CAS_CONFLICT' : 'PREPARE_INCOMPLETE';
+      const uncertainPrepare = failures.some(failure => failure.code !== 'REFERENCE_CONFLICT');
+      const error = new Error(uncertainPrepare
+        ? 'distributed CAS did not confirm prepare on every participant; at least one prepare outcome may be unknown, so recovery is required'
+        : 'distributed CAS prepare was rejected by a conflicting reference head');
+      error.code = abortFailures.length || uncertainPrepare ? 'TRANSACTION_RECOVERY_REQUIRED' : cleanConflict ? 'CAS_CONFLICT' : 'PREPARE_INCOMPLETE';
       error.transactionId = transactionId;
       error.preparedPeers = prepared.map(item => item.peerId);
       error.failures = failures;
