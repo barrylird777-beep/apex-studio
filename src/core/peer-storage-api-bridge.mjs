@@ -68,7 +68,8 @@ export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/
           break;
         case 'writeRef':
           if (!safeKey(args.namespace) || !safeKey(args.key) || !Object.hasOwn(args, 'value')) return send(400, { error: 'invalid reference write' });
-          result = await cas.writeRef(args.namespace, args.key, args.value, { expectedHash: args.expectedHash ?? null });
+          result = await cas.writeRef(args.namespace, args.key, args.value,
+            Object.hasOwn(args, 'expectedHash') ? { expectedHash: args.expectedHash } : {});
           break;
         case 'listRefs':
           if (!safeKey(args.namespace)) return send(400, { error: 'invalid reference namespace' });
