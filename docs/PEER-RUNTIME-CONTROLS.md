@@ -20,11 +20,11 @@ This document records implementation status, not a sovereignty or production-rea
 ## Not yet launch-verified
 
 - The access-tensor evaluator and capability verifier are security primitives; the full runtime still needs to route every state, asset, job, and credential operation through the active tensor policy and trusted capability verifier.
-- The signed heartbeat and capability-advertisement helpers are not yet a complete libp2p gossip protocol. The rarest-first planner is not yet wired into the asset client's live source-selection path.
+- The signed heartbeat and capability-advertisement helpers are not yet a complete libp2p gossip protocol. The rarest-first planner is wired into `PeerContentAddressedStore.getBlob` when a provider supplies fresh, signature-verified advertisements; live decentralized advertisement exchange and end-to-end source-selection proof remain open.
 - Hardware-root attestation is not established merely by a peer ID, certificate, environment label, or hardwareRootCid field. A platform-backed verifier must validate fresh signed hardware evidence and bind it to the live peer connection and app credential.
 - Connection trust elevation must be wired to the transport's actual connection lifecycle and credential rotation events before repeated authentication can be skipped safely.
 - Automatic repair depends on each peer being able to enumerate referenced CIDs and still reach enough verified replicas. The loop fails closed and reports repair errors; it cannot restore data when no valid source survives.
-- Rarest-first retrieval, erasure coding, speculative prefetch, resource-budget enforcement, Byzantine fault measurements, sub-millisecond latency, and zero-filesystem-write-after-restart still require dedicated integrated tests and measured evidence.
+- Rarest-first retrieval still needs an integrated source-selection regression against multiple independently controlled peers. Erasure coding, speculative prefetch, resource-budget enforcement, Byzantine fault measurements, sub-millisecond latency, and zero-filesystem-write-after-restart still require implementation and/or measured evidence.
 - No live six-app restart/peer-loss proof is implied by unit tests. The PR must remain draft until current-head CI passes and independent live peers prove replica receipts, app isolation, recovery, and absence of persistent local fallback.
 
 ## Non-negotiable behavior
