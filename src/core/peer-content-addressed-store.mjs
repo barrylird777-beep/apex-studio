@@ -619,34 +619,28 @@ export class PeerContentAddressedStore {
    * Opportunistically warm the disposable RAM cache for explicitly referenced CIDs.
    * This never changes references, creates durable claims, or falls back to disk.
    */
-  async prefetchCids(cids, { maxCids = 8, maxBytes = 64 * 1024, concurrency = 2 } = {}) {
+  async prefetchCids(cids, { maxCids = 8, maxBytes = 64 * 1024 } = {}) {
     if (!Array.isArray(cids)) throw new TypeError('prefetch CIDs must be an array');
     if (!Number.isSafeInteger(maxCids) || maxCids < 0 || maxCids > 32 ||
-        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 1024 * 1024 ||
-        !Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 4) {
+        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 1024 * 1024) {
       throw new TypeError('prefetch limits are outside the safe bounds');
     }
     const unique = [...new Set(cids.map(String).filter(cid => /^[a-f0-9]{64}$/.test(cid)))].slice(0, maxCids);
     const result = { requested: unique.length, cached: 0, skipped: 0, bytes: 0, failures: 0 };
-    let next = 0;
     let budget = maxBytes;
-    const worker = async () => {
-      while (next < unique.length) {
-        const cid = unique[next++];
-        if (budget <= 0) { result.skipped++; continue; }
-        try {
-          const value = await this.getObject(cid);
-          const size = encodeCanonical(value).length;
-          if (size > budget) { result.skipped++; continue; }
-          budget -= size;
-          result.bytes += size;
-          result.cached++;
-        } catch {
-          result.failures++;
-        }
+    for (const cid of unique) {
+      if (budget <= 0) { result.skipped++; continue; }
+      try {
+        const value = await this.getObject(cid, { maxCacheObjectBytes: budget });
+        const size = encodeCanonical(value).length;
+        if (size > budget) { result.skipped++; continue; }
+        budget -= size;
+        result.bytes += size;
+        result.cached++;
+      } catch {
+        result.failures++;
       }
-    };
-    await Promise.all(Array.from({ length: Math.min(concurrency, unique.length) }, worker));
+    }
     return Object.freeze(result);
   }
 
@@ -681,7 +675,7 @@ export class PeerContentAddressedStore {
       bytes: stats.objectBytes, ttlMs: this.cacheTtlMs, maxBytes: this.cacheMaxBytes });
   }
 
-  async getObjectFromPeer(hash, peerId) {
+  async getObjectFromPeer(hash, peerId, { maxCacheObjectBytes = Infinity } = {}) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
     if (!this.peers.includes(peerId)) throw new Error('peer is not in the configured storage set');
     const response = await this.request(peerId, {
@@ -695,11 +689,11 @@ export class PeerContentAddressedStore {
       throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
     }
     const value = this.decrypt(decodeCanonical(bytes));
-    this.cacheSet(hash, bytes);
+    if (encodeCanonical(value).length <= maxCacheObjectBytes) this.cacheSet(hash, bytes);
     return value;
   }
 
-  async getObject(hash) {
+  async getObject(hash, { maxCacheObjectBytes = Infinity } = {}) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
     const cached = this.cacheGet(hash);
     if (cached) return this.decrypt(decodeCanonical(cached));
@@ -714,7 +708,7 @@ export class PeerContentAddressedStore {
         if (index >= this.peers.length) throw new Error('no untried peers remain');
         const peerId = this.peers[index];
         try {
-          const value = await this.getObjectFromPeer(hash, peerId);
+          const value = await this.getObjectFromPeer(hash, peerId, { maxCacheObjectBytes });
           if (!won) {
             won = true;
             return value;
