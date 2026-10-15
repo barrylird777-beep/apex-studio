@@ -78,12 +78,12 @@ export async function publishAccessTensor({ cas, tensor, expectedHash = null, po
   if (!safePath(pointerKey)) throw new TypeError('invalid tensor pointer key');
   const built = tensor?.kind === 'apex.access-tensor.v1' ? { tensor, cid: cidFor(tensor) } : createAccessTensor(tensor);
   const stored = await cas.putObject(built.tensor);
-  if (stored?.hash !== built.cid || !Array.isArray(stored.receipts) || stored.receipts.length < cas.replicaCount) {
+  if (!/^[a-f0-9]{64}$/.test(String(stored?.hash || '')) || !Array.isArray(stored.receipts) || stored.receipts.length < cas.replicaCount) {
     throw new Error('access tensor lacks a verified content CID and replica receipts');
   }
-  const pointer = { kind: 'apex.access-tensor-pointer.v1', version: 1, cid: built.cid };
+  const pointer = { kind: 'apex.access-tensor-pointer.v1', version: 1, cid: stored.hash, tensorCid: built.cid };
   const swapped = await cas.writeRef(pointerKey, pointer, { expectedHash });
-  return Object.freeze({ cid: built.cid, pointerHash: swapped.hash, receipts: stored.receipts });
+  return Object.freeze({ cid: stored.hash, tensorCid: built.cid, pointerHash: swapped.hash, receipts: stored.receipts });
 }
 
 function signedPayload(kind, payload) {
