@@ -77,7 +77,7 @@ export async function saveProjectAssetFromFile(type, sourcePath, extension) {
 
 export async function saveProjectAsset(type, buffer, extension) {
   const assetType = safePart(type, "type");
-  const ext = safePart(String(extension ?? "").replace(/^\\./, ""), "extension").toLowerCase();
+  const ext = safePart(String(extension ?? "").replace(/^\./, ""), "extension").toLowerCase();
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   if (!bytes.length) throw new TypeError("Project asset cannot be empty");
   const client = peerAssetClient();
@@ -100,7 +100,7 @@ export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata 
   const sceneKey = safePart(sceneId, "sceneId");
   const assetKind = safePart(kind, "asset kind");
   if (!["image", "video", "audio"].includes(assetKind)) throw new TypeError("Unsupported scene asset kind");
-  const ext = safePart(String(extension ?? "").replace(/^\\./, ""), "extension").toLowerCase();
+  const ext = safePart(String(extension ?? "").replace(/^\./, ""), "extension").toLowerCase();
   if (!["png", "jpg", "jpeg", "webp", "mp4", "wav", "mp3", "m4a", "aac"].includes(ext)) throw new TypeError("Unsupported scene asset extension");
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   if (!bytes.length) throw new TypeError("Scene asset cannot be empty");
@@ -183,7 +183,7 @@ export async function streamAssetToStorage(readableStream, episodeId, assetName,
   if (!bytes) throw new Error("cannot persist an empty peer asset");
   const payload = Buffer.concat(chunks, bytes);
   const digest = hash.digest("hex");
-  const extension = path.extname(asset).replace(/^\\./, "") || "bin";
+  const extension = path.extname(asset).replace(/^\./, "") || "bin";
   const record = await saveProjectAsset("episode-" + episode + "-" + path.basename(asset, path.extname(asset)), payload, extension);
   const elapsedMs = Math.max(0.001, performance.now() - startedAt);
   const averageMbps = (bytes * 8) / (elapsedMs / 1000) / 1e6;
