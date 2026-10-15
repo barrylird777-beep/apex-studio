@@ -5,12 +5,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { verifyRemotePersistenceProbe } from './runtime-readiness.mjs';
 import SovereignMeshEngine, { verifySovereignRecord } from './sovereign-mesh-engine.mjs';
 import { PeerMeshCasAdapter } from './peer-mesh-cas-adapter.mjs';
-import { apexPureStore } from './apex-pure-store.mjs';
 import { createSovereignDurableBridge } from './sovereign-durable-bridge.mjs';
 import { createSovereignPeer, sendToPeer } from '../network/sovereign-peer.mjs';
 import { createApexEdgeNode } from '../network/apex-edge-node.mjs';
 import { drainSovereignAppDispatchQueue } from './sovereign-app-dispatch-queue.mjs';
-import { sovereignAppFabric } from './sovereign-app-fabric.mjs';
+import { createSovereignAppFabric } from './sovereign-app-fabric.mjs';
 import { buildPublicPeerAddress } from '../network/public-peer-address.mjs';
 import { acknowledgeLocalPeerReceive, acknowledgePendingLocalPeerReceives } from './sovereign-peer-receipts.mjs';
 import { readSovereignPeerReplica } from './sovereign-peer-replica.mjs';
@@ -23,6 +22,8 @@ const peerAddress = process.env.APEX_SOVEREIGN_PEER_ADDRESS || '';
 const smokeTestWaveId = String(process.env.APEX_PEER_SMOKE_TEST_WAVE_ID || '').trim();
 
 let engine;
+let meshStateStore;
+let meshAppFabric;
 let peerNode;
 let edgeNode;
 let stopping = false;
@@ -58,7 +59,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   }
 
   const receiptId = String(envelope.waveId);
-  const existing = await apexPureStore.get('sovereign_peer_receipts', receiptId);
+  const existing = await meshStateStore.get('sovereign_peer_receipts', receiptId);
   if (existing && existing.checksum !== envelope.checksum) {
     throw new Error('conflicting peer receipt checksum for wave');
   }
@@ -67,7 +68,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   const appId = String(record.payload?.appId || '');
   if (appId) {
     const recordId = 'peer-' + createHash('sha256').update(receiptId).digest('hex');
-    await sovereignAppFabric.put(appId, recordId, {
+    await meshAppFabric.put(appId, recordId, {
       waveId: receiptId,
       action: String(record.action || 'app.publish'),
       data: record.payload?.data ?? record.payload,
@@ -79,7 +80,7 @@ async function acceptPeerEnvelope(envelope, { remotePeerId = '' } = {}) {
   }
 
   if (!existing) {
-    await apexPureStore.put('sovereign_peer_receipts', receiptId, {
+    await meshStateStore.put('sovereign_peer_receipts', receiptId, {
       waveId: receiptId,
       originPeerId: String(record.peerId),
       transportPeerId: remotePeerId,
@@ -197,6 +198,8 @@ async function main() {
   // Construct the mesh only after the live peer and required app-scoped quorum are verified.
   const meshCasRuntime = await createPeerMeshCasRuntime({ peerNode });
   const meshCas = new PeerMeshCasAdapter({ store: meshCasRuntime.store, appNamespace: meshCasRuntime.namespace });
+  meshStateStore = meshCas;
+  meshAppFabric = createSovereignAppFabric({ store: meshStateStore });
   engine = new SovereignMeshEngine({ cas: meshCas });
   await engine.ready();
   runtimeReadiness.storageReady = true;
@@ -238,7 +241,7 @@ async function main() {
 
   bridge = createSovereignDurableBridge({
     engine,
-    store: apexPureStore,
+    store: meshStateStore,
     workerId,
     peerNode,
     peerAddress,
@@ -306,7 +309,7 @@ async function publishRuntimeIdentity(status = 'online') {
     ready: runtimeReadiness.storageReady && runtimeReadiness.peerReady && runtimeReadiness.remotePersistenceVerified && runtimeReadiness.peerStorageVerified && runtimeReadiness.dispatchReady
   };
   const effectiveStatus = status === 'offline' ? 'offline' : readiness.ready ? 'online' : 'starting';
-  await apexPureStore.put('sovereign_runtime', 'identity', {
+  await meshStateStore.put('sovereign_runtime', 'identity', {
     status: effectiveStatus,
     instanceId: process.env.APEX_RUNTIME_INSTANCE_ID || null,
     readiness,
@@ -330,7 +333,7 @@ async function runCycle(activeBridge) {
   }
   await publishRuntimeIdentity('online');
   const queued = await drainSovereignAppDispatchQueue({
-    store: apexPureStore,
+    store: meshStateStore,
     engine,
     peerId: peerNode.peerId.toString(),
     workerId,
