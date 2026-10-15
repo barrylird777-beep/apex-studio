@@ -144,8 +144,9 @@ export async function startPeerCasRuntime({ peerNode }) {
   const peers = Object.keys(addressesByPeerId);
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const verifyDurabilityReceipt = await loadDurabilityReceiptVerifier();
+  const peerTrustProvider = await loadPeerTrustProvider();
   const store = new PeerContentAddressedStore({
-    transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt,
+    transport, peers, namespace, encryptionKey: key, verifyDurabilityReceipt, ...peerTrustProvider,
     replicaCount: Number(process.env.APEX_PEER_CAS_REPLICAS || 2),
     minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
     failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
