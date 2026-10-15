@@ -382,12 +382,11 @@ export class PeerContentAddressedStore {
     failures.push(...outcomes.filter(item => item.error).map(item => ({
       peerId: item.peerId, error: item.error instanceof Error ? item.error.message : String(item.error)
     })));
-    const domains = new Set(verified.map(item => this.failureDomainsByPeerId[item.peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
-    if (verified.length < this.replicaCount || domains.size < this.minFailureDomains) {
-      const error = new Error('immutable object read did not reach configured verified replica quorum');
-      error.code = 'INSUFFICIENT_REPLICAS';
-      error.requiredReplicas = this.replicaCount;
-      error.verifiedReplicas = verified.length;
+    if (verified.length === 0) {
+      const error = new Error('immutable object was not recoverable from any verified peer');
+      error.code = 'OBJECT_UNAVAILABLE';
+      error.requiredReplicas = 1;
+      error.verifiedReplicas = 0;
       error.failures = failures;
       throw error;
     }
