@@ -26,14 +26,14 @@ export function createLibp2pPeerStorageTransport({ node, addressesByPeerId, send
   }
 
   return Object.freeze({
-    async request(peerIdRaw, envelope) {
+    async request(peerIdRaw, envelope, { signal } = {}) {
       const peerId = String(peerIdRaw || '');
       const address = addresses.get(peerId);
       if (!address) throw new Error('peer storage target is not explicitly configured');
       if (!envelope || envelope.protocol !== 'apex.cas.v1') {
         throw new Error('unsupported peer storage protocol');
       }
-      const response = await send(node, address, envelope);
+      const response = await send(node, address, envelope, { signal });
       if (!response || response.accepted !== true || response.peerId !== peerId) {
         throw new Error('peer storage transport returned an unexpected authenticated identity');
       }
