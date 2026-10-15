@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import http from 'node:http';
 import { createPeerStorageApiBridge, APEX_APPS } from '../src/core/peer-storage-api-bridge.mjs';
