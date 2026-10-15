@@ -4,9 +4,15 @@ on:
     paths:
       - "src/core/peer-storage-api-bridge.mjs"
       - "src/core/peer-storage-api-client.mjs"
+      - "src/core/local-cas-fast-path.mjs"
+      - "test/local-cas-fast-path.test.mjs"
+      - "package.json"
       - "src/core/content-addressed-store.mjs"
       - "src/core/autonomous-swarm-daemon.mjs"
       - "src/core/peer-content-addressed-store.mjs"
+      - "src/core/local-cas-fast-path.mjs"
+      - "test/local-cas-fast-path.test.mjs"
+      - "package.json"
       - "src/core/peer-runtime-controls.mjs"
       - "src/core/peer-runtime-launch-gates.mjs"
       - "src/core/content-addressed-store.mjs"
@@ -70,6 +76,7 @@ jobs:
           node --check src/core/content-addressed-store.mjs &&
           node --check src/core/autonomous-swarm-daemon.mjs &&
           node --check src/core/peer-content-addressed-store.mjs &&
+          node --check src/core/local-cas-fast-path.mjs &&
           node --check src/core/peer-runtime-controls.mjs &&
           node --check src/core/peer-mesh-cas-adapter.mjs &&
           node --check src/core/peer-cas-runtime.mjs &&
@@ -84,6 +91,8 @@ jobs:
           node --check test/sovereign-pure-wal-bridge.test.mjs &&
           node --check test/schedule-api.smoke.mjs &&
           node --check test/peer-content-addressed-store.test.mjs
+      - name: Test local CAS fast path invariants
+        run: node --test test/local-cas-fast-path.test.mjs
       - name: Test bridge authentication and app isolation
         run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-content-addressed-store.test.mjs test/peer-runtime-launch-gates.test.mjs
       - name: Test signed runtime controls and access tensors
