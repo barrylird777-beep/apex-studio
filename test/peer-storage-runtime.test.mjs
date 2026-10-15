@@ -86,6 +86,7 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     namespaceAcl: 'PlanetApeX=writer-peer',
     peerId: () => 'storage-peer'
   });
+  assert.equal(Object.hasOwn(runtime, 'store'), false, 'the orchestrator must not receive the backend capability');
   const client = new PeerContentAddressedStore({
     transport: { request: async (_peerId, envelope) => runtime.handle(envelope, { remotePeerId: 'writer-peer' }) },
     peers: ['storage-peer'],
