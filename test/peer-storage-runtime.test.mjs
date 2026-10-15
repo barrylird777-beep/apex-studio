@@ -121,16 +121,22 @@ test('six-app namespace ACL allows only each app’s explicitly listed peer', as
   const store = binaryMemoryStore();
   store.readRef = async () => null;
   store.writeRef = async () => { throw new Error('not used by health ACL test'); };
-  store.health = async ({ namespace, peerId }) => ({
+  store.health = async ({ namespace, peerId, operation = 'storage.health', objectHash = null, key = null }) => ({
     durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
-    atomicReferencesVerified: true, peerId, namespace,
-    receipt: 'receipt:' + namespace, receiptId: 'receipt-id:' + namespace
+    atomicReferencesVerified: true, ...signedReceipt({ namespace, peerId, operation, objectHash, key })
   });
-  store.verifyDurabilityReceipt = async (receipt, claims) =>
-    receipt === 'receipt:' + claims.namespace &&
-    claims.peerId === 'storage-peer' &&
-    claims.restartRecoveryVerified === true &&
-    claims.atomicReferencesVerified === true;
+  store.verifyDurabilityReceipt = async (receipt, claims) => {
+    if (receipt?.algorithm !== 'Ed25519' || claims.peerId !== 'storage-peer' ||
+        claims.restartRecoveryVerified !== true || claims.atomicReferencesVerified !== true) return false;
+    try {
+      const body = Buffer.from(receipt.body, 'base64');
+      const { decodeCanonical } = await import('../src/core/apex-cbor.mjs');
+      const signed = decodeCanonical(body);
+      return body.toString('base64') === receipt.body &&
+        signed.peerId === claims.peerId && signed.namespace === claims.namespace &&
+        signed.operation === claims.operation && signed.objectHash === claims.objectHash && signed.key === claims.key;
+    } catch { return false; }
+  };
   const runtime = await initializePeerObjectStorage({
     enabled: true, store, namespaceAcl: acl, peerId: () => 'storage-peer'
   });
