@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import { decodeCanonical, encodeCanonical } from './apex-cbor.mjs';
 import { LocalCasFastPath } from './local-cas-fast-path.mjs';
 import { verifyCapabilityAdvertisement, planRarestFirstChunks } from './peer-runtime-controls.mjs';
@@ -17,7 +17,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), verifyDurabilityReceipt = null, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000 } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, namespace, encryptionKey, cacheTtlMs = 15000, cacheMaxBytes = 16 * 1024 * 1024, writeConcurrency = Number(process.env.APEX_PEER_CAS_WRITE_CONCURRENCY || 4), verifyDurabilityReceipt = null, getPeerAdvertisements = null, getPeerPublicKey = null, verifyHardwareRoot = null, advertisementMaxAgeMs = 60000, commitReference = null, verifyCommitCertificate = null, requireBftConsensus = false, membershipEpoch = Number(process.env.APEX_PEER_CAS_MEMBERSHIP_EPOCH || 0) } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -34,6 +34,15 @@ export class PeerContentAddressedStore {
     this.maxObjectBytes = Number(maxObjectBytes);
     this.writeConcurrency = Number(writeConcurrency);
     this.verifyDurabilityReceipt = verifyDurabilityReceipt;
+    this.commitReference = commitReference;
+    this.verifyCommitCertificate = verifyCommitCertificate;
+    this.requireBftConsensus = requireBftConsensus === true;
+    this.membershipEpoch = Number(membershipEpoch);
+    if (commitReference !== null && typeof commitReference !== 'function') throw new TypeError('commitReference must be a reviewed BFT CAS provider');
+    if (verifyCommitCertificate !== null && typeof verifyCommitCertificate !== 'function') throw new TypeError('verifyCommitCertificate must independently verify a BFT commit certificate');
+    if (this.requireBftConsensus && (!this.commitReference || !this.verifyCommitCertificate || !Number.isSafeInteger(this.membershipEpoch) || this.membershipEpoch < 1)) {
+      throw Object.assign(new Error('globally atomic reference writes are disabled until a BFT commit provider, certificate verifier, and membership epoch are configured'), { code: 'BFT_CONSENSUS_UNAVAILABLE' });
+    }
     if (verifyDurabilityReceipt !== null && typeof verifyDurabilityReceipt !== 'function') {
       throw new TypeError('verifyDurabilityReceipt must be an independent cryptographic verifier');
     }
@@ -805,6 +814,36 @@ export class PeerContentAddressedStore {
     const bytes = encodeCanonical(this.encrypt(value));
     if (bytes.length > this.maxObjectBytes) throw new Error('peer reference exceeds the safe single-envelope limit');
     const hash = sha256(bytes);
+    if (this.requireBftConsensus) {
+      const operationId = randomUUID();
+      const claims = Object.freeze({
+        protocol: 'apex.cas.commit.v1', operationId, membershipEpoch: this.membershipEpoch,
+        namespace: this.namespace, key, expectedHash, hash, bytes: bytes.length
+      });
+      const decision = await this.commitReference({ ...claims, bytesBase64: bytes.toString('base64') });
+      if (!decision || decision.committed !== true || decision.operationId !== operationId ||
+          decision.membershipEpoch !== this.membershipEpoch || decision.namespace !== this.namespace ||
+          decision.key !== key || decision.expectedHash !== expectedHash || decision.hash !== hash ||
+          !(await this.verifyCommitCertificate(decision.certificate, claims))) {
+        throw Object.assign(new Error('BFT CAS commit decision failed operation, epoch, proposal, or certificate verification'), { code: 'BFT_COMMIT_UNVERIFIED' });
+      }
+      const commitReceipts = Array.isArray(decision.receipts) ? decision.receipts : [];
+      const verifiedPeers = new Set();
+      for (const receipt of commitReceipts) {
+        if (!receipt || !this.peers.includes(receipt.peerId) || receipt.namespace !== this.namespace ||
+            receipt.hash !== hash || receipt.bytes !== bytes.length ||
+            !(await this.hasVerifiedDurabilityReceipt(receipt, receipt.peerId))) continue;
+        verifiedPeers.add(receipt.peerId);
+      }
+      const verifiedDomains = new Set([...verifiedPeers].map(peerId =>
+        this.failureDomainsByPeerId[peerId] || (this.minFailureDomains === 1 ? 'unspecified' : null)).filter(Boolean));
+      if (verifiedPeers.size < this.replicaCount || verifiedDomains.size < this.minFailureDomains) {
+        throw Object.assign(new Error('BFT commit did not include enough independently verified peer durability receipts'), {
+          code: 'INSUFFICIENT_REPLICAS', requiredReplicas: this.replicaCount, verifiedReplicas: verifiedPeers.size
+        });
+      }
+      return { hash, replicas: [...verifiedPeers], receipts: commitReceipts.filter(receipt => verifiedPeers.has(receipt.peerId)), consensus: decision.certificate };
+    }
     const receipts = [];
     const failures = [];
     for (const peerId of this.peers) {
