@@ -171,6 +171,23 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
   });
   // This read requires verified responses from the configured replica quorum.
   await store.listRefs();
+  let prefetchLoop = null;
+  if (String(process.env.APEX_PEER_CAS_PREFETCH_ENABLED || 'true').toLowerCase() !== 'false') {
+    prefetchLoop = store.startPrefetchLoop({
+      intervalMs: Number(process.env.APEX_PEER_CAS_PREFETCH_INTERVAL_MS || 15000),
+      maxCids: Number(process.env.APEX_PEER_CAS_PREFETCH_MAX_CIDS || 8),
+      maxBytes: Number(process.env.APEX_PEER_CAS_PREFETCH_MAX_BYTES || 65536),
+      getCids: async () => {
+        const refs = await store.listRefs();
+        const cids = new Set();
+        for (const ref of refs) collectReferencedCids(ref.value, cids);
+        return [...cids];
+      },
+      onError: error => console.error('[PEER CAS PREFETCH]', JSON.stringify({
+        namespace, code: error?.code || null, error: String(error?.message || error)
+      }))
+    });
+  }
   let repairLoop = null;
   if (String(process.env.APEX_PEER_CAS_REPAIR_ENABLED || 'true').toLowerCase() !== 'false') {
     repairLoop = store.startRepairLoop({
@@ -187,7 +204,7 @@ export async function createPeerMeshCasRuntime({ peerNode, namespace: namespaceO
       }))
     });
   }
-  return Object.freeze({ store, namespace, peers, replicaCount, minFailureDomains, repairLoop });
+  return Object.freeze({ store, namespace, peers, replicaCount, minFailureDomains, repairLoop, prefetchLoop });
 }
 
 export async function startPeerCasRuntime({ peerNode }) {
