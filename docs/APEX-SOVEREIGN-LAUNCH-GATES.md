@@ -23,7 +23,7 @@ This is an implementation and evidence checklist, not a claim that the features 
 - [x] Parallel peer reads for immutable objects and bounded concurrent chunk assembly.
 - [x] Rarest-first scheduling primitive and verified-advertisement ordering are implemented; live multi-peer advertisement gossip and production proof remain open.
 - [x] Bounded pull-based repair loop and replica reconciliation are implemented; peer-loss convergence remains unverified in a live mesh.
-- [ ] Hardware-root attestation and physical failure-domain proof; current environment-variable failure-domain labels are not hardware proof.
+- [x] Runtime now requires fresh challenge-bound hardware-root evidence for every configured peer and derives failure-domain labels from the verifier provider; production remains blocked until a real platform-backed provider is configured and its evidence is validated.
 - [x] Connection-scoped trust-session primitive rejects stale challenges and revokes on connection close/credential change; transport integration remains open.
 - [x] Signed heartbeat primitive verifies freshness, peer identity, and hardware-root evidence; decentralized gossip/liveness integration remains open.
 - [x] Signed capability-advertisement primitive and CID availability planner exist; live advertisement exchange remains open.
