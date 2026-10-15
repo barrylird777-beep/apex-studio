@@ -59,8 +59,10 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
   if (!acl || !Object.keys(acl).length) throw new Error('explicit namespace ACL is required');
   const objectsDir = path.join(root, 'objects');
   const refsDir = path.join(root, 'refs');
+  const transactionsDir = path.join(root, 'transactions');
   await mkdir(objectsDir, { recursive: true, mode: 0o700 });
   await mkdir(refsDir, { recursive: true, mode: 0o700 });
+  await mkdir(transactionsDir, { recursive: true, mode: 0o700 });
 
   // Startup integrity pass fails closed. Corrupt data is quarantined by refusal,
   // never silently deleted or treated as a cache miss.
@@ -83,6 +85,18 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         throw error;
       });
       if (sha256(object) !== value.hash || !object.equals(value.bytes)) throw new Error('peer CAS startup integrity failure: reference target does not match immutable object ' + value.hash);
+    }
+    for (const name of await readdir(transactionsDir)) {
+      if (!/^[a-f0-9]{64}\\.cbor$/.test(name)) continue;
+      const tx = decodeCanonical(await readFile(path.join(transactionsDir, name)));
+      if (!tx || tx.version !== 1 || typeof tx.transactionId !== 'string' ||
+          sha256(Buffer.from(tx.transactionId)) + '.cbor' !== name ||
+          typeof tx.namespace !== 'string' || typeof tx.key !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(String(tx.hash || '')) ||
+          !Buffer.isBuffer(tx.bytes) || sha256(tx.bytes) !== tx.hash ||
+          !['prepared', 'commit-decided', 'committed', 'aborted'].includes(tx.state)) {
+        throw new Error('peer CAS startup integrity failure: invalid transaction record ' + name);
+      }
     }
     return true;
   }
@@ -144,6 +158,94 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         if (!saved || saved.hash !== hash || !saved.bytes.equals(bytes)) throw new Error('peer CAS atomic reference read-back failed');
         return { hash };
       });
+    },
+    async prepareRef({ transactionId, namespace, key, expectedHash, hash, bytes: input, participants }) {
+      if (typeof transactionId !== 'string' || !transactionId || transactionId.length > 256) throw new Error('invalid transaction ID');
+      if (typeof namespace !== 'string' || !namespace || typeof key !== 'string' || !key || key.length > 512) throw new Error('invalid transaction reference');
+      if (expectedHash !== null && !/^[a-f0-9]{64}$/.test(String(expectedHash))) throw new Error('invalid transaction expected hash');
+      const bytes = Buffer.from(input);
+      if (!/^[a-f0-9]{64}$/.test(String(hash)) || sha256(bytes) !== hash) throw new Error('transaction reference hash mismatch');
+      decodeCanonical(bytes);
+      if (!Array.isArray(participants) || !participants.length || participants.some(id => typeof id !== 'string' || !id) ||
+          new Set(participants).size !== participants.length) throw new Error('invalid transaction participant set');
+      await this.putBytes(hash, bytes);
+      const txFile = path.join(transactionsDir, sha256(Buffer.from(transactionId)) + '.cbor');
+      return withRefLock(path.join(refsDir, refId(namespace, key) + '.lock'), async () => {
+        const existingTx = await readFile(txFile).then(decodeCanonical).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
+        if (existingTx) {
+          if (existingTx.namespace !== namespace || existingTx.key !== key || existingTx.hash !== hash ||
+              existingTx.expectedHash !== expectedHash) throw new Error('transaction ID reused for a different proposal');
+          return { transactionId, state: existingTx.state, hash: existingTx.hash };
+        }
+        for (const name of await readdir(transactionsDir)) {
+          if (!/^[a-f0-9]{64}\\.cbor$/.test(name)) continue;
+          const pending = decodeCanonical(await readFile(path.join(transactionsDir, name)));
+          if (pending.namespace === namespace && pending.key === key &&
+              ['prepared', 'commit-decided'].includes(pending.state)) {
+            const error = new Error('reference has an unresolved prepared transaction; recovery is required');
+            error.code = 'REFERENCE_TRANSACTION_BLOCKED';
+            throw error;
+          }
+        }
+        const current = await this.readRef(namespace, key);
+        if ((current?.hash ?? null) !== expectedHash) {
+          const error = new Error('peer CAS transaction prepare conflict');
+          error.code = 'REFERENCE_CONFLICT';
+          throw error;
+        }
+        const tx = { version: 1, transactionId, namespace, key, expectedHash, hash, bytes, participants: [...participants].sort(), state: 'prepared' };
+        await durableWrite(txFile, encodeCanonical(tx));
+        return { transactionId, state: tx.state, hash };
+      });
+    },
+    async decideRefCommit(transactionId, participants) {
+      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
+      const tx = await readFile(txFile).then(decodeCanonical);
+      if (!Array.isArray(participants) || encodeCanonical([...participants].sort()).compare(encodeCanonical(tx.participants)) !== 0) {
+        throw new Error('commit decision participant set does not match prepared transaction');
+      }
+      if (tx.state === 'commit-decided' || tx.state === 'committed') return { transactionId, state: tx.state, hash: tx.hash };
+      if (tx.state !== 'prepared') throw new Error('transaction is not in a committable state');
+      tx.state = 'commit-decided';
+      await durableWrite(txFile, encodeCanonical(tx));
+      return { transactionId, state: tx.state, hash: tx.hash };
+    },
+    async commitPreparedRef(transactionId) {
+      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
+      const initial = await readFile(txFile).then(decodeCanonical);
+      return withRefLock(path.join(refsDir, refId(initial.namespace, initial.key) + '.lock'), async () => {
+        const tx = await readFile(txFile).then(decodeCanonical);
+        if (tx.state === 'committed') return { transactionId, state: tx.state, hash: tx.hash };
+        if (tx.state !== 'commit-decided') throw new Error('transaction has no durable commit decision');
+        const current = await this.readRef(tx.namespace, tx.key);
+        if ((current?.hash ?? null) === tx.expectedHash) {
+          await durableWrite(path.join(refsDir, refId(tx.namespace, tx.key) + '.cbor'),
+            encodeCanonical({ namespace: tx.namespace, key: tx.key, hash: tx.hash, bytes: tx.bytes }));
+        } else if (current?.hash !== tx.hash) {
+          const error = new Error('commit recovery found a conflicting reference head');
+          error.code = 'REFERENCE_DIVERGENCE';
+          throw error;
+        }
+        tx.state = 'committed';
+        await durableWrite(txFile, encodeCanonical(tx));
+        return { transactionId, state: tx.state, hash: tx.hash };
+      });
+    },
+    async abortPreparedRef(transactionId) {
+      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
+      const tx = await readFile(txFile).then(decodeCanonical);
+      if (tx.state === 'aborted') return { transactionId, state: tx.state };
+      if (tx.state !== 'prepared') throw new Error('cannot abort a transaction after a durable commit decision');
+      tx.state = 'aborted';
+      await durableWrite(txFile, encodeCanonical(tx));
+      return { transactionId, state: tx.state };
+    },
+    async getRefTransaction(transactionId) {
+      const txFile = path.join(transactionsDir, sha256(Buffer.from(String(transactionId))) + '.cbor');
+      try {
+        const tx = await readFile(txFile).then(decodeCanonical);
+        return { transactionId: tx.transactionId, namespace: tx.namespace, key: tx.key, expectedHash: tx.expectedHash, hash: tx.hash, participants: tx.participants, state: tx.state };
+      } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
     },
     async listRefs(namespace) {
       if (typeof namespace !== 'string' || !namespace) throw new Error('explicit reference namespace is required');
