@@ -1,0 +1,29 @@
+name: Peer Storage API Bridge
+on:
+  pull_request:
+    paths:
+      - "src/core/peer-storage-api-bridge.mjs"
+      - "src/core/peer-storage-api-client.mjs"
+      - "test/peer-storage-api-bridge.test.mjs"
+      - ".github/workflows/peer-storage-bridge.yml"
+  push:
+    branches:
+      - main
+      - "apex/api-peer-runtime-six-app-bridge"
+    paths:
+      - "src/core/peer-storage-api-bridge.mjs"
+      - "src/core/peer-storage-api-client.mjs"
+      - "test/peer-storage-api-bridge.test.mjs"
+      - ".github/workflows/peer-storage-bridge.yml"
+permissions:
+  contents: read
+jobs:
+  bridge-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test bridge authentication and app isolation
+        run: node --test test/peer-storage-api-bridge.test.mjs
