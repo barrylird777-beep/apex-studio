@@ -609,7 +609,7 @@ export class PeerContentAddressedStore {
   cacheGet(hash) {
     const entry = this.verifiedObjectCache.get(hash);
     if (!entry) { this.cacheMetrics.misses++; return null; }
-    if (entry.expiresAt <= Date.now()) {
+    if (entry.expiresAt <= Date.now() || sha256(entry.bytes) !== hash) {
       this.verifiedObjectCache.delete(hash);
       this.verifiedObjectCacheBytes -= entry.bytes.length;
       this.cacheMetrics.evictions++;
