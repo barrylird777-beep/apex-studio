@@ -411,7 +411,9 @@ export class PeerContentAddressedStore {
           const plan = planRarestFirstChunks(uniqueCids.map(hash => ({ hash })), verified, {
             app: this.namespace, maxPeersPerChunk: Math.min(16, Math.max(1, this.peers.length))
           });
-          rarestRank = new Map(plan.map((item, rank) => [item.cid, { rank, count: item.availablePeerCount }]));
+          rarestRank = new Map(plan.map((item, rank) => [item.cid, {
+            rank, count: item.availablePeerCount, sourcePeers: item.sourcePeers.filter(peerId => this.peers.includes(peerId))
+          }]));
         }
       } catch {
         // Discovery is optional and pull-based. Continue with normal verified reads.
@@ -429,7 +431,20 @@ export class PeerContentAddressedStore {
         const task = fetchOrder[taskIndex];
         const index = task.index;
         const item = descriptors[index];
-        const chunk = await this.getObject(item.hash);
+        const advertisedSources = rarestRank.get(item.hash)?.sourcePeers || [];
+        let chunk;
+        if (advertisedSources.length) {
+          try {
+            // Pull the rare chunk from the authenticated peers that advertise it;
+            // race a bounded source set, then fall back to the ordinary verified
+            // peer race if every advertisement is stale or its peer is unavailable.
+            chunk = await Promise.any(advertisedSources.map(peerId => this.getObjectFromPeer(item.hash, peerId)));
+          } catch {
+            chunk = await this.getObject(item.hash);
+          }
+        } else {
+          chunk = await this.getObject(item.hash);
+        }
         if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
             chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
           throw new Error('blob chunk metadata mismatch');
@@ -598,6 +613,24 @@ export class PeerContentAddressedStore {
       bytes: this.verifiedObjectCacheBytes, ttlMs: this.cacheTtlMs, maxBytes: this.cacheMaxBytes });
   }
 
+  async getObjectFromPeer(hash, peerId) {
+    if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
+    if (!this.peers.includes(peerId)) throw new Error('peer is not in the configured storage set');
+    const response = await this.request(peerId, {
+      protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
+    });
+    const encoded = String(response.bytesBase64 || '');
+    const bytes = Buffer.from(encoded, 'base64');
+    if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
+        response.hash !== hash || response.namespace !== this.namespace ||
+        !hasVerifiedDurabilityReceipt(response)) {
+      throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
+    }
+    const value = this.decrypt(decodeCanonical(bytes));
+    this.cacheSet(hash, bytes);
+    return value;
+  }
+
   async getObject(hash) {
     if (!/^[a-f0-9]{64}$/.test(String(hash))) throw new Error('invalid SHA-256 object id');
     const cached = this.cacheGet(hash);
@@ -613,20 +646,9 @@ export class PeerContentAddressedStore {
         if (index >= this.peers.length) throw new Error('no untried peers remain');
         const peerId = this.peers[index];
         try {
-          const response = await this.request(peerId, {
-            protocol: 'apex.cas.v1', operation: 'object.get', namespace: this.namespace, hash
-          });
-          const encoded = String(response.bytesBase64 || '');
-          const bytes = Buffer.from(encoded, 'base64');
-          if (bytes.toString('base64') !== encoded || sha256(bytes) !== hash ||
-              response.hash !== hash || response.namespace !== this.namespace ||
-              !hasVerifiedDurabilityReceipt(response)) {
-            throw new Error('peer returned content that failed integrity, namespace, or durability receipt verification');
-          }
-          const value = this.decrypt(decodeCanonical(bytes));
+          const value = await this.getObjectFromPeer(hash, peerId);
           if (!won) {
             won = true;
-            this.cacheSet(hash, bytes);
             return value;
           }
         } catch (error) {
