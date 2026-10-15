@@ -147,6 +147,17 @@ export class PeerMeshCasAdapter {
     return claimed;
   }
 
+  async getJobResult(cid) {
+    if (!/^[a-f0-9]{64}$/.test(String(cid || ''))) throw new TypeError('invalid job result CID');
+    if (typeof this.store.getObject !== 'function') throw new Error('peer CAS object reader is required for job results');
+    const value = await this.store.getObject(String(cid));
+    if (!value || value.kind !== 'apex.job-result.v1' || value.version !== 1 ||
+        value.namespace !== this.appNamespace || typeof value.jobId !== 'string') {
+      throw new Error('job result CID failed schema or app namespace verification');
+    }
+    return clone(value.result);
+  }
+
   async transition(id, operation, { leaseToken, leaseFence, leaseMs = 45000, result = null, error = null, delayMs = 1000, reason = '' } = {}) {
     const current = await this.readRef('jobs', String(id));
     const job = current?.value?.job;
@@ -154,7 +165,25 @@ export class PeerMeshCasAdapter {
         (leaseFence != null && Number(job.leaseFence) !== Number(leaseFence)) || Number(job.leaseExpiresAt || 0) <= Date.now()) return false;
     const patch = { updatedAt: new Date().toISOString() };
     if (operation === 'heartbeat') patch.leaseExpiresAt = Date.now() + Math.max(1000, Number(leaseMs) || 45000);
-    else if (operation === 'complete') Object.assign(patch, { status: 'completed', result: clone(result), leaseOwner: null, leaseToken: null, leaseExpiresAt: 0, completedAt: new Date().toISOString() });
+    else if (operation === 'complete') {
+      let resultCid = null;
+      if (result !== null && result !== undefined) {
+        if (typeof this.store.putObject !== 'function') {
+          throw new Error('peer CAS object writer is required to publish a first-class job result CID');
+        }
+        const receipt = await this.store.putObject({
+          kind: 'apex.job-result.v1', version: 1, namespace: this.appNamespace,
+          jobId: String(id), result: clone(result), completedAt: new Date().toISOString()
+        });
+        if (!/^[a-f0-9]{64}$/.test(String(receipt?.hash || '')) || receipt.namespace !== this.appNamespace ||
+            !Array.isArray(receipt.receipts) || receipt.receipts.length < Number(this.store.replicaCount || 1)) {
+          throw new Error('peer CAS did not verify the job result CID replica receipts');
+        }
+        resultCid = receipt.hash;
+      }
+      Object.assign(patch, { status: 'completed', result: clone(result), resultCid,
+        leaseOwner: null, leaseToken: null, leaseExpiresAt: 0, completedAt: new Date().toISOString() });
+    }
     else if (operation === 'defer') Object.assign(patch, { status: 'queued', runAt: Date.now() + Math.max(1, Number(delayMs) || 1), lastError: String(reason).slice(0, 4000), leaseOwner: null, leaseToken: null, leaseExpiresAt: 0 });
     else if (operation === 'fail') {
       const dead = Number(job.attempts) >= Number(job.maxAttempts);
