@@ -94,7 +94,8 @@ export function createPeerStorageApiBridge({ stores, tokens, socketPath = '/tmp/
       }
       return send(200, { ok: true, app: body.app, result });
     } catch (error) {
-      return send(Number(error?.statusCode) || 503, { error: 'peer storage operation failed closed' });
+      const code = ['CAS_CONFLICT', 'INSUFFICIENT_REPLICAS', 'OBJECT_UNAVAILABLE', 'REPAIR_INCOMPLETE'].includes(error?.code) ? error.code : undefined;
+      return send(Number(error?.statusCode) || 503, { error: 'peer storage operation failed closed', ...(code ? { code } : {}) });
     }
   });
   return {
