@@ -191,7 +191,7 @@ test('local PeerReceive records are acknowledged in Pure-WAL and excluded from p
 });
 
 
-test('legacy mesh migration preserves the sequence counter without continuing WAL writes', async () => {
+test('peer-only mesh startup ignores coordinator-local legacy WAL files', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-mesh-sequence-migration-'));
   try {
     const storageDir = path.join(dir, 'sovereign');
@@ -210,14 +210,14 @@ test('legacy mesh migration preserves the sequence counter without continuing WA
 
     const engine = new SovereignMeshEngine({ cas: new MemoryMeshCAS() });
     await engine.ready();
-    assert.equal(engine.get('legacy-wave-7').seq, 7);
+    assert.equal(engine.get('legacy-wave-7'), null, 'local legacy records are not imported into peer state');
     const next = await engine.dispatchAutonomousPayload({
       waveId: 'new-wave-after-migration',
       peerId: 'new-peer',
       action: 'MigrationSequenceCheck',
       payload: { migrated: true }
     });
-    assert.equal(next.seq, 8);
+    assert.equal(next.seq, 1, 'peer sequence starts from verified peer state only');
     assert.equal(await fs.readFile(path.join(storageDir, 'apex-ring-wal.ndjson'), 'utf8'), JSON.stringify(legacy) + '\n');
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
