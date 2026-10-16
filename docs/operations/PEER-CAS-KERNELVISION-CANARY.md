@@ -47,6 +47,18 @@ curl --fail-with-body -sS \
 
 Confirm the returned value and hash match the write result.
 
+### Automated write/readback evidence command
+
+From an environment that can reach the configured APEX API, run:
+
+```sh
+APEX_BASE_URL="https://YOUR-APEX-API" \
+APEX_CONTROL_TOKEN="$APEX_CONTROL_TOKEN" \
+npm run verify:kernelvision-peer-canary
+```
+
+The command writes a unique disposable canary marker, verifies the returned content hash, requires the configured number of distinct peer IDs and receipt IDs, requires the configured number of distinct non-placeholder failure domains, then reads the marker back and checks the same hash/value. It prints evidence without printing the control token. This verifies write/readback and reported placement only; it explicitly does **not** prove independent-host restart recovery.
+
 ## Independent-host restart/recovery proof
 
 1. Record the physical host/rack identity for each returned replica, peer IDs, write hash, receipt IDs, and UTC time. Do not count two processes on one machine as independent hosts.
