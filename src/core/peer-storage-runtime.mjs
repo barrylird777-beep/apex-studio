@@ -80,7 +80,8 @@ export async function initializePeerObjectStorage({
       root,
       reservedBytes: Number(process.env.APEX_PEER_STORAGE_RESERVED_BYTES || 0)
     });
-    return { ...response, capacityReport };
+    const { root: _privateFilesystemPath, ...publicCapacityReport } = capacityReport;
+    return { ...response, capacityReport: publicCapacityReport };
   };
   return Object.freeze({ enabled: true, store, handle });
 }
