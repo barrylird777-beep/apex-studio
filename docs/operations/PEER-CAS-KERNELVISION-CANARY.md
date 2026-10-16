@@ -4,11 +4,12 @@ This is an opt-in validation path, not a production storage migration. Do not di
 
 ## Preconditions
 
-1. Provision at least two peer processes on **independently operated physical machines** with persistent, peer-owned storage backends. Each backend must implement `putBytes`, `getBytes`, atomic `readRef`/`writeRef`, `health`, and `verifyDurabilityReceipt`, and expose `capacityRoot` (or `storageRoot`) that exactly matches `APEX_PEER_OWNED_STORAGE_ROOT`. The advertised filesystem capacity is rejected if it cannot be bound to that backend root. The health receipt must prove the actual backend survived a process restart and its references are atomic.
+1. Provision at least two peer processes on **independently operated physical machines** with persistent, peer-owned storage backends. Each backend must implement `putBytes`, `getBytes`, atomic `readRef`/`writeRef`, `health`, and `verifyDurabilityReceipt`, and expose `capacityRoot` (or `storageRoot`) that exactly matches `APEX_PEER_OWNED_STORAGE_ROOT. The built-in backend exposes this root automatically. The advertised filesystem capacity is rejected if it cannot be bound to that backend root. The health receipt must prove the actual backend survived a process restart and its references are atomic.
 2. Give every peer a stable libp2p identity and explicit TCP multiaddress. Add each peer ID to the authenticated peer allowlist and namespace ACL. Do not share private keys or tokens in issue comments or chat.
 3. On each storage peer configure:
    - `APEX_PEER_STORAGE_ENABLED=true`
-   - `APEX_PEER_STORAGE_BACKEND_MODULE` pointing at the operator-supplied backend adapter
+   - `APEX_PEER_STORAGE_RECEIPT_KEY_BASE64` containing a strong, independently provisioned secret of at least 32 bytes for signed backend durability receipts
+   - optionally, `APEX_PEER_STORAGE_BACKEND_MODULE` pointing at a custom backend adapter; if omitted, the built-in peer-owned filesystem backend is used
    - `APEX_PEER_CAS_NAMESPACE=KernelVision`
    - `APEX_PEER_OWNED_STORAGE_ROOT` pointing at the actual volume reserved for peer data
    - `APEX_PEER_FAILURE_DOMAIN` set to a truthful host/rack/site domain
