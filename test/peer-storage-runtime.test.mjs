@@ -96,3 +96,39 @@ test('opt-in runtime stores encrypted bytes through an injected backend and enfo
     /namespace access denied/
   );
 });
+
+test('all six canonical app namespaces enforce independent peer ACLs', async () => {
+  const apps = ['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob'];
+  const acl = apps.map(app => app + '=writer-' + app).join(';');
+  const runtime = await initializePeerObjectStorage({
+    enabled: true,
+    store: binaryMemoryStore(),
+    namespaceAcl: acl,
+    peerId: () => 'storage-peer'
+  });
+
+  for (const app of apps) {
+    const allowed = await runtime.handle({
+      protocol: 'apex.cas.v1', operation: 'storage.health', namespace: app
+    }, { remotePeerId: 'writer-' + app });
+    assert.equal(allowed.accepted, true, app + ' should accept its explicitly authorized writer');
+    assert.equal(allowed.namespace, app);
+
+    for (const otherApp of apps.filter(candidate => candidate !== app)) {
+      await assert.rejects(
+        runtime.handle({
+          protocol: 'apex.cas.v1', operation: 'storage.health', namespace: app
+        }, { remotePeerId: 'writer-' + otherApp }),
+        /namespace access denied/,
+        otherApp + ' must not access ' + app
+      );
+    }
+  }
+
+  await assert.rejects(
+    runtime.handle({
+      protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
+    }, { remotePeerId: 'unlisted-peer' }),
+    /namespace access denied/
+  );
+});
