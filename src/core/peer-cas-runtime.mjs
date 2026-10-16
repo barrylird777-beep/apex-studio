@@ -117,7 +117,8 @@ export async function startPeerCasRuntime({ peerNode }) {
     store,
     authorizeModel: ({ namespace: app, modelId, revision }) => app === namespace && allowed.has(modelId + '@' + revision),
     token: required('APEX_PEER_CAS_TOKEN'),
-    socketPath: process.env.APEX_PEER_CAS_SOCKET || '/tmp/apex_peer_cas.sock'
+    socketPath: process.env.APEX_PEER_CAS_SOCKET || '/tmp/apex_peer_cas.sock',
+    kernelVisionCanaryEnabled: String(process.env.APEX_KERNELVISION_PEER_CANARY_ENABLED || '').toLowerCase() === 'true'
   });
   await bridge.listen();
   return Object.freeze({ store, bridge, namespace, peers: placement.peers, capacityReports: placement.capacityReports, rejectedCapacityReports: placement.rejected });
