@@ -10,6 +10,21 @@ const bytes = Buffer.from('peer-owned model metadata');
 const digest = createHash('sha256').update(bytes).digest('hex');
 const socketPath = `/tmp/apex-peer-cas-test-${process.pid}.sock`;
 
+function put(path, value, authorization = `Bearer ${token}`) {
+  return new Promise((resolve, reject) => {
+    const body = Buffer.from(JSON.stringify(value));
+    const req = request({ socketPath, path, method: 'PUT', headers: {
+      authorization, 'content-type': 'application/json', 'content-length': body.length
+    } }, res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
+    });
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
 function get(path, authorization = `Bearer ${token}`) {
   return new Promise((resolve, reject) => {
     const req = request({ socketPath, path, method: 'GET', headers: { authorization } }, res => {
@@ -99,5 +114,54 @@ test('Unix socket bridge requires auth and serves only authorized, verified Peer
   } finally {
     await bridge.close();
     await unlink(socketPath).catch(() => {});
+  }
+});
+
+
+test('KernelVision canary stays disabled unless explicit opt-in is passed', async () => {
+  const refs = new Map();
+  let writes = 0;
+  const store = {
+    namespace: 'KernelVision',
+    readRef: async key => refs.get(key) || null,
+    writeRef: async (key, value, { expectedHash = null } = {}) => {
+      writes++;
+      const current = refs.get(key) || null;
+      if ((current?.hash ?? null) !== expectedHash) throw new Error('CAS conflict');
+      const hash = createHash('sha256').update(JSON.stringify(value)).digest('hex');
+      refs.set(key, { value, hash });
+      return { hash, replicas: ['peer-a', 'peer-b'], receipts: [] };
+    },
+    getBlob: async () => Buffer.alloc(0)
+  };
+  const disabledPath = `/tmp/apex-peer-cas-disabled-${process.pid}.sock`;
+  const disabled = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath: disabledPath });
+  try {
+    await disabled.listen();
+    assert.equal((await put('/v1/peer-cas/canary/flag', { value: 'must-not-write' })).status, 403);
+    assert.equal((await get('/v1/peer-cas/canary/flag')).status, 403);
+    assert.equal(writes, 0);
+  } finally {
+    await disabled.close();
+    await unlink(disabledPath).catch(() => {});
+  }
+
+  const enabledPath = `/tmp/apex-peer-cas-enabled-${process.pid}.sock`;
+  const enabled = createPeerModelBridgeServer({
+    store, authorizeModel: async () => true, token, socketPath: enabledPath,
+    kernelVisionCanaryEnabled: true
+  });
+  try {
+    await enabled.listen();
+    const saved = await put('/v1/peer-cas/canary/flag', { value: 'peer-only' });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(JSON.parse(saved.body.toString()).replicas, ['peer-a', 'peer-b']);
+    const read = await get('/v1/peer-cas/canary/flag');
+    assert.equal(read.status, 200);
+    assert.equal(JSON.parse(read.body.toString()).value, 'peer-only');
+    assert.equal(writes, 1);
+  } finally {
+    await enabled.close();
+    await unlink(enabledPath).catch(() => {});
   }
 });
