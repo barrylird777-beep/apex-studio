@@ -27,6 +27,7 @@
     "test:render-performance": "node --test test/render-performance.test.mjs",
     "test:network": "node --test test/network-throughput.test.mjs test/network-status.test.mjs test/storage-stream.test.mjs test/http-range-transfer.test.mjs",
     "bench:local-cas": "node scripts/benchmark-local-cas-fast-path.mjs",
+    "bench": "vitest bench --run",
     "swarm:daemon": "node src/core/autonomous-swarm-daemon.mjs",
     "research:ingest": "node scripts/research-ingest.mjs",
     "apex:release-audit": "node scripts/audit-apex-release.mjs",
@@ -97,7 +98,9 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
-    "@types/pg": "^8.15.5"
+    "@types/pg": "^8.15.5",
+    "@codspeed/vitest-plugin": "^6.0.1",
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=22"
