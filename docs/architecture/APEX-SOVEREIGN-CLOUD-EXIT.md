@@ -100,3 +100,17 @@ The inbound peer-storage handler is disabled by default. The sovereign daemon do
 ## Immediate next implementation
 
 Provision peer-owned durable storage and app-scoped ACLs on independent nodes, map peer identities to independently verified failure domains, then route a non-critical canary namespace through the peer transport. Add two-real-node integration tests, prove identity-to-address binding and restart recovery, and exercise peer loss/repair. Do not switch the existing remote CAS flag off in production: that could route writes to an unverified or ephemeral backend and violate the no-single-copy system-of-record rule. Keep all existing providers and data intact until the peer path is verified end to end.
+
+## Operator capacity inventory
+
+Measure storage on each **actual peer host** by running the command on that host with an explicit peer identity, operator-assigned failure domain, and peer-owned storage root:
+
+```sh
+APEX_SOVEREIGN_PEER_ID=peer-a \
+APEX_PEER_FAILURE_DOMAIN=host-or-device-a \
+APEX_PEER_OWNED_STORAGE_ROOT=/srv/apex/peer-data \
+APEX_PEER_STORAGE_RESERVED_BYTES=10737418240 \
+npm run storage:capacity:report
+```
+
+The command emits a short-lived `filesystem-statfs` report with total, available, reserved, and usable bytes. Run it separately on every intended host and retain each result with its timestamp. Do not add duplicate reports from the same filesystem as separate capacity. Reports are labelled `MEASURED_UNAUTHENTICATED`; they are not placement authorization or proof of independent failure domains. Match the peer ID to the authenticated transport identity and verify failure domains against an operator-controlled registry before using a report for placement. A CI temporary directory is only a test fixture, not a real storage peer.
