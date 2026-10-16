@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { PeerContentAddressedStore } from '../src/core/peer-content-addressed-store.mjs';
 import { initializePeerObjectStorage } from '../src/core/peer-storage-runtime.mjs';
 
@@ -131,4 +134,46 @@ test('all six canonical app namespaces enforce independent peer ACLs', async () 
     }, { remotePeerId: 'unlisted-peer' }),
     /namespace access denied/
   );
+});
+
+
+test('capacity advertisements are bound to the injected peer backend root', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'apex-peer-capacity-root-'));
+  const old = {
+    root: process.env.APEX_PEER_OWNED_STORAGE_ROOT,
+    domain: process.env.APEX_PEER_FAILURE_DOMAIN,
+    reserved: process.env.APEX_PEER_STORAGE_RESERVED_BYTES
+  };
+  try {
+    process.env.APEX_PEER_OWNED_STORAGE_ROOT = root;
+    process.env.APEX_PEER_FAILURE_DOMAIN = 'test-host-a';
+    process.env.APEX_PEER_STORAGE_RESERVED_BYTES = '0';
+    const store = binaryMemoryStore();
+    store.capacityRoot = root;
+    store.health = async ({ namespace, peerId }) => ({
+      durable: true, ownership: 'peer-owned', restartRecoveryVerified: true,
+      atomicReferencesVerified: true, peerId, namespace,
+      receipt: 'signed-test-receipt', receiptId: 'peer-capacity-root-proof'
+    });
+    store.verifyDurabilityReceipt = async () => true;
+    const runtime = await initializePeerObjectStorage({
+      enabled: true, store, namespaceAcl: 'KernelVision=writer-peer', peerId: () => 'storage-peer'
+    });
+    const response = await runtime.handle({
+      protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
+    }, { remotePeerId: 'writer-peer' });
+    assert.equal(response.capacityReport.peerId, 'storage-peer');
+    assert.equal(response.capacityReport.failureDomain, 'test-host-a');
+    assert.equal(Object.hasOwn(response.capacityReport, 'root'), false);
+
+    store.capacityRoot = root + '-different';
+    await assert.rejects(runtime.handle({
+      protocol: 'apex.cas.v1', operation: 'storage.health', namespace: 'KernelVision'
+    }, { remotePeerId: 'writer-peer' }), /capacity root must exactly match/);
+  } finally {
+    if (old.root === undefined) delete process.env.APEX_PEER_OWNED_STORAGE_ROOT; else process.env.APEX_PEER_OWNED_STORAGE_ROOT = old.root;
+    if (old.domain === undefined) delete process.env.APEX_PEER_FAILURE_DOMAIN; else process.env.APEX_PEER_FAILURE_DOMAIN = old.domain;
+    if (old.reserved === undefined) delete process.env.APEX_PEER_STORAGE_RESERVED_BYTES; else process.env.APEX_PEER_STORAGE_RESERVED_BYTES = old.reserved;
+    await rm(root, { recursive: true, force: true });
+  }
 });
