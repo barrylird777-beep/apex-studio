@@ -18,7 +18,7 @@ function parsePeers(value) {
     if (split < 1) throw new Error('APEX_PEER_CAS_PEERS must use peerId=/ip4/.../tcp/.../p2p/peerId entries separated by semicolons');
     const id = entry.slice(0, split).trim();
     const address = entry.slice(split + 1).trim();
-    const match = address.match(/\\/p2p\\/([^/]+)$/);
+    const match = address.match(/\/p2p\/([^/]+)$/);
     if (!id || !match || match[1] !== id || result[id]) throw new Error('invalid or duplicate Peer-CAS peer address');
     result[id] = address;
   }
