@@ -75,3 +75,23 @@ export function validatePeerStorageCapacity(report, {
       report.usableBytes !== Math.max(0, report.availableBytes - report.reservedBytes)) return false;
   return report.usableBytes > 0;
 }
+
+
+/**
+ * Bind an operator-measured capacity report to the authenticated transport
+ * identity and a separately trusted peer-ID -> failure-domain registry.
+ * This does not make the measurement a durability attestation.
+ */
+export function validateAuthenticatedPeerStorageCapacity(report, {
+  authenticatedPeerId,
+  trustedFailureDomains,
+  now = Date.now(),
+  maxAgeMs = DEFAULT_TTL_MS
+} = {}) {
+  if (!validatePeerStorageCapacity(report, { now, maxAgeMs })) return false;
+  if (typeof authenticatedPeerId !== 'string' || report.peerId !== authenticatedPeerId) return false;
+  if (!trustedFailureDomains || typeof trustedFailureDomains !== 'object' || Array.isArray(trustedFailureDomains)) return false;
+  const trustedDomain = trustedFailureDomains[authenticatedPeerId];
+  return typeof trustedDomain === 'string' && trustedDomain.length > 0 &&
+    report.failureDomain === trustedDomain;
+}
