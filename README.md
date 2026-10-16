@@ -1,5 +1,7 @@
 # PlanetApeX Ecosystem — Canonical Architecture
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/barrylird777-beep/apex-studio?utm_source=badge)
+
 **APEX ANCHOR: preserve the six app identities; recover capabilities without reviving obsolete app names.**
 
 ## The six canonical apps
@@ -38,6 +40,8 @@ The staged plan and acceptance gates are in [APEX Sovereign Cloud-Exit Architect
 npm install
 npm start
 ```
+
+CPU benchmarks for core modules live in `bench/` and run with `npm run bench` (vitest bench). They are tracked on every pull request by [CodSpeed](https://app.codspeed.io/barrylird777-beep/apex-studio).
 
 ## Current implementation note
 
