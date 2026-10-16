@@ -35,7 +35,6 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
       const supplied = String(req.headers.authorization || '').replace(/^Bearer /, '');
       const actual = Buffer.from(supplied);
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(res, 401, 'unauthorized');
-      if (req.method !== 'GET') return send(res, 405, 'method not allowed');
       const url = new URL(req.url || '/', 'http://127.0.0.1');
       const canaryMatch = url.pathname.match(/^\\/v1\\/peer-cas\\/canary\\/([A-Za-z0-9._-]{1,120})$/);
       if (canaryMatch) {
