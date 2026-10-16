@@ -27,7 +27,8 @@ async function fixture(t) {
 }
 
 test('peer-owned binary backend survives backend re-instantiation and verifies CBOR bytes', async t => {
-  const { options, backend } = await fixture(t);
+  const { root, options, backend } = await fixture(t);
+  assert.equal(backend.capacityRoot, root, 'backend must expose the exact root used for capacity measurement');
   const bytes = encodeCanonical({ version: 1, binary: Buffer.from([0, 1, 2, 255]) });
   const id = hash(bytes);
   await backend.putBytes(id, bytes);
