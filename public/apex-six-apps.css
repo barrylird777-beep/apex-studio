@@ -392,3 +392,78 @@ main.apex-shell{width:100%;max-width:1240px;margin-inline:auto}
  html{scroll-behavior:auto}
  *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+
+/* Six distinct art directions — composition, materials, typography and density vary by app. */
+/* KernelVision: restrained Tony-Stark-style production HUD, cinematic graphite and violet. */
+body:has(.apex-shell[data-apex-app="kernelvision"]){
+  --apex-bg:#08090d;--apex-panel:#11131b;--apex-line:#383342;--apex-ink:#f4f0ff;--apex-muted:#aaa5b8;--apex-accent:#b59cff;
+  background:radial-gradient(ellipse at 78% 4%,rgba(105,68,171,.22),transparent 36%),linear-gradient(180deg,#090a10,#0d0d14 62%,#07080b);
+}
+body:has(.apex-shell[data-apex-app="kernelvision"]) main.apex-shell{max-width:1440px;padding-top:14px}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .top{min-height:260px;padding:clamp(24px,5vw,62px);display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;border:1px solid #373044;border-radius:8px;background:linear-gradient(90deg,rgba(7,8,13,.98),rgba(7,8,13,.48)),radial-gradient(ellipse at 78% 18%,#38294f 0,transparent 42%),linear-gradient(135deg,#1a1a25,#090a10);box-shadow:0 24px 70px #0007}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .top h1{font-size:clamp(42px,8vw,88px);letter-spacing:-.07em;max-width:820px}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .card,body:has(.apex-shell[data-apex-app="kernelvision"]) .panel{border-radius:7px;background:linear-gradient(145deg,#171621,#0c0c12);box-shadow:0 16px 42px #0006}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .card.wide{border-top:2px solid #a68bf0}
+body:has(.apex-shell[data-apex-app="kernelvision"]) .player{background:#030407;border:1px solid #3a314c;border-radius:4px;min-height:180px}
+
+/* XShield: sober security operations console; grid, sharp edges, green diagnostic signals. */
+body:has(.apex-shell[data-apex-app="xshield"]){
+  --apex-bg:#050b0b;--apex-panel:#081615;--apex-line:#21443e;--apex-ink:#e0fff6;--apex-muted:#8ab8ae;--apex-accent:#61e2c2;
+  background-color:#050b0b;background-image:linear-gradient(rgba(69,181,151,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(69,181,151,.045) 1px,transparent 1px);background-size:24px 24px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+body:has(.apex-shell[data-apex-app="xshield"]) .card,body:has(.apex-shell[data-apex-app="xshield"]) .panel{border-radius:5px;background:rgba(6,20,18,.96);box-shadow:inset 3px 0 0 rgba(97,226,194,.13)}
+body:has(.apex-shell[data-apex-app="xshield"]) .top{border-bottom:1px solid #245248;padding-bottom:22px}
+body:has(.apex-shell[data-apex-app="xshield"]) .metric{font-family:ui-monospace,SFMono-Regular,monospace;letter-spacing:-.06em}
+body:has(.apex-shell[data-apex-app="xshield"]) button{border-radius:4px;background:#0b2722;border-color:#2d675a}
+
+/* Kernelodies: expressive music space; saturated plum, coral and electric cyan. */
+body:has(.apex-shell[data-apex-app="kernelodies"]){
+  --apex-bg:#130b20;--apex-panel:#21102b;--apex-line:#56304f;--apex-ink:#fff4fb;--apex-muted:#d0b2ce;--apex-accent:#ff79b8;
+  background:radial-gradient(ellipse at 12% 10%,rgba(255,70,146,.25),transparent 34%),radial-gradient(ellipse at 88% 30%,rgba(89,228,230,.16),transparent 30%),linear-gradient(145deg,#150b23,#1d0d2b 55%,#0c1223);
+}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .top{padding:clamp(18px,4vw,34px);border:1px solid #66345d;border-radius:24px;background:linear-gradient(120deg,rgba(78,20,75,.88),rgba(24,24,51,.82))}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .top h1{font-size:clamp(38px,7vw,72px);letter-spacing:-.065em}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .card,body:has(.apex-shell[data-apex-app="kernelodies"]) .panel{border-radius:20px;background:linear-gradient(145deg,rgba(53,24,62,.96),rgba(20,18,43,.98));box-shadow:0 18px 48px rgba(0,0,0,.24)}
+body:has(.apex-shell[data-apex-app="kernelodies"]) button{background:linear-gradient(110deg,#a82f7a,#4b398e);border-color:#a74f98}
+body:has(.apex-shell[data-apex-app="kernelodies"]) .metric{color:#65e8e3}
+
+/* PlanetApeX: research library, manuscripts and discovery — ink blue, parchment and muted gold. */
+body:has(.apex-shell[data-apex-app="planetapex"]){
+  --apex-bg:#0d111b;--apex-panel:#151c2a;--apex-line:#39465b;--apex-ink:#f4efe2;--apex-muted:#b8b5aa;--apex-accent:#d6b66e;
+  background:linear-gradient(120deg,rgba(31,52,83,.45),transparent 46%),linear-gradient(180deg,#0b101a,#121827 70%,#0a0e16);
+}
+body:has(.apex-shell[data-apex-app="planetapex"]) .top{padding-bottom:26px;border-bottom:1px solid #786541}
+body:has(.apex-shell[data-apex-app="planetapex"]) .top h1{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.045em}
+body:has(.apex-shell[data-apex-app="planetapex"]) .card,body:has(.apex-shell[data-apex-app="planetapex"]) .panel{border-radius:4px;background:linear-gradient(135deg,#192335,#111a28);box-shadow:none}
+body:has(.apex-shell[data-apex-app="planetapex"]) .card h2,body:has(.apex-shell[data-apex-app="planetapex"]) .panel h2{font-family:Georgia,"Times New Roman",serif;font-weight:500}
+body:has(.apex-shell[data-apex-app="planetapex"]) .eyebrow,body:has(.apex-shell[data-apex-app="planetapex"]) .apex-eyebrow{letter-spacing:.2em}
+
+/* KashKorner: professional financial desk — disciplined slate, emerald and restrained brass. */
+body:has(.apex-shell[data-apex-app="kashkorner"]){
+  --apex-bg:#0c1110;--apex-panel:#131b19;--apex-line:#35433c;--apex-ink:#f1f5ef;--apex-muted:#a6b4a9;--apex-accent:#cbb477;
+  background:linear-gradient(180deg,#0c1210,#101714 48%,#090d0b);
+}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .top{padding-bottom:22px;border-bottom:1px solid #4a4937}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .card,body:has(.apex-shell[data-apex-app="kashkorner"]) .panel{border-radius:10px;background:linear-gradient(145deg,#18211d,#111714);box-shadow:0 12px 30px #0003}
+body:has(.apex-shell[data-apex-app="kashkorner"]) .metric{font-variant-numeric:tabular-nums;font-weight:650}
+body:has(.apex-shell[data-apex-app="kashkorner"]) button{background:#1d3027;border-color:#5c765e;border-radius:8px}
+
+/* KoinKob: quantitative market lab; cool steel, cobalt and restrained data-grid geometry. */
+body:has(.apex-shell[data-apex-app="koinkob"]){
+  --apex-bg:#08111d;--apex-panel:#101e30;--apex-line:#2b4664;--apex-ink:#eaf4ff;--apex-muted:#9cb4cc;--apex-accent:#78baff;
+  background-color:#08111d;background-image:linear-gradient(rgba(88,144,203,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(88,144,203,.04) 1px,transparent 1px);background-size:32px 32px;
+}
+body:has(.apex-shell[data-apex-app="koinkob"]) .top{padding:clamp(18px,3vw,30px);border:1px solid #2a4a6c;border-radius:12px;background:linear-gradient(110deg,rgba(17,37,61,.98),rgba(9,19,33,.9))}
+body:has(.apex-shell[data-apex-app="koinkob"]) .card,body:has(.apex-shell[data-apex-app="koinkob"]) .panel{border-radius:9px;background:linear-gradient(145deg,rgba(17,33,52,.97),rgba(9,19,32,.98))}
+body:has(.apex-shell[data-apex-app="koinkob"]) .metric{font-family:ui-monospace,SFMono-Regular,monospace;color:#8ec7ff;font-variant-numeric:tabular-nums}
+body:has(.apex-shell[data-apex-app="koinkob"]) button{background:linear-gradient(110deg,#1b3e68,#142945);border-color:#3d6da2}
+
+/* Keep the art direction calm and touch-friendly; no entrance or hover motion. */
+body:has(.apex-shell[data-apex-app]) .apex-shell{animation:none}
+body:has(.apex-shell[data-apex-app]) .apex-shell .card,
+body:has(.apex-shell[data-apex-app]) .apex-shell .panel{transition:none}
+@media(hover:hover){
+  body:has(.apex-shell[data-apex-app]) .apex-shell button:hover:not(:disabled){transform:none;filter:brightness(1.08)}
+}
