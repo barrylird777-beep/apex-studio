@@ -70,6 +70,6 @@ export function createKernelVisionPeerCanaryRouter({
       return res.status(error.statusCode || 503).json({ success: false, error: String(error.message || error).slice(0, 240) });
     }
   });
-  router.all('*', disabled);
+  router.use(disabled);
   return router;
 }
