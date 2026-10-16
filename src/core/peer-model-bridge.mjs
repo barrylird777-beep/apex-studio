@@ -37,6 +37,38 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(res, 401, 'unauthorized');
       if (req.method !== 'GET') return send(res, 405, 'method not allowed');
       const url = new URL(req.url || '/', 'http://127.0.0.1');
+      const canaryMatch = url.pathname.match(/^\\/v1\\/peer-cas\\/canary\\/([A-Za-z0-9._-]{1,120})$/);
+      if (canaryMatch) {
+        if (store.namespace !== 'KernelVision') return send(res, 403, 'KernelVision canary unavailable for this namespace');
+        const key = 'canary-v1:' + canaryMatch[1];
+        if (req.method === 'GET') {
+          const current = await store.readRef(key);
+          if (!current) return send(res, 404, JSON.stringify({ error: 'canary record not found' }));
+          if (current.value?.schema !== 'apex.kernelvision.peer-canary.v1' || current.value.key !== canaryMatch[1]) {
+            return send(res, 409, JSON.stringify({ error: 'canary record schema mismatch' }));
+          }
+          return send(res, 200, JSON.stringify({ key: canaryMatch[1], value: current.value.value, hash: current.hash }));
+        }
+        if (req.method === 'PUT') {
+          let raw = '';
+          for await (const chunk of req) {
+            raw += chunk.toString('utf8');
+            if (Buffer.byteLength(raw) > 64 * 1024) return send(res, 413, JSON.stringify({ error: 'canary value exceeds 64 KiB' }));
+          }
+          let payload;
+          try { payload = JSON.parse(raw); } catch { return send(res, 400, JSON.stringify({ error: 'invalid JSON body' })); }
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'value')) {
+            return send(res, 400, JSON.stringify({ error: 'JSON body must contain value' }));
+          }
+          const current = await store.readRef(key);
+          const saved = await store.writeRef(key, {
+            schema: 'apex.kernelvision.peer-canary.v1', key: canaryMatch[1],
+            value: payload.value, writtenAt: new Date().toISOString()
+          }, { expectedHash: current?.hash ?? null });
+          return send(res, 200, JSON.stringify({ key: canaryMatch[1], hash: saved.hash, replicas: saved.replicas, receipts: saved.receipts }));
+        }
+        return send(res, 405, 'method not allowed');
+      }
       const match = url.pathname.match(/^\/v1\/peer-cas\/models\/([^/]+)\/(.+)\/manifest$/);
       if (match) {
         const modelId = decodeURIComponent(match[1]), revision = decodeURIComponent(match[2]);
