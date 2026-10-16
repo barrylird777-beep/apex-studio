@@ -49,6 +49,7 @@ export function createKernelVisionPeerCanaryRouter({
 
   router.get('/:key', async (req, res) => {
     try {
+      if (!enabled) return res.status(503).json({ success: false, error: 'KernelVision peer-storage canary is disabled' });
       const key = String(req.params.key || '');
       if (!/^[A-Za-z0-9._-]{1,120}$/.test(key)) return res.status(400).json({ success: false, error: 'Invalid canary key' });
       return res.json({ success: true, ...(await bridge('GET', key)) });
