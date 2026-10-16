@@ -75,3 +75,24 @@ export function validatePeerStorageCapacity(report, {
       report.usableBytes !== Math.max(0, report.availableBytes - report.reservedBytes)) return false;
   return report.usableBytes > 0;
 }
+/**
+ * Validate a capacity report against the identity authenticated by the peer
+ * transport and an operator-controlled peer-to-failure-domain registry.
+ * The report remains a peer assertion, not proof of physical hardware.
+ */
+export function validateAuthenticatedPeerStorageCapacity(report, {
+  authenticatedPeerId,
+  trustedFailureDomains,
+  now = Date.now(),
+  maxAgeMs = DEFAULT_TTL_MS
+} = {}) {
+  if (!validatePeerStorageCapacity(report, { now, maxAgeMs })) return false;
+  if (typeof authenticatedPeerId !== 'string' || !authenticatedPeerId.trim() ||
+      report.peerId !== authenticatedPeerId.trim()) return false;
+  if (!trustedFailureDomains || typeof trustedFailureDomains !== 'object' ||
+      Array.isArray(trustedFailureDomains)) return false;
+  const trustedDomain = trustedFailureDomains[authenticatedPeerId.trim()];
+  if (typeof trustedDomain !== 'string' || !trustedDomain.trim()) return false;
+  return report.failureDomain === trustedDomain.trim();
+}
+
