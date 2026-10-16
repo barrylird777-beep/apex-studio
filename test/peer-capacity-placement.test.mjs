@@ -16,7 +16,7 @@ function fixture(reports) {
   return {
     request: async (peerId, envelope) => {
       assert.equal(envelope.operation, 'storage.health');
-      return { accepted: true, peerId, namespace: envelope.namespace, capacityReport: reports[peerId] };
+      return { accepted: true, peerId, namespace: envelope.namespace, durable: true, ownership: 'peer-owned', recoveryVerified: true, restartRecoveryVerified: true, atomicReferencesVerified: true, receipt: { verified: true }, receiptId: 'durability-' + peerId, capacityReport: reports[peerId] };
     }
   };
 }
@@ -53,8 +53,8 @@ test('capacity placement rejects forged identity, self-claimed failure domains, 
 test('capacity placement rejects missing reports and authenticated transport identity mismatch', async () => {
   const transport = {
     request: async peerId => peerId === 'peer-a'
-      ? { accepted: true, peerId: 'other-peer', namespace: 'KernelVision', capacityReport: report('peer-a', 'rack-a') }
-      : { accepted: true, peerId, namespace: 'KernelVision' }
+      ? { accepted: true, peerId: 'other-peer', namespace: 'KernelVision', durable: true, ownership: 'peer-owned', recoveryVerified: true, restartRecoveryVerified: true, atomicReferencesVerified: true, receipt: { verified: true }, receiptId: 'durability-peer-a', capacityReport: report('peer-a', 'rack-a') }
+      : { accepted: true, peerId, namespace: 'KernelVision', durable: true, ownership: 'peer-owned', recoveryVerified: true, restartRecoveryVerified: true, atomicReferencesVerified: true, receipt: { verified: true }, receiptId: 'durability-peer-b' }
   };
   const result = await discoverCapacityQualifiedPeers({
     peers: ['peer-a', 'peer-b'], transport, namespace: 'KernelVision',
