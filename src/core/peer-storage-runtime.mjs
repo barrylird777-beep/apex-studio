@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { measurePeerStorageCapacity } from './peer-storage-capacity.mjs';
 
 const CANONICAL_APPS = new Set([
@@ -74,6 +75,10 @@ export async function initializePeerObjectStorage({
     // A peer without an explicitly assigned root and operator failure domain
     // may still serve existing operations, but is not eligible for placement.
     if (!root || !failureDomain || !localPeerId) return response;
+    const backendRoot = String(store.capacityRoot || store.storageRoot || '').trim();
+    if (!backendRoot || path.resolve(backendRoot) !== path.resolve(root)) {
+      throw new Error('configured capacity root must exactly match the injected peer-owned backend capacityRoot');
+    }
     const capacityReport = await measurePeerStorageCapacity({
       peerId: localPeerId,
       failureDomain,
