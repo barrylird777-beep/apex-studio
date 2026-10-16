@@ -45,3 +45,29 @@ test('capacity claims expire and arithmetic tampering is rejected', async t => {
     now: 1500, maxAgeMs: 5000
   }), false);
 });
+
+
+test('authenticated capacity validation binds report to transport identity and trusted failure domain', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'apex-capacity-auth-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const report = await measurePeerStorageCapacity({
+    peerId: 'peer-a', failureDomain: 'host-a', root,
+    reservedBytes: 0, now: 1000, ttlMs: 5000
+  });
+  const options = {
+    authenticatedPeerId: 'peer-a',
+    trustedFailureDomains: { 'peer-a': 'host-a' },
+    now: 2000,
+    maxAgeMs: 5000
+  };
+  assert.equal(validateAuthenticatedPeerStorageCapacity(report, options), report.usableBytes > 0);
+  assert.equal(validateAuthenticatedPeerStorageCapacity(report, {
+    ...options, authenticatedPeerId: 'peer-b'
+  }), false, 'a peer cannot advertise another peer identity');
+  assert.equal(validateAuthenticatedPeerStorageCapacity(report, {
+    ...options, trustedFailureDomains: { 'peer-a': 'host-b' }
+  }), false, 'self-claimed failure domains are not trusted');
+  assert.equal(validateAuthenticatedPeerStorageCapacity({
+    ...report, failureDomain: 'host-b'
+  }, options), false, 'reported failure domain must match operator registry');
+});
