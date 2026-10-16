@@ -10,10 +10,10 @@ const bytes = Buffer.from('peer-owned model metadata');
 const digest = createHash('sha256').update(bytes).digest('hex');
 const socketPath = `/tmp/apex-peer-cas-test-${process.pid}.sock`;
 
-function put(path, value, authorization = `Bearer ${token}`) {
+function put(path, value, authorization = `Bearer ${token}`, targetSocketPath = socketPath) {
   return new Promise((resolve, reject) => {
     const body = Buffer.from(JSON.stringify(value));
-    const req = request({ socketPath, path, method: 'PUT', headers: {
+    const req = request({ socketPath: targetSocketPath, path, method: 'PUT', headers: {
       authorization, 'content-type': 'application/json', 'content-length': body.length
     } }, res => {
       const chunks = [];
@@ -25,9 +25,9 @@ function put(path, value, authorization = `Bearer ${token}`) {
   });
 }
 
-function get(path, authorization = `Bearer ${token}`) {
+function get(path, authorization = `Bearer ${token}`, targetSocketPath = socketPath) {
   return new Promise((resolve, reject) => {
-    const req = request({ socketPath, path, method: 'GET', headers: { authorization } }, res => {
+    const req = request({ socketPath: targetSocketPath, path, method: 'GET', headers: { authorization } }, res => {
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
@@ -138,8 +138,8 @@ test('KernelVision canary stays disabled unless explicit opt-in is passed', asyn
   const disabled = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath: disabledPath });
   try {
     await disabled.listen();
-    assert.equal((await put('/v1/peer-cas/canary/flag', { value: 'must-not-write' })).status, 403);
-    assert.equal((await get('/v1/peer-cas/canary/flag')).status, 403);
+    assert.equal((await put('/v1/peer-cas/canary/flag', { value: 'must-not-write' }, `Bearer ${token}`, disabledPath)).status, 403);
+    assert.equal((await get('/v1/peer-cas/canary/flag', `Bearer ${token}`, disabledPath)).status, 403);
     assert.equal(writes, 0);
   } finally {
     await disabled.close();
@@ -153,10 +153,10 @@ test('KernelVision canary stays disabled unless explicit opt-in is passed', asyn
   });
   try {
     await enabled.listen();
-    const saved = await put('/v1/peer-cas/canary/flag', { value: 'peer-only' });
+    const saved = await put('/v1/peer-cas/canary/flag', { value: 'peer-only' }, `Bearer ${token}`, enabledPath);
     assert.equal(saved.status, 200);
     assert.deepEqual(JSON.parse(saved.body.toString()).replicas, ['peer-a', 'peer-b']);
-    const read = await get('/v1/peer-cas/canary/flag');
+    const read = await get('/v1/peer-cas/canary/flag', `Bearer ${token}`, enabledPath);
     assert.equal(read.status, 200);
     assert.equal(JSON.parse(read.body.toString()).value, 'peer-only');
     assert.equal(writes, 1);
