@@ -1,0 +1,16 @@
+name = "apex-anchor-signal"
+main = "apex-signal-worker.mjs"
+compatibility_date = "2026-10-14"
+workers_dev = true
+
+[durable_objects]
+bindings = [
+  { name = "APEX_SIGNAL_ROOMS", class_name = "ApexSignalRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ApexSignalRoom"]
+
+[vars]
+# Set APEX_SIGNAL_PUBLIC_KEY as a secret; never commit signing private keys.
