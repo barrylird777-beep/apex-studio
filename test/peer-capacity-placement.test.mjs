@@ -35,19 +35,20 @@ test('capacity placement accepts only fresh reports bound to authenticated ident
 
 test('capacity placement rejects forged identity, self-claimed failure domains, stale reports and low capacity', async () => {
   const result = await discoverCapacityQualifiedPeers({
-    peers: ['wrong-id', 'untrusted-domain', 'stale', 'low'],
+    peers: ['wrong-id', 'untrusted-domain', 'stale', 'long-lived', 'low'],
     transport: fixture({
       'wrong-id': report('other-peer', 'rack-a'),
       'untrusted-domain': report('untrusted-domain', 'claimed-rack'),
       stale: report('stale', 'rack-b', { expiresAt: now - 1 }),
+      'long-lived': report('long-lived', 'rack-d', { expiresAt: now + 5 * 60_000 + 1 }),
       low: report('low', 'rack-c', { availableBytes: 2000, reservedBytes: 1999, usableBytes: 1 })
     }),
     namespace: 'KernelVision',
-    trustedFailureDomains: { 'wrong-id': 'rack-a', 'untrusted-domain': 'rack-a', stale: 'rack-b', low: 'rack-c' },
+    trustedFailureDomains: { 'wrong-id': 'rack-a', 'untrusted-domain': 'rack-a', stale: 'rack-b', 'long-lived': 'rack-d', low: 'rack-c' },
     now, minUsableBytes: 5000
   });
   assert.deepEqual(result.qualified, []);
-  assert.equal(result.rejected.length, 4);
+  assert.equal(result.rejected.length, 5);
 });
 
 test('capacity placement rejects missing reports and authenticated transport identity mismatch', async () => {
