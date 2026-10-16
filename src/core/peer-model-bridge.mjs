@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { chmod } from 'node:fs/promises';
+import { createKernelVisionPeerStorageCanary } from './peer-storage-canary.mjs';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const CANONICAL_APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
@@ -26,6 +27,9 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
     throw new Error('Unix socket path must be a safe path under /tmp');
   }
   const expected = Buffer.from(token);
+  const kernelVisionCanary = store.namespace === 'KernelVision'
+    ? createKernelVisionPeerStorageCanary({ store, enabled: true })
+    : null;
   const send = (res, status, body, type = 'application/json') => {
     res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
     res.end(body);
@@ -38,15 +42,12 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
       const url = new URL(req.url || '/', 'http://127.0.0.1');
       const canaryMatch = url.pathname.match(/^\/v1\/peer-cas\/canary\/([A-Za-z0-9._-]{1,120})$/);
       if (canaryMatch) {
-        if (store.namespace !== 'KernelVision') return send(res, 403, 'KernelVision canary unavailable for this namespace');
-        const key = 'canary-v1:' + canaryMatch[1];
+        if (!kernelVisionCanary) return send(res, 403, 'KernelVision canary unavailable for this namespace');
+        const key = canaryMatch[1];
         if (req.method === 'GET') {
-          const current = await store.readRef(key);
+          const current = await kernelVisionCanary.read(key);
           if (!current) return send(res, 404, JSON.stringify({ error: 'canary record not found' }));
-          if (current.value?.schema !== 'apex.kernelvision.peer-canary.v1' || current.value.key !== canaryMatch[1]) {
-            return send(res, 409, JSON.stringify({ error: 'canary record schema mismatch' }));
-          }
-          return send(res, 200, JSON.stringify({ key: canaryMatch[1], value: current.value.value, hash: current.hash }));
+          return send(res, 200, JSON.stringify(current));
         }
         if (req.method === 'PUT') {
           let raw = '';
@@ -59,12 +60,8 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
           if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'value')) {
             return send(res, 400, JSON.stringify({ error: 'JSON body must contain value' }));
           }
-          const current = await store.readRef(key);
-          const saved = await store.writeRef(key, {
-            schema: 'apex.kernelvision.peer-canary.v1', key: canaryMatch[1],
-            value: payload.value, writtenAt: new Date().toISOString()
-          }, { expectedHash: current?.hash ?? null });
-          return send(res, 200, JSON.stringify({ key: canaryMatch[1], hash: saved.hash, replicas: saved.replicas, receipts: saved.receipts }));
+          const saved = await kernelVisionCanary.write(key, payload.value);
+          return send(res, 200, JSON.stringify(saved));
         }
         return send(res, 405, 'method not allowed');
       }
