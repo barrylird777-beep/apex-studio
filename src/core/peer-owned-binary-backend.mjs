@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { encodeCanonical, decodeCanonical } from './apex-cbor.mjs';
+import { measurePeerStorageCapacity } from './peer-storage-capacity.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const refId = (namespace, key) => sha256(Buffer.from(namespace + '\0' + key));
@@ -168,6 +169,15 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
       if (requestedPeerId !== peerId || !Array.isArray(acl[namespace]) || !acl[namespace].length) throw new Error('peer CAS health claim does not match peer identity or ACL');
       await verifyDisk();
       const claims = { version: 1, peerId, namespace, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
+      const failureDomain = String(process.env.APEX_PEER_FAILURE_DOMAIN || '').trim();
+      if (failureDomain) {
+        const measured = await measurePeerStorageCapacity({
+          peerId, failureDomain, root,
+          reservedBytes: Number(process.env.APEX_PEER_STORAGE_RESERVED_BYTES || 0)
+        });
+        const { root: _localPath, ...capacity } = measured;
+        claims.capacity = capacity;
+      }
       return { ...claims, receipt: receiptFor(claims), receiptId: sha256(encodeCanonical(claims)) };
     },
     async verifyDurabilityReceipt(receipt, claims) {
@@ -189,8 +199,12 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
           atomicReferencesVerified: true,
           restartRecoveryVerified: true
         };
+        const sameCanonicalValue = (left, right) => {
+          try { return encodeCanonical(left).equals(encodeCanonical(right)); }
+          catch { return false; }
+        };
         return Object.entries(required).every(([key, value]) => signed[key] === value) &&
-          Object.entries(claims).every(([key, value]) => signed[key] === value);
+          Object.entries(claims).every(([key, value]) => sameCanonicalValue(signed[key], value));
       } catch { return false; }
     }
   });
