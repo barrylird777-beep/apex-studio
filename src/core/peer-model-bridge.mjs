@@ -36,7 +36,7 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
       const actual = Buffer.from(supplied);
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(res, 401, 'unauthorized');
       const url = new URL(req.url || '/', 'http://127.0.0.1');
-      const canaryMatch = url.pathname.match(/^\\/v1\\/peer-cas\\/canary\\/([A-Za-z0-9._-]{1,120})$/);
+      const canaryMatch = url.pathname.match(/^\/v1\/peer-cas\/canary\/([A-Za-z0-9._-]{1,120})$/);
       if (canaryMatch) {
         if (store.namespace !== 'KernelVision') return send(res, 403, 'KernelVision canary unavailable for this namespace');
         const key = 'canary-v1:' + canaryMatch[1];
