@@ -31,6 +31,12 @@ export async function discoverCapacityQualifiedPeers({
       if (!response || response.accepted !== true || response.peerId !== peerId || response.namespace !== namespace) {
         throw new Error('authenticated peer identity or namespace mismatch');
       }
+      if (response.durable !== true || response.ownership !== 'peer-owned' ||
+          response.recoveryVerified !== true || response.restartRecoveryVerified !== true ||
+          response.atomicReferencesVerified !== true || !response.receipt ||
+          typeof response.receiptId !== 'string' || !response.receiptId) {
+        throw new Error('peer has not supplied verified peer-owned durability and restart-recovery evidence');
+      }
       const report = response.capacityReport;
       if (!validateAuthenticatedPeerStorageCapacity(report, {
         authenticatedPeerId: response.peerId,
