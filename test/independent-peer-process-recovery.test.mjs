@@ -170,4 +170,12 @@ test('independent peer processes recover encrypted objects and refs after outage
   assert.equal(repair.sourcePeerId, 'peer-b');
   assert.deepEqual(repair.repaired.map(item => item.peerId), ['peer-a']);
   assert.deepEqual(await client.getObject(written.hash), value);
+
+  const refRepair = await client.repairRef('project-main', ['peer-a']);
+  assert.equal(refRepair.hash, ref.hash);
+  assert.equal(refRepair.sourcePeerId, 'peer-b');
+  assert.deepEqual(refRepair.repaired.map(item => item.peerId), ['peer-a']);
+  assert.deepEqual(await client.listRefs(), [
+    { namespace: 'PlanetApeX', key: 'project-main', hash: ref.hash, value: { objectHash: written.hash, revision: 1 } }
+  ]);
 });
