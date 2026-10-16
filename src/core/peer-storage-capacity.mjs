@@ -69,8 +69,8 @@ export function validatePeerStorageCapacity(report, {
       !integer(report.totalBytes) || !integer(report.availableBytes) ||
       !integer(report.reservedBytes) || !integer(report.usableBytes) ||
       !integer(now) || !integer(maxAgeMs)) return false;
-  if (report.expiresAt <= now || report.measuredAt > now ||
-      now - report.measuredAt > maxAgeMs) return false;
+  if (report.expiresAt <= report.measuredAt || report.expiresAt - report.measuredAt > MAX_TTL_MS ||
+      report.expiresAt <= now || report.measuredAt > now || now - report.measuredAt > maxAgeMs) return false;
   if (report.availableBytes > report.totalBytes ||
       report.usableBytes !== Math.max(0, report.availableBytes - report.reservedBytes)) return false;
   return report.usableBytes > 0;
