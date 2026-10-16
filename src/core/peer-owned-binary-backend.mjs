@@ -93,6 +93,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     return { body: body.toString('base64'), mac: createHmac('sha256', signingSecret).update(body).digest('base64') };
   };
   return Object.freeze({
+    capacityRoot: root,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (!/^[a-f0-9]{64}$/.test(hash) || sha256(bytes) !== hash) throw new Error('peer CAS object hash mismatch');
