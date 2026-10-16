@@ -28,9 +28,10 @@ test('authenticated KernelVision API adapter writes and reads only through priva
   app.use(express.json({ limit: '64kb' }));
   app.use('/api/kernelvision/peer-canary', createKernelVisionPeerCanaryRouter({ socketPath, token, enabled: true }));
   const server = app.listen(0, '127.0.0.1');
+  const listening = new Promise(resolve => server.once('listening', resolve));
   try {
     await bridge.listen();
-    await new Promise(resolve => server.once('listening', resolve));
+    await listening;
     const base = `http://127.0.0.1:${server.address().port}/api/kernelvision/peer-canary/draft-1`;
     const write = await fetch(base, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: { title: 'unpublished' } }) });
     assert.equal(write.status, 200);
