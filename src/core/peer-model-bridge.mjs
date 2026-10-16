@@ -13,7 +13,7 @@ const safeId = value => typeof value === 'string' && value.length <= 256 &&
  * PeerContentAddressedStore. It never persists model bytes or proxies providers.
  * The hosting daemon must pass its live store and app-specific authorization.
  */
-export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765, socketPath = '' } = {}) {
+export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765, socketPath = '', kernelVisionCanaryEnabled = false } = {}) {
   if (!store || typeof store.readRef !== 'function' || typeof store.getBlob !== 'function') {
     throw new TypeError('live PeerContentAddressedStore is required');
   }
@@ -27,9 +27,10 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
     throw new Error('Unix socket path must be a safe path under /tmp');
   }
   const expected = Buffer.from(token);
-  // The model-read bridge must remain usable with read-only Peer-CAS adapters.
-  // Enable the optional canary route only when this store explicitly supports writes.
-  const kernelVisionCanary = store.namespace === 'KernelVision' && typeof store.writeRef === 'function'
+  // The canary is a separate opt-in surface; write capability alone must not enable it.
+  // The model-read bridge remains usable with read-only Peer-CAS adapters.
+  const kernelVisionCanary = kernelVisionCanaryEnabled && store.namespace === 'KernelVision' &&
+    typeof store.writeRef === 'function'
     ? createKernelVisionPeerStorageCanary({ store, enabled: true })
     : null;
   const send = (res, status, body, type = 'application/json') => {
