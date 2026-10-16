@@ -150,11 +150,11 @@ test("legacy music idea jobs report canonical app ownership", async () => {
 });
 
 
-test("KoinKob simulation records persist through the shared Pure-WAL fabric", async () => {
+test("KoinKob simulation records preserve app namespace through an injected test adapter", async () => {
   const records = new Map();
   const fabric = {
     async put(appId, id, record) {
-      const entry = { appId, id, record, durable: true, storage: "content-addressed" };
+      const entry = { appId, id, record, storage: "test-adapter" };
       records.set(appId + ":" + id, entry);
       return entry;
     },
@@ -168,7 +168,8 @@ test("KoinKob simulation records persist through the shared Pure-WAL fabric", as
     workerCount: 20,
     events: []
   }, fabric);
-  assert.equal(saved.durable, true);
+  assert.equal(saved.appId, "koin-kob");
+  assert.equal(saved.storage, "test-adapter");
   const rows = await listKoinKobRecords(fabric);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].record.workerCount, 20);
