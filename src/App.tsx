@@ -7,35 +7,24 @@ import NetworkDashboard from "./pages/NetworkDashboard";
 import LocalAI from "./pages/LocalAI";
 import SixAppHub from "./pages/SixAppHub";
 
-const nav=[
-  ["apps","APEX Apps","/apps"],
-  ["projects","Projects","/"],
-  ["characters","Characters","/characters"],
-  ["breakdown","Scripture","/breakdown"],
-  ["scenes","Scenes","/scenes"],
-  ["network","Network","/network"],
-  ["localai","Local AI","/local-ai"],
-] as const;
-
-function pageForPath(path:string):typeof nav[number][0]{
-  if(path.startsWith("/apps"))return "apps";
-  if(path.startsWith("/local-ai"))return "localai";
-  if(path.startsWith("/characters"))return "characters";
-  if(path.startsWith("/breakdown"))return "breakdown";
-  if(path.startsWith("/scenes"))return "scenes";
-  if(path.startsWith("/network"))return "network";
-  return "projects";
-}
+type View="home"|"discover"|"studio"|"library"|"characters"|"network"|"localai"|"apps";
+const routes:Record<View,string>={home:"/",discover:"/breakdown",studio:"/studio",library:"/scenes",characters:"/characters",network:"/network",localai:"/local-ai",apps:"/apps"};
+function viewForPath(path:string):View{if(path.startsWith("/apps"))return"apps";if(path.startsWith("/local-ai"))return"localai";if(path.startsWith("/network"))return"network";if(path.startsWith("/characters"))return"characters";if(path.startsWith("/breakdown"))return"discover";if(path.startsWith("/scenes"))return"library";if(path.startsWith("/studio"))return"studio";return"home"}
+function Icon({name}:{name:string}){const paths:Record<string,string>={home:"M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z",discover:"M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z",studio:"M4 4h16v16H4z M8 4v16 M16 4v16",library:"M4 4h16v16H4z M8 4v16 M4 9h16 M4 15h16",plus:"M12 5v14 M5 12h14",play:"m8 5 11 7-11 7z",spark:"m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z",grid:"M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"};return <svg viewBox="0 0 24 24" aria-hidden="true" className="kv-icon"><path d={paths[name]||paths.spark}/></svg>}
 export default function App(){
-  const [p,setP]=useState<typeof nav[number][0]>(()=>pageForPath(location.pathname));
-  useEffect(()=>{
-    const syncFromHistory=()=>setP(pageForPath(location.pathname));
-    window.addEventListener("popstate",syncFromHistory);
-    return ()=>window.removeEventListener("popstate",syncFromHistory);
-  },[]);
-  const go=(key:typeof p,url:string)=>{if(location.pathname!==url)history.pushState(null,"",url);setP(key);};
-  const page=p==="apps"?<SixAppHub/>:p==="localai"?<LocalAI/>:p==="characters"?<CharacterDatabase/>:p==="breakdown"?<ScriptureBreakdown/>:p==="scenes"?<SceneList/>:p==="network"?<NetworkDashboard/>:<ProjectDashboard/>;
-  return <><nav className="apex-nav" aria-label="Apex Studio navigation">
-    {nav.map(([key,label,url])=><button key={key} onClick={()=>go(key,url)} aria-current={key===p?"page":undefined} style={{padding:"8px 12px",borderRadius:8,cursor:"pointer",fontWeight:key===p?700:500,whiteSpace:"nowrap"}}>{label}</button>)}
-  </nav>{page}</>;
+ const [view,setView]=useState<View>(()=>viewForPath(location.pathname));
+ useEffect(()=>{const sync=()=>setView(viewForPath(location.pathname));window.addEventListener("popstate",sync);return()=>window.removeEventListener("popstate",sync)},[]);
+ const go=(v:View)=>{const url=routes[v];if(location.pathname!==url)history.pushState(null,"",url);setView(v);window.scrollTo({top:0,behavior:"smooth"})};
+ const page=view==="discover"?<ScriptureBreakdown/>:view==="studio"?<ProjectDashboard/>:view==="library"?<SceneList/>:view==="characters"?<CharacterDatabase/>:view==="network"?<NetworkDashboard/>:view==="localai"?<LocalAI/>:view==="apps"?<SixAppHub/>:null;
+ return <div className="kv-shell">
+  <header className="kv-topbar"><button className="kv-brand" onClick={()=>go("home")} aria-label="KernelVision home"><span className="kv-brand-mark"><span/></span><span><b>KERNEL<span>VISION</span></b><small>YOUR CINEMATIC UNIVERSE</small></span></button><div className="kv-top-actions"><span className="kv-status"><i/> STUDIO READY</span><button className="kv-avatar" onClick={()=>go("apps")} aria-label="Open APEX apps">K</button></div></header>
+  <div className="kv-layout"><aside className="kv-rail"><div className="kv-rail-label">THE STUDIO</div>{([["home","Home","home"],["discover","Discover","discover"],["studio","Productions","studio"],["library","Scene library","library"]] as [View,string,string][]).map(([v,label,icon])=><button key={v} onClick={()=>go(v)} className={view===v?"kv-nav active":"kv-nav"}><Icon name={icon}/><span>{label}</span>{v==="studio"&&<b className="kv-nav-count">↗</b>}</button>)}<div className="kv-rail-divider"/><div className="kv-rail-label">ADVANCED</div>{([["characters","Characters"],["network","APEX Network"],["localai","Local AI"],["apps","All APEX Apps"]] as [View,string][]).map(([v,label])=><button key={v} onClick={()=>go(v)} className={view===v?"kv-nav active":"kv-nav"}><Icon name={v==="apps"?"grid":v==="characters"?"library":v==="network"?"spark":"studio"}/><span>{label}</span></button>)}<div className="kv-rail-bottom"><div className="kv-mini-film"><span className="kv-mini-dot"/> CREATIVE MODE</div><p>Make something<br/><b>worth watching.</b></p><button className="kv-rail-create" onClick={()=>go("studio")}><Icon name="plus"/> New production</button></div></aside>
+  <main className="kv-main">{view==="home"?<><section className="kv-welcome"><div><span className="kv-eyebrow"><i/> YOUR PRIVATE PRODUCTION HOUSE</span><h1>Make it <em>cinematic.</em></h1><p>From the first line to the final frame. Your entire film workflow, in one studio.</p></div><button className="kv-button kv-button-quiet" onClick={()=>go("studio")}><Icon name="plus"/> New project</button></section>
+   <section className="kv-hero"><div className="kv-hero-image"/><div className="kv-hero-shade"/><div className="kv-film-grain"/><div className="kv-hero-content"><div className="kv-feature-tag"><span/> FEATURED PRODUCTION <b>01 / 06</b></div><div className="kv-hero-copy"><span className="kv-overline">A CINEMATIC BIBLE STORY</span><h2>THE<br/><strong>EXODUS</strong></h2><p>One people. One promise. An impossible sea.</p><div className="kv-hero-meta"><span>EPIC DRAMA</span><i/> <span>24 SCENES</span><i/> <span>16:9 CINEMA</span></div><button className="kv-button kv-button-primary" onClick={()=>go("studio")}><Icon name="play"/> Continue production <span>→</span></button></div></div><div className="kv-hero-index"><b>01</b><span> / 04</span><div/></div></section>
+   <section className="kv-pipeline"><div><span className="kv-section-kicker">THE FILMMAKING JOURNEY</span><h3>One vision. Every stage.</h3></div><div className="kv-pipeline-steps">{[["01","Discover","Find the story"],["02","Develop","Script & plan"],["03","Produce","Create the film"],["04","Publish","Export & share"]].map(([n,t,d],i)=><button key={n} onClick={()=>go(i===0?"discover":i===1?"discover":i===2?"studio":"library")} className={i===2?"kv-step selected":"kv-step"}><span>{n}</span><b>{t}</b><small>{d}</small><i>↗</i></button>)}</div></section>
+   <section className="kv-work-section"><div className="kv-section-head"><div><span className="kv-section-kicker">YOUR WORKSPACE</span><h3>Lights. Camera. Creation.</h3></div><button className="kv-text-link" onClick={()=>go("studio")}>All productions <span>→</span></button></div><div className="kv-work-grid"><button className="kv-work-card kv-work-primary" onClick={()=>go("studio")}><span className="kv-work-icon"><Icon name="plus"/></span><span className="kv-card-label">START SOMETHING NEW</span><b>New production</b><small>Turn an idea into a film.</small><span className="kv-card-arrow">↗</span></button><button className="kv-work-card" onClick={()=>go("discover")}><span className="kv-work-icon"><Icon name="discover"/></span><span className="kv-card-label">RESEARCH & STORY</span><b>Find your story</b><small>Scripture, research, and story development.</small><span className="kv-card-arrow">↗</span></button><button className="kv-work-card" onClick={()=>go("library")}><span className="kv-work-icon"><Icon name="library"/></span><span className="kv-card-label">YOUR ASSETS</span><b>Scene library</b><small>Scenes, shots, and production materials.</small><span className="kv-card-arrow">↗</span></button></div></section>
+   <footer className="kv-footer"><span>KERNELVISION <i>×</i> APEX</span><span>BUILT FOR STORIES THAT STAY WITH YOU.</span></footer>
+  </>:<><div className="kv-page-head"><div><span className="kv-eyebrow"><i/> KERNELVISION / WORKSPACE</span><h1>{view==="discover"?"Discover the story":view==="studio"?"Your productions":view==="library"?"Scene library":view==="characters"?"Character archive":view==="network"?"APEX network":view==="localai"?"Local AI studio":"APEX universe"}</h1><p>{view==="studio"?"Every film begins with an idea. Pick up where you left off.":view==="discover"?"Research, scripture, and story development.":"Your creative tools, connected to the KernelVision production workflow."}</p></div><button className="kv-button kv-button-primary" onClick={()=>go("studio")}><Icon name="plus"/> New production</button></div><div className="kv-legacy-content">{page}</div></>}</main></div>
+  <nav className="kv-mobile-nav" aria-label="Main navigation">{([["home","Home","home"],["discover","Discover","discover"],["studio","Studio","studio"],["library","Library","library"],["apps","More","grid"]] as [View,string,string][]).map(([v,label,icon])=><button key={v} onClick={()=>go(v)} className={view===v?"active":""}><Icon name={icon}/><span>{label}</span></button>)}</nav>
+ </div>
 }
