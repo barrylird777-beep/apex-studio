@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { measurePeerStorageCapacity, validatePeerStorageCapacity } from '../src/core/peer-storage-capacity.mjs';
+import { measurePeerStorageCapacity, validatePeerStorageCapacity, validateAuthenticatedPeerStorageCapacity } from '../src/core/peer-storage-capacity.mjs';
 
 test('measures actual filesystem capacity and subtracts operator reserve', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'apex-capacity-'));
