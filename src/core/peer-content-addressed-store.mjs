@@ -258,6 +258,90 @@ export class PeerContentAddressedStore {
     return { hash, namespace: this.namespace, sourcePeerId, repaired };
   }
 
+  async repairRef(key, targetPeerIds = []) {
+    if (typeof key !== 'string' || !key || key.length > 512) throw new TypeError('invalid peer reference key');
+    const targets = [...new Set(targetPeerIds.map(String).filter(Boolean))];
+    if (targets.length === 0) throw new Error('at least one explicit reference repair target is required');
+    for (const peerId of targets) {
+      if (!this.peers.includes(peerId)) throw new Error('reference repair target is not in the configured peer allowlist');
+    }
+
+    let source;
+    const sourceFailures = [];
+    for (const peerId of this.peers) {
+      if (targets.includes(peerId)) continue;
+      try {
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.get',
+          namespace: this.namespace, key
+        });
+        if (response.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('reference repair source failed namespace or durability receipt verification');
+        }
+        if (response.hash === null) continue;
+        const bytes = Buffer.from(String(response.bytesBase64 || ''), 'base64');
+        if (!/^[a-f0-9]{64}$/.test(String(response.hash || '')) ||
+            bytes.toString('base64') !== response.bytesBase64 || sha256(bytes) !== response.hash) {
+          throw new Error('reference repair source failed hash verification');
+        }
+        decodeCanonical(bytes);
+        source = { peerId, hash: response.hash, bytes };
+        break;
+      } catch (error) {
+        sourceFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (!source) {
+      const error = new Error('no healthy authorized peer could provide the reference for repair');
+      error.code = 'REFERENCE_UNAVAILABLE';
+      error.failures = sourceFailures;
+      throw error;
+    }
+
+    const repaired = [];
+    const failures = [];
+    for (const peerId of targets) {
+      try {
+        const current = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.get',
+          namespace: this.namespace, key
+        });
+        if (current.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(current)) {
+          throw new Error('reference repair target failed namespace or durability receipt verification');
+        }
+        if (current.hash === source.hash) {
+          repaired.push({ peerId, hash: source.hash, alreadyPresent: true });
+          continue;
+        }
+        if (current.hash !== null) {
+          const error = new Error('reference repair target contains a different value; refusing destructive overwrite');
+          error.code = 'REFERENCE_DIVERGENCE';
+          throw error;
+        }
+        const response = await this.request(peerId, {
+          protocol: 'apex.cas.v1', operation: 'ref.cas',
+          namespace: this.namespace, key, expectedHash: null,
+          hash: source.hash, bytesBase64: source.bytes.toString('base64')
+        });
+        if (response.namespace !== this.namespace || response.hash !== source.hash ||
+            !hasVerifiedDurabilityReceipt(response)) {
+          throw new Error('reference repair target returned an invalid durability receipt');
+        }
+        repaired.push({ peerId, hash: source.hash, alreadyPresent: false, receiptId: response.receiptId });
+      } catch (error) {
+        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (failures.length) {
+      const error = new Error('reference repair did not reach every requested target');
+      error.code = 'REFERENCE_REPAIR_INCOMPLETE';
+      error.repaired = repaired;
+      error.failures = failures;
+      throw error;
+    }
+    return { key, hash: source.hash, namespace: this.namespace, sourcePeerId: source.peerId, repaired };
+  }
+
   async putBlob(input, { chunkSize = 8 * 1024 } = {}) {
     const blob = Buffer.from(input);
     const size = Number(chunkSize);
