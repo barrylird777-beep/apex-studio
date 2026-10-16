@@ -79,6 +79,9 @@ export class RemoteBinaryContentAddressedStore {
       const bytes = await bodyBytes(result.Body);
       const manifest = decodeCanonical(bytes);
       if (!manifest || manifest.version !== 2 || !/^[a-f0-9]{64}$/.test(manifest.hash)) throw new Error("Invalid binary CAS manifest");
+      if (manifest.namespace !== String(namespace) || manifest.key !== String(key)) {
+        throw new Error("Binary CAS manifest namespace or key does not match requested reference");
+      }
       return { ...manifest, etag: String(result.ETag || "").replaceAll('"', "") };
     } catch (error) {
       if (missing(error)) return null;
