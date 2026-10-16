@@ -309,6 +309,14 @@ export class PeerContentAddressedStore {
         if (current.namespace !== this.namespace || !hasVerifiedDurabilityReceipt(current)) {
           throw new Error('reference repair target failed namespace or durability receipt verification');
         }
+        if (current.hash !== null) {
+          const currentBytes = Buffer.from(String(current.bytesBase64 || ''), 'base64');
+          if (!/^[a-f0-9]{64}$/.test(String(current.hash || '')) ||
+              currentBytes.toString('base64') !== current.bytesBase64 || sha256(currentBytes) !== current.hash) {
+            throw new Error('reference repair target failed hash verification');
+          }
+          decodeCanonical(currentBytes);
+        }
         if (current.hash === source.hash) {
           repaired.push({ peerId, hash: source.hash, alreadyPresent: true });
           continue;
