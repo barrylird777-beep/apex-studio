@@ -22,7 +22,7 @@ jobs:
           mkdir -p dist
           ditto -c -k --sequesterRsrc --keepParent build/Build/Products/Release-iphoneos/ApexURLFilter.app dist/ApexURLFilter-unsigned.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ApexURLFilter-iOS26-unsigned
           path: dist/ApexURLFilter-unsigned.zip
