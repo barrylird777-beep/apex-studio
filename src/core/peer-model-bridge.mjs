@@ -27,7 +27,9 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
     throw new Error('Unix socket path must be a safe path under /tmp');
   }
   const expected = Buffer.from(token);
-  const kernelVisionCanary = store.namespace === 'KernelVision'
+  // The model-read bridge must remain usable with read-only Peer-CAS adapters.
+  // Enable the optional canary route only when this store explicitly supports writes.
+  const kernelVisionCanary = store.namespace === 'KernelVision' && typeof store.writeRef === 'function'
     ? createKernelVisionPeerStorageCanary({ store, enabled: true })
     : null;
   const send = (res, status, body, type = 'application/json') => {
