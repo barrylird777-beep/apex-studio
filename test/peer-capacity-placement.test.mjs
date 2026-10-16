@@ -40,7 +40,7 @@ test('capacity placement rejects forged identity, self-claimed failure domains, 
       'wrong-id': report('other-peer', 'rack-a'),
       'untrusted-domain': report('untrusted-domain', 'claimed-rack'),
       stale: report('stale', 'rack-b', { expiresAt: now - 1 }),
-      low: report('low', 'rack-c', { usableBytes: 1 })
+      low: report('low', 'rack-c', { availableBytes: 2000, reservedBytes: 1999, usableBytes: 1 })
     }),
     namespace: 'KernelVision',
     trustedFailureDomains: { 'wrong-id': 'rack-a', 'untrusted-domain': 'rack-a', stale: 'rack-b', low: 'rack-c' },
