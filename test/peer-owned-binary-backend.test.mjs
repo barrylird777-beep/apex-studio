@@ -41,6 +41,7 @@ test('peer-owned binary backend survives backend re-instantiation and verifies C
   assert.deepEqual(await restarted.getBytes(id), bytes);
   assert.deepEqual(await restarted.readRef('PlanetApeX', 'project-main'), { hash: refHash, bytes: refBytes });
   const proof = await restarted.health({ namespace: 'PlanetApeX', peerId: 'peer-owner' });
+  assert.notEqual(proof.backendInstanceId, beforeRestartProof.backendInstanceId, 'restart must create a new backend instance identity');
   assert.notEqual(proof.receiptId, beforeRestartProof.receiptId, 'a new backend instance must produce fresh recovery evidence');
   assert.equal(await restarted.verifyDurabilityReceipt(proof.receipt, {
     namespace: 'PlanetApeX', peerId: 'peer-owner',
