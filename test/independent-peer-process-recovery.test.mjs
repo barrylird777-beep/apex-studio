@@ -159,8 +159,22 @@ test('independent peer processes recover encrypted objects and refs after outage
     error => error.code === 'INSUFFICIENT_REPLICAS' && error.verifiedReplicas === 1
   );
 
+  // Simulate a lost replica: peer-a returns with an empty owned root while
+  // peer-b retains its independently persisted copy.
+  await rm(roots['peer-a'], { recursive: true, force: true });
   peerA = startPeer(t, { peerId: 'peer-a', root: roots['peer-a'], receiptKey });
   a = await peerA.ready;
+
+  const repair = await client.repairObject(written.hash, ['peer-a']);
+  assert.equal(repair.hash, written.hash);
+  assert.equal(repair.sourcePeerId, 'peer-b');
+  assert.deepEqual(repair.repaired.map(item => item.peerId), ['peer-a']);
+  assert.deepEqual(await client.getObject(written.hash), value);
+
+  const refRepair = await client.repairRef('project-main', ['peer-a']);
+  assert.equal(refRepair.hash, ref.hash);
+  assert.equal(refRepair.sourcePeerId, 'peer-b');
+  assert.deepEqual(refRepair.repaired.map(item => item.peerId), ['peer-a']);
   assert.deepEqual(await client.listRefs(), [
     { namespace: 'PlanetApeX', key: 'project-main', hash: ref.hash, value: { objectHash: written.hash, revision: 1 } }
   ]);
