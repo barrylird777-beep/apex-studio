@@ -8,7 +8,7 @@ This is an opt-in validation path, not a production storage migration. Do not di
 2. Give every peer a stable libp2p identity and explicit TCP multiaddress. Add each peer ID to the authenticated peer allowlist and namespace ACL. Do not share private keys or tokens in issue comments or chat.
 3. On each storage peer configure:
    - `APEX_PEER_STORAGE_ENABLED=true`
-   - `APEX_PEER_STORAGE_RECEIPT_KEY_BASE64` containing a strong, independently provisioned secret of at least 32 bytes for signed backend durability receipts
+   - `APEX_PEER_STORAGE_RECEIPT_KEY_BASE64` containing a strong, peer-specific secret of at least 32 bytes for signed backend durability receipts; do not reuse another peer's receipt key
    - optionally, `APEX_PEER_STORAGE_BACKEND_MODULE` pointing at a custom backend adapter; if omitted, the built-in peer-owned filesystem backend is used
    - `APEX_PEER_CAS_NAMESPACE=KernelVision`
    - `APEX_PEER_OWNED_STORAGE_ROOT` pointing at the actual volume reserved for peer data
