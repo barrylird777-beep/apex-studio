@@ -32,6 +32,7 @@ import { continuousAiStatus } from './src/core/autonomy/locked-continuous-loop.m
 import { createMobileControlPlane } from './src/api/mobile-control-plane.mjs';
 import { sovereignAppFabric } from './src/core/sovereign-app-fabric.mjs';
 import { kernelVisionSchedule } from './src/api/kernel-vision-schedule.mjs';
+import { createKernelVisionPeerCanaryRouter } from './src/api/kernelvision-peer-canary.mjs';
 import { opportunityEngineTokenMatches, listKashKornerOpportunities, saveKashKornerOpportunity } from './src/api/kash-korner-opportunities.mjs';
 import { createPhoneControlPlane } from './src/api/phone-control-plane.mjs';
 import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
@@ -1029,6 +1030,8 @@ const scheduleErrorResponse = (res, error) => res.status(Number(error?.status) |
   error: String(error?.message || error),
   ...(error?.code ? { code: error.code } : {})
 });
+
+app.use('/api/kernelvision/peer-canary', requireControlPlaneAuth, createKernelVisionPeerCanaryRouter());
 
 app.get('/api/projects', requireControlPlaneAuth, async (_req, res) => {
   try { return res.json(await kernelVisionSchedule.listProjects()); }
