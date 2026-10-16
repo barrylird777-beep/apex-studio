@@ -51,6 +51,7 @@
     "audit:storage-config": "node scripts/audit-storage-configuration.mjs",
     "test:peer-model-bridge": "node --test test/peer-model-bridge.test.mjs",
     "test:peer-canary": "node --test test/peer-capacity-placement.test.mjs test/peer-storage-canary.test.mjs test/peer-kernelvision-canary-bridge.test.mjs test/kernelvision-peer-canary-api.test.mjs",
+    "verify:kernelvision-peer-canary": "node scripts/verify-kernelvision-peer-canary.mjs",
     "test:independent-peer-recovery": "node --test test/independent-peer-process-recovery.test.mjs",
     "test:payments": "node --test test/rapid-video.test.mjs test/rapid-stripe-payment-flow.test.mjs"
   },
