@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 const baseUrl = String(process.env.APEX_BASE_URL || '').replace(/\/+$/, '');
 const token = String(process.env.APEX_CONTROL_TOKEN || '');
@@ -43,7 +44,7 @@ if (peers.size < minimumReplicas || receiptIds.size < minimumReplicas || domains
   throw new Error(`write lacks verified placement evidence: peers=${peers.size}, receiptIds=${receiptIds.size}, independentDomains=${domains.size}; required replicas=${minimumReplicas}, domains=${minimumDomains}`);
 }
 const readback = await request('GET');
-if (readback.hash !== written.hash || JSON.stringify(readback.value) !== JSON.stringify(marker)) {
+if (readback.hash !== written.hash || !isDeepStrictEqual(readback.value, marker)) {
   throw new Error('canary readback hash/value does not match the write');
 }
 
