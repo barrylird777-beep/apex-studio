@@ -76,7 +76,7 @@ export async function createPeerMeshCasRuntime({ peerNode } = {}) {
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const configuredPeers = Object.keys(addressesByPeerId);
   const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
-  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 2);
+  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || Math.min(2, replicaCount));
   if (!Number.isSafeInteger(replicaCount) || replicaCount < 1 || configuredPeers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
   if (!Number.isSafeInteger(minFailureDomains) || minFailureDomains < 1 || minFailureDomains > replicaCount) throw new Error('mesh startup refused: invalid independent failure-domain policy');
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
@@ -100,7 +100,7 @@ export async function startPeerCasRuntime({ peerNode }) {
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const configuredPeers = Object.keys(addressesByPeerId);
   const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
-  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 2);
+  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || Math.min(2, replicaCount));
   if (!Number.isSafeInteger(replicaCount) || replicaCount < 1 || configuredPeers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
   if (!Number.isSafeInteger(minFailureDomains) || minFailureDomains < 1 || minFailureDomains > replicaCount) throw new Error('mesh startup refused: invalid independent failure-domain policy');
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
