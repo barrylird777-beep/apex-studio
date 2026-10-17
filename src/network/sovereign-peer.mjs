@@ -13,7 +13,7 @@ import { createPeerSecurityGuard, sealPeerEnvelope, verifyPeerEnvelope } from '.
 import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
-const PROTOCOL = '/apex/sovereign/1.0.0';
+const PROTOCOL = '/apex/sovereign/1.1.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
