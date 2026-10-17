@@ -34,6 +34,7 @@ test("research API rejects an incorrect bearer token", async () => {
   const previous = process.env.APEX_RESEARCH_TOKEN;
   process.env.APEX_RESEARCH_TOKEN = "research-test-secret";
   const app = express();
+  app.use(express.json());
   app.use("/api/research", createResearchRouter({
     async resolveWork(query) { return { query }; }
   }));
@@ -60,6 +61,7 @@ test("syndication route awaits URL validation before handing URL to ingestion", 
   process.env.APEX_RESEARCH_TOKEN = "research-test-secret";
   let ingested;
   const app = express();
+  app.use(express.json());
   app.use("/api/research", createResearchRouter({
     async resolveWork(query) { return { query }; },
     async ingestSyndication(url) {
