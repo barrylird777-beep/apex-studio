@@ -1949,7 +1949,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
     });
   } catch (error) {
     console.error('[rapid-order]', JSON.stringify(safeFaultMetadata(error)));
-    return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -2717,7 +2717,7 @@ app.post('/api/oracle', requireControlPlaneAuth, async (req, res) => {
       failures: result.failures
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -2902,7 +2902,7 @@ app.post('/api/audio', requireControlPlaneAuth, async (req, res) => {
     return res.send(buffer);
   } catch (error) {
     console.error('[audio-fatal]', JSON.stringify(safeFaultMetadata(error)));
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -2970,7 +2970,7 @@ app.post('/api/media/image', requireControlPlaneAuth, async (req, res) => {
     return await proxyPollinationsMedia('image', prompt, { model, width, height, seed, nologo: 'true' }, res);
   } catch (error) {
     console.error('[media-image-fatal]', JSON.stringify(safeFaultMetadata(error)));
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3011,7 +3011,7 @@ app.post('/api/media/video', requireControlPlaneAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('[media-video-fatal]', JSON.stringify(safeFaultMetadata(error)));
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 app.get('/api/media/status', (_req, res) => {
@@ -3060,7 +3060,7 @@ app.get('/api/render/status', async (_req, res) => {
     const worker = new RenderWorker();
     return res.json({ success: true, ffmpegAvailable: await worker.available() });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3175,7 +3175,7 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('[render-export-fatal]', JSON.stringify(safeFaultMetadata(error)));
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Request failed' });
   } finally {
     for (const file of [stitchedVideoPath, masteredAudioPath, finalExportPath]) {
       if (file) await unlink(file).catch(() => {});
@@ -3286,7 +3286,7 @@ app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
     const result = await executeInference(prompt, system);
     return res.json({ success: true, ...result });
   } catch (error) {
-    return res.status(502).json({ success: false, error: error.message, provider: requested || 'mesh' });
+    return res.status(502).json({ success: false, error: 'Request failed', provider: requested || 'mesh' });
   }
 });
 
@@ -3308,7 +3308,7 @@ app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
 
     return res.status(result.ok ? 200 : 503).json({ success: result.ok, ...result });
   } catch (error) {
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3333,7 +3333,7 @@ app.post('/api/mesh/jobs', requireControlPlaneAuth, async (req, res) => {
     const result = await meshWorkerSupervisor.dispatch(req.body || {});
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3354,7 +3354,7 @@ app.post('/api/crew/jobs', requireControlPlaneAuth, (req, res) => {
     });
     res.status(202).json({ success: true, job });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3363,7 +3363,7 @@ app.post('/api/crew/burst', requireControlPlaneAuth, (req, res) => {
     const jobs = aiCrew.burst(req.body?.count ?? 32, req.body?.context ?? {});
     res.status(202).json({ success: true, queued: jobs.length, jobs });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3398,7 +3398,7 @@ app.get('/api/voiceover/voices', async (_req,res) => {
     const { listVoiceCatalog } = await import('./src/workers/voiceover-worker.mjs');
     res.json({success:true,voices:await listVoiceCatalog()});
   } catch(error) {
-    res.status(503).json({success:false,error:error.message});
+    res.status(503).json({success:false,error: 'Request failed'});
   }
 });
 app.get('/api/voiceover/status', async (_req,res) => {
@@ -3406,7 +3406,7 @@ app.get('/api/voiceover/status', async (_req,res) => {
     const { voiceoverWorkerStatus } = await import('./src/workers/voiceover-worker.mjs');
     res.json({success:true,...await voiceoverWorkerStatus()});
   } catch(error) {
-    res.status(503).json({success:false,error:error.message});
+    res.status(503).json({success:false,error: 'Request failed'});
   }
 });
 app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
@@ -3421,7 +3421,7 @@ app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
     }
     return res.json({success:true,...job});
   } catch(error) {
-    return res.status(503).json({success:false,error:error.message});
+    return res.status(503).json({success:false,error: 'Request failed'});
   }
 });
 app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
@@ -3431,7 +3431,7 @@ app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
     const { enqueueVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
     res.status(202).json({success:true,id,status:'queued',statusUrl:'/api/voiceover/jobs/'+encodeURIComponent(id)});
-  } catch(error){ res.status(500).json({success:false,error:error.message}); }
+  } catch(error){ res.status(500).json({success:false,error: 'Request failed'}); }
 });
 
 app.get('/api/network/adblock/profile', (_req, res) => {
@@ -3544,7 +3544,7 @@ app.get('/api/korn-knob/status', async (_req, res) => {
     const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
     return res.json({ success: true, ...kornKnobStatus() });
   } catch (error) {
-    return res.status(503).json({ success: false, error: error.message });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3554,7 +3554,7 @@ app.post('/api/korn-knob/ideas', requireControlPlaneAuth, async (req, res) => {
     const idea = createKornKnobIdea(req.body || {});
     return res.status(201).json({ success: true, idea });
   } catch (error) {
-    return res.status(400).json({ success: false, error: error.message });
+    return res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3572,7 +3572,7 @@ app.post('/api/korn-knob/ideas/evaluate', requireControlPlaneAuth, async (req, r
       }
     });
   } catch (error) {
-    return res.status(400).json({ success: false, error: error.message });
+    return res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3587,7 +3587,7 @@ app.post('/api/korn-knob/worker-job', requireControlPlaneAuth, async (req, res) 
     });
     return res.status(202).json({ success: true, task });
   } catch (error) {
-    return res.status(503).json({ success: false, error: error.message });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
