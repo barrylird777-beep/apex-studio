@@ -40,7 +40,7 @@ function isSensitiveKey(key,keys){
 function redactInlineSecrets(value){
   return value
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[REDACTED]")
-    .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|authorization|secret)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;&}]+)/gi, "$1[REDACTED]");
+    .replace(/(["']?\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|signing[_-]?key|encryption[_-]?key|session[_-]?key|token|password|passwd|authorization|credential|secret|jwt|cookie)\b["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;&}]+)/gi, "$1[REDACTED]");
 }
 
 export function redact(value,keys=["token","password","secret","apiKey","authorization"]){
