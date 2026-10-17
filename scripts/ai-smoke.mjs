@@ -11,24 +11,21 @@ async function request(url, options = {}) {
   }
 }
 
-async function smokeGemini() {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return { provider: 'Gemini', configured: false, ok: false, error: 'missing API key' };
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+async function smokeOpenAI() {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return { provider: 'OpenAI', configured: false, ok: false, error: 'missing API key' };
+  const model = process.env.OPENAI_MAX_MODEL || 'gpt-5.6-sol';
   try {
-    const response = await request(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    const response = await request('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, max_tokens: 32, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await response.json().catch(() => ({}));
-    const text = data.candidates?.[0]?.content?.parts?.map(p => p?.text || '').join('').trim() || '';
-    return { provider: 'Gemini', configured: true, model, ok: response.ok && Boolean(text), status: response.status, error: response.ok && text ? undefined : (data.error?.message || 'empty response') };
-  } catch (error) {
-    return { provider: 'Gemini', configured: true, model, ok: false, error: error.message };
-  }
+    const text = data.choices?.[0]?.message?.content?.trim() || '';
+    return { provider: 'OpenAI', configured: true, model, ok: response.ok && Boolean(text), status: response.status, error: response.ok && text ? undefined : 'request failed or empty response' };
+  } catch (error) { return { provider: 'OpenAI', configured: true, model, ok: false, error: error.message }; }
 }
-
 async function smokeClaude() {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { provider: 'Claude', configured: false, ok: false, error: 'missing API key' };
@@ -47,6 +44,6 @@ async function smokeClaude() {
   }
 }
 
-const results = [await smokeGemini(), await smokeClaude()];
+const results = [await smokeOpenAI(), await smokeClaude()];
 console.log(JSON.stringify({ results }, null, 2));
 if (process.env.AI_SMOKE_REQUIRE_LIVE === 'true' && results.some(r => r.configured && !r.ok)) process.exitCode = 1;
