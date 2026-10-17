@@ -9,10 +9,7 @@ const MAX_CHARS = boundedNumber(process.env.APEX_AI_MAX_PROMPT_CHARS, 30000, 100
 const MAX_TOTAL_MESSAGE_CHARS = MAX_CHARS;
 const MAX_SYSTEM_CHARS = 10000;
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
-const FREE_AI_PROVIDERS = new Set(['openrouter', 'pollinations', 'groq']);
-if (String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED ?? '').toLowerCase() === 'true') {
-  FREE_AI_PROVIDERS.add('google');
-}
+const FREE_AI_PROVIDERS = new Set(['openrouter', 'pollinations', 'groq', 'google', 'mistral', 'cloudflare']);
 const FREE_AI_MAX_CONCURRENCY = boundedNumber(process.env.APEX_FREE_AI_MAX_CONCURRENCY, 8, 1, 16);
 let freeAiInFlight = 0;
 const freeAiWaiters = [];
@@ -37,8 +34,9 @@ export const AI_PROVIDER_CATALOG = [
   { id: 'fireworks', category: 'open-model-inference', env: 'FIREWORKS_API_KEY', modelEnv: 'FIREWORKS_MODEL', defaultModel: 'accounts/fireworks/models/llama-v3p3-70b-instruct', protocol: 'openai-compatible' },
   { id: 'cerebras', category: 'ultra-fast-inference', env: 'CEREBRAS_API_KEY', modelEnv: 'CEREBRAS_MODEL', defaultModel: 'llama-3.3-70b', protocol: 'openai-compatible' },
   { id: 'sambanova', category: 'ultra-fast-inference', env: 'SAMBANOVA_API_KEY', modelEnv: 'SAMBANOVA_MODEL', defaultModel: 'Meta-Llama-3.3-70B-Instruct', protocol: 'openai-compatible' },
-  { id: 'groq', category: 'ultra-fast-inference', env: 'GROQ_API_KEY', modelEnv: 'GROQ_MODEL', defaultModel: 'llama-3.3-70b-versatile', protocol: 'openai-compatible' },
+  { id: 'groq', category: 'ultra-fast-inference', env: 'GROQ_API_KEY', modelEnv: 'GROQ_MODEL', defaultModel: 'llama-3.3-70b-versatile', protocol: 'openai-compatible', freeTierRequiresOptIn: true },
   { id: 'openrouter', category: 'multi-provider-routing', env: 'OPENROUTER_API_KEY', modelEnv: 'OPENROUTER_MODEL', defaultModel: 'openrouter/free', protocol: 'openai-compatible' },
+  { id: 'cloudflare', category: 'edge-inference', env: 'CLOUDFLARE_API_TOKEN', modelEnv: 'CLOUDFLARE_AI_MODEL', defaultModel: '@cf/meta/llama-3.1-8b-instruct', protocol: 'cloudflare', freeTierRequiresOptIn: true },
   { id: 'pollinations', category: 'free-fallback', env: null, modelEnv: 'POLLINATIONS_MODEL', defaultModel: 'openai', protocol: 'pollinations' }
 ];
 
@@ -90,7 +88,7 @@ function enforceFreeAiBudget(provider) {
 
 const pollinationsFetch = createGuardedFetch(['text.pollinations.ai']);
 const providerFetch = createGuardedFetch([
-  'api.anthropic.com', 'generativelanguage.googleapis.com', 'api.cohere.com',
+  'api.anthropic.com', 'generativelanguage.googleapis.com', 'api.cohere.com', 'api.cloudflare.com',
   'api.deepseek.com', 'api.mistral.ai', 'dashscope-intl.aliyuncs.com',
   'api.perplexity.ai', 'api.together.xyz', 'api.fireworks.ai',
   'api.cerebras.ai', 'api.sambanova.ai', 'api.groq.com', 'openrouter.ai'
@@ -133,6 +131,27 @@ async function anthropic({ p, model, messages, maxTokens = 4096, temperature }) 
     'x-api-key': key, 'anthropic-version': '2023-06-01'
   }, { model, max_tokens: Math.max(1, Number(maxTokens) || 4096), ...(system ? { system } : {}), messages: input, ...(temperature == null ? {} : { temperature }) });
   return { id: data.id, model: data.model || model, text: data.content?.filter(x => x.type === 'text').map(x => x.text).join('') || '', usage: data.usage || null };
+}
+
+async function cloudflare({ model, messages, temperature, maxTokens }) {
+  const token = String(process.env.CLOUDFLARE_API_TOKEN || '').trim();
+  const accountId = String(process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+  if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not configured');
+  if (!/^[a-f0-9]{32}$/i.test(accountId)) throw new Error('CLOUDFLARE_ACCOUNT_ID must be a 32-character account ID');
+  if (String(process.env.APEX_CLOUDFLARE_FREE_TIER_CONFIRMED || '').toLowerCase() !== 'true') {
+    throw new Error('Cloudflare free-tier use requires explicit APEX_CLOUDFLARE_FREE_TIER_CONFIRMED=true');
+  }
+  const modelPath = String(model || '@cf/meta/llama-3.1-8b-instruct');
+  if (!/^[@A-Za-z0-9._/-]{1,160}$/.test(modelPath) || modelPath.includes('..')) throw new Error('invalid Cloudflare model identifier');
+  const data = await post('https://api.cloudflare.com/client/v4/accounts/' + accountId + '/ai/run/' + modelPath.split('/').map(encodeURIComponent).join('/'), {
+    Authorization: 'Bearer ' + token
+  }, {
+    messages,
+    ...(temperature == null ? {} : { temperature }),
+    ...(maxTokens ? { max_tokens: Number(maxTokens) } : {})
+  });
+  if (data.success === false) throw new Error('Cloudflare AI request failed');
+  return { id: null, model: modelPath, text: String(data.result?.response || ''), usage: data.result?.usage || null };
 }
 
 async function gemini({ model, messages, temperature, maxTokens }) {
@@ -178,23 +197,23 @@ async function openAiCompatible({ p, model, messages, temperature, maxTokens }) 
 }
 
 let freeAiRotationCursor = 0;
-const FREE_AI_ROTATION_ORDER = Object.freeze(['groq', 'google', 'openrouter', 'pollinations']);
+const FREE_AI_ROTATION_ORDER = Object.freeze(['groq', 'google', 'openrouter', 'mistral', 'cloudflare', 'pollinations']);
 
 function freeProviderIsConfigured(id) {
   if (id === 'pollinations') return true;
   if (id === 'google') return String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED || '').toLowerCase() === 'true' && Boolean(process.env.GEMINI_API_KEY);
-  if (id === 'groq') return Boolean(process.env.GROQ_API_KEY);
+  if (id === 'groq') return String(process.env.APEX_GROQ_FREE_TIER_CONFIRMED || '').toLowerCase() === 'true' && Boolean(process.env.GROQ_API_KEY);
   if (id === 'openrouter') return Boolean(process.env.OPENROUTER_API_KEY);
+  if (id === 'mistral') return String(process.env.APEX_MISTRAL_FREE_TIER_CONFIRMED || '').toLowerCase() === 'true' && Boolean(process.env.MISTRAL_API_KEY);
+  if (id === 'cloudflare') return String(process.env.APEX_CLOUDFLARE_FREE_TIER_CONFIRMED || '').toLowerCase() === 'true' && Boolean(process.env.CLOUDFLARE_API_TOKEN) && /^[a-f0-9]{32}$/i.test(String(process.env.CLOUDFLARE_ACCOUNT_ID || ''));
   return false;
 }
 
-function rotateFreeProviders(requested) {
+export function getFreeAiRotationPlan() {
   const configured = FREE_AI_ROTATION_ORDER.filter(id => FREE_AI_PROVIDERS.has(id) && freeProviderIsConfigured(id));
   if (!configured.length) throw new Error('No configured free AI providers; paid fallback is disabled');
-  const preferred = FREE_AI_PROVIDERS.has(requested) && configured.includes(requested) ? requested : null;
   const offset = freeAiRotationCursor++ % configured.length;
-  const rotated = [...configured.slice(offset), ...configured.slice(0, offset)];
-  return preferred ? [preferred, ...rotated.filter(id => id !== preferred)] : rotated;
+  return [...configured.slice(offset), ...configured.slice(0, offset)];
 }
 
 async function executeProvider({ effectiveProvider, normalized, model, temperature, maxTokens }) {
@@ -208,6 +227,7 @@ async function executeProvider({ effectiveProvider, normalized, model, temperatu
   if (p.id === 'pollinations') result = await pollinations({ model: selectedModel, messages: normalized });
   else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature, maxTokens });
   else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature, maxTokens });
+  else if (p.id === 'cloudflare') result = await cloudflare({ model: selectedModel, messages: normalized, temperature, maxTokens });
   else if (p.id === 'cohere') result = await cohere({ p, model: selectedModel, messages: normalized, temperature, maxTokens });
   else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature, maxTokens });
   else if (p.id === 'openai') {
@@ -232,7 +252,7 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
       const p = providerOf(requested);
       return await executeProvider({ effectiveProvider: requested, normalized, model, temperature: requestedTemperature, maxTokens: outputTokenLimit });
     }
-    const order = rotateFreeProviders(requested);
+    const order = getFreeAiRotationPlan();
     const failures = [];
     for (const id of order) {
       try {
@@ -254,6 +274,7 @@ export function unifiedAiStatus() {
     category: p.category,
     configured: Boolean(process.env[p.env]),
     model: process.env[p.modelEnv] || p.defaultModel,
-    protocol: p.protocol
+    protocol: p.protocol,
+    freeEligible: FREE_AI_PROVIDERS.has(p.id) && freeProviderIsConfigured(p.id)
   }]));
 }
