@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { createControlPlaneAuth } from "../src/security/control-plane-auth.mjs";
+import { createControlPlaneAuth, isStrongControlToken } from "../src/security/control-plane-auth.mjs";
 
 function makeResponse() {
   return {
@@ -150,4 +150,10 @@ test("high-cost API routes require control-plane auth and public flows remain ex
   assert.match(server, /app\.post\(['"]\/api\/rapid\/preview['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/rapid\/orders['"],\s*requirePublicRequestSlot,/);
   assert.match(server, /app\.post\(['"]\/api\/network\/client-telemetry['"],\s*requirePublicRequestSlot,/);
+});
+
+test("production control-plane token policy requires at least 32 UTF-8 bytes", () => {
+  assert.equal(isStrongControlToken("short-test-token"), false);
+  assert.equal(isStrongControlToken("12345678901234567890123456789012"), true);
+  assert.equal(isStrongControlToken(""), false);
 });
