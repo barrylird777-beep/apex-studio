@@ -62,3 +62,11 @@ Configure the Stripe webhook endpoint as `https://YOUR-APEX-HOST/api/rapid/strip
 Run the focused payment checks with `npm run test:payments`. These tests verify checkout price parameters, webhook signature validation, unpaid/wrong-amount rejection, duplicate-event idempotency, and fail-closed behavior when the queue is unavailable. CI test success does not prove that deployment secrets or the live Stripe webhook have been configured.
 
 **Scope:** this is pay-per-render checkout, not yet general per-API-request metering. A future API-hit product should define the exact endpoint, price per unit, abuse limits, and whether customers prepay credits or complete a checkout before each request.
+
+## Sovereign storage: current status
+
+**Status: BLOCKED / UNVERIFIED.** Static source review finds local filesystem media/JSON-manifest writes in `src/core/storage.mjs`, local CAS/WAL composition in `src/core/apex-pure-store.mjs`, a remote append-only WAL implementation, and an S3-compatible CAS that serializes JSON objects/manifests. These are migration blockers, not approved target storage. SQL/PostgreSQL dependencies and migration scripts are legacy tooling and must not be wired into production persistence.
+
+Do not delete legacy data or disable existing paths as a shortcut. First route a non-critical namespace through the peer-owned binary backend, then prove authenticated peer identity, independent failure domains, durable write/readback after restart, peer-loss recovery, replica repair, and all six namespace boundaries. Until independent physical-peer evidence and production-route verification exist, do not claim sovereignty or storage readiness.
+
+The authoritative gate is [the repository baseline and storage release gate](docs/architecture/APEX-REPOSITORY-BASELINE.md). A running hosting service, in-memory unit fixtures, a benchmark, or a green product-surface audit does not prove peer-backed durability.
