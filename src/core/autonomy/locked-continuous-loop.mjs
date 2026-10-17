@@ -64,6 +64,9 @@ export function buildAutonomousAiTask({ role, task, provider, model, cycle = Dat
 }
 
 export async function seedAutonomousAiWork({ maxTasks = ROLES.length, dispatch, enqueueTask = enqueueWorkerTask, getQueueStats = queueStats } = {}) {
+  if (!truthy("APEX_AUTONOMOUS_AI_ENABLED")) {
+    return { enabled: false, reason: "autonomous AI seeding requires explicit APEX_AUTONOMOUS_AI_ENABLED=true", queued: 0 };
+  }
   const provider = zeroCostAiProvider();
   if (!provider) return { enabled: false, reason: "no confirmed zero-cost AI provider configured", queued: 0 };
 
@@ -104,9 +107,11 @@ export async function seedAutonomousAiWork({ maxTasks = ROLES.length, dispatch, 
 
 export function continuousAiStatus() {
   const provider = zeroCostAiProvider();
+  const explicitlyEnabled = truthy("APEX_AUTONOMOUS_AI_ENABLED");
   return {
     freeMode: FREE_MODE,
-    enabled: Boolean(provider),
+    enabled: explicitlyEnabled && Boolean(provider),
+    autonomyEnabled: explicitlyEnabled,
     provider: provider?.provider || null,
     model: provider?.model || null,
     configured: { openrouter: Boolean(process.env.OPENROUTER_API_KEY) }
@@ -114,6 +119,12 @@ export function continuousAiStatus() {
 }
 
 export async function startLockedContinuousAiLoop({ dispatch, enqueueTask = enqueueWorkerTask, getQueueStats = queueStats } = {}) {
+  if (!truthy("APEX_AUTONOMOUS_AI_ENABLED")) {
+    return {
+      stop() {},
+      status: continuousAiStatus
+    };
+  }
   const intervalMs = Math.max(15000, Number(process.env.APEX_AUTONOMOUS_AI_PULSE_MS || 60000));
   let stopping = false;
 

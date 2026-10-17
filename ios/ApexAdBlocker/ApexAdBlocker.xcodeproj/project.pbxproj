@@ -5,16 +5,16 @@
 	objectVersion = 56;
 	objects = {
 
-		111111111111111111111111 /* ApexAdBlockerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlockerApp.swift; sourceTree = "<group>"; };
-		222222222222222222222222 /* DNSSettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSSettingsController.swift; sourceTree = "<group>"; };
-		333333333333333333333333 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		444444444444444444444444 /* ApexAdBlocker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ApexAdBlocker.entitlements; sourceTree = "<group>"; };
+		111111111111111111111111 /* ApexAdBlockerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlocker/ApexAdBlockerApp.swift; sourceTree = "<group>"; };
+		222222222222222222222222 /* DNSSettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlocker/DNSSettingsController.swift; sourceTree = "<group>"; };
+		333333333333333333333333 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = ApexAdBlocker/Info.plist; sourceTree = "<group>"; };
+		444444444444444444444444 /* ApexAdBlocker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ApexAdBlocker/ApexAdBlocker.entitlements; sourceTree = "<group>"; };
 		555555555555555555555555 /* ApexAdBlocker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ApexAdBlocker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 
 		666666666666666666666666 /* ApexAdBlocker */ = {
 			isa = PBXGroup;
 			children = (111111111111111111111111,222222222222222222222222,333333333333333333333333,444444444444444444444444);
-			path = ApexAdBlocker;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		777777777777777777777777 /* Products */ = {isa = PBXGroup; children = (555555555555555555555555); name = Products; sourceTree = "<group>"; };

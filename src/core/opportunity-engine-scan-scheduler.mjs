@@ -9,8 +9,18 @@ export async function triggerOpportunityScan({
   const config = configured(url, token);
   if (!config.url && !config.token) return { skipped: true, reason: "not-configured" };
   if (!config.url || !config.token) throw new Error("Opportunity Engine scan URL and token must both be configured");
-  const response = await fetchImpl(config.url, {
+  let target;
+  try {
+    target = new URL(config.url);
+  } catch {
+    throw new Error("Opportunity Engine scan URL must be a valid HTTPS URL");
+  }
+  if (target.protocol !== "https:" || !target.hostname || target.username || target.password) {
+    throw new Error("Opportunity Engine scan URL must be HTTPS and cannot contain embedded credentials");
+  }
+  const response = await fetchImpl(target.toString(), {
     method: "POST",
+    redirect: "error",
     headers: {
       "x-apex-opportunity-token": config.token,
       authorization: "Bearer " + config.token,
@@ -27,11 +37,15 @@ export function startOpportunityEngineScanScheduler({
   url = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_URL,
   token = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_TOKEN,
   intervalMs = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_INTERVAL_MS,
+  enabled = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_ENABLED,
   fetchImpl = fetch,
   logger = console,
   runImmediately = true
 } = {}) {
   const config = configured(url, token);
+  if (String(enabled || "").toLowerCase() !== "true") {
+    return { enabled: false, reason: "explicit APEX_OPPORTUNITY_ENGINE_SCAN_ENABLED=true required", stop() {} };
+  }
   if (!config.url && !config.token) return { enabled: false, stop() {} };
   if (!config.url || !config.token) throw new Error("Opportunity Engine scan URL and token must both be configured");
   let stopped = false;

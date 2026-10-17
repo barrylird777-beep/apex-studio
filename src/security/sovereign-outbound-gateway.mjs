@@ -99,8 +99,7 @@ export function createSovereignLlmGateway({ fetchImpl = globalThis.fetch, localG
       if (!apiKey) return localGenerate(payload, { signal, fallbackReason: "provider_key_missing" });
       const clean = sanitizeOutboundPayload(payload, { bypass: debugPreserveIdentifiers });
       const base = env[provider.toUpperCase() + "_API_BASE"] || (
-        provider === "openai" ? "https://api.openai.com" :
-        provider === "anthropic" ? "https://api.anthropic.com" :
+        provider === "openai" ? "https://api.openai.com" : "https://api.anthropic.com"
       );
       let target;
       try {

@@ -5,7 +5,8 @@ import {
   zeroCostAiProvider,
   buildAutonomousAiTask,
   continuousAiStatus,
-  seedAutonomousAiWork
+  seedAutonomousAiWork,
+  startLockedContinuousAiLoop
 } from "../src/core/autonomy/locked-continuous-loop.mjs";
 
 test("zero-cost AI is fail-closed by default", () => {
@@ -46,7 +47,28 @@ test("OpenRouter free router is selected only when its key exists", () => {
   else process.env.OPENROUTER_API_KEY = previous;
 });
 
-);
+
+test("continuous AI loop does not start or seed without explicit opt-in", async () => {
+  const previousEnabled = process.env.APEX_AUTONOMOUS_AI_ENABLED;
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  let enqueueCalls = 0;
+  try {
+    const loop = await startLockedContinuousAiLoop({
+      enqueueTask: async () => { enqueueCalls++; return { id: "unexpected" }; },
+      getQueueStats: async () => ({ queued: 0 })
+    });
+    assert.equal(loop.status().enabled, false);
+    assert.equal(enqueueCalls, 0);
+    loop.stop();
+  } finally {
+    if (previousEnabled == null) delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+    else process.env.APEX_AUTONOMOUS_AI_ENABLED = previousEnabled;
+    if (previousKey == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousKey;
+  }
+});
 
 test("autonomous AI task carries explicit provider and durable dedupe key", () => {
   const task = buildAutonomousAiTask({
@@ -64,9 +86,33 @@ test("autonomous AI task carries explicit provider and durable dedupe key", () =
   assert.equal(task.payload.role, "qa-review");
 });
 
-test("autonomous AI can enqueue through an injected authoritative queue", async () => {
-  const previous = process.env.OPENROUTER_API_KEY;
+test("autonomous AI queue seeding is disabled unless explicitly enabled", async () => {
+  const previous = { autonomy: process.env.APEX_AUTONOMOUS_AI_ENABLED, openrouter: process.env.OPENROUTER_API_KEY };
+  delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
   process.env.OPENROUTER_API_KEY = "test-key";
+  let attempts = 0;
+  try {
+    const result = await seedAutonomousAiWork({
+      maxTasks: 1,
+      getQueueStats: async () => ({ queued: 0 }),
+      enqueueTask: async () => { attempts++; return { id: "unexpected" }; }
+    });
+    assert.equal(result.enabled, false);
+    assert.match(result.reason, /explicit APEX_AUTONOMOUS_AI_ENABLED=true/);
+    assert.equal(attempts, 0);
+    assert.equal(continuousAiStatus().autonomyEnabled, false);
+  } finally {
+    if (previous.autonomy == null) delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+    else process.env.APEX_AUTONOMOUS_AI_ENABLED = previous.autonomy;
+    if (previous.openrouter == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previous.openrouter;
+  }
+});
+
+test("autonomous AI can enqueue through an injected authoritative queue", async () => {
+  const previous = { openrouter: process.env.OPENROUTER_API_KEY, autonomy: process.env.APEX_AUTONOMOUS_AI_ENABLED };
+  process.env.OPENROUTER_API_KEY = "test-key";
+  process.env.APEX_AUTONOMOUS_AI_ENABLED = "true";
   const queued = [];
   try {
     const result = await seedAutonomousAiWork({
@@ -79,14 +125,17 @@ test("autonomous AI can enqueue through an injected authoritative queue", async 
     assert.equal(queued[0].task, "ai-inference");
     assert.equal(queued[0].role, "scripture-research");
   } finally {
-    if (previous == null) delete process.env.OPENROUTER_API_KEY;
-    else process.env.OPENROUTER_API_KEY = previous;
+    if (previous.openrouter == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previous.openrouter;
+    if (previous.autonomy == null) delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+    else process.env.APEX_AUTONOMOUS_AI_ENABLED = previous.autonomy;
   }
 });
 
 test("autonomous AI stops seeding when the authoritative queue is full", async () => {
-  const previous = process.env.OPENROUTER_API_KEY;
+  const previous = { openrouter: process.env.OPENROUTER_API_KEY, autonomy: process.env.APEX_AUTONOMOUS_AI_ENABLED };
   process.env.OPENROUTER_API_KEY = "test-key";
+  process.env.APEX_AUTONOMOUS_AI_ENABLED = "true";
   let attempts = 0;
   try {
     const result = await seedAutonomousAiWork({
@@ -97,7 +146,9 @@ test("autonomous AI stops seeding when the authoritative queue is full", async (
     assert.equal(result.queued, 0);
     assert.equal(attempts, 0);
   } finally {
-    if (previous == null) delete process.env.OPENROUTER_API_KEY;
-    else process.env.OPENROUTER_API_KEY = previous;
+    if (previous.openrouter == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previous.openrouter;
+    if (previous.autonomy == null) delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+    else process.env.APEX_AUTONOMOUS_AI_ENABLED = previous.autonomy;
   }
 });
