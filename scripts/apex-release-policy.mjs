@@ -1,5 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
-import { readFile, realpath, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, realpath, mkdir, writeFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { signReleaseManifest, verifyReleaseManifest, signRollbackAuthorization, verifyRollbackAuthorization } from '../src/security/content-addressed-release.mjs';
 
@@ -16,6 +16,15 @@ const resolveInsideRoot = (root, relativePath) => {
   const resolved = path.resolve(root, relativePath);
   if (!insideRoot(root, resolved)) throw new Error('path resolves outside the release root');
   return resolved;
+};
+const requireNewRegularFile = async file => {
+  try {
+    const info = await lstat(file);
+    if (info.isSymbolicLink() || !info.isFile()) throw new Error('output path must not overwrite a symlink or non-file');
+    throw new Error('output file already exists; choose a new path to preserve release history');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
 };
 const keyFromEnv = (name, create) => {
   const pem = process.env[name];
@@ -61,6 +70,7 @@ async function signCommand() {
   const realDirectory = await realpath(path.dirname(output));
   if (!insideRoot(root, realDirectory)) throw new Error('release manifest output directory resolves outside the release root');
   output = path.join(realDirectory, path.basename(output));
+  await requireNewRegularFile(output);
   await writeFile(output, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 });
   process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, output), digest: envelope.digest, sequence: envelope.payload.sequence, artifactCount: envelope.payload.artifacts.length }) + '\n');
 }
@@ -117,6 +127,7 @@ async function rollbackSignCommand() {
   const realDirectory = await realpath(path.dirname(output));
   if (!insideRoot(root, realDirectory)) throw new Error('rollback output directory resolves outside the release root');
   const finalPath = path.join(realDirectory, path.basename(output));
+  await requireNewRegularFile(finalPath);
   await writeFile(finalPath, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 });
   process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, finalPath), sequence, targetVersion: target.payload.version }) + '\n');
 }
