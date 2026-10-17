@@ -1,0 +1,37 @@
+# APEX Master Empire — Implementation Tracker
+
+**Branch:** security/below-zero-trust-wall-to-wall-20261016  
+**Pull request:** [#638 — Enforce below-zero-trust storage boundary and map A-006 blockers](https://github.com/barrylird777-beep/apex-studio/pull/638)  
+**Tracking rule:** A committed change is not VERIFIED until the exact head has passing checks and independent runtime evidence. This tracker does not replace the user-provided blueprint or locked canon.
+
+## Implemented in code; runtime verification pending
+
+- **Free AI rotation:** Groq, Google AI Studio, OpenRouter free models, Mistral, Cloudflare Workers AI, and Pollinations; explicit free-tier opt-ins where applicable; no paid fallback from free mode.
+- **Peer media objects:** hierarchical, bounded blob manifests; per-node byte-length and SHA-256 validation; replica receipts returned for the root; configurable blob budget (512 MiB default, 1 GiB maximum).
+- **Production persistence guard:** local project-manifest/media writes fail closed until a peer-backed media adapter is connected and recovery-verified.
+- **Peer request security:** protocol 1.1.0; sender identity binding, request digest, freshness validation, replay detection, and bounded in-memory cached ACK responses.
+- **KashKorner contingency audit:** authenticated structured-contract/invoice audit endpoint and UI; missing-term, reference, amount, currency, date, and contingency-fee checks; no persistence or external transmission by the audit route.
+- **Regression coverage:** focused AI-rotation, peer-blob, and KashKorner audit test commands are registered; production storage and peer-security tests are included in the test suite.
+
+## Verification state
+
+- Source/config/test changes have been independently read back from GitHub.
+- GitHub Actions for the current branch head are queued/pending; passing CI has not been established for the latest commits.
+- No deployment was performed.
+- No physical peer restart, replica-loss, recovery, or repair proof was produced by these code changes.
+
+## Open blockers before claiming the blueprint functional
+
+1. Wire peer-backed media storage into all production asset reads/writes and the /files serving/render pipeline; preserve six distinct canonical app namespaces.
+2. Provide authenticated, independently operated peer machines and prove durable writes, restart recovery, peer-loss reads, re-replication, and repair using receipts.
+3. Replace sequential multi-peer mutable-reference writes with a reviewed consensus/leader-fencing protocol; a replica majority alone is not proof of linearizable CAS.
+4. Finish and test the full blueprint product capabilities: bounties/spec-ad/retainer fulfillment, continuity mesh, full-duplex assistant overlay, cited research/audio overviews, media/metaverse tools, and mobile/device compute.
+5. Complete platform-specific trust tiers, revocation/key rotation, threshold governance, privacy-preserving telemetry, and content-addressed update rollback.
+6. Run required checks on the exact final PR head and independently verify production behavior before enabling checkout or retiring historical persistence sources.
+
+## Safety constraints retained
+
+- No PostgreSQL system-of-record migration is authorized by this tracker.
+- No production fallback to local project manifests/media is allowed.
+- No live payment activation, deployment, or destructive migration was performed.
+- No full-completion or VERIFIED claim is made.
