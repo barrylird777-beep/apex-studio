@@ -272,7 +272,7 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
 export function unifiedAiStatus() {
   return Object.fromEntries(AI_PROVIDER_CATALOG.map(p => [p.id, {
     category: p.category,
-    configured: Boolean(process.env[p.env]),
+    configured: p.env ? Boolean(process.env[p.env]) : p.id === 'pollinations',
     model: process.env[p.modelEnv] || p.defaultModel,
     protocol: p.protocol,
     freeEligible: FREE_AI_PROVIDERS.has(p.id) && freeProviderIsConfigured(p.id)
