@@ -37,7 +37,7 @@ export async function createPeerMeshCasRuntime({ peerNode } = {}) {
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const peers = Object.keys(addressesByPeerId);
   const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
-  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1);
+  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || replicaCount);
   if (peers.length < replicaCount) throw new Error('mesh startup refused: configured peer set is below the required replica count');
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
   const store = new PeerContentAddressedStore({
@@ -59,10 +59,12 @@ export async function startPeerCasRuntime({ peerNode }) {
   const addressesByPeerId = parsePeers(required('APEX_PEER_CAS_PEERS'));
   const peers = Object.keys(addressesByPeerId);
   const transport = createLibp2pPeerStorageTransport({ node: peerNode, addressesByPeerId });
+  const replicaCount = Number(process.env.APEX_PEER_CAS_REPLICAS || 2);
+  const minFailureDomains = Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || replicaCount);
   const store = new PeerContentAddressedStore({
     transport, peers, namespace, encryptionKey: key,
-    replicaCount: Number(process.env.APEX_PEER_CAS_REPLICAS || 2),
-    minFailureDomains: Number(process.env.APEX_PEER_CAS_FAILURE_DOMAINS || 1),
+    replicaCount,
+    minFailureDomains,
     failureDomainsByPeerId: Object.fromEntries(peers.map(id => [id, String(process.env['APEX_PEER_FAILURE_DOMAIN_' + id] || '')]))
   });
   const allowed = new Set(required('APEX_PEER_CAS_ALLOWED_MODELS').split(';').map(x => x.trim()).filter(Boolean));

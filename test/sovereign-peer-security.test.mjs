@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { signSovereignVote, verifySovereignQuorum } from "../src/testing/sovereign-bft-quorum.mjs";
-import { createPeerSecurityGuard } from "../src/network/sovereign-peer-security.mjs";
+import { createPeerSecurityGuard, sealPeerEnvelope, verifyPeerEnvelope } from "../src/network/sovereign-peer-security.mjs";
 import {
   readSovereignEnvelope,
   sendToPeer
@@ -10,6 +10,64 @@ import {
 
 const streamFor = value => ({
   source: (async function* () { yield new TextEncoder().encode(value); })()
+});
+
+test("sealed peer envelopes bind payload digest, authenticated sender, and freshness", () => {
+  const now = 1_000_000;
+  const sealed = sealPeerEnvelope({ type: "cas.write", namespace: "PlanetApeX", key: "asset-1" }, "peer-a", now);
+  assert.equal(verifyPeerEnvelope(sealed, "peer-a", now).allowed, true);
+  assert.equal(verifyPeerEnvelope(sealed, "peer-b", now).allowed, false);
+  assert.equal(verifyPeerEnvelope(sealed, "peer-a", now + 300_001).allowed, false);
+  assert.equal(verifyPeerEnvelope({ ...sealed, key: "tampered" }, "peer-a", now).allowed, false);
+  assert.equal(verifyPeerEnvelope({ ...sealed, senderEpoch: sealed.senderEpoch + 1 }, "peer-a", now).allowed, false);
+});
+
+test("peer trust epochs enforce rotation, missing enrollment, and revocation", () => {
+  const guard = createPeerSecurityGuard({
+    now: () => 1000,
+    trustEpochs: new Map([
+      ['peer-current', { epoch: 2, revoked: false }],
+      ['peer-revoked', { epoch: 4, revoked: true }]
+    ]),
+    requireTrustEpochs: true
+  });
+  const envelope = (senderEpoch, suffix) => ({ type: 'peer.request', senderEpoch, messageId: '12345678-1234-4234-9234-123456789' + suffix });
+  assert.equal(guard.admit('peer-current', envelope(2, 'abc')).allowed, true);
+  assert.equal(guard.admit('peer-current', envelope(1, 'abd')).reason, 'peer trust epoch mismatch');
+  assert.equal(guard.admit('peer-revoked', envelope(4, 'abe')).reason, 'peer trust epoch is revoked');
+  assert.equal(guard.admit('peer-unconfigured', envelope(0, 'abf')).reason, 'peer trust epoch is not configured');
+});
+
+test("peer security guard rejects a replayed message identifier", () => {
+  const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000 });
+  const envelope = { type: "test.payload", messageId: "12345678-1234-4234-9234-123456789abc" };
+  assert.equal(guard.admit("peer-a", envelope).allowed, true);
+  const replay = guard.admit("peer-a", envelope);
+  assert.equal(replay.allowed, false);
+  assert.match(replay.reason, /replayed message/);
+});
+
+test("peer replay guard returns a cached response without re-admitting the request", () => {
+  const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000 });
+  const envelope = { type: "cas.write", messageId: "12345678-1234-4234-9234-123456789abc" };
+  assert.equal(guard.admit("peer-a", envelope).allowed, true);
+  const response = { accepted: true, peerId: "peer-b", receipt: { hash: "a".repeat(64) } };
+  assert.equal(guard.rememberResponse("peer-a", envelope, response), true);
+  const replay = guard.admit("peer-a", envelope);
+  assert.equal(replay.allowed, false);
+  assert.deepEqual(guard.getReplayResponse("peer-a", envelope), response);
+  const copy = guard.getReplayResponse("peer-a", envelope);
+  copy.receipt.hash = "b".repeat(64);
+  assert.deepEqual(guard.getReplayResponse("peer-a", envelope), response, "cached responses must be isolated copies");
+});
+
+test("peer replay response cache refuses oversized ACKs without dropping replay protection", () => {
+  const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000, maxCachedResponseBytes: 32, maxCachedResponseBytesPerEntry: 16 });
+  const envelope = { type: "cas.write", messageId: "12345678-1234-4234-9234-123456789abc" };
+  assert.equal(guard.admit("peer-a", envelope).allowed, true);
+  assert.equal(guard.rememberResponse("peer-a", envelope, { text: 'x'.repeat(100) }), false);
+  assert.equal(guard.admit("peer-a", envelope).allowed, false);
+  assert.equal(guard.getReplayResponse("peer-a", envelope), null);
 });
 
 test("sovereign envelope parser rejects oversized peer messages", async () => {
@@ -145,6 +203,7 @@ test("two sovereign peers exchange an envelope only when both identities are all
     assert.deepEqual(response.replica, { waveId: 'roundtrip-1', checksum: 'roundtrip-checksum' });
     assert.equal(received.length, 1);
     assert.equal(received[0].envelope.waveId, "roundtrip-1");
+    assert.match(received[0].envelope.messageId, /^[0-9a-f-]{36}$/i);
     assert.equal(received[0].context.remotePeerId, b.peerId.toString());
   } finally {
     await b?.stop().catch(() => {});

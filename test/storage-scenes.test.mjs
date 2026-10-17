@@ -35,3 +35,19 @@ test("scene assets persist with media URLs and a hydrated project manifest",asyn
     await rm(root,{recursive:true,force:true});
   }
 });
+
+test("production storage refuses local manifest and media writes until peer adapter is recovery-verified",async()=>{
+  const previousNodeEnv=process.env.NODE_ENV;
+  const previousCI=process.env.CI;
+  process.env.NODE_ENV="production";
+  process.env.CI="false";
+  try{
+    const storage=await import("../src/core/storage.mjs?production-guard="+crypto.randomUUID());
+    await assert.rejects(storage.initStorage(),error=>error.code==="PEER_MEDIA_STORAGE_NOT_WIRED");
+    await assert.rejects(storage.saveSceneAsset("scene-production","video",Buffer.from("must-not-write"),"mp4"),error=>error.code==="PEER_MEDIA_STORAGE_NOT_WIRED");
+    await assert.rejects(storage.saveProjectAsset("production",Buffer.from("must-not-write"),"bin"),error=>error.code==="PEER_MEDIA_STORAGE_NOT_WIRED");
+  }finally{
+    if(previousNodeEnv===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=previousNodeEnv;
+    if(previousCI===undefined)delete process.env.CI;else process.env.CI=previousCI;
+  }
+});

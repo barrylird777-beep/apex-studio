@@ -9,11 +9,11 @@ import { yamux } from '@libp2p/yamux';
 import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
-import { createPeerSecurityGuard } from './sovereign-peer-security.mjs';
+import { createPeerSecurityGuard, sealPeerEnvelope, verifyPeerEnvelope } from './sovereign-peer-security.mjs';
 import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
-const PROTOCOL = '/apex/sovereign/1.0.0';
+const PROTOCOL = '/apex/sovereign/1.2.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
@@ -97,7 +97,28 @@ const boundedPositiveInteger = (value, fallback, min, max) => {
 };
 
 const streamReaders = new WeakMap();
-const peerSecurity = createPeerSecurityGuard();
+function loadPeerTrustEpochs() {
+  const raw = String(process.env.APEX_PEER_TRUST_EPOCHS_JSON || '').trim();
+  if (!raw) return new Map();
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new TypeError('APEX_PEER_TRUST_EPOCHS_JSON must be an object keyed by peer ID');
+  }
+  const epochs = new Map();
+  for (const [peerId, record] of Object.entries(parsed)) {
+    if (!peerId || peerId.length > 256 || !record || typeof record !== 'object' || Array.isArray(record)) {
+      throw new TypeError('invalid peer trust epoch record');
+    }
+    const epoch = Number(record.epoch);
+    if (!Number.isSafeInteger(epoch) || epoch < 0) throw new TypeError('peer trust epoch must be a nonnegative safe integer');
+    epochs.set(peerId, { epoch, revoked: record.revoked === true || record.status === 'revoked' });
+  }
+  return epochs;
+}
+const peerSecurity = createPeerSecurityGuard({
+  trustEpochs: loadPeerTrustEpochs(),
+  requireTrustEpochs: String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+});
 const outboundPeerSecurity = createPeerSecurityGuard();
 
 function readerFor(stream, { resume = true } = {}) {
@@ -322,15 +343,26 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
+      const envelopeVerification = verifyPeerEnvelope(envelope, remotePeerId);
+      if (!envelopeVerification.allowed) {
+        await sendSovereignEnvelope(stream, { accepted: false, error: envelopeVerification.reason });
+        return;
+      }
       const admission = peerSecurity.admit(remotePeerId, envelope);
       if (!admission.allowed) {
-        await sendSovereignEnvelope(stream, { accepted: false, error: admission.reason });
+        const cached = admission.reason === 'replayed message rejected'
+          ? peerSecurity.getReplayResponse(remotePeerId, envelope)
+          : null;
+        await sendSovereignEnvelope(stream, cached || { accepted: false, error: admission.reason });
         return;
       }
       const outcome = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
       const response = outcome && typeof outcome === 'object' && !Array.isArray(outcome)
         ? { ...outcome, peerId: node.peerId.toString() }
         : { accepted: Boolean(outcome), peerId: node.peerId.toString() };
+      // Cache the exact response before writing it so a lost ACK can be replayed
+      // without running the side effect a second time.
+      peerSecurity.rememberResponse(remotePeerId, envelope, response);
       await sendSovereignEnvelope(stream, response);
     } catch (error) {
       const errorClass = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name) ? error.name : 'Error';
@@ -365,7 +397,11 @@ export async function sendToPeer(node, multiaddr, envelope) {
   if (localPeerId && destinationPeerId === localPeerId) {
     throw new Error('outgoing sovereign peer cannot dial itself');
   }
-  const admission = outboundPeerSecurity.admit(destinationPeerId, envelope);
+  // Every wire-level request receives a fresh replay-detection identifier.
+  // Retries reuse this identifier so a request that was already processed cannot
+  // be applied a second time after an ACK/transport failure.
+  const outboundEnvelope = sealPeerEnvelope(envelope, localPeerId, Date.now());
+  const admission = outboundPeerSecurity.admit(destinationPeerId, outboundEnvelope);
   if (!admission.allowed) throw new Error(admission.reason);
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
   // Retry only transport failures on a fresh stream; never retry peer rejection.
@@ -383,7 +419,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       // This preserves incoming bytes that arrive during the write without racing read/write.
       readerFor(stream);
       console.info('[HEARTBEAT_WRITE_START]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
-      await sendSovereignEnvelope(stream, envelope);
+      await sendSovereignEnvelope(stream, outboundEnvelope);
       console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       const response = await readSovereignEnvelope(stream);

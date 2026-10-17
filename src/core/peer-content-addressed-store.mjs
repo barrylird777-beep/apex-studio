@@ -30,7 +30,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = null, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, maxBlobBytes = 512 * 1024 * 1024, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -40,11 +40,15 @@ export class PeerContentAddressedStore {
     this.transport = transport;
     this.peers = [...new Set(peers.map(String).filter(Boolean))];
     this.replicaCount = Number(replicaCount);
-    this.minFailureDomains = Number(minFailureDomains);
+    this.minFailureDomains = minFailureDomains == null ? this.replicaCount : Number(minFailureDomains);
     this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.maxBlobBytes = Number(maxBlobBytes);
+    if (!Number.isSafeInteger(this.maxBlobBytes) || this.maxBlobBytes < 1 || this.maxBlobBytes > 1024 * 1024 * 1024) {
+      throw new TypeError('maxBlobBytes must be between 1 byte and 1 GiB');
+    }
     this.memoryCacheBytes = Number(memoryCacheBytes);
     this.memoryCacheTtlMs = Number(memoryCacheTtlMs);
     if (!Number.isSafeInteger(this.memoryCacheBytes) || this.memoryCacheBytes < 0 ||
@@ -63,6 +67,9 @@ export class PeerContentAddressedStore {
     }
     if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
       throw new TypeError('minFailureDomains must be between one and replicaCount');
+    }
+    if (this.replicaCount > 1 && this.minFailureDomains !== this.replicaCount) {
+      throw new Error('below-zero-trust storage policy requires every replica to occupy a distinct configured failure domain');
     }
     if (this.replicaCount > 1 || this.minFailureDomains > 1) {
       for (const peerId of this.peers) {
@@ -354,75 +361,168 @@ export class PeerContentAddressedStore {
     return { key, hash: source.hash, namespace: this.namespace, sourcePeerId: source.peerId, repaired };
   }
 
-  async putBlob(input, { chunkSize = 8 * 1024 } = {}) {
+  async putBlob(input, { chunkSize = 8 * 1024, manifestFanout = 96 } = {}) {
     const blob = Buffer.from(input);
+    if (blob.length > this.maxBlobBytes) {
+      const error = new Error('blob exceeds the configured maximum size');
+      error.code = 'BLOB_TOO_LARGE';
+      error.maxBlobBytes = this.maxBlobBytes;
+      throw error;
+    }
     const size = Number(chunkSize);
+    const fanout = Number(manifestFanout);
     if (!Number.isSafeInteger(size) || size < 1 || size > 8 * 1024) {
       throw new TypeError('chunkSize must be between 1 byte and 8 KiB for the current peer envelope ceiling');
     }
-    const chunks = [];
-    for (let offset = 0; offset < blob.length; offset += size) {
+    if (!Number.isSafeInteger(fanout) || fanout < 2 || fanout > 96) {
+      throw new TypeError('manifestFanout must be between 2 and 96 to keep encrypted manifests below the peer envelope ceiling');
+    }
+    const digest = sha256(blob);
+    const leaves = [];
+    let offset = 0;
+    let leafChunks = [];
+    let leafBytes = 0;
+    const flushLeaf = async () => {
+      if (!leafChunks.length) return;
+      const leaf = {
+        kind: 'apex.blob-manifest.v1', version: 1, namespace: this.namespace,
+        totalBytes: leafBytes,
+        sha256: sha256(blob.subarray(offset - leafBytes, offset)),
+        chunks: leafChunks
+      };
+      const saved = await this.putObject(leaf);
+      leaves.push({ hash: saved.hash, bytes: leaf.totalBytes, sha256: leaf.sha256, start: offset - leafBytes, end: offset, replicas: saved.replicas, receipts: saved.receipts });
+      leafChunks = [];
+      leafBytes = 0;
+    };
+
+    while (offset < blob.length) {
       const bytes = blob.subarray(offset, Math.min(offset + size, blob.length));
       const chunkHash = sha256(bytes);
       const receipt = await this.putObject({
-        kind: 'apex.blob-chunk.v1',
-        namespace: this.namespace,
-        bytes: bytes.length,
-        sha256: chunkHash,
-        dataBase64: bytes.toString('base64')
+        kind: 'apex.blob-chunk.v1', namespace: this.namespace,
+        bytes: bytes.length, sha256: chunkHash, dataBase64: bytes.toString('base64')
       });
-      chunks.push({ hash: receipt.hash, bytes: bytes.length, sha256: chunkHash });
+      leafChunks.push({ hash: receipt.hash, bytes: bytes.length, sha256: chunkHash });
+      leafBytes += bytes.length;
+      offset += bytes.length;
+      if (leafChunks.length >= fanout) await flushLeaf();
     }
-    const manifest = {
-      kind: 'apex.blob-manifest.v1',
-      version: 1,
+    await flushLeaf();
+
+    let level = leaves;
+    let depth = 0;
+    while (level.length > 1) {
+      depth += 1;
+      if (depth > 16) throw new Error('blob manifest tree exceeds maximum depth');
+      const nextLevel = [];
+      for (let index = 0; index < level.length; index += fanout) {
+        const children = level.slice(index, index + fanout);
+        if (children.length === 1) {
+          nextLevel.push(children[0]);
+          continue;
+        }
+        const start = children[0].start;
+        const end = children[children.length - 1].end;
+        const totalBytes = end - start;
+        const subtreeDigest = sha256(blob.subarray(start, end));
+        const node = {
+          kind: 'apex.blob-tree.v1', version: 1, namespace: this.namespace,
+          totalBytes, sha256: subtreeDigest,
+          children: children.map(({ hash, bytes, sha256: childSha256 }) => ({ hash, bytes, sha256: childSha256 }))
+        };
+        const saved = await this.putObject(node);
+        nextLevel.push({ hash: saved.hash, bytes: totalBytes, sha256: subtreeDigest, start, end, replicas: saved.replicas, receipts: saved.receipts });
+      }
+      level = nextLevel;
+    }
+
+    if (!level.length) {
+      const empty = await this.putObject({
+        kind: 'apex.blob-manifest.v1', version: 1, namespace: this.namespace,
+        totalBytes: 0, sha256: digest, chunks: []
+      });
+      return { ...empty, kind: 'apex.blob-manifest.v1', totalBytes: 0, contentSha256: digest, chunkCount: 0 };
+    }
+    const root = await this.getObject(level[0].hash);
+    if (root.sha256 !== digest || root.totalBytes !== blob.length) {
+      throw new Error('peer blob manifest root failed source length or digest verification');
+    }
+    return {
+      hash: level[0].hash,
+      bytes: level[0].bytes,
       namespace: this.namespace,
+      uri: 'cas://sha256/' + level[0].hash,
+      replicas: level[0].replicas,
+      receipts: level[0].receipts,
+      kind: root.kind,
       totalBytes: blob.length,
-      sha256: sha256(blob),
-      chunks
+      contentSha256: digest,
+      chunkCount: Math.ceil(blob.length / size)
     };
-    const receipt = await this.putObject(manifest);
-    return { ...receipt, kind: manifest.kind, totalBytes: blob.length, contentSha256: manifest.sha256, chunkCount: chunks.length };
   }
 
   async getBlob(manifestHash) {
-    const manifest = await this.getObject(manifestHash);
-    if (!manifest || manifest.kind !== 'apex.blob-manifest.v1' || manifest.version !== 1 ||
-        manifest.namespace !== this.namespace || !Number.isSafeInteger(manifest.totalBytes) ||
-        manifest.totalBytes < 0 || !/^[a-f0-9]{64}$/.test(String(manifest.sha256 || '')) ||
-        !Array.isArray(manifest.chunks)) {
-      throw new Error('invalid or cross-namespace blob manifest');
-    }
-    if (manifest.chunks.length > 8192) throw new Error('blob manifest exceeds the 8192-chunk safety limit');
-    for (const item of manifest.chunks) {
-      if (!item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
-          !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
-          !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
-        throw new Error('invalid blob chunk reference');
+    const MAX_CHUNKS = 131072;
+    const MAX_DEPTH = 16;
+    let seenChunks = 0;
+    async function readNode(store, hash, depth = 0) {
+      if (depth > MAX_DEPTH) throw new Error('blob manifest tree exceeds maximum depth');
+      const node = await store.getObject(hash);
+      if (!node || node.namespace !== store.namespace || node.version !== 1 ||
+          !Number.isSafeInteger(node.totalBytes) || node.totalBytes < 0 || node.totalBytes > store.maxBlobBytes ||
+          !/^[a-f0-9]{64}$/.test(String(node.sha256 || ''))) {
+        throw new Error('invalid or cross-namespace blob manifest');
       }
-    }
-    const parts = await mapConcurrent(manifest.chunks, 8, async item => {
-      const chunk = await this.getObject(item.hash);
-      if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== this.namespace ||
-          chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
-        throw new Error('blob chunk metadata mismatch');
+      if (node.kind === 'apex.blob-manifest.v1') {
+        if (!Array.isArray(node.chunks)) throw new Error('invalid blob leaf manifest');
+        const parts = await mapConcurrent(node.chunks, 8, async item => {
+          seenChunks += 1;
+          if (seenChunks > MAX_CHUNKS || !item || !/^[a-f0-9]{64}$/.test(String(item.hash || '')) ||
+              !Number.isSafeInteger(item.bytes) || item.bytes < 1 ||
+              !/^[a-f0-9]{64}$/.test(String(item.sha256 || ''))) {
+            throw new Error('invalid or oversized blob chunk reference');
+          }
+          const chunk = await store.getObject(item.hash);
+          if (!chunk || chunk.kind !== 'apex.blob-chunk.v1' || chunk.namespace !== store.namespace ||
+              chunk.bytes !== item.bytes || chunk.sha256 !== item.sha256 || typeof chunk.dataBase64 !== 'string') {
+            throw new Error('blob chunk metadata mismatch');
+          }
+          const bytes = Buffer.from(chunk.dataBase64, 'base64');
+          if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
+            throw new Error('blob chunk integrity verification failed');
+          }
+          return bytes;
+        });
+        const bytes = Buffer.concat(parts);
+        if (bytes.length !== node.totalBytes || sha256(bytes) !== node.sha256) {
+          throw new Error('blob leaf failed total length or SHA-256 verification');
+        }
+        return bytes;
       }
-      const bytes = Buffer.from(chunk.dataBase64, 'base64');
-      if (bytes.toString('base64') !== chunk.dataBase64 || bytes.length !== item.bytes || sha256(bytes) !== item.sha256) {
-        throw new Error('blob chunk integrity verification failed');
+      if (node.kind !== 'apex.blob-tree.v1' || !Array.isArray(node.children) ||
+          node.children.length < 2 || node.children.length > 96) {
+        throw new Error('invalid blob tree node');
+      }
+      const parts = await mapConcurrent(node.children, 8, async child => {
+        if (!child || !/^[a-f0-9]{64}$/.test(String(child.hash || '')) ||
+            !Number.isSafeInteger(child.bytes) || child.bytes < 1 ||
+            !/^[a-f0-9]{64}$/.test(String(child.sha256 || ''))) {
+          throw new Error('invalid blob tree child reference');
+        }
+        const bytes = await readNode(store, child.hash, depth + 1);
+        if (bytes.length !== child.bytes || sha256(bytes) !== child.sha256) {
+          throw new Error('blob tree child failed length or digest verification');
+        }
+        return bytes;
+      });
+      const bytes = Buffer.concat(parts);
+      if (bytes.length !== node.totalBytes || sha256(bytes) !== node.sha256) {
+        throw new Error('blob tree failed total length or SHA-256 verification');
       }
       return bytes;
-    });
-    let total = 0;
-    for (const bytes of parts) {
-      total += bytes.length;
-      if (total > manifest.totalBytes) throw new Error('blob chunks exceed manifest length');
     }
-    const blob = Buffer.concat(parts, total);
-    if (total !== manifest.totalBytes || sha256(blob) !== manifest.sha256) {
-      throw new Error('reconstructed blob failed total length or SHA-256 verification');
-    }
-    return blob;
+    return readNode(this, manifestHash);
   }
 
   async getObject(hash) {

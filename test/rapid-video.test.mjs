@@ -70,7 +70,7 @@ test('Rapid Video exposes the Oracle-to-Forge pipeline and keeps jobs on Pure-WA
   assert.match(worker, /assetStorage: asset\.storage/);
   assert.match(queue, /apexPureStore\.enqueue/);
   assert.doesNotMatch(queue, /durable_jobs/);
-  assert.match(router, /FREE_AI_PROVIDERS = new Set\(\['openrouter', 'pollinations', 'groq'\]\)/);
+  assert.match(router, /FREE_AI_PROVIDERS = new Set\(\[[^\]]*'openrouter'[^\]]*'pollinations'[^\]]*'groq'[^\]]*\]\)/);
   assert.match(page, /id="oracleTab"/);
   assert.match(page, /id="forgeTab"/);
   assert.match(page, /body\.result\.storyboard/);

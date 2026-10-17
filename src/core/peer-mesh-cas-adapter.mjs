@@ -1,3 +1,4 @@
+import { PeerContentAddressedStore } from './peer-content-addressed-store.mjs';
 /**
  * Peer-only adapter for mesh manifests and runtime queue/state references.
  * It has no local disk, WAL, JSON-log, or legacy fallback.
@@ -7,11 +8,16 @@ const clone = value => value == null ? value : structuredClone(value);
 
 export class PeerMeshCasAdapter {
   constructor({ store, appNamespace } = {}) {
-    if (!store || typeof store.readRef !== 'function' || typeof store.writeRef !== 'function' ||
-        typeof store.listRefs !== 'function') throw new TypeError('PeerMeshCasAdapter requires a peer-backed reference store');
+    const production = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    if (production && !(store instanceof PeerContentAddressedStore)) throw new TypeError('Production PeerMeshCasAdapter requires an actual PeerContentAddressedStore instance; test doubles and duck-typed substitutes are forbidden');
+    if (!production && (!store || typeof store.readRef !== 'function' || typeof store.writeRef !== 'function' || typeof store.listRefs !== 'function')) throw new TypeError('PeerMeshCasAdapter requires a reference store implementing readRef, writeRef, and listRefs');
     if (!validPart(appNamespace)) throw new TypeError('a canonical application namespace is required');
     this.store = store;
     this.appNamespace = appNamespace;
+    // Capability marker consumed only by trusted in-process production wiring.
+    // The owning PeerContentAddressedStore enforces peer identity, namespace,
+    // encryption, quorum, replica placement, and configured failure domains.
+    this.peerOwnedStorage = true;
     this.jobCache = new Map();
     this.initialized = false;
   }

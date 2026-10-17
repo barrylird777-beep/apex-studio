@@ -1172,6 +1172,20 @@ app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) =
   }
 });
 
+app.post('/api/kash-korner/audits/contingency', requireControlPlaneAuth, async (req, res) => {
+  try {
+    const { auditContingencyContract } = await import('./src/apps/kash-korner-audit.mjs');
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).json({ success: false, error: 'Structured contract and invoice are required' });
+    }
+    const audit = auditContingencyContract({ contract: body.contract, invoice: body.invoice });
+    return res.json({ success: true, audit, persisted: false, externalTransmission: false });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: 'Invalid structured audit request' });
+  }
+});
+
 app.get('/api/kernel-vision/items', requireControlPlaneAuth, async (_req, res) => {
   try {
     const { listKernelVisionRecords } = await import('./src/apps/kernel-vision.mjs');
