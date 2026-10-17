@@ -2,7 +2,10 @@ import OpenAI from 'openai';
 import { createGuardedFetch, sanitizeOutboundPayload } from '../security/sovereign-outbound-gateway.mjs';
 
 const DEFAULT_MODEL = process.env.GROK_MODEL || 'grok-4.7';
-const MAX_PROMPT_CHARS = Math.max(1000, Number(process.env.GROK_MAX_PROMPT_CHARS || 50000));
+const CONFIGURED_MAX_PROMPT_CHARS = Number(process.env.GROK_MAX_PROMPT_CHARS || 50000);
+const MAX_PROMPT_CHARS = Number.isFinite(CONFIGURED_MAX_PROMPT_CHARS)
+  ? Math.min(50000, Math.max(1000, CONFIGURED_MAX_PROMPT_CHARS))
+  : 50000;
 const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.GROK_MAX_MESSAGES || 50)));
 
 function getClient() {
@@ -16,12 +19,12 @@ function getClient() {
   });
 }
 
-function normalizeInput({ prompt, messages }) {
+export function normalizeInput({ prompt, messages }) {
   if (Array.isArray(messages) && messages.length) {
     if (messages.length > MAX_MESSAGES) throw new Error(`Too many messages; maximum is ${MAX_MESSAGES}`);
     return messages.map((message) => {
       const role = String(message?.role || '');
-      if (!['user', 'assistant', 'system', 'developer'].includes(role)) throw new Error('Invalid message role');
+      if (!['user', 'assistant'].includes(role)) throw new Error('Invalid message role');
       const content = String(message?.content || '').trim();
       if (!content || content.length > MAX_PROMPT_CHARS) throw new Error('Message content is empty or too large');
       return { role, content };
@@ -31,6 +34,13 @@ function normalizeInput({ prompt, messages }) {
   if (!text) throw new Error('prompt is required');
   if (text.length > MAX_PROMPT_CHARS) throw new Error(`prompt exceeds ${MAX_PROMPT_CHARS} characters`);
   return text;
+}
+
+export function normalizeInstructions(system) {
+  const text = String(system || '').trim();
+  if (!text) return '';
+  if (text.length > MAX_PROMPT_CHARS) throw new Error(`system instructions exceed ${MAX_PROMPT_CHARS} characters`);
+  return sanitizeOutboundPayload({ instructions: text }).instructions;
 }
 
 function normalizeSchema(schema) {
@@ -53,7 +63,7 @@ export async function generateGrok({
   if (xSearch) tools.push({ type: 'x_search' });
   const request = {
     model: String(model || DEFAULT_MODEL).trim() || DEFAULT_MODEL,
-    instructions: String(system || '').trim() || undefined,
+    instructions: normalizeInstructions(system) || undefined,
     input,
     previous_response_id: previousResponseId ? String(previousResponseId) : undefined,
     ...(tools.length ? { tools } : {}),
