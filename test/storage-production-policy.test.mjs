@@ -17,7 +17,7 @@ test("production ApexPureStore refuses local persistence fallback", () => {
     new ApexPureStore();
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Production requires APEX_CAS_REMOTE_ENABLED=true/);
+  assert.match(result.stderr, /requires an explicitly injected, verified peer-owned CAS adapter/);
 });
 
 test("production legacy WAL refuses initialization and writes before touching disk", () => {
@@ -39,4 +39,25 @@ test("production package scripts do not expose PostgreSQL migration, studio, see
     }
   `);
   assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test("production rejects generic remote object storage even when the legacy remote flag is enabled", () => {
+  const result = run(`
+    process.env.APEX_CAS_REMOTE_ENABLED = "true";
+    const { ApexPureStore } = await import("./src/core/apex-pure-store.mjs");
+    const genericObjectStore = { init: async () => {}, readRef: async () => null, writeRef: async () => {}, listRefs: async () => [] };
+    new ApexPureStore({ cas: genericObjectStore });
+  `);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires an explicitly injected, verified peer-owned CAS adapter/);
+});
+
+test("production accepts only an explicitly marked peer-owned adapter, not a flag-only configuration", () => {
+  const result = run(`
+    process.env.APEX_CAS_REMOTE_ENABLED = "true";
+    const { ApexPureStore } = await import("./src/core/apex-pure-store.mjs");
+    new ApexPureStore();
+  `);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires an explicitly injected, verified peer-owned CAS adapter/);
 });
