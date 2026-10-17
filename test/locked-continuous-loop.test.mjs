@@ -5,7 +5,8 @@ import {
   zeroCostAiProvider,
   buildAutonomousAiTask,
   continuousAiStatus,
-  seedAutonomousAiWork
+  seedAutonomousAiWork,
+  startLockedContinuousAiLoop
 } from "../src/core/autonomy/locked-continuous-loop.mjs";
 
 test("zero-cost AI is fail-closed by default", () => {
@@ -46,6 +47,28 @@ test("OpenRouter free router is selected only when its key exists", () => {
   else process.env.OPENROUTER_API_KEY = previous;
 });
 
+
+test("continuous AI loop does not start or seed without explicit opt-in", async () => {
+  const previousEnabled = process.env.APEX_AUTONOMOUS_AI_ENABLED;
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  let enqueueCalls = 0;
+  try {
+    const loop = await startLockedContinuousAiLoop({
+      enqueueTask: async () => { enqueueCalls++; return { id: "unexpected" }; },
+      getQueueStats: async () => ({ queued: 0 })
+    });
+    assert.equal(loop.status().enabled, false);
+    assert.equal(enqueueCalls, 0);
+    loop.stop();
+  } finally {
+    if (previousEnabled == null) delete process.env.APEX_AUTONOMOUS_AI_ENABLED;
+    else process.env.APEX_AUTONOMOUS_AI_ENABLED = previousEnabled;
+    if (previousKey == null) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousKey;
+  }
+});
 
 test("autonomous AI task carries explicit provider and durable dedupe key", () => {
   const task = buildAutonomousAiTask({
