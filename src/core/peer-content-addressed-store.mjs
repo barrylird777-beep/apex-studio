@@ -30,7 +30,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = null, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = null, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, maxBlobBytes = 512 * 1024 * 1024, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -45,6 +45,10 @@ export class PeerContentAddressedStore {
     this.namespace = namespace;
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
+    this.maxBlobBytes = Number(maxBlobBytes);
+    if (!Number.isSafeInteger(this.maxBlobBytes) || this.maxBlobBytes < 1 || this.maxBlobBytes > 2 * 1024 * 1024 * 1024) {
+      throw new TypeError('maxBlobBytes must be between 1 byte and 2 GiB');
+    }
     this.memoryCacheBytes = Number(memoryCacheBytes);
     this.memoryCacheTtlMs = Number(memoryCacheTtlMs);
     if (!Number.isSafeInteger(this.memoryCacheBytes) || this.memoryCacheBytes < 0 ||
@@ -359,6 +363,12 @@ export class PeerContentAddressedStore {
 
   async putBlob(input, { chunkSize = 8 * 1024, manifestFanout = 96 } = {}) {
     const blob = Buffer.from(input);
+    if (blob.length > this.maxBlobBytes) {
+      const error = new Error('blob exceeds the configured maximum size');
+      error.code = 'BLOB_TOO_LARGE';
+      error.maxBlobBytes = this.maxBlobBytes;
+      throw error;
+    }
     const size = Number(chunkSize);
     const fanout = Number(manifestFanout);
     if (!Number.isSafeInteger(size) || size < 1 || size > 8 * 1024) {
@@ -460,7 +470,7 @@ export class PeerContentAddressedStore {
       if (depth > MAX_DEPTH) throw new Error('blob manifest tree exceeds maximum depth');
       const node = await store.getObject(hash);
       if (!node || node.namespace !== store.namespace || node.version !== 1 ||
-          !Number.isSafeInteger(node.totalBytes) || node.totalBytes < 0 ||
+          !Number.isSafeInteger(node.totalBytes) || node.totalBytes < 0 || node.totalBytes > store.maxBlobBytes ||
           !/^[a-f0-9]{64}$/.test(String(node.sha256 || ''))) {
         throw new Error('invalid or cross-namespace blob manifest');
       }
