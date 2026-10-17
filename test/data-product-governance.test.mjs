@@ -99,6 +99,27 @@ test("data product manifest requires provenance, license, retention and explicit
     tenantId: "tenant-1", appNamespace: "kernelvision", purpose: "commercial-sale"
   }, new Date("2100-01-01T00:00:00.000Z")).reason, "retention-expired");
   assert.equal(validateDataProductManifest({ datasetId: "incomplete" }).valid, false);
+
+  const personal = {
+    ...manifest,
+    datasetId: "personal-dataset",
+    personalData: true,
+    consent: { status: "granted", purpose: "customer-request" }
+  };
+  assert.equal(validateDataProductManifest(personal).valid, false,
+    "granted consent must include a verifiable evidence reference");
+  assert.equal(validateDataProductManifest({
+    ...personal,
+    consent: { status: "granted", purpose: "customer-request", evidenceRef: "consent-receipt-123" }
+  }).valid, true);
+  assert.equal(validateDataProductManifest({
+    ...personal,
+    consent: { status: "not-required", purpose: "legal-obligation" }
+  }).valid, false, "consent exception must document its legal basis");
+  assert.equal(validateDataProductManifest({
+    ...personal,
+    consent: { status: "not-required", purpose: "legal-obligation", legalBasis: "documented-review-123" }
+  }).valid, true);
 });
 
 test("privacy defaults resist caller attempts to enable telemetry or remote processing", () => {
