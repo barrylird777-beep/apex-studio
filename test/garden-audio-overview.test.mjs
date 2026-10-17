@@ -43,4 +43,5 @@ test('GardenApex page exposes the two-host generator and browser playback contro
   assert.match(html, /\/api\/ai\/generate/);
   assert.match(html, /SpeechSynthesisUtterance/);
   assert.match(html, /URLs not independently verified/);
+  assert.match(html, /notes are sent to the configured AI provider/);
 });
