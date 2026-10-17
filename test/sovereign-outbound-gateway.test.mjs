@@ -117,7 +117,8 @@ test("production AI egress entry points use the outbound security gateway", asyn
     ["src/providers/unified-ai-router.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
     ["src/providers/openai-max-router.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
     ["src/providers/grok-router.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
-    ["src/core/mesh/gemini-mesh-provider.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
+    // Compatibility adapter delegates all provider egress to the guarded OpenAI router.
+    ["src/core/mesh/gemini-mesh-provider.mjs", ["generateMax", "openAiMaxStatus"]],
     ["src/core/mesh/claude-mesh-provider.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]],
     ["src/core/apex-web-search.mjs", ["createGuardedFetch"]],
     ["src/core/music/music-discovery.mjs", ["createGuardedFetch", "sanitizeOutboundPayload"]]
