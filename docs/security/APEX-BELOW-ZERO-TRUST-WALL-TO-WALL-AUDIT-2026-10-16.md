@@ -173,5 +173,12 @@ The candidate branch blocks legacy `ApexRingWAL` initialization/writes in produc
 
 - Latest inspected candidate commits include the constructor gate, a concrete peer-adapter type check, and new negative tests.
 - The candidate branch has no pull request associated with it yet; the inspected commits have no returned CI workflow runs or combined statuses. This is **not** evidence of passing tests.
-- The production test's generic-object-store case currently fails at module import due to the singleton guard before it can exercise the supplied fake adapter. Refactor that test to isolate constructor behavior without relying on the module-level singleton, then run all storage tests and the full CI suite against the exact candidate SHA.
+- The constructor-policy tests have now been refactored to import the module under test mode first, then switch the child process to production before constructing the candidate store. This should isolate constructor behavior from the module-level singleton, but it remains unverified until CI runs.
 - Overall A-006 stays **OPEN** until the server wiring, all six app namespaces, filesystem asset writes, and actual peer restart/failure/recovery have been proven together.
+
+
+### Preservation correction
+
+The candidate branch's PostgreSQL package-script removal was reversed: the existing `db:generate`, `db:migrate`, `db:studio`, `db:seed`, worker/postgres migration, backup, and TeeVee migration/bootstrap entry points have been restored from `main`. No migration scripts or historical migration sources are to be deleted while their usage and recovery dependencies remain unverified.
+
+The legacy WAL directory/file values have also been retained in `.env.example` as comments explicitly labeled migration-only, rather than erased. They must not be enabled for production writes. This preserves migration provenance while the active path is being replaced.
