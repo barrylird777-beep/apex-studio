@@ -55,3 +55,9 @@ ApexStudios, KORNKNOB, ShieldApex, EngineApex, Apexus, GardenOfApex, TeeVee, and
 - King Cob independently inspects the final result; implementers do not certify their own work.
 - Preserve existing data and deployments. Do not rename, delete, rebuild, or change production configuration without a verified reason and appropriate authorization.
 - Report what was actually searched, tested, merged, and deployed. Record blockers and unknowns plainly.
+
+## Specialized six-app backplanes
+
+The detailed target design for each app's specialized backend, shared control planes, data governance and commercialization, durable job orchestration, security boundaries, observability, recovery, and release gates is maintained in [`docs/architecture/APEX-SIX-APP-BACKPLANE-ARCHITECTURE.md`](architecture/APEX-SIX-APP-BACKPLANE-ARCHITECTURE.md).
+
+This linked document is a target architecture, not evidence that its components are implemented, deployed, or production-ready. The current storage and runtime gaps above remain open until independently verified against live systems.
