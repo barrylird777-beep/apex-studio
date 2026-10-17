@@ -50,7 +50,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: Data governance and security regression tests
         run: node --test test/data-product-governance.test.mjs test/frictionless-research-engine.test.mjs test/research-auth.test.mjs test/ai-input-policy.test.mjs test/http-hardening.test.mjs
