@@ -9,7 +9,7 @@ export class MultiAiCoordinator {
     return text;
   }
 
-  async run({ task, providers = ['gemini', 'claude'], system, context = {} } = {}) {
+  async run({ task, providers = ['claude'], system, context = {} } = {}) {
     const prompt = this.#validateText(task, 'Task');
     const requested = [...new Set(providers.map(String).map(v => v.toLowerCase()).filter(Boolean))];
     if (!requested.length) throw new Error('At least one AI provider is required');
