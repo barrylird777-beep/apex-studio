@@ -334,7 +334,7 @@ app.post('/api/workforce/burst', requireControlPlaneAuth, async (req, res) => {
       workforce: massiveAiWorkforce.status()
     });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -375,7 +375,7 @@ app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
   try {
     return res.json({ success: true, stats: await queueStats() });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -393,7 +393,7 @@ app.post('/api/internal/store/get', requireWorkerAuth, async (req, res) => {
     if (!validTeeVeeStoreCollection(collection) || !id || id.length > 128) return res.status(400).json({ success: false, error: 'Invalid store collection or record id' });
     return res.json({ success: true, record: await apexPureStore.get(collection, id) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -426,7 +426,7 @@ app.post('/api/internal/store/query', requireWorkerAuth, async (req, res) => {
     );
     return res.json({ success: true, records });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -440,7 +440,7 @@ app.post('/api/internal/store/put', requireWorkerAuth, async (req, res) => {
     }
     return res.json({ success: true, record: await apexPureStore.put(collection, id, record) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -466,7 +466,7 @@ app.post('/api/internal/teevee/enqueue', requireWorkerAuth, async (req, res) => 
     });
     return res.status(result.duplicate ? 200 : 202).json({ success: true, task: result });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -495,7 +495,7 @@ app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => 
     });
     return res.status(202).json({ success: true, task: result });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -507,7 +507,7 @@ app.post('/api/internal/worker/claim', requireWorkerAuth, async (req, res) => {
     const tasks = await claimNextWorkerTasks(limit, leaseMs, null, workerId);
     return res.json({ success: true, tasks, claimed: tasks.length, storage: 'content-addressed' });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -516,7 +516,7 @@ app.post('/api/internal/worker/recover', requireWorkerAuth, async (req, res) => 
     const limit = Math.max(1, Math.min(5000, Math.floor(Number(req.body?.limit) || 500)));
     return res.json({ success: true, recovered: await requeueExpiredWorkerTasks(limit) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -525,7 +525,7 @@ app.post('/api/internal/worker/:jobId/heartbeat', requireWorkerAuth, async (req,
     const ok = await heartbeatWorkerTask(String(req.params.jobId), Number(req.body?.leaseMs) || 45000, req.body?.leaseToken, req.body?.leaseFence);
     return res.status(ok ? 200 : 409).json({ success: ok, renewed: ok });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -534,7 +534,7 @@ app.post('/api/internal/worker/:jobId/complete', requireWorkerAuth, async (req, 
     const ok = await completeWorkerTask(String(req.params.jobId), req.body?.result ?? null, req.body?.leaseToken, req.body?.leaseFence);
     return res.status(ok ? 200 : 409).json({ success: ok, completed: ok });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -543,7 +543,7 @@ app.post('/api/internal/worker/:jobId/fail', requireWorkerAuth, async (req, res)
     const ok = await failWorkerTask(String(req.params.jobId), String(req.body?.error || 'Worker task failed').slice(0, 4000), req.body?.leaseToken, req.body?.leaseFence);
     return res.status(ok ? 200 : 409).json({ success: ok, transitioned: ok });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -553,7 +553,7 @@ app.post('/api/internal/worker/release', requireWorkerAuth, async (req, res) => 
     const leaseTokens = Array.isArray(req.body?.leaseTokens) ? req.body.leaseTokens.map(String).slice(0, 20) : [];
     return res.json({ success: true, released: await releaseWorkerTasks(taskIds, leaseTokens) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -584,11 +584,11 @@ app.get('/api/apex/readiness', async (_req, res) => {
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
 app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
-  catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+  catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
 });
 app.post('/api/broadcast/stop', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.stop() }); }
-  catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+  catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
 });
 
 const rogueApDetector = createRogueApDetector({
@@ -775,7 +775,7 @@ app.get('/api/koin-kob/status', async (_req, res) => {
     const { koinKobStatus } = await import('./src/apps/koin-kob.mjs');
     return res.json({ success: true, ...koinKobStatus() });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -796,7 +796,7 @@ app.get('/api/koin-kob/simulations', requireControlPlaneAuth, async (req, res) =
       .slice(0, limit);
     return res.json({ success: true, storage: 'content-addressed', items });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -832,7 +832,7 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
       simulation: result
     });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -909,7 +909,7 @@ app.get('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
       .slice(-limit);
     return res.json({ success: true, events: records, durable: true });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(400).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -1017,7 +1017,7 @@ app.get('/api/kash-korner/opportunities', async (req, res) => {
     const items = await listKashKornerOpportunities(sovereignAppFabric, req.query.limit);
     return res.json({ success: true, storage: 'content-addressed', items });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1148,7 +1148,7 @@ app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) =
     const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
     return res.json({ success: true, entries, summaries });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1170,7 +1170,7 @@ app.get('/api/kernel-vision/items', requireControlPlaneAuth, async (_req, res) =
     const records = (await listKernelVisionRecords()).map(row => row?.record || row);
     return res.json({ success: true, items: records.filter(record => record.recordType === 'theatre-item') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1198,7 +1198,7 @@ app.get('/api/kernel-vision/sessions', requireControlPlaneAuth, async (_req, res
     const records = (await listKernelVisionRecords()).map(row => row?.record || row);
     return res.json({ success: true, sessions: records.filter(record => record.recordType === 'viewing-session') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1208,7 +1208,7 @@ app.get('/api/kernelodies/tracks', requireControlPlaneAuth, async (_req, res) =>
     const records = (await listKernelodiesRecords()).map(row => row?.record || row);
     return res.json({ success: true, tracks: records.filter(record => record.kind === 'music-track') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
