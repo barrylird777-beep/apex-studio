@@ -30,7 +30,7 @@ const hasVerifiedDurabilityReceipt = response =>
  * authenticate remote libp2p identities. There is no local-disk fallback.
  */
 export class PeerContentAddressedStore {
-  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = 1, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, namespace, encryptionKey } = {}) {
+  constructor({ transport, peers = [], replicaCount = 2, minFailureDomains = null, failureDomainsByPeerId = {}, maxObjectBytes = 32 * 1024, memoryCacheBytes = 8 * 1024 * 1024, memoryCacheTtlMs = 30000, namespace, encryptionKey } = {}) {
     if (!transport || typeof transport.request !== 'function') {
       throw new TypeError('PeerContentAddressedStore requires an authenticated transport.request(peerId, request)');
     }
@@ -40,7 +40,7 @@ export class PeerContentAddressedStore {
     this.transport = transport;
     this.peers = [...new Set(peers.map(String).filter(Boolean))];
     this.replicaCount = Number(replicaCount);
-    this.minFailureDomains = Number(minFailureDomains);
+    this.minFailureDomains = minFailureDomains == null ? this.replicaCount : Number(minFailureDomains);
     this.failureDomainsByPeerId = Object.fromEntries(Object.entries(failureDomainsByPeerId || {}).map(([id, domain]) => [String(id), String(domain || '').trim()]));
     this.namespace = namespace;
     this.encryptionKey = key;
@@ -63,6 +63,9 @@ export class PeerContentAddressedStore {
     }
     if (!Number.isSafeInteger(this.minFailureDomains) || this.minFailureDomains < 1 || this.minFailureDomains > this.replicaCount) {
       throw new TypeError('minFailureDomains must be between one and replicaCount');
+    }
+    if (this.replicaCount > 1 && this.minFailureDomains !== this.replicaCount) {
+      throw new Error('below-zero-trust storage policy requires every replica to occupy a distinct configured failure domain');
     }
     if (this.replicaCount > 1 || this.minFailureDomains > 1) {
       for (const peerId of this.peers) {
