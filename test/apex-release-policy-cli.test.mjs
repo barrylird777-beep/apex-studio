@@ -81,6 +81,13 @@ test('release CLI signs and verifies a monotonic rollback authorization to a kno
     };
     const signedRollback = spawnSync(process.execPath, [script, 'rollback-sign'], { cwd: root, env: rollbackEnv, encoding: 'utf8' });
     assert.equal(signedRollback.status, 0, signedRollback.stderr);
+    const collision = spawnSync(process.execPath, [script, 'rollback-sign'], {
+      cwd: root,
+      env: { ...rollbackEnv, APEX_RELEASE_ROLLBACK_OUT: 'dist/v1.json' },
+      encoding: 'utf8'
+    });
+    assert.notEqual(collision.status, 0);
+    assert.match(collision.stderr, /cannot overwrite a signed manifest/);
     const rollback = JSON.parse(await readFile(path.join(root, 'dist/rollback.json'), 'utf8'));
     assert.equal(rollback.payload.currentManifestHash, second.digest);
     assert.equal(rollback.payload.targetManifestHash, first.digest);
