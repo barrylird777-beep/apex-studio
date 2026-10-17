@@ -90,7 +90,7 @@ test("redaction masks credential-like keys regardless of common casing and separ
     access_token: "marker-access",
     refreshToken: "marker-refresh",
     clientSecret: "marker-client",
-    nested: [{ Authorization: "marker-auth", password: "marker-pass", harmless: "visible" }]
+    nested: [{ Authorization: "marker-auth", password: "marker-pass", harmless: "visible", secretaryName: "visible-too", tokenizedLabel: "also-visible" }]
   });
   assert.equal(result.API_KEY, "[REDACTED]");
   assert.equal(result.access_token, "[REDACTED]");
@@ -99,6 +99,8 @@ test("redaction masks credential-like keys regardless of common casing and separ
   assert.equal(result.nested[0].Authorization, "[REDACTED]");
   assert.equal(result.nested[0].password, "[REDACTED]");
   assert.equal(result.nested[0].harmless, "visible");
+  assert.equal(result.nested[0].secretaryName, "visible-too");
+  assert.equal(result.nested[0].tokenizedLabel, "also-visible");
 });
 
 test("API error responses and logs do not expose raw exception text or stack", () => {
