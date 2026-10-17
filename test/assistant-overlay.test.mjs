@@ -18,4 +18,6 @@ test('assistant overlay does not write prompt history to browser persistence API
   const script = await readFile(new URL('../public/assistant-overlay.js', import.meta.url), 'utf8');
   assert.doesNotMatch(script, /localStorage\.setItem|indexedDB\.open|document\.cookie/);
   assert.match(script, /Conversation history is not saved by this overlay/);
+  assert.match(script, /Prompts are sent to the configured AI provider/);
+  assert.match(script, /browser speech-recognition service/);
 });
