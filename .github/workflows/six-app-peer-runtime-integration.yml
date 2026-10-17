@@ -25,8 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      # These focused suites use Node built-ins and local modules only.
+      # The repository has no npm lockfile, so no dependency install/cache is needed.
       - name: Verify scoped runtime controls
         run: node --test test/peer-runtime-controls.test.mjs
       - name: Verify access tensor isolation
