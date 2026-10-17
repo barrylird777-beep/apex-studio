@@ -412,7 +412,7 @@ export class FrictionlessResearchEngine {
         evidence.push({
           query,
           status: 'unresolved',
-          error: String(error.message || error)
+          error: 'Source could not be resolved'
         });
       }
     }
