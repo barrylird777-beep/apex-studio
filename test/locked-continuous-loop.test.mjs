@@ -46,7 +46,6 @@ test("OpenRouter free router is selected only when its key exists", () => {
   else process.env.OPENROUTER_API_KEY = previous;
 });
 
-);
 
 test("autonomous AI task carries explicit provider and durable dedupe key", () => {
   const task = buildAutonomousAiTask({
