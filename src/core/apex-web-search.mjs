@@ -235,7 +235,7 @@ export async function searchAnything(query, options = {}) {
       providerStatus.push({ source: providers[i][0], ok: true, resultCount: item.value.length });
       collected.push(...item.value);
     } else {
-      providerStatus.push({ source: providers[i][0], ok: false, error: String(item.reason?.message || item.reason || "provider failed").slice(0, 180) });
+      providerStatus.push({ source: providers[i][0], ok: false, error: "provider unavailable" });
     }
   }
   const seen = new Set();
