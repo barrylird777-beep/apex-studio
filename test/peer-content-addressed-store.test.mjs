@@ -513,6 +513,20 @@ test('peer CAS stores and reconstructs large blobs using bounded hierarchical ma
   assert.equal(digest(restored), digest(input));
 });
 
+test('peer CAS rejects blobs above the configured memory and reconstruction budget', async () => {
+  const mesh = makeMesh();
+  const bounded = new PeerContentAddressedStore({
+    transport: mesh.client.transport,
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    failureDomainsByPeerId: { 'peer-a': 'test-domain-peer-a', 'peer-b': 'test-domain-peer-b' },
+    namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7),
+    maxBlobBytes: 1024
+  });
+  await assert.rejects(bounded.putBlob(Buffer.alloc(1025)), error => error.code === 'BLOB_TOO_LARGE');
+});
+
 test('verified peer objects are served from bounded RAM cache while peers are briefly unavailable', async () => {
   const mesh = makeMesh();
   const value = { cidCache: true, namespace: 'PlanetApeX', bytes: [1, 2, 3] };
