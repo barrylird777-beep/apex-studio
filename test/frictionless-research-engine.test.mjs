@@ -211,3 +211,15 @@ test('research URL boundary rejects loopback, unspecified, mapped, link-local an
     await assert.rejects(assertSafeResearchUrl(url), /private|loopback|reserved|link-local/i, url);
   }
 });
+
+
+test('research URL boundary rejects non-global and special-purpose IPv6 ranges', async () => {
+  for (const url of [
+    'http://[ff02::1]/multicast',
+    'http://[fec0::1]/deprecated-site-local',
+    'http://[2001:1::1]/special-purpose',
+    'http://[2002:0808:0808::1]/6to4'
+  ]) {
+    await assert.rejects(assertSafeResearchUrl(url), /private|loopback|reserved|link-local/i, url);
+  }
+});
