@@ -68,7 +68,9 @@ async function signCommand() {
 async function verifyCommand() {
   const root = await realpath(process.cwd());
   const manifestPath = process.argv[3] || process.env.APEX_RELEASE_MANIFEST_IN || 'dist/apex-release-manifest.json';
-  const manifest = await readFile(resolveInsideRoot(root, manifestPath), 'utf8').then(JSON.parse);
+  const manifestFile = await realpath(resolveInsideRoot(root, manifestPath));
+  if (!insideRoot(root, manifestFile)) throw new Error('release manifest resolves outside the release root');
+  const manifest = await readFile(manifestFile, 'utf8').then(JSON.parse);
   const publicKey = keyFromEnv('APEX_RELEASE_SIGNING_PUBLIC_KEY_PEM', createPublicKey);
   const minimumSequence = process.env.APEX_RELEASE_MINIMUM_SEQUENCE == null ? 0 : Number(process.env.APEX_RELEASE_MINIMUM_SEQUENCE);
   if (!Number.isSafeInteger(minimumSequence) || minimumSequence < 0) throw new TypeError('APEX_RELEASE_MINIMUM_SEQUENCE must be a nonnegative safe integer');
