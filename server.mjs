@@ -38,7 +38,7 @@ import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
-import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { requireControlPlaneAuth, isStrongControlToken } from './src/security/control-plane-auth.mjs';
 import { createOwnerSessionCsrfGuard } from './src/security/owner-session-csrf.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
@@ -216,6 +216,9 @@ function requireOpportunityEngineAuth(req, res, next) {
     process.env.APEX_OPPORTUNITY_ENGINE_SYNC_TOKEN
   ].filter(Boolean);
   if (!expected.length) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
+  if (process.env.NODE_ENV === 'production' && expected.some(token => !isStrongControlToken(token))) {
+    return res.status(503).json({ success: false, error: 'Opportunity Engine tokens must be at least 32 bytes' });
+  }
   const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''))?.[1] || '';
   const supplied = [req.get('x-apex-opportunity-token'), bearer].filter(Boolean);
   if (!expected.some(token => supplied.some(candidate => opportunityEngineTokenMatches(token, candidate)))) {
@@ -227,6 +230,9 @@ function requireOpportunityEngineAuth(req, res, next) {
 function requireWorkerAuth(req, res, next) {
   const expected = process.env.APEX_WORKER_TOKEN;
   if (!expected) return res.status(503).json({ success: false, error: 'Remote worker authorization is not configured' });
+  if (process.env.NODE_ENV === 'production' && !isStrongControlToken(expected)) {
+    return res.status(503).json({ success: false, error: 'Worker token must be at least 32 bytes' });
+  }
   if (!timingSafeSecret(expected, req.get('x-apex-worker-token'))) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
@@ -1027,16 +1033,18 @@ app.post('/api/kash-korner/opportunities', requireOpportunityEngineAuth, async (
     const saved = await saveKashKornerOpportunity(sovereignAppFabric, opportunity);
     return res.status(202).json({ success: true, ...saved });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: 'Invalid opportunity payload' });
   }
 });
 
 // KernelVision production schedule lives in the canonical Pure-WAL namespace.
-const scheduleErrorResponse = (res, error) => res.status(Number(error?.status) || 500).json({
-  success: false,
-  error: String(error?.message || error),
-  ...(error?.code ? { code: error.code } : {})
-});
+const scheduleErrorResponse = (res, error) => {
+  const status = Number(error?.status);
+  const safeStatus = Number.isInteger(status) && status >= 400 && status < 500 ? status : 500;
+  const message = safeStatus === 404 ? 'Not found' : safeStatus === 409 ? 'Conflict' :
+    safeStatus === 400 ? 'Invalid request' : 'Request failed';
+  return res.status(safeStatus).json({ success: false, error: message });
+};
 
 app.get('/api/projects', requireControlPlaneAuth, async (_req, res) => {
   try { return res.json(await kernelVisionSchedule.listProjects()); }
