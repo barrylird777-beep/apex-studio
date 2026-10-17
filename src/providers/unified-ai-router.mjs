@@ -177,25 +177,39 @@ async function openAiCompatible({ p, model, messages, temperature, maxTokens }) 
   return { id: data.id, model: data.model || model, text: data.choices?.[0]?.message?.content || '', usage: data.usage || null };
 }
 
-export async function generateUnifiedAi({ provider, prompt, messages, system, model, temperature, max_tokens, maxTokens } = {}) {
-  const requested = String(provider || '').trim().toLowerCase();
-  const effectiveProvider = FREE_MODE ? (FREE_AI_PROVIDERS.has(requested) ? requested : 'openrouter') : requested;
-  enforceFreeAiBudget(effectiveProvider);
-  await acquireFreeAiSlot();
-  try {
+let freeAiRotationCursor = 0;
+const FREE_AI_ROTATION_ORDER = Object.freeze(['groq', 'google', 'openrouter', 'pollinations']);
+
+function freeProviderIsConfigured(id) {
+  if (id === 'pollinations') return true;
+  if (id === 'google') return String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED || '').toLowerCase() === 'true' && Boolean(process.env.GEMINI_API_KEY);
+  if (id === 'groq') return Boolean(process.env.GROQ_API_KEY);
+  if (id === 'openrouter') return Boolean(process.env.OPENROUTER_API_KEY);
+  return false;
+}
+
+function rotateFreeProviders(requested) {
+  const configured = FREE_AI_ROTATION_ORDER.filter(id => FREE_AI_PROVIDERS.has(id) && freeProviderIsConfigured(id));
+  if (!configured.length) throw new Error('No configured free AI providers; paid fallback is disabled');
+  const preferred = FREE_AI_PROVIDERS.has(requested) && configured.includes(requested) ? requested : null;
+  const offset = freeAiRotationCursor++ % configured.length;
+  const rotated = [...configured.slice(offset), ...configured.slice(0, offset)];
+  return preferred ? [preferred, ...rotated.filter(id => id !== preferred)] : rotated;
+}
+
+async function executeProvider({ effectiveProvider, normalized, model, temperature, maxTokens }) {
   const p = providerOf(effectiveProvider);
   if (p.env && !process.env[p.env]) throw new Error(`${p.env} is not configured`);
-  const normalized = sanitizeOutboundPayload({ messages: messagesOf({ prompt, messages, system }) }).messages;
-  const selectedModel = String(model || process.env[p.modelEnv] || p.defaultModel).trim();
-  const requestedMaxTokens = maxTokens ?? max_tokens;
-  const outputTokenLimit = requestedMaxTokens == null ? undefined : boundedNumber(requestedMaxTokens, 1024, 1, 8192);
-  const requestedTemperature = temperature == null ? undefined : boundedNumber(temperature, 0.7, 0, 2);
+  let selectedModel = String(model || process.env[p.modelEnv] || p.defaultModel).trim();
+  if (FREE_MODE && p.id === 'openrouter' && selectedModel !== 'openrouter/free' && !selectedModel.endsWith(':free')) {
+    selectedModel = 'openrouter/free';
+  }
   let result;
   if (p.id === 'pollinations') result = await pollinations({ model: selectedModel, messages: normalized });
-  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
-  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
-  else if (p.id === 'cohere') result = await cohere({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
-  else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
+  else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature, maxTokens });
+  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature, maxTokens });
+  else if (p.id === 'cohere') result = await cohere({ p, model: selectedModel, messages: normalized, temperature, maxTokens });
+  else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature, maxTokens });
   else if (p.id === 'openai') {
     const { generateMax } = await import('./openai-max-router.mjs');
     result = await generateMax({ messages: normalized, model: selectedModel });
@@ -203,8 +217,35 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
     const { generateGrok } = await import('./grok-router.mjs');
     result = await generateGrok({ messages: normalized, model: selectedModel });
   } else throw new Error('provider protocol not implemented');
-  // Model output is always untrusted data; callers must not treat it as authorization or executable instructions.
   return { ...result, provider: p.id, category: p.category, freeMode: FREE_MODE, trusted: false, trustBoundary: 'untrusted-model-output' };
+}
+
+export async function generateUnifiedAi({ provider, prompt, messages, system, model, temperature, max_tokens, maxTokens } = {}) {
+  const requested = String(provider || '').trim().toLowerCase();
+  const normalized = sanitizeOutboundPayload({ messages: messagesOf({ prompt, messages, system }) }).messages;
+  const requestedMaxTokens = maxTokens ?? max_tokens;
+  const outputTokenLimit = requestedMaxTokens == null ? undefined : boundedNumber(requestedMaxTokens, 1024, 1, 8192);
+  const requestedTemperature = temperature == null ? undefined : boundedNumber(temperature, 0.7, 0, 2);
+  await acquireFreeAiSlot();
+  try {
+    if (!FREE_MODE) {
+      const p = providerOf(requested);
+      return await executeProvider({ effectiveProvider: requested, normalized, model, temperature: requestedTemperature, maxTokens: outputTokenLimit });
+    }
+    const order = rotateFreeProviders(requested);
+    const failures = [];
+    for (const id of order) {
+      try {
+        return await executeProvider({ effectiveProvider: id, normalized, model: id === requested ? model : undefined, temperature: requestedTemperature, maxTokens: outputTokenLimit });
+      } catch (error) {
+        // Do not expose provider response bodies or prompts; retain only a bounded provider label and generic error.
+        failures.push(id);
+      }
+    }
+    const error = new Error('All configured free AI providers failed; no paid endpoint was attempted.');
+    error.code = 'FREE_AI_PROVIDERS_EXHAUSTED';
+    error.providersAttempted = failures;
+    throw error;
   } finally { releaseFreeAiSlot(); }
 }
 
