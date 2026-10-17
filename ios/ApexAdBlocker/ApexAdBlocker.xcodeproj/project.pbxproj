@@ -14,7 +14,7 @@
 		666666666666666666666666 /* ApexAdBlocker */ = {
 			isa = PBXGroup;
 			children = (111111111111111111111111,222222222222222222222222,333333333333333333333333,444444444444444444444444);
-			path = ApexAdBlocker;
+			path = .;
 			sourceTree = "<group>";
 		};
 		777777777777777777777777 /* Products */ = {isa = PBXGroup; children = (555555555555555555555555); name = Products; sourceTree = "<group>"; };
@@ -64,7 +64,7 @@
 			SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 			SUPPORTS_MACCATALYST = NO;
 			ASSETCATALOG_COMPILER_APPICON_NAME = "";
-			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker/ApexAdBlocker.entitlements;
+			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker.entitlements;
 			CODE_SIGN_STYLE = Automatic;
 			DEVELOPMENT_TEAM = "";
 			INFOPLIST_FILE = Info.plist;
@@ -78,7 +78,7 @@
 			SDKROOT = iphoneos;
 			SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 			SUPPORTS_MACCATALYST = NO;
-			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker/ApexAdBlocker.entitlements;
+			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker.entitlements;
 			CODE_SIGN_STYLE = Automatic;
 			DEVELOPMENT_TEAM = "";
 			INFOPLIST_FILE = Info.plist;
