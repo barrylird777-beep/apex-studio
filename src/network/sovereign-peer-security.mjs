@@ -70,8 +70,8 @@ export function createPeerSecurityGuard({
   const replay = new Map();
 
   function pruneReplay(time) {
-    for (const [key, expiresAt] of replay) {
-      if (expiresAt <= time) replay.delete(key);
+    for (const [key, entry] of replay) {
+      if (entry.expiresAt <= time) replay.delete(key);
     }
     while (replay.size >= MAX_REPLAY_ENTRIES) {
       const oldest = replay.keys().next().value;
@@ -108,11 +108,27 @@ export function createPeerSecurityGuard({
       }
       pruneReplay(time);
       const replayKey = peer + ':' + id;
-      if (replay.has(replayKey)) return { allowed: false, reason: 'replayed message rejected' };
-      replay.set(replayKey, time + Math.max(1000, replayTtlMs));
+      if (replay.has(replayKey)) return { allowed: false, reason: 'replayed message rejected', replayKey };
+      replay.set(replayKey, { expiresAt: time + Math.max(1000, replayTtlMs), response: null });
     }
     return { allowed: true };
   }
 
-  return { admit };
+  function rememberResponse(peerId, envelope, response) {
+    const id = envelope?.messageId ?? envelope?.nonce;
+    if (typeof id !== 'string' || !id) return false;
+    const entry = replay.get(String(peerId) + ':' + id);
+    if (!entry) return false;
+    entry.response = structuredClone(response);
+    return true;
+  }
+
+  function getReplayResponse(peerId, envelope) {
+    const id = envelope?.messageId ?? envelope?.nonce;
+    if (typeof id !== 'string' || !id) return null;
+    const entry = replay.get(String(peerId) + ':' + id);
+    return entry?.response == null ? null : structuredClone(entry.response);
+  }
+
+  return { admit, rememberResponse, getReplayResponse };
 }
