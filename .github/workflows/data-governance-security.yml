@@ -1,0 +1,56 @@
+name: Data Governance and Security Regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/core/data-product-governance.mjs"
+      - "src/core/privacy.mjs"
+      - "src/core/security/research-boundary.mjs"
+      - "src/core/research/frictionless-research-engine.mjs"
+      - "src/api/research-routes.mjs"
+      - "test/data-product-governance.test.mjs"
+      - "test/frictionless-research-engine.test.mjs"
+      - "test/research-auth.test.mjs"
+      - "test/ai-input-policy.test.mjs"
+      - "test/http-hardening.test.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/data-governance-security.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/core/data-product-governance.mjs"
+      - "src/core/privacy.mjs"
+      - "src/core/security/research-boundary.mjs"
+      - "src/core/research/frictionless-research-engine.mjs"
+      - "src/api/research-routes.mjs"
+      - "test/data-product-governance.test.mjs"
+      - "test/frictionless-research-engine.test.mjs"
+      - "test/research-auth.test.mjs"
+      - "test/ai-input-policy.test.mjs"
+      - "test/http-hardening.test.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/data-governance-security.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-governance-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-security-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Data governance and security regression tests
+        run: node --test test/data-product-governance.test.mjs test/frictionless-research-engine.test.mjs test/research-auth.test.mjs test/ai-input-policy.test.mjs test/http-hardening.test.mjs
