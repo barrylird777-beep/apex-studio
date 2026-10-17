@@ -3,6 +3,24 @@ import { createGuardedFetch, sanitizeOutboundPayload } from "../../security/sove
 
 const outboundFetch = createGuardedFetch(["generativelanguage.googleapis.com"]);
 
+const MAX_PROMPT_CHARS = Math.min(50000, Math.max(1000, Number(process.env.GEMINI_MAX_PROMPT_CHARS || 50000)));
+const MAX_OUTPUT_TOKENS = 65536;
+
+export function normalizeGeminiInput(prompt, system = '') {
+  const normalizedPrompt = String(prompt ?? '').trim();
+  const normalizedSystem = String(system ?? '').trim();
+  if (!normalizedPrompt) throw new Error('prompt is required');
+  if (normalizedPrompt.length > MAX_PROMPT_CHARS) throw new Error('prompt exceeds configured maximum');
+  if (normalizedSystem.length > MAX_PROMPT_CHARS) throw new Error('system instructions exceed configured maximum');
+  return sanitizeOutboundPayload({ prompt: normalizedPrompt, system: normalizedSystem });
+}
+
+function boundedOutputTokens(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(MAX_OUTPUT_TOKENS, Math.max(1, Math.floor(parsed)));
+}
+
 export class GeminiMeshProvider {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
@@ -19,9 +37,9 @@ export class GeminiMeshProvider {
       refillPerSecond: Number(process.env.GEMINI_RATE_LIMIT_PER_SECOND || (10 / 60))
     });
     if (!rateLimit) throw new Error('Gemini shared rate limit reached; retry later');
-    const safeInput = sanitizeOutboundPayload({ prompt: String(prompt), system: options.system == null ? '' : String(options.system) });
+    const safeInput = normalizeGeminiInput(prompt, options.system);
     const body = {
-      generationConfig: { thinkingConfig: { thinkingLevel: options.thinkingLevel || process.env.GEMINI_THINKING_LEVEL || 'high' }, maxOutputTokens: Number(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS || 65536) },
+      generationConfig: { thinkingConfig: { thinkingLevel: ['low', 'medium', 'high'].includes(options.thinkingLevel || process.env.GEMINI_THINKING_LEVEL) ? (options.thinkingLevel || process.env.GEMINI_THINKING_LEVEL) : 'high' }, maxOutputTokens: boundedOutputTokens(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS, 65536) },
       contents: [{ role: 'user', parts: [{ text: safeInput.prompt }] }]
     };
     if (safeInput.system) body.systemInstruction = { parts: [{ text: safeInput.system }] };
