@@ -11,7 +11,6 @@ import { masterSoundtrack, masterFinalVideo } from './src/core/mastering.mjs';
 import { RenderWorker } from './src/core/render-worker.mjs';
 import { CAPACITY, capacitySnapshot } from './src/core/capacity.mjs';
 import { initStorage, STORAGE_DIR, getProjectState, saveProjectAsset, saveProjectAssetFromFile, saveSceneAsset } from './src/services/projectManager.mjs';
-import { GeminiMeshProvider } from './src/core/mesh/gemini-mesh-provider.mjs';
 import { ClaudeMeshProvider } from './src/core/mesh/claude-mesh-provider.mjs';
 import { MultiAiCoordinator } from './src/core/mesh/multi-ai-coordinator.mjs';
 import { durableWorkerEnabled, durableWorkerHealth, enqueueWorkerTask, getWorkerTask, queueStats, requeueExpiredWorkerTasks, claimNextWorkerTasks, heartbeatWorkerTask, completeWorkerTask, failWorkerTask, releaseWorkerTasks } from './src/core/mesh/durable-worker-store.mjs';
@@ -1362,9 +1361,8 @@ if (durableWorkerEnabled()) {
   const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", JSON.stringify(safeFaultMetadata(error)))); }, 15000);
   reclaimTimer.unref?.();
 }
-const geminiMeshProvider = new GeminiMeshProvider();
 const claudeMeshProvider = new ClaudeMeshProvider();
-const multiAiCoordinator = new MultiAiCoordinator({ providers: { gemini: geminiMeshProvider, claude: claudeMeshProvider } });
+const multiAiCoordinator = new MultiAiCoordinator({ providers: { claude: claudeMeshProvider } });
 
 const permanentWorkerFleet = createPermanentWorkerFleet();
 const apexOverseer = createOverseer({ intervalMs: Math.max(5000, Number(process.env.APEX_WORKER_HEARTBEAT_MS || 15000)) });
@@ -1480,11 +1478,7 @@ const crewAssignments = crewRoles.map(([role, task]) => ({
   role,
   task,
   provider: crewProvider || 'openrouter',
-  model: crewProvider === 'google'
-    ? (process.env.GEMINI_FREE_MODEL || 'gemini-3.8-flash')
-    : crewProvider === 'openrouter'
-      ? 'openrouter/free'
-      : undefined
+  model: crewProvider === 'openrouter' ? 'openrouter/free' : undefined
 }));
 
 const aiCrew = createAiCrewEngine({
@@ -2141,7 +2135,7 @@ app.use('/files', express.static(STORAGE_DIR, {
 // still escalates to the next eligible swarm node when the final response fails.
 const outboundProviderHosts = [
   'api.groq.com', 'openrouter.ai', 'api.cohere.com', 'api.cloudflare.com',
-  'api.anthropic.com', 'generativelanguage.googleapis.com', 'text.pollinations.ai',
+  'api.anthropic.com', 'text.pollinations.ai',
   'gen.pollinations.ai', 'api-inference.huggingface.co', 'router.huggingface.co',
   'api.openai.com', 'api.mistral.ai', 'api.cerebras.ai', 'api.aimlapi.com',
   'api.sambanova.ai', 'integrate.api.nvidia.com', 'api.perplexity.ai',
@@ -2447,51 +2441,6 @@ async function callOpenRouter(prompt, system) {
   return output;
 }
 
-async function callGemini(prompt, system) {
-  if (!process.env.GEMINI_API_KEY) throw new Error('Gemini not configured');
-
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const response = await fetchWithTimeout(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': process.env.GEMINI_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: String(system || DEFAULT_SYSTEM) }],
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: String(prompt) }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.8,
-        },
-      }),
-    },
-    15000
-  );
-
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 300);
-    throw new Error(`Gemini ${response.status}${detail ? `: ${detail}` : ''}`);
-  }
-
-  const data = await response.json();
-  const output = data?.candidates?.[0]?.content?.parts
-    ?.map((part) => part?.text || '')
-    .join('')
-    .trim();
-
-  if (!output) throw new Error('Empty Gemini response');
-  return output;
-}
-
 async function callClaude(prompt, system) {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('Claude not configured');
   const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
@@ -2560,7 +2509,6 @@ const allInferenceProviders = [
   { id: 'mistral-free', cost: 'free', call: callMistral, enabled: () => Boolean(process.env.MISTRAL_API_KEY) },
   { id: 'cerebras-free', cost: 'free', call: callCerebras, enabled: () => Boolean(process.env.CEREBRAS_API_KEY) },
   { id: 'openrouter-free', cost: 'free', call: callOpenRouter, enabled: () => Boolean(process.env.OPENROUTER_API_KEY) },
-  { id: 'gemini-free', cost: 'free', call: callGemini, enabled: () => Boolean(process.env.GEMINI_API_KEY) },
   { id: 'cloudflare-free', cost: 'free', call: callCloudflare, enabled: () => Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) },
   { id: 'pollinations', cost: 'free', call: callPollinationsText, enabled: () => true },
   { id: 'claude', cost: 'metered', call: callClaude, enabled: () => Boolean(process.env.ANTHROPIC_API_KEY) },
@@ -2575,7 +2523,6 @@ const requestedOrder = String(process.env.APEX_INFERENCE_ORDER || '')
   .filter(Boolean);
 
 const defaultInferenceOrder = [
-  'gemini-free',
   'claude',
   'nvidia-free',
   'cohere-free',
@@ -3274,9 +3221,9 @@ app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
   const requested = String(req.body?.provider || '').trim();
   const system = String(req.body?.system || DEFAULT_SYSTEM);
   try {
-    if (requested === 'gemini') {
-      const text = await geminiMeshProvider.generate(prompt, { system });
-      return res.json({ success: true, provider: 'gemini', model: geminiMeshProvider.model, text });
+    if (requested === 'openai') {
+      const result = await generateMax({ prompt, system, model: req.body?.model });
+      return res.json({ success: true, provider: 'openai', ...result });
     }
     if (requested === 'claude') {
       const model = String(req.body?.model || claudeMeshProvider.model);
@@ -3296,7 +3243,7 @@ app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
 
   const requestedProviders = Array.isArray(req.body?.providers) && req.body.providers.length
     ? req.body.providers
-    : ['gemini', 'claude'];
+    : ['claude'];
 
   try {
     const result = await multiAiCoordinator.run({
@@ -3314,9 +3261,9 @@ app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
 
 app.get('/api/ai/status', (_req, res) => res.json({
   success: true,
-  gemini: {
-    configured: Boolean(process.env.GEMINI_API_KEY),
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  openai: {
+    configured: Boolean(process.env.OPENAI_API_KEY),
+    model: process.env.OPENAI_MAX_MODEL || 'configured default'
   },
   claude: {
     configured: Boolean(process.env.ANTHROPIC_API_KEY),
@@ -3383,7 +3330,6 @@ app.get('/api/mesh/status', requireControlPlaneAuth, (_req, res) => {
       mistral: 'Free mode provides included monthly usage with limits; pay-as-you-go is controlled by the Mistral account.',
       cerebras: 'Developer API access is available with a free API key; limits are account/service dependent.',
       openrouter: 'Uses openrouter/free by default; free-model availability and limits are provider controlled.',
-      gemini: 'Uses gemini-2.5-flash by default; Google documents a free tier with model/account limits.',
       cloudflare: 'Uses Workers AI free allocation when available; requests fail after the free allocation rather than silently switching to paid inference.',
       huggingface: 'Credit/PAYG provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
       aimlapi: 'Pay-as-you-go provider; disabled unless APEX_ALLOW_METERED_PROVIDERS=true.',
