@@ -30,11 +30,11 @@ function isSensitiveKey(key,keys){
   const normalized=String(key).replace(/([a-z0-9])([A-Z])/g,"$1_$2").toLowerCase();
   const parts=normalized.split(/[^a-z0-9]+/).filter(Boolean);
   if(keys.some(candidate=>normalized===String(candidate).replace(/([a-z0-9])([A-Z])/g,"$1_$2").toLowerCase())) return true;
-  const sensitiveWords=new Set(["token","password","passwd","secret","authorization","credential"]);
+  const sensitiveWords=new Set(["token","password","passwd","secret","authorization","credential","jwt","cookie"]);
   if(parts.some(part=>sensitiveWords.has(part))) return true;
-  const pairs=new Set(["api_key","private_key","client_secret","access_key","refresh_key"]);
+  const pairs=new Set(["api_key","private_key","client_secret","access_key","refresh_key","signing_key","encryption_key","session_key"]);
   for(let i=0;i<parts.length-1;i++) if(pairs.has(parts[i]+"_"+parts[i+1])) return true;
-  return parts.some(part=>["apikey","privatekey","clientsecret","accesskey","refreshkey"].includes(part));
+  return parts.some(part=>["apikey","privatekey","clientsecret","accesskey","refreshkey","signingkey","encryptionkey","sessionkey"].includes(part));
 }
 
 function redactInlineSecrets(value){
