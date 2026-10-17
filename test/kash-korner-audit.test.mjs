@@ -84,6 +84,15 @@ test('Kash-Korner audit flags malformed amounts, currencies, and dates', () => {
   assert.ok(codes.has('INVALID_INVOICE_DATE'));
 });
 
+test('KashKorner page exposes the structured contingency audit UI', async () => {
+  const html = await (await import('node:fs/promises')).readFile(new URL('../public/kash-korner.html', import.meta.url), 'utf8');
+  assert.match(html, /Contingency contract audit/);
+  assert.match(html, /id="audit-contract"/);
+  assert.match(html, /id="audit-invoice"/);
+  assert.match(html, /\/api\/kash-korner\/audits\/contingency/);
+  assert.match(html, /Not persisted; not transmitted to third parties/);
+});
+
 test('Kash-Korner audit rejects unstructured input', () => {
   assert.throws(() => auditContingencyContract({ contract: [], invoice: invoice() }), /structured objects/);
   assert.throws(() => auditContingencyContract({ contract: contract(), invoice: null }), /structured objects/);
