@@ -17,13 +17,13 @@ const runConstructorPolicy = source => run(`
   ${source}
 `, "test");
 
-test("production ApexPureStore refuses local persistence fallback", () => {
+test("production ApexPureStore defers missing peer storage failure until initialization", () => {
   const result = runConstructorPolicy(`
     const { ApexPureStore } = module;
-    new ApexPureStore();
+    const store = new ApexPureStore();
+    await assert.rejects(store.init(), /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
   `);
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test("production legacy WAL refuses initialization and writes before touching disk", () => {
@@ -41,20 +41,20 @@ test("production rejects generic remote object storage even when the legacy remo
     process.env.APEX_CAS_REMOTE_ENABLED = "true";
     const { ApexPureStore } = module;
     const genericObjectStore = { init: async () => {}, readRef: async () => null, writeRef: async () => {}, listRefs: async () => [] };
-    new ApexPureStore({ cas: genericObjectStore });
+    const store = new ApexPureStore({ cas: genericObjectStore });
+    await assert.rejects(store.init(), /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
   `);
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test("production accepts only an explicitly marked peer-owned adapter, not a flag-only configuration", () => {
   const result = runConstructorPolicy(`
     process.env.APEX_CAS_REMOTE_ENABLED = "true";
     const { ApexPureStore } = module;
-    new ApexPureStore();
+    const store = new ApexPureStore();
+    await assert.rejects(store.init(), /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
   `);
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test("production rejects a duck-typed adapter that forges the peer-owned marker", () => {
@@ -62,10 +62,10 @@ test("production rejects a duck-typed adapter that forges the peer-owned marker"
     process.env.APEX_CAS_REMOTE_ENABLED = "true";
     const { ApexPureStore } = module;
     const forged = { peerOwnedStorage: true, init: async () => {}, readRef: async () => null, writeRef: async () => {}, listRefs: async () => [] };
-    new ApexPureStore({ cas: forged });
+    const store = new ApexPureStore({ cas: forged });
+    await assert.rejects(store.init(), /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
   `);
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test("PeerMeshCasAdapter refuses duck-typed stores that are not PeerContentAddressedStore instances", () => {
