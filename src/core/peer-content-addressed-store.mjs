@@ -46,8 +46,8 @@ export class PeerContentAddressedStore {
     this.encryptionKey = key;
     this.maxObjectBytes = Number(maxObjectBytes);
     this.maxBlobBytes = Number(maxBlobBytes);
-    if (!Number.isSafeInteger(this.maxBlobBytes) || this.maxBlobBytes < 1 || this.maxBlobBytes > 2 * 1024 * 1024 * 1024) {
-      throw new TypeError('maxBlobBytes must be between 1 byte and 2 GiB');
+    if (!Number.isSafeInteger(this.maxBlobBytes) || this.maxBlobBytes < 1 || this.maxBlobBytes > 1024 * 1024 * 1024) {
+      throw new TypeError('maxBlobBytes must be between 1 byte and 1 GiB');
     }
     this.memoryCacheBytes = Number(memoryCacheBytes);
     this.memoryCacheTtlMs = Number(memoryCacheTtlMs);
