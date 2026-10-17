@@ -19,7 +19,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
       return res.json({ success: true, assetId: asset.id, key: download.key, url: download.url });
     } catch (error) {
       const status = Number(error?.status) || 503;
-      return res.status(status).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+      return res.status(status).json({ success: false, error: "Production request failed" });
     }
   });
 
