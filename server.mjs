@@ -597,22 +597,30 @@ const rogueApDetector = createRogueApDetector({
 
 let runtimeFault = null;
 
+function safeFaultMetadata(value) {
+  const name = typeof value?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value.name)
+    ? value.name : 'Error';
+  const code = typeof value?.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(value.code)
+    ? value.code : undefined;
+  return { errorClass: name, ...(code ? { errorCode: code } : {}) };
+}
+
 process.on('uncaughtException', (error) => {
   runtimeFault = {
     type: 'uncaughtException',
-    message: String(error?.message || error),
+    ...safeFaultMetadata(error),
     at: new Date().toISOString()
   };
-  console.error('[apex][uncaughtException]', error);
+  console.error('[apex][uncaughtException]', JSON.stringify(runtimeFault));
 });
 
 process.on('unhandledRejection', (reason) => {
   runtimeFault = {
     type: 'unhandledRejection',
-    message: String(reason?.message || reason),
+    ...safeFaultMetadata(reason),
     at: new Date().toISOString()
   };
-  console.error('[apex][unhandledRejection]', reason);
+  console.error('[apex][unhandledRejection]', JSON.stringify(runtimeFault));
 });
 
 async function buildHealthSnapshot() {
@@ -1257,10 +1265,10 @@ const server = app.listen(PORT, HOST, () => {
 server.on('error', (error) => {
   runtimeFault = {
     type: 'listenError',
-    message: String(error?.message || error),
+    ...safeFaultMetadata(error),
     at: new Date().toISOString()
   };
-  console.error('[apex][listen-error]', error);
+  console.error('[apex][listen-error]', JSON.stringify(runtimeFault));
 });
 
 let shuttingDown = false;
