@@ -162,7 +162,11 @@ export class PeerContentAddressedStore {
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
-        failures.push({ peerId, error: 'Peer repair failed' });
+        const errorMessage = error instanceof Error ? error.message : '';
+        const failure = errorMessage === 'peer returned an invalid, cross-namespace, or unverified durability receipt'
+          ? 'unverified durability receipt'
+          : 'Peer object write failed';
+        failures.push({ peerId, error: failure });
       }
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
