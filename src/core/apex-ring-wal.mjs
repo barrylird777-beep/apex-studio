@@ -14,6 +14,7 @@ let chain=Promise.resolve();
 
 const sha=v=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function assertLegacyWalWritesDisabled(){if(String(process.env.NODE_ENV||"").toLowerCase()==="production")throw new Error("[STORAGE_POLICY] Local WAL is migration-only; production reads/writes must use the configured remote store.");}
 async function syncDirectory(dir){const fh=await open(dir,"r");try{await fh.sync();}finally{await fh.close();}}
 function expectedHash(record){const {hash,...body}=record;return sha(body);}
 
@@ -129,12 +130,14 @@ export class ApexRingWAL {
     return count;
   }
   async init(){
+    assertLegacyWalWritesDisabled();
     if(this.ready)return this;
     await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
     const release=await this._acquireLock();
     try{await this._readAndVerify();this.ready=true;return this;}finally{await release();}
   }
   async append(type,payload={},meta={}){
+    assertLegacyWalWritesDisabled();
     await this.init();
     const run=async()=>{
       const release=await this._acquireLock();
@@ -156,11 +159,13 @@ export class ApexRingWAL {
     const next=chain.then(run,run);chain=next.catch(()=>{});return next;
   }
   async refresh({onRecord=()=>{}}={}){
+    assertLegacyWalWritesDisabled();
     await this.init();
     const release=await this._acquireLock();
     try{return await this._refreshLocked(onRecord);}finally{await release();}
   }
   async replay({onRecord=async()=>{},retainRing=true}={}){
+    assertLegacyWalWritesDisabled();
     await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});
     const release=await this._acquireLock();
     try{const count=await this._streamRecords(onRecord,{retainRing});this.ready=true;return count;}finally{await release();}
