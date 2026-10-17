@@ -33,6 +33,9 @@ test('release CLI signs a manifest, verifies artifact bytes, and rejects changed
     const verified = spawnSync(process.execPath, [script, 'verify', 'dist/manifest.json'], { cwd: root, env, encoding: 'utf8' });
     assert.equal(verified.status, 0, verified.stderr);
     assert.equal(JSON.parse(verified.stdout).artifactBytesVerified, true);
+    const overwrite = spawnSync(process.execPath, [script, 'sign'], { cwd: root, env, encoding: 'utf8' });
+    assert.notEqual(overwrite.status, 0);
+    assert.match(overwrite.stderr, /output file already exists/);
     await writeFile(path.join(root, 'artifact.txt'), 'changed after signing');
     const changed = spawnSync(process.execPath, [script, 'verify', 'dist/manifest.json'], { cwd: root, env, encoding: 'utf8' });
     assert.notEqual(changed.status, 0);
