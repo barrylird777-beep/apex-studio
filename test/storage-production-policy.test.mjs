@@ -17,6 +17,14 @@ const runConstructorPolicy = source => run(`
   ${source}
 `, "test");
 
+test("production module import succeeds without initializing an unsafe fallback", () => {
+  const result = run(`
+    const { apexPureStore } = await import("./src/core/apex-pure-store.mjs");
+    await assert.rejects(apexPureStore.init(), /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+  `);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
 test("production ApexPureStore defers missing peer storage failure until initialization", () => {
   const result = runConstructorPolicy(`
     const { ApexPureStore } = module;
