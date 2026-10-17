@@ -381,7 +381,7 @@ export class PeerContentAddressedStore {
         chunks: leafChunks
       };
       const saved = await this.putObject(leaf);
-      leaves.push({ hash: saved.hash, bytes: leaf.totalBytes, sha256: leaf.sha256 });
+      leaves.push({ hash: saved.hash, bytes: leaf.totalBytes, sha256: leaf.sha256, start: offset - leafBytes, end: offset });
       leafChunks = [];
       leafBytes = 0;
     };
@@ -408,13 +408,17 @@ export class PeerContentAddressedStore {
       const nextLevel = [];
       for (let index = 0; index < level.length; index += fanout) {
         const children = level.slice(index, index + fanout);
-        const totalBytes = children.reduce((sum, child) => sum + child.bytes, 0);
+        const start = children[0].start;
+        const end = children[children.length - 1].end;
+        const totalBytes = end - start;
+        const subtreeDigest = sha256(blob.subarray(start, end));
         const node = {
           kind: 'apex.blob-tree.v1', version: 1, namespace: this.namespace,
-          totalBytes, sha256: digest, children
+          totalBytes, sha256: subtreeDigest,
+          children: children.map(({ hash, bytes, sha256: childSha256 }) => ({ hash, bytes, sha256: childSha256 }))
         };
         const saved = await this.putObject(node);
-        nextLevel.push({ hash: saved.hash, bytes: totalBytes, sha256: digest });
+        nextLevel.push({ hash: saved.hash, bytes: totalBytes, sha256: subtreeDigest, start, end });
       }
       level = nextLevel;
     }
@@ -427,13 +431,8 @@ export class PeerContentAddressedStore {
       return { ...empty, kind: 'apex.blob-manifest.v1', totalBytes: 0, contentSha256: digest, chunkCount: 0 };
     }
     const root = await this.getObject(level[0].hash);
-    if (root.kind === 'apex.blob-manifest.v1') {
-      // Small blobs use the leaf manifest as their root; its digest is the blob digest.
-      const leafHash = root.sha256;
-      if (leafHash !== digest) {
-        const saved = await this.putObject({ ...root, sha256: digest });
-        return { ...saved, kind: root.kind, totalBytes: blob.length, contentSha256: digest, chunkCount: Math.ceil(blob.length / size) };
-      }
+    if (root.sha256 !== digest || root.totalBytes !== blob.length) {
+      throw new Error('peer blob manifest root failed source length or digest verification');
     }
     return {
       hash: level[0].hash,
