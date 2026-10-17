@@ -28,6 +28,20 @@ function fingerprint(value) {
   return crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+const SAFE_TASK_PHASES = new Set(["diagnose", "work-around", "decompose", "execute", "verify"]);
+
+function normalizeParallelTasks(tasks) {
+  if (!Array.isArray(tasks)) return [];
+  return tasks.slice(0, 8).flatMap(task => {
+    if (!task || typeof task !== "object" || Array.isArray(task)) return [];
+    const goal = typeof task.goal === "string" ? task.goal.trim().slice(0, 1000) : "";
+    if (!goal) return [];
+    const phaseValue = typeof task.phase === "string" ? task.phase.trim().toLowerCase() : "";
+    const safe = { goal, phase: SAFE_TASK_PHASES.has(phaseValue) ? phaseValue : "execute" };
+    if (typeof task.specialist === "string" && task.specialist.trim()) safe.specialist = task.specialist.trim().slice(0, 80);
+    return [Object.freeze(safe)];
+  });
+}
 function normalizeResult(result) {
   if (result == null) return { status: "blocked", reason: "No execution result was returned." };
   if (typeof result === "string") return { status: "progress", output: result };
@@ -90,12 +104,13 @@ export class ApexIntelligence {
   }
 
   async runParallel(tasks = [], context = {}) {
-    if (!tasks.length) return { status: "progress", outputs: [] };
+    const safeTasks = normalizeParallelTasks(tasks);
+    if (!safeTasks.length) return { status: "progress", outputs: [] };
     if (typeof this.parallelExecutor === "function") {
-      return normalizeResult(await this.parallelExecutor(tasks, context));
+      return normalizeResult(await this.parallelExecutor(safeTasks, context));
     }
-    const results = await Promise.allSettled(tasks.map(task => this.executor({
-      ...task, phase: task.phase ?? "execute", context, parallel: true
+    const results = await Promise.allSettled(safeTasks.map(task => this.executor({
+      ...task, context, parallel: true
     })));
     return {
       status: results.some(result => result.status === "fulfilled") ? "progress" : "blocked",
