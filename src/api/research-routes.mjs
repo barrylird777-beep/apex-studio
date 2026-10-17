@@ -26,7 +26,9 @@ export function createResearchRouter(engine) {
       const work = await engine.resolveWork(query);
       return res.status(200).json({ success: true, work });
     } catch (error) {
-      return next(error);
+      const status = Number(error?.statusCode || error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 500 ? status : 502)
+        .json({ success: false, error: status >= 400 && status < 500 ? "Invalid research request" : "Research request failed" });
     }
   });
 
@@ -48,7 +50,9 @@ export function createResearchRouter(engine) {
         reconstruction
       });
     } catch (error) {
-      return next(error);
+      const status = Number(error?.statusCode || error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 500 ? status : 502)
+        .json({ success: false, error: status >= 400 && status < 500 ? "Invalid research request" : "Research request failed" });
     }
   });
 
@@ -60,7 +64,9 @@ export function createResearchRouter(engine) {
       const feed = await engine.ingestSyndication(safeUrl);
       return res.status(200).json({ success: true, feed });
     } catch (error) {
-      return next(error);
+      const status = Number(error?.statusCode || error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 500 ? status : 502)
+        .json({ success: false, error: status >= 400 && status < 500 ? "Invalid research request" : "Research request failed" });
     }
   });
 
