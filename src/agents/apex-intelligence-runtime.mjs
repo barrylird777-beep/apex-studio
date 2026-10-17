@@ -1,6 +1,35 @@
 import { ApexIntelligence } from "./apex-intelligence.mjs";
 import { generateUnifiedAi, unifiedAiStatus } from "../providers/unified-ai-router.mjs";
 
+const ALLOWED_STATUSES = new Set(["diagnose", "work-around", "decompose", "parallelize", "execute", "verify", "retry", "blocked"]);
+const ALLOWED_TASK_PHASES = new Set(["diagnose", "work-around", "decompose", "execute", "verify"]);
+
+function boundedText(value, max = 1000) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+/**
+ * Model-proposed tasks are inert text, never commands or capability grants.
+ * Drop every field outside this narrow schema before any executor sees a task.
+ */
+export function normalizeModelTasks(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).flatMap(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const goal = boundedText(item.goal ?? item.task, 1000);
+    if (!goal) return [];
+    const requestedPhase = boundedText(item.phase, 40).toLowerCase();
+    const task = { goal, phase: ALLOWED_TASK_PHASES.has(requestedPhase) ? requestedPhase : "execute" };
+    const specialist = boundedText(item.specialist, 80);
+    if (specialist) task.specialist = specialist;
+    return [Object.freeze(task)];
+  });
+}
+
+function boundedTextList(value, maxItems = 20, maxChars = 1000) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, maxItems).map(item => boundedText(item, maxChars)).filter(Boolean);
+}
 function parseModelEnvelope(text) {
   const raw = String(text ?? "").trim();
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -46,16 +75,15 @@ export function createApexIntelligenceRuntime(options = {}) {
 
     const result = await ask(prompt, options);
     const parsed = result.parsed;
-    const allowed = new Set(["diagnose", "work-around", "decompose", "parallelize", "execute", "verify", "retry", "blocked"]);
     const requested = String(parsed.status ?? parsed.next ?? "").toLowerCase();
-    const status = allowed.has(requested) ? requested : (input.phase === "diagnose" ? "execute" : "verify");
+    const status = ALLOWED_STATUSES.has(requested) ? requested : (input.phase === "diagnose" ? "execute" : "verify");
 
     return {
       status,
       output: parsed.output ?? result.text,
-      blockers: Array.isArray(parsed.blockers) ? parsed.blockers : [],
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-      evidence: Array.isArray(parsed.evidence) ? parsed.evidence : [],
+      blockers: boundedTextList(parsed.blockers),
+      tasks: normalizeModelTasks(parsed.tasks),
+      evidence: boundedTextList(parsed.evidence),
       provider: result.provider,
       model: result.model
     };
