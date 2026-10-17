@@ -1,3 +1,5 @@
+import { createHash, randomUUID } from 'node:crypto';
+
 // Defense-in-depth for the APEX sovereign peer transport.
 // Transport encryption/authentication is provided by libp2p Noise; this module
 // adds bounded per-peer admission and replay detection without changing app roles
@@ -7,6 +9,50 @@ const DEFAULT_LIMIT = 120;
 const MAX_TRACKED_PEERS = 10_000;
 const MAX_REPLAY_ENTRIES = 20_000;
 const REPLAY_TTL_MS = 10 * 60_000;
+
+const AUTH_FIELDS = new Set(['messageId', 'senderPeerId', 'issuedAt', 'requestDigest']);
+const payloadDigest = envelope => {
+  const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => !AUTH_FIELDS.has(key)));
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+};
+
+/** Bind a request payload to the authenticated libp2p sender and a fresh request ID. */
+export function sealPeerEnvelope(envelope, senderPeerId, now = Date.now()) {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new TypeError('peer envelope must be an object');
+  }
+  const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => !AUTH_FIELDS.has(key)));
+  return {
+    ...payload,
+    messageId: randomUUID(),
+    senderPeerId: String(senderPeerId || ''),
+    issuedAt: Number(now),
+    requestDigest: payloadDigest(payload)
+  };
+}
+
+/** Reject payload tampering, sender-identity mismatch, and stale peer requests. */
+export function verifyPeerEnvelope(envelope, remotePeerId, now = Date.now(), maxAgeMs = 5 * 60_000) {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    return { allowed: false, reason: 'peer envelope must be an object' };
+  }
+  if (typeof envelope.messageId !== 'string' || !/^[0-9a-f-]{36}$/i.test(envelope.messageId)) {
+    return { allowed: false, reason: 'invalid peer message identifier' };
+  }
+  if (!remotePeerId || envelope.senderPeerId !== String(remotePeerId)) {
+    return { allowed: false, reason: 'peer sender identity does not match authenticated transport identity' };
+  }
+  if (!Number.isSafeInteger(envelope.issuedAt) || envelope.issuedAt > now + 60_000 ||
+      now - envelope.issuedAt > maxAgeMs) {
+    return { allowed: false, reason: 'peer request timestamp is stale or invalid' };
+  }
+  if (typeof envelope.requestDigest !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(envelope.requestDigest) ||
+      payloadDigest(envelope) !== envelope.requestDigest) {
+    return { allowed: false, reason: 'peer request digest verification failed' };
+  }
+  return { allowed: true };
+}
 
 function positiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   const parsed = Number(value);
