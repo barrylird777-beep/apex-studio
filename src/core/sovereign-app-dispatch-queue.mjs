@@ -33,7 +33,7 @@ export async function drainSovereignAppDispatchQueue({
       results.push({jobId:job.id,waveId:record.waveId,status:completed?"dispatched":"lease_lost",seq:record.seq,checksum:record.checksum});
     }catch(error){
       const transitioned=await store.transition(job.id,"fail",{leaseToken:job.leaseToken,leaseFence:job.leaseFence,error});
-      results.push({jobId:job.id,status:transitioned?"failed_or_requeued":"lease_lost",error:String(error?.message||error)});
+      results.push({jobId:job.id,status:transitioned?"failed_or_requeued":"lease_lost",error:'Task failed'});
     }
   }
   return {claimed:claimed.length,dispatched:results.filter(x=>x.status==="dispatched").length,failed:results.filter(x=>x.status==="failed_or_requeued").length,results};
