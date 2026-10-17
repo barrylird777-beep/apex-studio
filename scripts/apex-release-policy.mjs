@@ -107,6 +107,12 @@ async function rollbackSignCommand() {
   }, privateKey);
   const outputPath = process.env.APEX_RELEASE_ROLLBACK_OUT || 'dist/apex-rollback-authorization.json';
   const output = resolveInsideRoot(root, outputPath);
+  const protectedPaths = [
+    process.env.APEX_RELEASE_ACTIVE_MANIFEST || 'dist/apex-release-manifest.json',
+    targetPath,
+    ...String(process.env.APEX_RELEASE_KNOWN_MANIFESTS || '').split(',').map(item => item.trim()).filter(Boolean)
+  ].map(item => resolveInsideRoot(root, item));
+  if (protectedPaths.includes(output)) throw new Error('rollback authorization output cannot overwrite a signed manifest');
   await mkdir(path.dirname(output), { recursive: true });
   const realDirectory = await realpath(path.dirname(output));
   if (!insideRoot(root, realDirectory)) throw new Error('rollback output directory resolves outside the release root');
