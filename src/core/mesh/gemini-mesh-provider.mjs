@@ -32,8 +32,7 @@ export class GeminiMeshProvider {
       body: JSON.stringify(body)
     });
     if (!response.ok) {
-      const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
-      throw new Error(`Gemini API Error: ${response.status}${detail ? `: ${detail}` : ''}`);
+      throw new Error(`AI provider request failed (HTTP ${response.status})`);
     }
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.map(p => p?.text || '').join('').trim() || '';
