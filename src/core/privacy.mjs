@@ -96,7 +96,7 @@ export function validateDataProductManifest(manifest) {
       errors.push("personal data requires explicit consent status and purpose");
     } else if (manifest.consent.status === "granted" &&
         !nonEmptyString(manifest.consent.evidenceRef)) {
-      errors.push("granted consent requires a verifiable evidenceRef");
+      errors.push("granted consent requires an evidenceRef (the reference itself must be verified by the serving system)");
     } else if (manifest.consent.status === "not-required" &&
         !nonEmptyString(manifest.consent.legalBasis)) {
       errors.push("consent marked not-required requires a documented legalBasis");
