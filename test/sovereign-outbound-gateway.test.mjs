@@ -64,6 +64,7 @@ test("provider target validation requires the exact HTTPS host", () => {
   assert.throws(() => validateProviderTarget("openai", "http://api.openai.com/v1/chat/completions"), /HTTPS allowlist/);
   assert.throws(() => validateProviderTarget("openai", "https://api.openai.com.attacker.invalid/v1/chat/completions"), /HTTPS allowlist/);
   assert.throws(() => validateProviderTarget("unknown", "https://example.invalid"), /Unknown provider/);
+  assert.throws(() => validateProviderTarget("gemini", "https://generativelanguage.googleapis.com"), /Unknown provider/);
 });
 
 test("provider request sends only sanitized payload and falls back locally on provider outage", async () => {
