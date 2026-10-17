@@ -32,10 +32,13 @@ function BrowserPeerTest(){
       if(typeof event.data!=="string"){setNote("Unexpected binary message ignored; test frames use validated metadata.");return;}
       try{
         const packet=JSON.parse(event.data);
+        if(packet?.type==="apex-webrtc-benchmark-result")return;
         if(packet?.type!=="apex-webrtc-benchmark"||typeof packet.transferId!=="string"||typeof packet.payload!=="string")return;
         const transfer=incomingTransfers.current.get(packet.transferId)??{chunks:new Map<number,Uint8Array>(),totalChunks:packet.totalChunks,expectedSha256:packet.expectedSha256,payloadBytes:0};
-        if(!Number.isInteger(packet.index)||!Number.isInteger(packet.totalChunks)||packet.totalChunks<1||packet.totalChunks>128||packet.index<0||packet.index>=packet.totalChunks||transfer.totalChunks!==packet.totalChunks||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
-        const bytes=Uint8Array.from(atob(packet.payload),ch=>ch.charCodeAt(0));
+        if(!Number.isInteger(packet.index)||packet.totalChunks!==32||packet.index<0||packet.index>=32||transfer.totalChunks!==32||typeof packet.expectedSha256!=="string"||!/^[a-f0-9]{64}$/.test(packet.expectedSha256)||transfer.expectedSha256!==packet.expectedSha256){setChecksumStatus("Invalid transfer metadata");return;}
+        let bytes:Uint8Array;
+        try{bytes=Uint8Array.from(atob(packet.payload),ch=>ch.charCodeAt(0));}catch{setChecksumStatus("FAIL — malformed base64 chunk");return;}
+        if(bytes.byteLength!==32*1024||transfer.payloadBytes+bytes.byteLength>1024*1024){setChecksumStatus("FAIL — invalid chunk size or payload limit");return;}
         if(!transfer.chunks.has(packet.index)){transfer.chunks.set(packet.index,bytes);transfer.payloadBytes+=bytes.byteLength;setReceived(transfer.payloadBytes);}
         incomingTransfers.current.set(packet.transferId,transfer);
         if(transfer.chunks.size!==transfer.totalChunks)return;
@@ -43,8 +46,11 @@ function BrowserPeerTest(){
         for(let i=0;i<transfer.totalChunks;i++){const part=transfer.chunks.get(i);if(!part){setChecksumStatus("FAIL — missing chunk");return;}payload.set(part,offset);offset+=part.byteLength;}
         const digest=await crypto.subtle.digest("SHA-256",payload);
         const actualSha256=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+        const verified=actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024;
         setReceiverSha256(actualSha256);
-        setChecksumStatus(actualSha256===transfer.expectedSha256&&transfer.payloadBytes===1024*1024?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
+        setChecksumStatus(verified?"PASS — 1 MiB SHA-256 matches":"FAIL — payload/checksum mismatch");
+        setTransferStatus(verified?"Receiver verified all 32 chunks and SHA-256.":"Receiver checksum or payload length mismatch.");
+        if(dc.readyState==="open")dc.send(JSON.stringify({type:"apex-webrtc-benchmark-result",transferId:packet.transferId,ok:verified,expectedSha256:transfer.expectedSha256,actualSha256,payloadBytes:transfer.payloadBytes}));
         incomingTransfers.current.delete(packet.transferId);
       }catch{setChecksumStatus("Could not validate received payload");}
     };
@@ -126,10 +132,19 @@ function BrowserPeerTest(){
     const started=performance.now();
     let sentBytes=0;
     setChecksumStatus("Waiting for receiver checksum…");
+    let receiptListener:((event:MessageEvent)=>void)|undefined;
+    let receiptTimeout:number|undefined;
     try{
       const expectedSha256=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",payload)),b=>b.toString(16).padStart(2,"0")).join("");
       setSenderSha256(expectedSha256);setReceiverSha256("");
       setNote("Sender baseline payload: "+payload.byteLength.toLocaleString()+" bytes; SHA-256 "+expectedSha256);
+      const receiptPromise=new Promise<{ok:boolean;expectedSha256:string;actualSha256:string;payloadBytes:number}>((resolve,reject)=>{
+        let settled=false;
+        const finish=(error:Error|undefined,value?:{ok:boolean;expectedSha256:string;actualSha256:string;payloadBytes:number})=>{if(settled)return;settled=true;if(receiptTimeout!==undefined)window.clearTimeout(receiptTimeout);if(receiptListener)dc.removeEventListener("message",receiptListener);if(error)reject(error);else resolve(value!);};
+        receiptListener=(event:MessageEvent)=>{if(typeof event.data!=="string")return;try{const receipt=JSON.parse(event.data);if(receipt?.type!=="apex-webrtc-benchmark-result"||receipt.transferId!==transferId)return;finish(undefined,receipt);}catch{}};
+        dc.addEventListener("message",receiptListener);
+        receiptTimeout=window.setTimeout(()=>finish(new Error("Timed out waiting for explicit receiver SHA-256 receipt.")),15000);
+      });
       dc.bufferedAmountLowThreshold=65536;
       const waitForBufferLow=()=>new Promise<void>((resolve,reject)=>{
         let settled=false;
@@ -155,12 +170,18 @@ function BrowserPeerTest(){
       if(dc.bufferedAmount>dc.bufferedAmountLowThreshold)await waitForBufferLow();
       const seconds=Math.max((performance.now()-started)/1000,0.001);
       setTransferRate((sentBytes/seconds/1024/1024).toFixed(2)+" MiB/s payload submitted");
-      setTransferStatus("Submitted "+sentBytes.toLocaleString()+" payload bytes in "+totalChunks+" chunks; waiting for receiver SHA-256 verification.");
-      setNote("Sender payload SHA-256: "+expectedSha256+". Send-buffer queued bytes are shown separately; sender submission alone does not prove remote delivery or Railway egress savings.");
+      setTransferStatus("Submitted "+sentBytes.toLocaleString()+" payload bytes in "+totalChunks+" chunks; awaiting explicit receiver receipt.");
+      const receipt=await receiptPromise;
+      const verified=receipt.ok===true&&receipt.expectedSha256===expectedSha256&&receipt.actualSha256===expectedSha256&&receipt.payloadBytes===totalBytes;
+      setReceiverSha256(receipt.actualSha256||"");
+      setChecksumStatus(verified?"PASS — receiver acknowledged matching SHA-256":"FAIL — receiver receipt mismatch");
+      setTransferStatus(verified?"VERIFIED by receiver: 1 MiB, 32 × 32 KiB chunks, SHA-256 matches.":"FAILED — receiver receipt did not match sender payload.");
+      setNote("Sender and receiver SHA-256 "+(verified?"match":"do not match")+". Sender queue drain is not delivery proof.");
+      if(!verified)throw new Error("Receiver receipt did not validate against sender payload.");
     }catch(e){
       setTransferStatus("Transfer incomplete");
       setNote(e instanceof Error?e.message:"WebRTC transfer failed.");
-    }finally{setBusy(false);}
+    }finally{if(receiptTimeout!==undefined)window.clearTimeout(receiptTimeout);if(receiptListener)dc.removeEventListener("message",receiptListener);setBusy(false);}
   };
   const close=()=>{pc.current?.close();pc.current=null;channel.current=null;setConnection("Closed");setChannelState("Closed");setPathType("Not measured");setNote("Peer connection closed. No background connection remains.");};
   useEffect(()=>{const id=window.setInterval(()=>setBufferedAmount(channel.current?.bufferedAmount??0),150);return()=>{window.clearInterval(id);pc.current?.close();};},[]);
