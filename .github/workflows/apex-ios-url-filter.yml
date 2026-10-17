@@ -1,5 +1,8 @@
 name: Apex iOS 26 URL Filter
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   push:
