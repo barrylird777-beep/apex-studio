@@ -157,7 +157,7 @@ export function createKernelodiesDiscoveryRouter({
       await fabric.put("kernelodies", playlistId, playlist);
       return res.status(201).json({ success: true, playlist: { ...playlist, tracks: discoveryIds.map(id => discoveries.get(id)) } });
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 220) });
+      return res.status(400).json({ success: false, error: "Invalid request" });
     }
   });
 
