@@ -57,6 +57,7 @@ function isPrivateIpv6(ip) {
   // assigned or uncommon non-public ranges.
   if (a === 0x2001 && b <= 0x01ff) return true; // protocol assignments, Teredo, ORCHID, etc.
   if (a === 0x2001 && b === 0x0db8) return true; // documentation
+  if (a === 0x3fff && b <= 0x0fff) return true; // IPv6 documentation prefix 3fff::/20
   if (a === 0x2002) return true; // 6to4 can encode a non-public IPv4 destination
   if (a === 0x0064 && b === 0xff9b && c === 0 && d === 0 && e === 0 && f === 0) return true;
   if ((a & 0xe000) !== 0x2000) return true; // reject unspecified, loopback, ULA, link-local, multicast, and reserved space
