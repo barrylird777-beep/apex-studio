@@ -113,8 +113,13 @@ async function post(url, headers, body, timeoutMs = 120000) {
   try {
     const r = await providerFetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal: controller.signal });
     const raw = await r.text();
-    let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
-    if (!r.ok) throw new Error(`provider HTTP ${r.status}: ${String(data?.error?.message || data?.message || data?.error || raw).slice(0, 1000)}`);
+    let data; try { data = JSON.parse(raw); } catch { data = null; }
+    // Provider error bodies are untrusted and may echo prompts, credentials, or private input.
+    // Preserve only the HTTP status for diagnostics; never propagate provider response text.
+    if (!r.ok) throw new Error(`AI provider request failed (HTTP ${r.status})`);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('AI provider returned an invalid response');
+    }
     return data;
   } finally { clearTimeout(timer); }
 }
@@ -198,7 +203,8 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
     const { generateGrok } = await import('./grok-router.mjs');
     result = await generateGrok({ messages: normalized, model: selectedModel });
   } else throw new Error('provider protocol not implemented');
-  return { provider: p.id, category: p.category, freeMode: FREE_MODE, ...result };
+  // Model output is always untrusted data; callers must not treat it as authorization or executable instructions.
+  return { ...result, provider: p.id, category: p.category, freeMode: FREE_MODE, trusted: false, trustBoundary: 'untrusted-model-output' };
   } finally { releaseFreeAiSlot(); }
 }
 
