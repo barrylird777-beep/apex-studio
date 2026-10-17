@@ -61,7 +61,7 @@ test('Cloudflare cannot enter free rotation without a valid account and explicit
   });
 });
 
-test('free rotation fails closed when no key-backed provider is configured and never selects paid providers', () => {
+test('free rotation stays within the allowlisted free providers when no key-backed provider is configured', () => {
   withEnv({}, () => {
     const plan = getFreeAiRotationPlan();
     assert.deepEqual(plan, ['pollinations']);
