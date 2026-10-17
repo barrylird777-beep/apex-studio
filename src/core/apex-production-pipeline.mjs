@@ -94,7 +94,7 @@ export class ApexProductionPipeline {
         id: job.id,
         token: job.leaseToken,
         fence: job.leaseFence,
-        error: error instanceof Error ? error.message : String(error),
+        error: 'Production task failed',
         now: new Date(),
         retryAt
       });
