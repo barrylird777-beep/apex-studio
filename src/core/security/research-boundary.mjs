@@ -80,8 +80,10 @@ export async function assertSafeResearchUrl(rawUrl) {
   if (!["http:", "https:"].includes(url.protocol)) throw new TypeError("research URL must use http or https");
   if (url.username || url.password) throw new TypeError("research URL credentials are not allowed");
 
-  const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (!hostname || BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith(".localhost")) {
+  // DNS treats a final dot as the absolute form of the same hostname.
+  // Normalize it before exact/suffix denylist checks to prevent trivial bypasses.
+  const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase().replace(/\.$/, "");
+  if (!hostname || BLOCKED_HOSTNAMES.has(hostname) || hostname === "localhost" || hostname.endsWith(".localhost")) {
     throw new Error("research URL targets a blocked hostname");
   }
 
