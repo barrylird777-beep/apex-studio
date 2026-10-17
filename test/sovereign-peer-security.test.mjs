@@ -21,6 +21,22 @@ test("sealed peer envelopes bind payload digest, authenticated sender, and fresh
   assert.equal(verifyPeerEnvelope({ ...sealed, key: "tampered" }, "peer-a", now).allowed, false);
 });
 
+test("peer trust epochs enforce rotation, missing enrollment, and revocation", () => {
+  const guard = createPeerSecurityGuard({
+    now: () => 1000,
+    trustEpochs: new Map([
+      ['peer-current', { epoch: 2, revoked: false }],
+      ['peer-revoked', { epoch: 4, revoked: true }]
+    ]),
+    requireTrustEpochs: true
+  });
+  const envelope = (senderEpoch, suffix) => ({ type: 'peer.request', senderEpoch, messageId: '12345678-1234-4234-9234-123456789' + suffix });
+  assert.equal(guard.admit('peer-current', envelope(2, 'abc')).allowed, true);
+  assert.equal(guard.admit('peer-current', envelope(1, 'abd')).reason, 'peer trust epoch mismatch');
+  assert.equal(guard.admit('peer-revoked', envelope(4, 'abe')).reason, 'peer trust epoch is revoked');
+  assert.equal(guard.admit('peer-unconfigured', envelope(0, 'abf')).reason, 'peer trust epoch is not configured');
+});
+
 test("peer security guard rejects a replayed message identifier", () => {
   const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000 });
   const envelope = { type: "test.payload", messageId: "12345678-1234-4234-9234-123456789abc" };
