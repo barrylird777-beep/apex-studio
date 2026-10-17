@@ -69,6 +69,18 @@ function makeMesh(ids = ['peer-a', 'peer-b']) {
   };
 }
 
+test('peer CAS rejects replica policies that permit two replicas in one failure domain', () => {
+  assert.throws(() => new PeerContentAddressedStore({
+    transport: { request: async () => { throw new Error('unused'); } },
+    peers: ['peer-a', 'peer-b'],
+    replicaCount: 2,
+    minFailureDomains: 1,
+    failureDomainsByPeerId: { 'peer-a': 'rack-a', 'peer-b': 'rack-a' },
+    namespace: 'PlanetApeX',
+    encryptionKey: Buffer.alloc(32, 7)
+  }), /every replica to occupy a distinct configured failure domain/);
+});
+
 test('peer CAS refuses to count an object write from a volatile peer as durable', async () => {
   const store = memoryStore();
   const handler = createPeerObjectStorageHandler({
