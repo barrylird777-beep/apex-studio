@@ -14,7 +14,7 @@
 		666666666666666666666666 /* ApexAdBlocker */ = {
 			isa = PBXGroup;
 			children = (111111111111111111111111,222222222222222222222222,333333333333333333333333,444444444444444444444444);
-			path = .;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		777777777777777777777777 /* Products */ = {isa = PBXGroup; children = (555555555555555555555555); name = Products; sourceTree = "<group>"; };
