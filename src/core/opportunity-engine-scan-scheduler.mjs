@@ -27,11 +27,15 @@ export function startOpportunityEngineScanScheduler({
   url = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_URL,
   token = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_TOKEN,
   intervalMs = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_INTERVAL_MS,
+  enabled = process.env.APEX_OPPORTUNITY_ENGINE_SCAN_ENABLED,
   fetchImpl = fetch,
   logger = console,
   runImmediately = true
 } = {}) {
   const config = configured(url, token);
+  if (String(enabled || "").toLowerCase() !== "true") {
+    return { enabled: false, reason: "explicit APEX_OPPORTUNITY_ENGINE_SCAN_ENABLED=true required", stop() {} };
+  }
   if (!config.url && !config.token) return { enabled: false, stop() {} };
   if (!config.url || !config.token) throw new Error("Opportunity Engine scan URL and token must both be configured");
   let stopped = false;
