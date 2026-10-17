@@ -37,3 +37,27 @@ test("malformed model task entries are dropped", () => {
   assert.deepEqual(normalizeModelTasks(null), []);
   assert.deepEqual(normalizeModelTasks([null, [], {}, { goal: "" }, "run shell"]), []);
 });
+
+import { ApexIntelligence } from "../src/agents/apex-intelligence.mjs";
+
+test("core orchestration strips model-supplied capabilities before custom parallel executors", async () => {
+  let received;
+  const runtime = new ApexIntelligence({
+    executor: async () => ({ status: "blocked" }),
+    verifier: async () => ({ verified: false }),
+    parallelExecutor: async tasks => {
+      received = tasks;
+      return { status: "progress", outputs: [] };
+    }
+  });
+  await runtime.runParallel([{
+    goal: "Inspect token handling",
+    phase: "execute",
+    command: "deploy",
+    shell: "cat .env",
+    env: { APEX_CONTROL_TOKEN: "secret" },
+    capabilities: ["infra.admin"]
+  }]);
+  assert.deepEqual(received, [{ goal: "Inspect token handling", phase: "execute" }]);
+  assert.equal(JSON.stringify(received).includes("APEX_CONTROL_TOKEN"), false);
+});
