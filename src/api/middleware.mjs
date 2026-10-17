@@ -2,7 +2,10 @@ import crypto from "node:crypto";
 import { redact } from "../core/privacy.mjs";
 
 export function requestId(req,res,next){
-  const id=req.get("x-request-id")?.slice(0,128)||crypto.randomUUID();
+  const supplied=req.get("x-request-id");
+  const id=typeof supplied==="string" && /^[A-Za-z0-9._-]{1,64}$/.test(supplied)
+    ? supplied
+    : crypto.randomUUID();
   req.requestId=id; res.setHeader("x-request-id",id); next();
 }
 
@@ -28,9 +31,21 @@ export function asyncRoute(handler){
 }
 
 export function errorHandler(err,req,res,_next){
-  const status=Number.isInteger(err?.statusCode)?err.statusCode:500;
-  if(status>=500) console.error(JSON.stringify({requestId:req.requestId,error:String(err?.message??err),stack:err?.stack}));
-  res.status(status).json({error:status>=500?"Internal server error":String(err?.message??err),requestId:req.requestId});
+  const candidate=Number(err?.statusCode);
+  const status=Number.isInteger(candidate)&&candidate>=400&&candidate<500?candidate:500;
+  if(status>=500) {
+    // Never log raw errors: messages/stacks can contain credentials or private payloads.
+    const errorClass=typeof err?.name==="string"&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(err.name)?err.name:"Error";
+    const errorCode=typeof err?.code==="string"&&/^[A-Z0-9_]{1,64}$/.test(err.code)?err.code:undefined;
+    console.error(JSON.stringify({requestId:req.requestId,errorClass,...(errorCode?{errorCode}:{})}));
+  }
+  const safeClientMessage=status===404?"Not found":
+    status===401?"Unauthorized":
+    status===403?"Forbidden":
+    status===429?"Too many requests":
+    status===400?"Bad request":
+    "Request failed";
+  res.status(status).json({error:safeClientMessage,requestId:req.requestId});
 }
 
 export function safeErrorPayload(value){ return redact(value); }
