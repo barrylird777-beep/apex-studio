@@ -1,27 +1,39 @@
-name: SPEC-005 generate Drizzle migration
+name: SPEC-005 migration proposal (manual review)
+
 on:
-  push:
-    branches: ["spec/005-scheduling"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "drizzle/**"
+      - "drizzle.config.*"
+      - "package.json"
+      - ".github/workflows/spec005-generate-migration.yml"
+
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: spec005-migration-proposal
+  cancel-in-progress: true
+
 jobs:
-  generate:
+  propose:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: "22.x"
-      - run: npm install
-      - run: npm run db:generate
-      - name: Commit generated migration
+      - name: Install dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Generate migration for review (never commit or push)
+        run: npm run db:generate
+      - name: Report generated diff
+        if: always()
         run: |
-          if git diff --quiet -- drizzle; then
-            echo "No generated Drizzle changes."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add drizzle
-          git commit -m "Generate SPEC-005 SQLite migration"
-          git push
+          git --no-pager diff --stat -- drizzle
+          git --no-pager diff -- drizzle
+          echo "This workflow has read-only repository permissions. Generated migrations must be reviewed and committed by a human."
