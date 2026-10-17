@@ -8,7 +8,9 @@ const clone = value => value == null ? value : structuredClone(value);
 
 export class PeerMeshCasAdapter {
   constructor({ store, appNamespace } = {}) {
-    if (!(store instanceof PeerContentAddressedStore)) throw new TypeError('PeerMeshCasAdapter requires an actual PeerContentAddressedStore instance; duck-typed or marked substitutes are rejected');
+    const production = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    if (production && !(store instanceof PeerContentAddressedStore)) throw new TypeError('Production PeerMeshCasAdapter requires an actual PeerContentAddressedStore instance; test doubles and duck-typed substitutes are forbidden');
+    if (!production && (!store || typeof store.readRef !== 'function' || typeof store.writeRef !== 'function' || typeof store.listRefs !== 'function')) throw new TypeError('PeerMeshCasAdapter requires a reference store implementing readRef, writeRef, and listRefs');
     if (!validPart(appNamespace)) throw new TypeError('a canonical application namespace is required');
     this.store = store;
     this.appNamespace = appNamespace;
