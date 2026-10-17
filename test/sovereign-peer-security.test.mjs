@@ -12,6 +12,15 @@ const streamFor = value => ({
   source: (async function* () { yield new TextEncoder().encode(value); })()
 });
 
+test("peer security guard rejects a replayed message identifier", () => {
+  const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000 });
+  const envelope = { type: "test.payload", messageId: "12345678-1234-4234-9234-123456789abc" };
+  assert.equal(guard.admit("peer-a", envelope).allowed, true);
+  const replay = guard.admit("peer-a", envelope);
+  assert.equal(replay.allowed, false);
+  assert.match(replay.reason, /replayed message/);
+});
+
 test("sovereign envelope parser rejects oversized peer messages", async () => {
   const oversized = "x".repeat(65537) + "\n";
   await assert.rejects(readSovereignEnvelope(streamFor(oversized)), /exceeds size limit/);
@@ -145,6 +154,7 @@ test("two sovereign peers exchange an envelope only when both identities are all
     assert.deepEqual(response.replica, { waveId: 'roundtrip-1', checksum: 'roundtrip-checksum' });
     assert.equal(received.length, 1);
     assert.equal(received[0].envelope.waveId, "roundtrip-1");
+    assert.match(received[0].envelope.messageId, /^[0-9a-f-]{36}$/i);
     assert.equal(received[0].context.remotePeerId, b.peerId.toString());
   } finally {
     await b?.stop().catch(() => {});
