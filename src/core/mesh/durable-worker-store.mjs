@@ -128,7 +128,7 @@ export async function requeueExpiredWorkerTasks(limit = 500) {
   return apexPureStore.recoverExpired(Math.max(1,Math.min(5000,Number(limit)||500)));
 }
 
-export async function acquireAiRateLimit({ key = "gemini", capacity = 10, refillPerSecond = 10/60, retryMs = 300, maxWaitMs = 30000 } = {}) {
+export async function acquireAiRateLimit({ key = "openai", capacity = 10, refillPerSecond = 10/60, retryMs = 300, maxWaitMs = 30000 } = {}) {
   if (!durableWorkerEnabled()) return true;
   const cap=Math.max(1,Number(capacity)||10), refill=Math.max(0.0001,Number(refillPerSecond)||10/60);
   const wait=Math.max(50,Number(retryMs)||300), deadline=Date.now()+Math.max(0,Number(maxWaitMs)||0);
