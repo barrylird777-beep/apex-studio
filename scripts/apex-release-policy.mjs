@@ -1,5 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
-import { readFile, realpath, mkdir, writeFile, lstat } from 'node:fs/promises';
+import { readFile, realpath, mkdir, open } from 'node:fs/promises';
 import path from 'node:path';
 import { signReleaseManifest, verifyReleaseManifest, signRollbackAuthorization, verifyRollbackAuthorization } from '../src/security/content-addressed-release.mjs';
 
@@ -17,13 +17,19 @@ const resolveInsideRoot = (root, relativePath) => {
   if (!insideRoot(root, resolved)) throw new Error('path resolves outside the release root');
   return resolved;
 };
-const requireNewRegularFile = async file => {
+const writeNewFile = async (file, content) => {
+  let handle;
   try {
-    const info = await lstat(file);
-    if (info.isSymbolicLink() || !info.isFile()) throw new Error('output path must not overwrite a symlink or non-file');
-    throw new Error('output file already exists; choose a new path to preserve release history');
+    handle = await open(file, 'wx', 0o600);
   } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
+    if (error?.code === 'EEXIST') throw new Error('output file already exists; choose a new path to preserve release history');
+    throw error;
+  }
+  try {
+    await handle.writeFile(content);
+    await handle.sync();
+  } finally {
+    await handle.close();
   }
 };
 const keyFromEnv = (name, create) => {
@@ -70,8 +76,7 @@ async function signCommand() {
   const realDirectory = await realpath(path.dirname(output));
   if (!insideRoot(root, realDirectory)) throw new Error('release manifest output directory resolves outside the release root');
   output = path.join(realDirectory, path.basename(output));
-  await requireNewRegularFile(output);
-  await writeFile(output, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 });
+  await writeNewFile(output, JSON.stringify(envelope, null, 2) + '\n');
   process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, output), digest: envelope.digest, sequence: envelope.payload.sequence, artifactCount: envelope.payload.artifacts.length }) + '\n');
 }
 
@@ -127,8 +132,7 @@ async function rollbackSignCommand() {
   const realDirectory = await realpath(path.dirname(output));
   if (!insideRoot(root, realDirectory)) throw new Error('rollback output directory resolves outside the release root');
   const finalPath = path.join(realDirectory, path.basename(output));
-  await requireNewRegularFile(finalPath);
-  await writeFile(finalPath, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 });
+  await writeNewFile(finalPath, JSON.stringify(envelope, null, 2) + '\n');
   process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, finalPath), sequence, targetVersion: target.payload.version }) + '\n');
 }
 
