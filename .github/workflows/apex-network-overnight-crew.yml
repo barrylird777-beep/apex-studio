@@ -37,10 +37,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22.x
-          cache: npm
 
       - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Run focused network tests
         run: npm run test:network
