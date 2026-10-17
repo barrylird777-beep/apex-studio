@@ -13,7 +13,7 @@ import { createPeerSecurityGuard, sealPeerEnvelope, verifyPeerEnvelope } from '.
 import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
-const PROTOCOL = '/apex/sovereign/1.1.0';
+const PROTOCOL = '/apex/sovereign/1.2.0';
 const PEER_KEY_FILE = path.resolve(process.env.APEX_PEER_KEY_FILE || path.join(process.env.APEX_SE_X_ROOT || '/srv/apex/se-x', 'identity', 'sovereign-peer.key'));
 
 export async function loadOrCreatePeerPrivateKey(file = PEER_KEY_FILE) {
@@ -97,7 +97,28 @@ const boundedPositiveInteger = (value, fallback, min, max) => {
 };
 
 const streamReaders = new WeakMap();
-const peerSecurity = createPeerSecurityGuard();
+function loadPeerTrustEpochs() {
+  const raw = String(process.env.APEX_PEER_TRUST_EPOCHS_JSON || '').trim();
+  if (!raw) return new Map();
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new TypeError('APEX_PEER_TRUST_EPOCHS_JSON must be an object keyed by peer ID');
+  }
+  const epochs = new Map();
+  for (const [peerId, record] of Object.entries(parsed)) {
+    if (!peerId || peerId.length > 256 || !record || typeof record !== 'object' || Array.isArray(record)) {
+      throw new TypeError('invalid peer trust epoch record');
+    }
+    const epoch = Number(record.epoch);
+    if (!Number.isSafeInteger(epoch) || epoch < 0) throw new TypeError('peer trust epoch must be a nonnegative safe integer');
+    epochs.set(peerId, { epoch, revoked: record.revoked === true || record.status === 'revoked' });
+  }
+  return epochs;
+}
+const peerSecurity = createPeerSecurityGuard({
+  trustEpochs: loadPeerTrustEpochs(),
+  requireTrustEpochs: String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+});
 const outboundPeerSecurity = createPeerSecurityGuard();
 
 function readerFor(stream, { resume = true } = {}) {
