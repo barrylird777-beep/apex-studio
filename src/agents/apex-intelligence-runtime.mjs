@@ -31,7 +31,7 @@ function sanitizePromptString(value) {
   return value.slice(0, 1200)
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----/gi, "[REDACTED PRIVATE KEY]")
     .replace(/\\bBearer\\s+[A-Za-z0-9._~+\\/-]+=*/gi, "Bearer [REDACTED]")
-    .replace(/\\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|authorization|control[_-]?token)\\s*[:=]\\s*["']?[^\\s,"';&]+/gi, "$1=[REDACTED]")
+    .replace(/\\b(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|authorization|control[_-]?token)\\s*[:=]\\s*["']?[^\\s,"';&]+/gi, "$1=[REDACTED]")
     .replace(/\\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,})\\b/g, "[REDACTED TOKEN]");
 }
 export function sanitizePromptValue(value, depth = 0) {
