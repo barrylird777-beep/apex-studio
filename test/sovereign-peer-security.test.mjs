@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { signSovereignVote, verifySovereignQuorum } from "../src/testing/sovereign-bft-quorum.mjs";
-import { createPeerSecurityGuard } from "../src/network/sovereign-peer-security.mjs";
+import { createPeerSecurityGuard, sealPeerEnvelope, verifyPeerEnvelope } from "../src/network/sovereign-peer-security.mjs";
 import {
   readSovereignEnvelope,
   sendToPeer
@@ -10,6 +10,15 @@ import {
 
 const streamFor = value => ({
   source: (async function* () { yield new TextEncoder().encode(value); })()
+});
+
+test("sealed peer envelopes bind payload digest, authenticated sender, and freshness", () => {
+  const now = 1_000_000;
+  const sealed = sealPeerEnvelope({ type: "cas.write", namespace: "PlanetApeX", key: "asset-1" }, "peer-a", now);
+  assert.equal(verifyPeerEnvelope(sealed, "peer-a", now).allowed, true);
+  assert.equal(verifyPeerEnvelope(sealed, "peer-b", now).allowed, false);
+  assert.equal(verifyPeerEnvelope(sealed, "peer-a", now + 300_001).allowed, false);
+  assert.equal(verifyPeerEnvelope({ ...sealed, key: "tampered" }, "peer-a", now).allowed, false);
 });
 
 test("peer security guard rejects a replayed message identifier", () => {
