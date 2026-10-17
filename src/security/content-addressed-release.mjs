@@ -84,5 +84,6 @@ export function verifyRollbackAuthorization(envelope, publicKey, { currentSequen
   if (payload.currentManifestHash !== activeManifestHash) throw new Error('rollback authorization does not match the active manifest');
   if (!isRecord(targetManifest) || payload.targetManifestHash !== targetManifest.digest || !knownManifestHashes.includes(payload.targetManifestHash)) throw new Error('rollback target must be a known content-addressed release manifest');
   const target = verifyReleaseManifest(targetManifest, publicKey, { minimumSequence: 0 });
+  if (target.sequence >= currentSequence) throw new Error('rollback target must be an earlier signed release');
   return Object.freeze({ verified: true, sequence: Number(payload.sequence), targetManifestHash: payload.targetManifestHash, targetVersion: target.version });
 }
