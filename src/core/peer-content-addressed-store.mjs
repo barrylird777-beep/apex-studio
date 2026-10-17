@@ -381,7 +381,7 @@ export class PeerContentAddressedStore {
         chunks: leafChunks
       };
       const saved = await this.putObject(leaf);
-      leaves.push({ hash: saved.hash, bytes: leaf.totalBytes, sha256: leaf.sha256, start: offset - leafBytes, end: offset });
+      leaves.push({ hash: saved.hash, bytes: leaf.totalBytes, sha256: leaf.sha256, start: offset - leafBytes, end: offset, replicas: saved.replicas, receipts: saved.receipts });
       leafChunks = [];
       leafBytes = 0;
     };
@@ -422,7 +422,7 @@ export class PeerContentAddressedStore {
           children: children.map(({ hash, bytes, sha256: childSha256 }) => ({ hash, bytes, sha256: childSha256 }))
         };
         const saved = await this.putObject(node);
-        nextLevel.push({ hash: saved.hash, bytes: totalBytes, sha256: subtreeDigest, start, end });
+        nextLevel.push({ hash: saved.hash, bytes: totalBytes, sha256: subtreeDigest, start, end, replicas: saved.replicas, receipts: saved.receipts });
       }
       level = nextLevel;
     }
@@ -443,8 +443,8 @@ export class PeerContentAddressedStore {
       bytes: level[0].bytes,
       namespace: this.namespace,
       uri: 'cas://sha256/' + level[0].hash,
-      replicas: [],
-      receipts: [],
+      replicas: level[0].replicas,
+      receipts: level[0].receipts,
       kind: root.kind,
       totalBytes: blob.length,
       contentSha256: digest,
