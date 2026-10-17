@@ -39,7 +39,7 @@ test('KernelVision peer bridge canary uses atomic peer CAS refs and rejects othe
     },
     async getBlob() { return Buffer.alloc(0); }
   };
-  const bridge = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath });
+  const bridge = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath, kernelVisionCanaryEnabled: true });
   try {
     await bridge.listen();
     const written = await call('PUT', '/v1/peer-cas/canary/draft-1', { value: { title: 'unpublished' } });
@@ -59,7 +59,7 @@ test('KernelVision peer bridge canary uses atomic peer CAS refs and rejects othe
 test('KernelVision peer bridge does not expose canary route for another app namespace', async () => {
   const bridge = createPeerModelBridgeServer({
     store: { namespace: 'PlanetApeX', readRef: async () => null, getBlob: async () => Buffer.alloc(0) },
-    authorizeModel: async () => true, token, socketPath
+    authorizeModel: async () => true, token, socketPath, kernelVisionCanaryEnabled: true
   });
   try {
     await bridge.listen();
