@@ -2,7 +2,10 @@ import OpenAI from 'openai';
 import { createGuardedFetch, sanitizeOutboundPayload } from '../security/sovereign-outbound-gateway.mjs';
 
 const DEFAULT_MODEL = process.env.OPENAI_MAX_MODEL || 'gpt-5.6-sol';
-const MAX_PROMPT_CHARS = Math.max(1000, Number(process.env.OPENAI_MAX_PROMPT_CHARS || 50000));
+const CONFIGURED_MAX_PROMPT_CHARS = Number(process.env.OPENAI_MAX_PROMPT_CHARS || 50000);
+const MAX_PROMPT_CHARS = Number.isFinite(CONFIGURED_MAX_PROMPT_CHARS)
+  ? Math.min(50000, Math.max(1000, CONFIGURED_MAX_PROMPT_CHARS))
+  : 50000;
 const MAX_MESSAGES = Math.max(1, Math.min(100, Number(process.env.OPENAI_MAX_MESSAGES || 50)));
 
 function getClient() {
