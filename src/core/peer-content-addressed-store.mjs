@@ -218,7 +218,7 @@ export class PeerContentAddressedStore {
         sourcePeerId = peerId;
         break;
       } catch (error) {
-        sourceFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        sourceFailures.push({ peerId, error: 'Peer source unavailable' });
       }
     }
     if (!sourceBytes) {
@@ -288,7 +288,7 @@ export class PeerContentAddressedStore {
         source = { peerId, hash: response.hash, bytes };
         break;
       } catch (error) {
-        sourceFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        sourceFailures.push({ peerId, error: 'Peer source unavailable' });
       }
     }
     if (!source) {
@@ -444,7 +444,7 @@ export class PeerContentAddressedStore {
         this.cacheVerifiedObject(hash, value);
         return value;
       } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+        failures.push('Peer repair failed');
       }
     }
     const error = new Error('object was not recoverable from any configured peer');
