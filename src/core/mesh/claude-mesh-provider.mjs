@@ -2,6 +2,24 @@ import { createGuardedFetch, sanitizeOutboundPayload } from "../../security/sove
 
 const outboundFetch = createGuardedFetch(["api.anthropic.com"]);
 
+const MAX_PROMPT_CHARS = Math.min(50000, Math.max(1000, Number(process.env.CLAUDE_MAX_PROMPT_CHARS || 50000)));
+const MAX_OUTPUT_TOKENS = 64000;
+
+export function normalizeClaudeInput(prompt, system = '') {
+  const normalizedPrompt = String(prompt ?? '').trim();
+  const normalizedSystem = String(system ?? '').trim();
+  if (!normalizedPrompt) throw new Error('prompt is required');
+  if (normalizedPrompt.length > MAX_PROMPT_CHARS) throw new Error('prompt exceeds configured maximum');
+  if (normalizedSystem.length > MAX_PROMPT_CHARS) throw new Error('system instructions exceed configured maximum');
+  return sanitizeOutboundPayload({ prompt: normalizedPrompt, system: normalizedSystem });
+}
+
+function boundedOutputTokens(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(MAX_OUTPUT_TOKENS, Math.max(1, Math.floor(parsed)));
+}
+
 export class ClaudeMeshProvider {
   constructor() {
     this.apiKey = process.env.ANTHROPIC_API_KEY || '';
@@ -13,12 +31,12 @@ export class ClaudeMeshProvider {
     if (String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false') throw new Error('Free mode blocks paid AI provider: Claude');
     if (!this.apiKey) throw new Error('Claude not configured');
     const model = options.model || this.model;
-    const safeInput = sanitizeOutboundPayload({ prompt: String(prompt), system: options.system == null ? '' : String(options.system) });
+    const safeInput = normalizeClaudeInput(prompt, options.system);
     const body = {
       model,
-      max_tokens: Number(options.maxTokens || process.env.CLAUDE_MAX_OUTPUT_TOKENS || 64000),
+      max_tokens: boundedOutputTokens(options.maxTokens || process.env.CLAUDE_MAX_OUTPUT_TOKENS, 64000),
       thinking: options.thinking === false ? { type: 'disabled' } : { type: 'adaptive' },
-      output_config: { effort: options.effort || process.env.CLAUDE_EFFORT || 'max' },
+      output_config: { effort: ['low', 'medium', 'high', 'max'].includes(options.effort || process.env.CLAUDE_EFFORT) ? (options.effort || process.env.CLAUDE_EFFORT) : 'max' },
       messages: [{ role: 'user', content: safeInput.prompt }]
     };
     if (safeInput.system) body.system = safeInput.system;
