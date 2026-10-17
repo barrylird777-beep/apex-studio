@@ -1769,7 +1769,7 @@ app.get('/api/network/status', async (req,res)=>{
     const healthy = fabric.candidates.filter(p => p.healthy);
     const runtimeObserved = fabric.candidates.length > 0;
     res.set('Cache-Control', 'no-store').json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy({ clientVerifiedPaths: 0 }),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:Boolean(fabric.verification?.starlinkVerified),sixGObserved:Boolean(fabric.verification?.sixGVerified)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
-  } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
+  } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:'Network status unavailable',checkedAt:new Date().toISOString()}); }
 });
 app.use('/api/studio/audio', requireControlPlaneAuth, createAudioStationRouter());
 app.use('/api/kernelodies/library', createKernelodiesLibraryRouter({ storageDir: STORAGE_DIR, authorize: createKernelodiesLibraryAuth() }));
@@ -2012,7 +2012,7 @@ app.get('/api/workers/permanent', requireControlPlaneAuth, (_req,res)=>res.json(
   supervisor: permanentWorkerSupervisor.status()
 }));
 app.get('/api/workers/overseer', requireControlPlaneAuth, (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
-app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
+app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:'Network status unavailable'}); } });
 
 app.get('/api/network/rogue-ap/status', (_req, res) => {
   return res.json({ success: true, detector: rogueApDetector.status() });
@@ -3444,7 +3444,7 @@ app.get('/api/network/adblock/profile', (_req, res) => {
     });
     res.end(body);
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : 'profile generation failed' });
+    res.status(500).json({ error: 'Profile generation failed' });
   }
 });
 app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
@@ -3615,7 +3615,7 @@ app.patch('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async 
     const status = error?.code === 'RUNTIME_VERSION_CONFLICT' ? 409 : 503;
     return res.status(status).json({
       success: false,
-      error: error?.message || 'Chat runtime state update failed',
+      error: 'Chat runtime state update failed',
       ...(error?.currentVersion != null ? { currentVersion: error.currentVersion } : {})
     });
   }
