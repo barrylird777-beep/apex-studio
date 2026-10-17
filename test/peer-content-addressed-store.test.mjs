@@ -505,6 +505,8 @@ test('peer CAS stores and reconstructs large blobs using bounded hierarchical ma
   assert.equal(saved.kind, 'apex.blob-tree.v1');
   assert.equal(saved.totalBytes, input.length);
   assert.equal(saved.contentSha256, digest(input));
+  assert.equal(saved.replicas.length, 2);
+  assert.ok(saved.receipts.length >= 2);
   assert.ok(saved.chunkCount > 96);
   const restored = await mesh.client.getBlob(saved.hash);
   assert.deepEqual(restored, input);
