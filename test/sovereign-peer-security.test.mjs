@@ -19,6 +19,7 @@ test("sealed peer envelopes bind payload digest, authenticated sender, and fresh
   assert.equal(verifyPeerEnvelope(sealed, "peer-b", now).allowed, false);
   assert.equal(verifyPeerEnvelope(sealed, "peer-a", now + 300_001).allowed, false);
   assert.equal(verifyPeerEnvelope({ ...sealed, key: "tampered" }, "peer-a", now).allowed, false);
+  assert.equal(verifyPeerEnvelope({ ...sealed, senderEpoch: sealed.senderEpoch + 1 }, "peer-a", now).allowed, false);
 });
 
 test("peer trust epochs enforce rotation, missing enrollment, and revocation", () => {
