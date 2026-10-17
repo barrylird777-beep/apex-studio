@@ -32,7 +32,7 @@ export async function canonicalAppsStatus(){
       canonical: true,
       status: "degraded",
       capabilities: [],
-      error: String(result.reason?.message || result.reason || "App status unavailable"),
+      error: "App status unavailable",
       checkedAt: new Date().toISOString()
     };
   });
