@@ -35,7 +35,14 @@ function isSensitiveKey(key,keys){
   return DEFAULT_SECRET_KEY_PATTERN.test(normalized)||DEFAULT_SECRET_COMPACT_PATTERN.test(normalized);
 }
 
+function redactInlineSecrets(value){
+  return value
+    .replace(/\\b(Bearer\\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[REDACTED]")
+    .replace(/\\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|authorization|secret)\\s*[:=]\\s*)(?:"[^"]*"|'[^']*'|[^\\s,;&}]+)/gi, "$1[REDACTED]");
+}
+
 export function redact(value,keys=["token","password","secret","apiKey","authorization"]){
+  if(typeof value==="string") return redactInlineSecrets(value);
   if(Array.isArray(value)) return value.map(v=>redact(v,keys));
   if(value&&typeof value==="object"){
     return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,isSensitiveKey(k,keys)?"[REDACTED]":redact(v,keys)]));
