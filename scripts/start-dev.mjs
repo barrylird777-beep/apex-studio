@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
-process.env.APEX_CONTROL_TOKEN ||= process.env.APEX_SHORTCUT_TOKEN || "local-dev-control-token";
+// Never install a predictable control-plane credential, even for local development.
+// Set APEX_CONTROL_TOKEN or APEX_SHORTCUT_TOKEN explicitly when authenticated routes are needed.
 const child = spawn(process.execPath, ["server.mjs", ...process.argv.slice(2)], {
   env: process.env,
   stdio: "inherit"
