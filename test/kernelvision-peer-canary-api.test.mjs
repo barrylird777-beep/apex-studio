@@ -23,7 +23,7 @@ test('authenticated KernelVision API adapter writes and reads only through priva
     },
     async getBlob() { return Buffer.alloc(0); }
   };
-  const bridge = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath });
+  const bridge = createPeerModelBridgeServer({ store, authorizeModel: async () => true, token, socketPath, kernelVisionCanaryEnabled: true });
   const app = express();
   app.use(express.json({ limit: '64kb' }));
   app.use('/api/kernelvision/peer-canary', createKernelVisionPeerCanaryRouter({ socketPath, token, enabled: true }));
