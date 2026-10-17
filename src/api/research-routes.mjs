@@ -1,3 +1,4 @@
+import { isStrongControlToken } from '../security/control-plane-auth.mjs';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { assertSafeResearchUrl, validateResearchQuery } from '../core/security/research-boundary.mjs';
@@ -12,6 +13,9 @@ export function createResearchRouter(engine) {
   const requireResearchAuth = (req, res, next) => {
     const expected = process.env.APEX_RESEARCH_TOKEN || process.env.APEX_SHORTCUT_TOKEN;
     if (!expected) return res.status(503).json({ success: false, error: 'Research authorization is not configured' });
+    if (process.env.NODE_ENV === 'production' && !isStrongControlToken(expected)) {
+      return res.status(503).json({ success: false, error: 'Research token must be at least 32 bytes' });
+    }
     const supplied = req.get('x-apex-research-token') || req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
     const a = Buffer.from(String(expected));
     const b = Buffer.from(String(supplied || ''));
