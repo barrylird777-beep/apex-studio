@@ -7,6 +7,7 @@ test("research API accepts a valid Authorization: Bearer token", async () => {
   const previous = process.env.APEX_RESEARCH_TOKEN;
   process.env.APEX_RESEARCH_TOKEN = "research-test-secret";
   const app = express();
+  app.use(express.json());
   app.use("/api/research", createResearchRouter({
     async resolveWork(query) { return { query }; }
   }));
