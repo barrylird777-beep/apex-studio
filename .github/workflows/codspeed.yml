@@ -30,7 +30,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Run benchmarks
-        uses: CodSpeedHQ/action@v5
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
         with:
           mode: simulation
           run: npx vitest bench --run

@@ -84,7 +84,7 @@ jobs:
           ls -lh "$executable" "$runtime" build/ApexMobile-unsigned.zip
 
       - name: Upload unsigned build
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: apex-mobile-unsigned
           path: ios/ApexMobile/build/ApexMobile-unsigned.zip
