@@ -31,16 +31,6 @@ export function zeroCostAiProvider() {
     };
   }
 
-  // Gemini is free only when the operator has explicitly confirmed that the
-  // specific project/key is on Google's Free Tier. Never infer this from the
-  // mere presence of GEMINI_API_KEY because paid projects can share the same key shape.
-  if (process.env.GEMINI_API_KEY && truthy("APEX_GEMINI_FREE_TIER_CONFIRMED")) {
-    return {
-      provider: "google",
-      model: process.env.GEMINI_FREE_MODEL || "gemini-3.8-flash",
-      basis: "explicitly confirmed Gemini Free Tier"
-    };
-  }
 
   return null;
 }
@@ -119,11 +109,7 @@ export function continuousAiStatus() {
     enabled: Boolean(provider),
     provider: provider?.provider || null,
     model: provider?.model || null,
-    configured: {
-      openrouter: Boolean(process.env.OPENROUTER_API_KEY),
-      gemini: Boolean(process.env.GEMINI_API_KEY),
-      geminiFreeConfirmed: truthy("APEX_GEMINI_FREE_TIER_CONFIRMED")
-    }
+    configured: { openrouter: Boolean(process.env.OPENROUTER_API_KEY) }
   };
 }
 
