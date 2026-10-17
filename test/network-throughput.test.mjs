@@ -74,3 +74,19 @@ test('maximum connection policy keeps failover and adaptive controls enabled', a
   assert.equal(policy.adaptiveSpeed, true);
   assert.equal(policy.artificialSpeedLimitMbps, null);
 });
+
+
+test('browser WebRTC benchmark enforces fixed chunks and explicit receiver SHA-256 receipt', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../src/pages/NetworkDashboard.tsx', import.meta.url), 'utf8');
+  assert.match(source, /const totalBytes=1024\*1024/);
+  assert.match(source, /const chunkBytes=32\*1024/);
+  assert.match(source, /packet\.totalChunks!==32/);
+  assert.match(source, /bytes\.byteLength!==32\*1024/);
+  assert.match(source, /transfer\.payloadBytes\+bytes\.byteLength>1024\*1024/);
+  assert.match(source, /crypto\.subtle\.digest\("SHA-256",payload\)/);
+  assert.match(source, /type:"apex-webrtc-benchmark-result"/);
+  assert.match(source, /const receipt=await receiptPromise/);
+  assert.match(source, /Timed out waiting for explicit receiver SHA-256 receipt/);
+  assert.doesNotMatch(source, /packet\.totalChunks>128/);
+});
