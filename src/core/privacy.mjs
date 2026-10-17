@@ -31,6 +31,8 @@ function isSensitiveKey(key,keys){
   const parts=normalized.split(/[^a-z0-9]+/).filter(Boolean);
   if(keys.some(candidate=>normalized===String(candidate).replace(/([a-z0-9])([A-Z])/g,"$1_$2").toLowerCase())) return true;
   const sensitiveWords=new Set(["token","password","passwd","secret","authorization","credential","jwt","cookie"]);
+  const benignTokenSuffixes=new Set(["in","out","address","symbol","id","name","type","amount","price","decimals","count","contract","chain"]);
+  if(parts[0]==="token" && parts.length>1 && benignTokenSuffixes.has(parts[1]) && !parts.some(part=>["password","passwd","secret","authorization","credential","jwt","cookie"].includes(part))) return false;
   if(parts.some(part=>sensitiveWords.has(part))) return true;
   const pairs=new Set(["api_key","private_key","client_secret","access_key","refresh_key","signing_key","encryption_key","session_key"]);
   for(let i=0;i<parts.length-1;i++) if(pairs.has(parts[i]+"_"+parts[i+1])) return true;
