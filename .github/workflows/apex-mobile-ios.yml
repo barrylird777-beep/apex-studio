@@ -20,6 +20,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install build tools
         run: brew install cmake xcodegen
