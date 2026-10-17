@@ -71,5 +71,7 @@ test('free rotation fails closed when no key-backed provider is configured and n
     assert.equal(plan.includes('openai'), false);
     assert.equal(plan.includes('anthropic'), false);
     assert.equal(plan.includes('xai'), false);
+    assert.equal(unifiedAiStatus().pollinations.configured, true);
+    assert.equal(unifiedAiStatus().pollinations.freeEligible, true);
   });
 });
