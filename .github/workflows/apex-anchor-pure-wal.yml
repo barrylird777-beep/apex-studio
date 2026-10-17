@@ -66,6 +66,8 @@ jobs:
         run: node --test test/sovereign-app-fabric.test.mjs
       - name: Verify Pure-WAL security and peer acknowledgements
         run: node --test test/sovereign-pure-wal-security.test.mjs test/sovereign-pure-wal-bridge.test.mjs
+      - name: Verify AI worker containment and approval gates
+        run: node --check src/security/ai-worker-guardrails.mjs && node --test test/ai-worker-guardrails.test.mjs
       - name: Verify bounded upstream retries and Retry-After handling
         run: node --test test/fetch-with-retry.test.mjs
       - name: Verify Pure-WAL worker leases, retries and idempotency
