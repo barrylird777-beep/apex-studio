@@ -111,7 +111,7 @@ export function createZeroStopRelay({
   };
 
   const rememberError = error => {
-    state.lastError = String(error?.message || error).slice(-2000);
+    state.lastError = 'Zero-stop relay operation failed';
   };
 
   const kill = child => {
@@ -259,7 +259,7 @@ export function createZeroStopRelay({
 
       const fallbackAccessible = await access(fallbackSource).then(() => true).catch(() => false);
       if (!fallbackAccessible) {
-        throw new Error(`fallback source is not accessible: ${fallbackSource}`);
+        throw new Error('Fallback source is not accessible.');
       }
 
       if (egress) return status();
@@ -286,7 +286,7 @@ export function createZeroStopRelay({
         stopSource();
         if (stopping) return;
         state.status = 'egress-restarting';
-        state.lastError = `egress exited code=${code ?? 'null'} signal=${signal ?? 'null'}`;
+        state.lastError = 'Relay egress process exited unexpectedly';
         setTimeout(() => { void start().catch(rememberError); }, retryDelay()).unref?.();
       });
 
