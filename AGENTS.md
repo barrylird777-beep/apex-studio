@@ -15,13 +15,16 @@ The detailed, durable rules are in [docs/DEVELOPMENT-LAWS.md](docs/DEVELOPMENT-L
 - If existing project documents conflict, flag the conflict and resolve it deliberately rather than silently choosing or overwriting a decision.
 - For local/offline AI work, prove offline inference and get explicit permission before adding external model/provider network calls.
 
-## Locked stack
+## Existing implementation baseline (not storage authorization)
 - React 18 + TypeScript + Vite
 - React Router 7
-- Drizzle ORM + better-sqlite3 + SQLite
 - Node.js 22+
 - Lucide icons
 - shadcn/ui-compatible component patterns where useful
+- Legacy Drizzle/SQL/PostgreSQL tooling, filesystem-backed manifests, local CAS/WAL paths, and hosted JSON CAS adapters remain in the repository. Their presence is historical implementation state, not authorization to use them as the sovereign system of record.
+- Locked sovereign-storage canon prohibits PostgreSQL, SQLite/SQL, WAL/append-log writes, persisted JSON records, and device-local storage as the system of record. Do not add production dependencies on these paths or silently route production writes to them.
+- Do not delete legacy data paths until a peer-owned binary replacement passes independent durability, restart recovery, peer-loss repair, namespace isolation, and live production-routing checks.
+- See [the repository baseline and storage release gate](docs/architecture/APEX-REPOSITORY-BASELINE.md).
 
 ## Execution
 SPEC-001 -> implement -> test -> fix -> verify -> SPEC-002. Do not implement future specs while the current spec is incomplete.
