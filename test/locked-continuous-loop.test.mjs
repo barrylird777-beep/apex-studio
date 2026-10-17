@@ -12,8 +12,6 @@ test("zero-cost AI is fail-closed by default", () => {
   const previous = {
     free: process.env.APEX_FREE_MODE,
     openrouter: process.env.OPENROUTER_API_KEY,
-    gemini: process.env.GEMINI_API_KEY,
-    confirmed: process.env.APEX_GEMINI_FREE_TIER_CONFIRMED
   };
 
   delete process.env.OPENROUTER_API_KEY;
