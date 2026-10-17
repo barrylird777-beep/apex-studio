@@ -90,12 +90,22 @@ test("redaction masks credential-like keys regardless of common casing and separ
     access_token: "marker-access",
     refreshToken: "marker-refresh",
     clientSecret: "marker-client",
+    signingKey: "marker-signing",
+    encryption_key: "marker-encryption",
+    sessionKey: "marker-session",
+    jwt: "marker-jwt",
+    cookie: "marker-cookie",
     nested: [{ Authorization: "marker-auth", password: "marker-pass", harmless: "visible", secretaryName: "visible-too", tokenizedLabel: "also-visible" }]
   });
   assert.equal(result.API_KEY, "[REDACTED]");
   assert.equal(result.access_token, "[REDACTED]");
   assert.equal(result.refreshToken, "[REDACTED]");
   assert.equal(result.clientSecret, "[REDACTED]");
+  assert.equal(result.signingKey, "[REDACTED]");
+  assert.equal(result.encryption_key, "[REDACTED]");
+  assert.equal(result.sessionKey, "[REDACTED]");
+  assert.equal(result.jwt, "[REDACTED]");
+  assert.equal(result.cookie, "[REDACTED]");
   assert.equal(result.nested[0].Authorization, "[REDACTED]");
   assert.equal(result.nested[0].password, "[REDACTED]");
   assert.equal(result.nested[0].harmless, "visible");
