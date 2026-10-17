@@ -3201,7 +3201,7 @@ app.post('/api/ai/generate-max', requireControlPlaneAuth, async (req, res) => {
   } catch (error) {
     const message = String(error?.message || error);
     const status = /not configured|required|too many|invalid|exceeds|schema/i.test(message) ? 400 : 502;
-    console.error('[ai-generate-max]', message);
+    console.error('[ai-generate-max]', error?.name || 'Error', error?.code || 'UNKNOWN');
     return res.status(status).json({ success: false, error: status === 502 ? 'OpenAI generation failed' : message });
   }
 });
@@ -3225,7 +3225,7 @@ app.post('/api/ai/generate-grok', requireControlPlaneAuth, async (req, res) => {
   } catch (error) {
     const message = String(error?.message || error);
     const status = /not configured|required|too many|invalid|exceeds|schema/i.test(message) ? 400 : 502;
-    console.error('[ai-generate-grok]', message);
+    console.error('[ai-generate-grok]', error?.name || 'Error', error?.code || 'UNKNOWN');
     return res.status(status).json({ success: false, error: status === 502 ? 'Grok generation failed' : message });
   }
 });
@@ -3263,7 +3263,7 @@ app.post('/api/ai/generate/:provider', requireControlPlaneAuth, async (req, res)
   } catch (error) {
     const message = String(error?.message || error);
     const status = /not configured|required|invalid|unknown provider|too many|exceeds|schema/i.test(message) ? 400 : 502;
-    console.error('[ai-unified]', req.params.provider, message);
+    console.error('[ai-unified]', req.params.provider, error?.name || 'Error', error?.code || 'UNKNOWN');
     return res.status(status).json({ success: false, error: status === 502 ? 'AI generation failed' : message });
   }
 });
