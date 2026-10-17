@@ -17,10 +17,12 @@ function normalizeProposal(input = {}) {
   if (!/^[a-z][a-z0-9.-]{1,95}$/.test(action)) throw new TypeError('governance action is invalid');
   if (!Number.isSafeInteger(epoch) || epoch < 0) throw new TypeError('governance epoch must be a nonnegative safe integer');
   if (!isRecord(input.payload)) throw new TypeError('governance payload must be an object');
-  if (!Number.isFinite(createdAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs <= createdAtMs) {
-    throw new TypeError('proposal validity interval is invalid');
+  if (!Number.isFinite(createdAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs <= createdAtMs || expiresAtMs - createdAtMs > 30 * 24 * 60 * 60 * 1000) {
+    throw new TypeError('proposal validity interval is invalid or exceeds 30 days');
   }
-  const payloadDigest = sha256(canonical(input.payload));
+  const payloadBytes = canonical(input.payload);
+  if (payloadBytes.byteLength > 1024 * 1024) throw new RangeError('governance payload exceeds 1 MiB');
+  const payloadDigest = sha256(payloadBytes);
   return {
     schemaVersion: 'apex.governance.proposal.v1',
     proposalId,
@@ -41,7 +43,10 @@ export function createGovernanceProposal(input) {
 
 function verifyProposalDigest(proposal) {
   const { digest, ...payload } = proposal || {};
-  if (!isRecord(payload) || !HASH.test(String(digest || '')) || sha256(canonical(payload)) !== digest) {
+  if (!isRecord(payload) || payload.schemaVersion !== 'apex.governance.proposal.v1' ||
+      !isRecord(payload.payload) || !HASH.test(String(payload.payloadDigest || '')) ||
+      sha256(canonical(payload.payload)) !== payload.payloadDigest ||
+      !HASH.test(String(digest || '')) || sha256(canonical(payload)) !== digest) {
     throw new Error('governance proposal digest verification failed');
   }
   return digest;
@@ -56,7 +61,8 @@ export function signGovernanceApproval(proposal, signerId, privateKey) {
 }
 
 export function verifyThresholdGovernance({ proposal, approvals } = {}, policy, { now = Date.now() } = {}) {
-  if (!isRecord(policy) || !Array.isArray(policy.members)) throw new TypeError('governance policy and members are required');
+  if (!isRecord(policy) || !Array.isArray(policy.members) || policy.members.length > 10000) throw new TypeError('governance policy and a bounded member list are required');
+  if (!Number.isFinite(now)) throw new TypeError('governance verification time must be finite');
   const digest = verifyProposalDigest(proposal);
   const epoch = Number(policy.epoch);
   const threshold = Number(policy.threshold);
@@ -69,17 +75,21 @@ export function verifyThresholdGovernance({ proposal, approvals } = {}, policy, 
   if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt) || createdAt > now + 60_000 || expiresAt <= now) {
     throw new Error('governance proposal is expired or not yet valid');
   }
-  const members = new Map();
+  const allMembers = new Map();
   for (const member of policy.members) {
-    if (!isRecord(member) || !member.id || member.revoked === true || member.status === 'revoked') continue;
-    if (members.has(String(member.id))) throw new TypeError('governance member IDs must be unique');
-    members.set(String(member.id), member.publicKey);
+    if (!isRecord(member) || !member.id) continue;
+    const id = String(member.id);
+    if (allMembers.has(id)) throw new TypeError('governance member IDs must be unique');
+    allMembers.set(id, member);
   }
+  const members = new Map([...allMembers].filter(([, member]) =>
+    member.revoked !== true && member.status !== 'revoked'
+  ).map(([id, member]) => [id, member.publicKey]));
   if (threshold > members.size) throw new Error('governance threshold exceeds active membership');
-  if (!Array.isArray(approvals)) throw new TypeError('governance approvals must be an array');
+  if (!Array.isArray(approvals) || approvals.length > 10000) throw new TypeError('governance approvals must be a bounded array');
   const accepted = new Set();
   for (const approval of approvals) {
-    if (!isRecord(approval) || typeof approval.signerId !== 'string' || typeof approval.signature !== 'string') continue;
+    if (!isRecord(approval) || typeof approval.signerId !== 'string' || approval.signerId.length > 256 || typeof approval.signature !== 'string' || approval.signature.length > 512) continue;
     const signerId = approval.signerId;
     if (accepted.has(signerId) || !members.has(signerId)) continue;
     try {
