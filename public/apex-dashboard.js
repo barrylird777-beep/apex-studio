@@ -41,7 +41,7 @@
       <div class="card"><div id="ytCtr" class="num">—</div><div class="label">Median CTR</div></div>
     </div>
     <div class="workspace">
-      <section class="panel"><h2>One-click Script Factory</h2><div class="form"><input id="ytTopic" placeholder="Topic"><input id="ytAudience" placeholder="Audience"><div class="inline"><input id="ytDuration" type="number" value="8" min="1"><input id="ytTone" value="cinematic, clear, emotionally engaging"></div><textarea id="ytSources" placeholder="Source references, one per line"></textarea><button class="primary" id="ytGenerate">Generate full script with Gemini</button><div id="ytScriptStatus" class="notice">—</div></div></section>
+      <section class="panel"><h2>One-click Script Factory</h2><div class="form"><input id="ytTopic" placeholder="Topic"><input id="ytAudience" placeholder="Audience"><div class="inline"><input id="ytDuration" type="number" value="8" min="1"><input id="ytTone" value="cinematic, clear, emotionally engaging"></div><textarea id="ytSources" placeholder="Source references, one per line"></textarea><button class="primary" id="ytGenerate">Generate full script with APEX AI</button><div id="ytScriptStatus" class="notice">—</div></div></section>
       <section class="panel"><h2>Channel opportunity map</h2><div id="ytOpp" class="list"></div></section>
     </div>
     <div class="workspace" style="margin-top:14px">
@@ -138,7 +138,7 @@
       $("ytScriptStatus").textContent="Generating…";
       try{
         const r=await api("/api/studio/youtube/script/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({topic:$("ytTopic").value,audience:$("ytAudience").value,durationMinutes:Number($("ytDuration").value),tone:$("ytTone").value,sourceRefs:$("ytSources").value.split("\\n").map(x=>x.trim()).filter(Boolean)})});
-        $("ytScriptOut").textContent=JSON.stringify(r.result||r,null,2);$("ytScriptStatus").textContent=r.configured?"Gemini generation complete.":"Brief generated; configure GEMINI_API_KEY for direct generation.";
+        $("ytScriptOut").textContent=JSON.stringify(r.result||r,null,2);$("ytScriptStatus").textContent=r.configured?"APEX AI generation complete.":"Local evidence-aware script brief generated; configure OPENAI_API_KEY for model generation.";
       }catch(e){$("ytScriptStatus").textContent=e.message}
     };
     await load();
