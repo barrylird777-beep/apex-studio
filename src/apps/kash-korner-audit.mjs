@@ -10,6 +10,8 @@ const date = value => {
   const parsed = Date.parse(String(value || ''));
   return Number.isFinite(parsed) ? parsed : null;
 };
+const contractCurrencyInvalid = value => !/^[A-Z]{3}$/.test(text(value).toUpperCase());
+const invoiceCurrencyInvalid = value => !/^[A-Z]{3}$/.test(text(value).toUpperCase());
 
 function addFinding(findings, code, severity, path, message, evidence = {}) {
   findings.push({ code, severity, path, message, evidence });
@@ -59,6 +61,31 @@ export function auditContingencyContract({ contract, invoice } = {}) {
     const value = invoice[key];
     const missing = value == null || (typeof value === 'string' && !value.trim());
     if (missing) addFinding(findings, 'INVOICE_FIELD_MISSING', 'review', 'invoice.' + key, label + ' is missing.');
+  }
+
+  for (const key of ['grossAmount', 'contingencyRatePercent', 'dueDays']) {
+    if (contract[key] != null && contract[key] !== '' && !finite(contract[key])) {
+      addFinding(findings, 'INVALID_NUMERIC_CONTRACT_TERM', 'high', 'contract.' + key, 'Contract numeric term is not a finite number.');
+    }
+  }
+  if (contract.feeCapAmount != null && contract.feeCapAmount !== '' && !finite(contract.feeCapAmount)) {
+    addFinding(findings, 'INVALID_NUMERIC_CONTRACT_TERM', 'high', 'contract.feeCapAmount', 'Fee cap is not a finite number.');
+  }
+  for (const key of ['grossAmount', 'contingencyFee']) {
+    if (invoice[key] != null && invoice[key] !== '' && !finite(invoice[key])) {
+      addFinding(findings, 'INVALID_NUMERIC_INVOICE_FIELD', 'high', 'invoice.' + key, 'Invoice numeric field is not a finite number.');
+    }
+  }
+  if (contractCurrencyInvalid(contract.currency)) {
+    addFinding(findings, 'INVALID_CONTRACT_CURRENCY', 'high', 'contract.currency', 'Contract currency must be a three-letter ISO-style code.');
+  }
+  if (invoiceCurrencyInvalid(invoice.currency)) {
+    addFinding(findings, 'INVALID_INVOICE_CURRENCY', 'high', 'invoice.currency', 'Invoice currency must be a three-letter ISO-style code.');
+  }
+  for (const [path, value] of [['invoice.issuedAt', invoice.issuedAt], ['invoice.dueAt', invoice.dueAt]]) {
+    if (value != null && text(value) && date(value) === null) {
+      addFinding(findings, 'INVALID_INVOICE_DATE', 'high', path, 'Invoice date is not parseable.');
+    }
   }
 
   if (text(contract.id) && text(invoice.contractId) && text(contract.id) !== text(invoice.contractId)) {
