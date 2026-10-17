@@ -220,7 +220,7 @@ async function main() {
     await verifyRemotePersistenceReadiness();
   } catch (error) {
     runtimeReadiness.remotePersistenceVerified = false;
-    console.error('[SOVEREIGN READINESS] remote CAS probe failed; readiness remains closed', String(error?.message || error));
+    console.error('[SOVEREIGN READINESS] remote CAS probe failed; readiness remains closed');
   }
   await publishRuntimeIdentity('starting');
   if (stopping) return;
