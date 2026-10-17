@@ -1,3 +1,4 @@
+import { isStrongControlToken } from '../security/control-plane-auth.mjs';
 import express from 'express';
 import crypto from 'node:crypto';
 import {
@@ -18,6 +19,9 @@ function tokenMatches(expected, supplied) {
 function requirePhoneAuth(req, res, next) {
   const expected = process.env.APEX_SHORTCUT_TOKEN;
   if (!expected) return res.status(503).json({ success: false, error: 'Phone control plane is not configured' });
+  if (process.env.NODE_ENV === 'production' && !isStrongControlToken(expected)) {
+    return res.status(503).json({ success: false, error: 'Control-plane token must be at least 32 bytes' });
+  }
   const supplied = req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!tokenMatches(expected, supplied)) return res.status(401).json({ success: false, error: 'Unauthorized' });
   return next();
