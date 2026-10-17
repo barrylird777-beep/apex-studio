@@ -206,8 +206,32 @@ test('research URL boundary rejects loopback, unspecified, mapped, link-local an
     'http://[::]/private',
     'http://[::ffff:127.0.0.1]/private',
     'http://[fe80::1]/private',
-    'http://[fc00::1]/private'
+    'http://[fc00::1]/private',
+    'http://[2001:1::1]/special-purpose',
+    'http://[2002:7f00:1::]/6to4-loopback',
+    'http://[64:ff9b::7f00:1]/nat64-loopback',
+    'http://[3fff::1]/documentation'
   ]) {
     await assert.rejects(assertSafeResearchUrl(url), /private|loopback|reserved|link-local/i, url);
   }
+});
+
+
+test('research URL boundary rejects non-global and special-purpose IPv6 ranges', async () => {
+  for (const url of [
+    'http://[ff02::1]/multicast',
+    'http://[fec0::1]/deprecated-site-local',
+    'http://[2001:1::1]/special-purpose',
+    'http://[2002:0808:0808::1]/6to4'
+  ]) {
+    await assert.rejects(assertSafeResearchUrl(url), /private|loopback|reserved|link-local/i, url);
+  }
+});
+
+
+test('research URL boundary blocks localhost with a trailing dot', async () => {
+  await assert.rejects(
+    assertSafeResearchUrl('http://localhost./private'),
+    /blocked hostname|private|loopback/i
+  );
 });
