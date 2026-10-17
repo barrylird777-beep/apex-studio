@@ -138,3 +138,20 @@ test("redaction masks inline bearer credentials and key-value secret assignments
   assert.equal(redact("api_key=fake-marker-api").includes("fake-marker-api"), false);
   assert.equal(redact("password: 'fake-marker-password'").includes("fake-marker-password"), false);
 });
+
+test("development launcher does not install a predictable control credential", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const launcher = await readFile(new URL("../scripts/start-dev.mjs", import.meta.url), "utf8");
+  const smoke = await readFile(new URL("../scripts/smoke-005.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(launcher, /local-dev-control-token/);
+  assert.doesNotMatch(smoke, /local-dev-control-token/);
+  assert.match(smoke, /Set APEX_CONTROL_TOKEN or APEX_SHORTCUT_TOKEN explicitly/);
+});
+
+test("runtime fault telemetry stores bounded metadata instead of exception contents", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(server, /function safeFaultMetadata/);
+  assert.doesNotMatch(server, /message: String\(error\?\.message \|\| error\)/);
+  assert.doesNotMatch(server, /console\.error\('\[apex\]\[uncaughtException\]', error\)/);
+});
