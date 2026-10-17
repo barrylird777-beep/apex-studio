@@ -32,8 +32,9 @@ async function syncDirectory(dir){
 }
 
 export class ApexPureStore {
-  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){const production=String(process.env.NODE_ENV||"").toLowerCase()==="production";if(production&&!(cas instanceof PeerMeshCasAdapter))throw new Error("[STORAGE_POLICY] Production system-of-record requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore; generic object storage, local CAS, local WAL, and duck-typed substitutes are forbidden.");this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
+  constructor({root=PROJECTS,wal=null,cas=null,localCas=null,remoteWal=null,walScope="apex-pure-store"}={}){const production=String(process.env.NODE_ENV||"").toLowerCase()==="production";this.storagePolicyError=production&&!(cas instanceof PeerMeshCasAdapter)?new Error("[STORAGE_POLICY] Production system-of-record requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore; generic object storage, local CAS, local WAL, and duck-typed substitutes are forbidden."):null;this.root=path.resolve(root);this.remoteMode=Boolean(cas)||String(process.env.APEX_CAS_REMOTE_ENABLED||"").toLowerCase()==="true";this.legacyWal=wal||new ApexRingWAL();this.localCas=localCas||new ContentAddressedStore({root:path.join(this.root,".apex-cas")});this.cas=cas||(this.remoteMode?new RemoteContentAddressedStore():this.localCas);this.wal=this.legacyWal;this.state=new Map();this.jobsState=new Map();this.ready=false;this.initPromise=null;this.remoteQueueIndexReady=false;this.remoteQueueIndexPromise=null;this.mutationChain=Promise.resolve();this.mutationContext=new AsyncLocalStorage();this.migrationFile=path.join(this.root,".apex-cas-migrated-v1.json");}
   async init(){
+    if(this.storagePolicyError)throw this.storagePolicyError;
     if(this.ready)return this;
     if(this.initPromise)return this.initPromise;
     this.initPromise=this.initialize();
@@ -41,6 +42,7 @@ export class ApexPureStore {
     catch(error){this.initPromise=null;throw error;}
   }
   async initialize(){
+    if(this.storagePolicyError)throw this.storagePolicyError;
     if(this.remoteMode){await this.initializeRemote();this.ready=true;return this;}
     await mkdir(this.root,{recursive:true,mode:0o700});
     await this.cas.init();
