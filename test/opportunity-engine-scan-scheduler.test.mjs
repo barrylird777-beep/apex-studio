@@ -18,6 +18,28 @@ test("Opportunity Engine trigger sends bearer auth and accepts a successful scan
   assert.equal(result.scanner.opportunities, 4);
 });
 
+test("Opportunity Engine trigger rejects insecure URLs and blocks redirects before sending the token", async () => {
+  let calls = 0;
+  await assert.rejects(
+    () => triggerOpportunityScan({ url: "http://engine.example/api/scan", token: "test-token", fetchImpl: async () => { calls++; } }),
+    /must be HTTPS/
+  );
+  await assert.rejects(
+    () => triggerOpportunityScan({ url: "https://user:pass@engine.example/api/scan", token: "test-token", fetchImpl: async () => { calls++; } }),
+    /embedded credentials/
+  );
+  await triggerOpportunityScan({
+    url: "https://engine.example/api/scan",
+    token: "test-token",
+    fetchImpl: async (_url, options) => {
+      calls++;
+      assert.equal(options.redirect, "error");
+      return { ok: true, status: 200, json: async () => ({}) };
+    }
+  });
+  assert.equal(calls, 1);
+});
+
 test("Opportunity Engine trigger fails closed for partial configuration and non-2xx responses", async () => {
   await assert.rejects(() => triggerOpportunityScan({ url: "https://engine.example/api/scan", token: "" }), /both be configured/);
   await assert.rejects(() => triggerOpportunityScan({ url: "https://engine.example/api/scan", token: "secret", fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({}) }) }), /HTTP 401/);
