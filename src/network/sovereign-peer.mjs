@@ -329,13 +329,19 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
       }
       const admission = peerSecurity.admit(remotePeerId, envelope);
       if (!admission.allowed) {
-        await sendSovereignEnvelope(stream, { accepted: false, error: admission.reason });
+        const cached = admission.reason === 'replayed message rejected'
+          ? peerSecurity.getReplayResponse(remotePeerId, envelope)
+          : null;
+        await sendSovereignEnvelope(stream, cached || { accepted: false, error: admission.reason });
         return;
       }
       const outcome = onEnvelope ? await onEnvelope(envelope, { remotePeerId }) : false;
       const response = outcome && typeof outcome === 'object' && !Array.isArray(outcome)
         ? { ...outcome, peerId: node.peerId.toString() }
         : { accepted: Boolean(outcome), peerId: node.peerId.toString() };
+      // Cache the exact response before writing it so a lost ACK can be replayed
+      // without running the side effect a second time.
+      peerSecurity.rememberResponse(remotePeerId, envelope, response);
       await sendSovereignEnvelope(stream, response);
     } catch (error) {
       const errorClass = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name) ? error.name : 'Error';
