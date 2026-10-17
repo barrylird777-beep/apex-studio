@@ -146,6 +146,7 @@ test("arbitrary client error messages are not reflected to callers", () => {
 test("redaction masks inline bearer credentials and key-value secret assignments", () => {
   assert.equal(redact("Authorization: Bearer fake-marker-token").includes("fake-marker-token"), false);
   assert.equal(redact("api_key=fake-marker-api").includes("fake-marker-api"), false);
+  assert.equal(redact("api key=fake-marker-spaced-api").includes("fake-marker-spaced-api"), false);
   assert.equal(redact("password: 'fake-marker-password'").includes("fake-marker-password"), false);
 });
 
