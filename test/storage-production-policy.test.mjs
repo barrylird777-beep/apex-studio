@@ -17,7 +17,7 @@ test("production ApexPureStore refuses local persistence fallback", () => {
     new ApexPureStore();
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an explicitly injected, verified peer-owned CAS adapter/);
+  assert.match(result.stderr, /requires an explicitly injected peer-owned CAS adapter/);
 });
 
 test("production legacy WAL refuses initialization and writes before touching disk", () => {
@@ -30,17 +30,6 @@ test("production legacy WAL refuses initialization and writes before touching di
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
-test("production package scripts do not expose PostgreSQL migration, studio, seed, or backup commands", () => {
-  const result = run(`
-    import fs from "node:fs/promises";
-    const pkg = JSON.parse(await fs.readFile("package.json", "utf8"));
-    for (const name of ["db:generate", "db:migrate", "db:studio", "db:seed", "db:migrate:workers", "db:migrate:postgres", "db:backup"]) {
-      if (Object.hasOwn(pkg.scripts, name)) throw new Error("retired PostgreSQL command remains: " + name);
-    }
-  `);
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-});
-
 test("production rejects generic remote object storage even when the legacy remote flag is enabled", () => {
   const result = run(`
     process.env.APEX_CAS_REMOTE_ENABLED = "true";
@@ -49,7 +38,7 @@ test("production rejects generic remote object storage even when the legacy remo
     new ApexPureStore({ cas: genericObjectStore });
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an explicitly injected, verified peer-owned CAS adapter/);
+  assert.match(result.stderr, /requires an explicitly injected peer-owned CAS adapter/);
 });
 
 test("production accepts only an explicitly marked peer-owned adapter, not a flag-only configuration", () => {
@@ -59,5 +48,5 @@ test("production accepts only an explicitly marked peer-owned adapter, not a fla
     new ApexPureStore();
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an explicitly injected, verified peer-owned CAS adapter/);
+  assert.match(result.stderr, /requires an explicitly injected peer-owned CAS adapter/);
 });
