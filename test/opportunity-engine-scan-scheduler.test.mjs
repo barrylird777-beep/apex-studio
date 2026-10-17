@@ -23,8 +23,30 @@ test("Opportunity Engine trigger fails closed for partial configuration and non-
   await assert.rejects(() => triggerOpportunityScan({ url: "https://engine.example/api/scan", token: "secret", fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({}) }) }), /HTTP 401/);
 });
 
+test("scheduler stays disabled unless explicitly opted in, even when credentials exist", () => {
+  const scheduler = startOpportunityEngineScanScheduler({
+    url: "https://engine.example/api/scan", token: "test-token",
+    enabled: "", runImmediately: false
+  });
+  assert.equal(scheduler.enabled, false);
+  assert.match(scheduler.reason, /APEX_OPPORTUNITY_ENGINE_SCAN_ENABLED=true/);
+  scheduler.stop();
+});
+
+test("scheduler can be deliberately enabled with complete configuration", () => {
+  const scheduler = startOpportunityEngineScanScheduler({
+    url: "https://engine.example/api/scan", token: "test-token",
+    enabled: "true", runImmediately: false
+  });
+  assert.equal(scheduler.enabled, true);
+  assert.equal(scheduler.intervalMs >= 60000, true);
+  scheduler.stop();
+});
+
 test("scheduler stays disabled when no scan endpoint is configured", () => {
-  const scheduler = startOpportunityEngineScanScheduler({ url: "", token: "", runImmediately: false });
+  const scheduler = startOpportunityEngineScanScheduler({
+    url: "", token: "", enabled: "true", runImmediately: false
+  });
   assert.equal(scheduler.enabled, false);
   scheduler.stop();
 });
