@@ -304,7 +304,9 @@ export function createMobileControlPlane({
       if (!book || !Number.isInteger(chapter)) {
         return res.status(400).json({ success: false, error: 'book and integer chapter are required' });
       }
-      const result = await produceEpisode(book, chapter, verses, String(req.get('x-request-id') || crypto.randomUUID()), contentDomain);
+      const suppliedRequestId = String(req.get('x-request-id') || '');
+      const requestId = /^[A-Za-z0-9._-]{1,64}$/.test(suppliedRequestId) ? suppliedRequestId : crypto.randomUUID();
+      const result = await produceEpisode(book, chapter, verses, requestId, contentDomain);
       return res.status(202).json({ success: true, ...result });
     } catch (error) {
       return res.status(400).json({ success: false, error: 'Request failed' });
