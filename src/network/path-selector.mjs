@@ -74,7 +74,7 @@ async function applyPriority(dev) {
     await exec('ip', ['route', 'replace', 'default', 'dev', dev, 'metric', '50']);
     return { applied: true, device: dev };
   } catch (error) {
-    return { applied: false, device: dev, error: error.message };
+    return { applied: false, device: dev, error: 'Network path update failed' };
   }
 }
 

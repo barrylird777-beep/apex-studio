@@ -162,7 +162,11 @@ export class PeerContentAddressedStore {
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        const errorMessage = error instanceof Error ? error.message : '';
+        const failure = errorMessage === 'peer returned an invalid, cross-namespace, or unverified durability receipt'
+          ? 'unverified durability receipt'
+          : 'Peer object write failed';
+        failures.push({ peerId, error: failure });
       }
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;
@@ -218,7 +222,7 @@ export class PeerContentAddressedStore {
         sourcePeerId = peerId;
         break;
       } catch (error) {
-        sourceFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        sourceFailures.push({ peerId, error: 'Peer source unavailable' });
       }
     }
     if (!sourceBytes) {
@@ -245,7 +249,7 @@ export class PeerContentAddressedStore {
         }
         repaired.push({ peerId, hash, bytes: response.bytes, namespace: this.namespace, failureDomain: this.failureDomainsByPeerId[peerId] || null });
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, error: 'Peer repair failed' });
       }
     }
     if (failures.length) {
@@ -288,7 +292,7 @@ export class PeerContentAddressedStore {
         source = { peerId, hash: response.hash, bytes };
         break;
       } catch (error) {
-        sourceFailures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        sourceFailures.push({ peerId, error: 'Peer source unavailable' });
       }
     }
     if (!source) {
@@ -337,7 +341,7 @@ export class PeerContentAddressedStore {
         }
         repaired.push({ peerId, hash: source.hash, alreadyPresent: false, receiptId: response.receiptId });
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, error: 'Peer repair failed' });
       }
     }
     if (failures.length) {
@@ -444,7 +448,7 @@ export class PeerContentAddressedStore {
         this.cacheVerifiedObject(hash, value);
         return value;
       } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
+        failures.push('Peer repair failed');
       }
     }
     const error = new Error('object was not recoverable from any configured peer');
@@ -501,7 +505,7 @@ export class PeerContentAddressedStore {
         verifiedPeers++;
       } catch (error) {
         if (error?.code === 'REFERENCE_DIVERGENCE' || error?.code === 'REFERENCE_LISTING_DIVERGENCE') throw error;
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, error: 'Peer repair failed' });
       }
     }
     if (verifiedPeers < this.replicaCount) {
@@ -539,7 +543,7 @@ export class PeerContentAddressedStore {
         }
         results.push({ peerId, hash: response.hash, value: decodeCanonical(bytes) });
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, error: 'Peer repair failed' });
       }
     }
     if (results.length === 0) {
@@ -587,7 +591,7 @@ export class PeerContentAddressedStore {
         const domains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean));
         if (receipts.length >= this.replicaCount && domains.size >= this.minFailureDomains) break;
       } catch (error) {
-        failures.push({ peerId, error: error instanceof Error ? error.message : String(error) });
+        failures.push({ peerId, error: 'Peer repair failed' });
       }
     }
     const verifiedFailureDomains = new Set(receipts.map(receipt => receipt.failureDomain).filter(Boolean)).size;

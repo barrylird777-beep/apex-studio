@@ -77,7 +77,7 @@ async function runJob(job) {
   } catch (error) {
     const ok = await failWorkerTask(
       job.id,
-      error instanceof Error ? error.message : String(error),
+      'Worker task failed',
       job.lease_token,
       job.lease_fence
     );

@@ -77,7 +77,7 @@ export function createKernelodiesDiscoveryRouter({
       const invalid = error instanceof RangeError;
       return res.status(invalid ? 400 : 502).json({
         success: false,
-        error: String(error?.message || error).slice(0, 220)
+        error: invalid ? "Invalid request" : "Upstream request failed"
       });
     }
   });
@@ -114,7 +114,7 @@ export function createKernelodiesDiscoveryRouter({
       await fabric.put("kernelodies", discoveryId, discovery);
       return res.status(201).json({ success: true, duplicate: false, discovery });
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 220) });
+      return res.status(400).json({ success: false, error: "Unable to save discovery; verify the submitted fields and retry." });
     }
   });
 
@@ -157,7 +157,7 @@ export function createKernelodiesDiscoveryRouter({
       await fabric.put("kernelodies", playlistId, playlist);
       return res.status(201).json({ success: true, playlist: { ...playlist, tracks: discoveryIds.map(id => discoveries.get(id)) } });
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 220) });
+      return res.status(400).json({ success: false, error: "Invalid request" });
     }
   });
 

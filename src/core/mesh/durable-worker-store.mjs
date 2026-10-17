@@ -14,7 +14,7 @@ export async function durableWorkerHealth() {
     await apexPureStore.init();
     return { configured:true, available:true, status:"ready", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:null };
   } catch (error) {
-    return { configured:true, available:false, status:"unavailable", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:String(error?.message || error).slice(0,500) };
+    return { configured:true, available:false, status:"unavailable", storage:"content-addressed", checkedAt:new Date().toISOString(), lastError:"storage unavailable" };
   }
 }
 

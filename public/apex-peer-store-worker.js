@@ -176,6 +176,6 @@ self.onmessage = async event => {
     const transfer = result?.bytes instanceof ArrayBuffer ? [result.bytes] : [];
     self.postMessage({ id, ok: true, result }, transfer);
   } catch (error) {
-    self.postMessage({ id, ok: false, error: String(error?.message || error) });
+    self.postMessage({ id, ok: false, error: "Peer store operation failed" });
   }
 };

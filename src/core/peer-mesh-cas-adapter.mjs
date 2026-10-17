@@ -140,7 +140,7 @@ export class PeerMeshCasAdapter {
     else if (operation === 'fail') {
       const dead = Number(job.attempts) >= Number(job.maxAttempts);
       Object.assign(patch, { status: dead ? 'dead' : 'queued', runAt: dead ? job.runAt : Date.now() + Math.min(300000, 2 ** Number(job.attempts) * 1000),
-        lastError: String(error?.message || error || 'Worker task failed').slice(0, 4000), leaseOwner: null, leaseToken: null, leaseExpiresAt: 0 });
+        lastError: 'Worker task failed', leaseOwner: null, leaseToken: null, leaseExpiresAt: 0 });
     } else throw new Error('unsupported peer queue transition');
     const next = { ...job, ...patch };
     try {

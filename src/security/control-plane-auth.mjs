@@ -8,6 +8,10 @@ function safeEqual(expected, supplied) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
+export function isStrongControlToken(value) {
+  return typeof value === "string" && Buffer.byteLength(value, "utf8") >= 32;
+}
+
 export function createControlPlaneAuth({
   getExpectedToken = () => process.env.APEX_SHORTCUT_TOKEN || process.env.APEX_CONTROL_TOKEN
 } = {}) {
@@ -22,6 +26,9 @@ export function createControlPlaneAuth({
         return res.status(401).json({ success: false, error: "Sign in as the owner to continue" });
       }
       return res.status(503).json({ success: false, error: "Authorization is not configured" });
+    }
+    if (process.env.NODE_ENV === "production" && !isStrongControlToken(expected)) {
+      return res.status(503).json({ success: false, error: "Control-plane token must be at least 32 bytes" });
     }
     const authorization = String(req.get("authorization") || "");
     const bearer = /^Bearer\s+([^\s]+)$/i.exec(authorization)?.[1] || "";

@@ -38,7 +38,7 @@ import { createMusicRadarBridge } from './src/api/music-radar-bridge.mjs';
 import { createAudioStationRouter } from './src/api/audio-station.mjs';
 import { createKernelodiesLibraryRouter } from './src/api/kernelodies-library.mjs';
 import { createKernelodiesDiscoveryRouter } from './src/api/kernelodies-discovery.mjs';
-import { requireControlPlaneAuth } from './src/security/control-plane-auth.mjs';
+import { requireControlPlaneAuth, isStrongControlToken } from './src/security/control-plane-auth.mjs';
 import { createOwnerSessionCsrfGuard } from './src/security/owner-session-csrf.mjs';
 import { createKernelodiesLibraryAuth } from './src/api/kernelodies-auth.mjs';
 import { initializeStudioAdBlock, handleStudioAdBlockDoH, studioAdBlockStatus } from './src/network/studio-adblock-doh.mjs';
@@ -216,6 +216,9 @@ function requireOpportunityEngineAuth(req, res, next) {
     process.env.APEX_OPPORTUNITY_ENGINE_SYNC_TOKEN
   ].filter(Boolean);
   if (!expected.length) return res.status(503).json({ success: false, error: 'Opportunity Engine authorization is not configured' });
+  if (process.env.NODE_ENV === 'production' && expected.some(token => !isStrongControlToken(token))) {
+    return res.status(503).json({ success: false, error: 'Opportunity Engine tokens must be at least 32 bytes' });
+  }
   const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''))?.[1] || '';
   const supplied = [req.get('x-apex-opportunity-token'), bearer].filter(Boolean);
   if (!expected.some(token => supplied.some(candidate => opportunityEngineTokenMatches(token, candidate)))) {
@@ -227,6 +230,9 @@ function requireOpportunityEngineAuth(req, res, next) {
 function requireWorkerAuth(req, res, next) {
   const expected = process.env.APEX_WORKER_TOKEN;
   if (!expected) return res.status(503).json({ success: false, error: 'Remote worker authorization is not configured' });
+  if (process.env.NODE_ENV === 'production' && !isStrongControlToken(expected)) {
+    return res.status(503).json({ success: false, error: 'Worker token must be at least 32 bytes' });
+  }
   if (!timingSafeSecret(expected, req.get('x-apex-worker-token'))) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
@@ -302,7 +308,7 @@ app.get('/api/search', async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       success: false,
-      error: String(error?.message || error).slice(0, 240)
+      error: "Invalid request"
     });
   }
 });
@@ -334,7 +340,7 @@ app.post('/api/workforce/burst', requireControlPlaneAuth, async (req, res) => {
       workforce: massiveAiWorkforce.status()
     });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -375,7 +381,7 @@ app.get('/api/internal/worker/stats', requireWorkerAuth, async (_req, res) => {
   try {
     return res.json({ success: true, stats: await queueStats() });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -393,7 +399,7 @@ app.post('/api/internal/store/get', requireWorkerAuth, async (req, res) => {
     if (!validTeeVeeStoreCollection(collection) || !id || id.length > 128) return res.status(400).json({ success: false, error: 'Invalid store collection or record id' });
     return res.json({ success: true, record: await apexPureStore.get(collection, id) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -426,7 +432,7 @@ app.post('/api/internal/store/query', requireWorkerAuth, async (req, res) => {
     );
     return res.json({ success: true, records });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -440,7 +446,7 @@ app.post('/api/internal/store/put', requireWorkerAuth, async (req, res) => {
     }
     return res.json({ success: true, record: await apexPureStore.put(collection, id, record) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -466,7 +472,7 @@ app.post('/api/internal/teevee/enqueue', requireWorkerAuth, async (req, res) => 
     });
     return res.status(result.duplicate ? 200 : 202).json({ success: true, task: result });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -478,7 +484,7 @@ app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => 
     try {
       payload = normalizeAutonomousAiPayload(item.payload);
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 240) });
+      return res.status(400).json({ success: false, error: "Invalid request" });
     }
     if (item.task !== 'ai-inference' || !allowedRoles.has(String(item.role || ''))) {
       return res.status(400).json({ success: false, error: 'Only validated autonomous AI inference tasks may be enqueued by remote workers' });
@@ -495,7 +501,7 @@ app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => 
     });
     return res.status(202).json({ success: true, task: result });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -507,7 +513,7 @@ app.post('/api/internal/worker/claim', requireWorkerAuth, async (req, res) => {
     const tasks = await claimNextWorkerTasks(limit, leaseMs, null, workerId);
     return res.json({ success: true, tasks, claimed: tasks.length, storage: 'content-addressed' });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -516,7 +522,7 @@ app.post('/api/internal/worker/recover', requireWorkerAuth, async (req, res) => 
     const limit = Math.max(1, Math.min(5000, Math.floor(Number(req.body?.limit) || 500)));
     return res.json({ success: true, recovered: await requeueExpiredWorkerTasks(limit) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -525,7 +531,7 @@ app.post('/api/internal/worker/:jobId/heartbeat', requireWorkerAuth, async (req,
     const ok = await heartbeatWorkerTask(String(req.params.jobId), Number(req.body?.leaseMs) || 45000, req.body?.leaseToken, req.body?.leaseFence);
     return res.status(ok ? 200 : 409).json({ success: ok, renewed: ok });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -534,7 +540,7 @@ app.post('/api/internal/worker/:jobId/complete', requireWorkerAuth, async (req, 
     const ok = await completeWorkerTask(String(req.params.jobId), req.body?.result ?? null, req.body?.leaseToken, req.body?.leaseFence);
     return res.status(ok ? 200 : 409).json({ success: ok, completed: ok });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -543,7 +549,7 @@ app.post('/api/internal/worker/:jobId/fail', requireWorkerAuth, async (req, res)
     const ok = await failWorkerTask(String(req.params.jobId), String(req.body?.error || 'Worker task failed').slice(0, 4000), req.body?.leaseToken, req.body?.leaseFence);
     return res.status(ok ? 200 : 409).json({ success: ok, transitioned: ok });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -553,7 +559,7 @@ app.post('/api/internal/worker/release', requireWorkerAuth, async (req, res) => 
     const leaseTokens = Array.isArray(req.body?.leaseTokens) ? req.body.leaseTokens.map(String).slice(0, 20) : [];
     return res.json({ success: true, released: await releaseWorkerTasks(taskIds, leaseTokens) });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(503).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -576,7 +582,7 @@ app.get('/api/apex/readiness', async (_req, res) => {
       checkedAt: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[apex-readiness]', error);
+    console.error('[apex-readiness]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Apex readiness unavailable' });
   }
 });
@@ -584,11 +590,11 @@ app.get('/api/apex/readiness', async (_req, res) => {
 app.get('/api/broadcast/status', (_req, res) => res.status(200).json({ success: true, ...infiniteBroadcast.status() }));
 app.post('/api/broadcast/start', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.start() }); }
-  catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+  catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
 });
 app.post('/api/broadcast/stop', requireControlPlaneAuth, async (_req, res) => {
   try { return res.status(200).json({ success: true, ...await infiniteBroadcast.stop() }); }
-  catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+  catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
 });
 
 const rogueApDetector = createRogueApDetector({
@@ -597,22 +603,30 @@ const rogueApDetector = createRogueApDetector({
 
 let runtimeFault = null;
 
+function safeFaultMetadata(value) {
+  const name = typeof value?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value.name)
+    ? value.name : 'Error';
+  const code = typeof value?.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(value.code)
+    ? value.code : undefined;
+  return { errorClass: name, ...(code ? { errorCode: code } : {}) };
+}
+
 process.on('uncaughtException', (error) => {
   runtimeFault = {
     type: 'uncaughtException',
-    message: String(error?.message || error),
+    ...safeFaultMetadata(error),
     at: new Date().toISOString()
   };
-  console.error('[apex][uncaughtException]', error);
+  console.error('[apex][uncaughtException]', JSON.stringify(runtimeFault));
 });
 
 process.on('unhandledRejection', (reason) => {
   runtimeFault = {
     type: 'unhandledRejection',
-    message: String(reason?.message || reason),
+    ...safeFaultMetadata(reason),
     at: new Date().toISOString()
   };
-  console.error('[apex][unhandledRejection]', reason);
+  console.error('[apex][unhandledRejection]', JSON.stringify(runtimeFault));
 });
 
 async function buildHealthSnapshot() {
@@ -706,7 +720,7 @@ app.post('/api/paypex/brief', requirePublicRequestSlot, express.json({ limit: '3
     const brief = createPayPexBrief(req.body || {});
     return res.status(201).json({ success: true, brief });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -717,7 +731,7 @@ app.get('/api/apex/apps', async (_req, res) => {
     const apps = listApexApps();
     return res.json({ success: true, count: apps.length, apps, checkedAt: new Date().toISOString() });
   } catch (error) {
-    console.error('[apex-apps]', error);
+    console.error('[apex-apps]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Apex app registry unavailable' });
   }
 });
@@ -757,7 +771,7 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
     }
     return res.status(404).json({ success: false, error: 'Unknown Apex app' });
   } catch (error) {
-    console.error('[apex-app-status]', id, error);
+    console.error('[apex-app-status]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, appId: id, error: 'Apex app status unavailable' });
   }
 });
@@ -767,7 +781,7 @@ app.get('/api/koin-kob/status', async (_req, res) => {
     const { koinKobStatus } = await import('./src/apps/koin-kob.mjs');
     return res.json({ success: true, ...koinKobStatus() });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -788,7 +802,7 @@ app.get('/api/koin-kob/simulations', requireControlPlaneAuth, async (req, res) =
       .slice(0, limit);
     return res.json({ success: true, storage: 'content-addressed', items });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -824,7 +838,7 @@ app.post('/api/koin-kob/simulation', requireControlPlaneAuth, async (req, res) =
       simulation: result
     });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -835,7 +849,7 @@ app.get('/api/canon/trajectory', async (_req, res) => {
     validateCanonicalTrajectory(trajectory);
     return res.json({ success: true, trajectory });
   } catch (error) {
-    console.error('[canonical-trajectory]', error);
+    console.error('[canonical-trajectory]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Canonical trajectory unavailable' });
   }
 });
@@ -901,7 +915,7 @@ app.get('/api/canon/handoff', requireControlPlaneAuth, async (req, res) => {
       .slice(-limit);
     return res.json({ success: true, events: records, durable: true });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+    return res.status(400).json({ success: false, error: "Request failed" });
   }
 });
 
@@ -1009,7 +1023,7 @@ app.get('/api/kash-korner/opportunities', async (req, res) => {
     const items = await listKashKornerOpportunities(sovereignAppFabric, req.query.limit);
     return res.json({ success: true, storage: 'content-addressed', items });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1019,16 +1033,18 @@ app.post('/api/kash-korner/opportunities', requireOpportunityEngineAuth, async (
     const saved = await saveKashKornerOpportunity(sovereignAppFabric, opportunity);
     return res.status(202).json({ success: true, ...saved });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: 'Invalid opportunity payload' });
   }
 });
 
 // KernelVision production schedule lives in the canonical Pure-WAL namespace.
-const scheduleErrorResponse = (res, error) => res.status(Number(error?.status) || 500).json({
-  success: false,
-  error: String(error?.message || error),
-  ...(error?.code ? { code: error.code } : {})
-});
+const scheduleErrorResponse = (res, error) => {
+  const status = Number(error?.status);
+  const safeStatus = Number.isInteger(status) && status >= 400 && status < 500 ? status : 500;
+  const message = safeStatus === 404 ? 'Not found' : safeStatus === 409 ? 'Conflict' :
+    safeStatus === 400 ? 'Invalid request' : 'Request failed';
+  return res.status(safeStatus).json({ success: false, error: message });
+};
 
 app.get('/api/projects', requireControlPlaneAuth, async (_req, res) => {
   try { return res.json(await kernelVisionSchedule.listProjects()); }
@@ -1140,7 +1156,7 @@ app.get('/api/kash-korner/entries', requireControlPlaneAuth, async (_req, res) =
     const summaries = Object.fromEntries(currencies.map(currency => [currency, cashFlowSummary(entries.filter(entry => String(entry.currency || 'USD').toUpperCase() === currency))]));
     return res.json({ success: true, entries, summaries });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1152,7 +1168,7 @@ app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) =
     const entries = excludeOpportunityRecords(await listKashKornerRecords());
     return res.status(201).json({ success: true, entry, entries });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -1162,7 +1178,7 @@ app.get('/api/kernel-vision/items', requireControlPlaneAuth, async (_req, res) =
     const records = (await listKernelVisionRecords()).map(row => row?.record || row);
     return res.json({ success: true, items: records.filter(record => record.recordType === 'theatre-item') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1180,7 +1196,7 @@ app.post('/api/kernel-vision/sessions', requireControlPlaneAuth, async (req, res
     await saveKernelVisionRecord(session.sessionId, { ...session, recordType: 'viewing-session' });
     return res.status(201).json({ success: true, session });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -1190,7 +1206,7 @@ app.get('/api/kernel-vision/sessions', requireControlPlaneAuth, async (_req, res
     const records = (await listKernelVisionRecords()).map(row => row?.record || row);
     return res.json({ success: true, sessions: records.filter(record => record.recordType === 'viewing-session') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1200,7 +1216,7 @@ app.get('/api/kernelodies/tracks', requireControlPlaneAuth, async (_req, res) =>
     const records = (await listKernelodiesRecords()).map(row => row?.record || row);
     return res.json({ success: true, tracks: records.filter(record => record.kind === 'music-track') });
   } catch (error) {
-    return res.status(503).json({ success: false, error: String(error?.message || error) });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1247,7 +1263,7 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
     await saveKernelodiesRecord(track.trackId, record);
     return res.status(201).json({ success: true, track: record, nextStep: 'Production plan saved; audio rendering is a separate step.' });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -1257,10 +1273,10 @@ const server = app.listen(PORT, HOST, () => {
 server.on('error', (error) => {
   runtimeFault = {
     type: 'listenError',
-    message: String(error?.message || error),
+    ...safeFaultMetadata(error),
     at: new Date().toISOString()
   };
-  console.error('[apex][listen-error]', error);
+  console.error('[apex][listen-error]', JSON.stringify(runtimeFault));
 });
 
 let shuttingDown = false;
@@ -1296,7 +1312,7 @@ function beginGracefulShutdown(signal) {
     clearTimeout(shutdownTimer);
     if (error) {
       process.exitCode = 1;
-      console.error('[apex] HTTP drain failed', String(error?.message || error));
+      console.error('[apex] HTTP drain failed', JSON.stringify(safeFaultMetadata(error)));
       return;
     }
     try {
@@ -1318,7 +1334,7 @@ function beginGracefulShutdown(signal) {
     for (const result of workerShutdowns) {
       if (result.status === 'rejected') {
         process.exitCode = 1;
-        console.error('[apex] background service shutdown failed', String(result.reason?.message || result.reason));
+        console.error('[apex] background service shutdown failed', JSON.stringify(safeFaultMetadata(result.reason)));
       }
     }
     console.log('[apex] background services stopped', JSON.stringify({
@@ -1343,7 +1359,7 @@ app.post(
 
 
 if (durableWorkerEnabled()) {
-  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
+  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", JSON.stringify(safeFaultMetadata(error)))); }, 15000);
   reclaimTimer.unref?.();
 }
 const geminiMeshProvider = new GeminiMeshProvider();
@@ -1753,7 +1769,7 @@ app.get('/api/network/status', async (req,res)=>{
     const healthy = fabric.candidates.filter(p => p.healthy);
     const runtimeObserved = fabric.candidates.length > 0;
     res.set('Cache-Control', 'no-store').json({success:true,status:fabric.selected?'connected':'offline',observedAt:fabric.observedAt,source:fabric.source,selected:fabric.selected,failover:fabric.failover,candidates:fabric.candidates,speed:buildNetworkSpeedPolicy(healthy),policy:buildConnectionPolicy({ clientVerifiedPaths: 0 }),planes:{apexRuntime:{status:fabric.selected?'connected':'offline',source:fabric.source},clientDevice:{status:clientTelemetry?(clientTelemetry.online?'online':'offline'):'telemetry-pending',source:'browser-or-mobile-client',telemetry:clientTelemetry},providers:{status:healthy.length?'reachable-from-apex-runtime':'unverified'}},verified:{runtimeInterfacesObserved:runtimeObserved,clientWifiObserved:clientTelemetry?.type==='wifi',clientCellularObserved:['cellular','4g','5g'].includes(String(clientTelemetry?.type)),starlinkObserved:Boolean(fabric.verification?.starlinkVerified),sixGObserved:Boolean(fabric.verification?.sixGVerified)},limitations:['Server-side interface telemetry does not represent the physical network interfaces of the user device.','Browser telemetry cannot reliably expose iPhone Wi-Fi/cellular radio state on all iOS versions.','This service does not bond the iPhone Wi-Fi and cellular modems.'],checkedAt:new Date().toISOString()});
-  } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:error?.message||String(error),checkedAt:new Date().toISOString()}); }
+  } catch (error) { res.status(200).json({success:false,status:'degraded',selected:null,candidates:[],failover:[],verified:{runtimeInterfacesObserved:false,clientWifiObserved:false,clientCellularObserved:false},error:'Network status unavailable',checkedAt:new Date().toISOString()}); }
 });
 app.use('/api/studio/audio', requireControlPlaneAuth, createAudioStationRouter());
 app.use('/api/kernelodies/library', createKernelodiesLibraryRouter({ storageDir: STORAGE_DIR, authorize: createKernelodiesLibraryAuth() }));
@@ -1884,7 +1900,7 @@ app.post('/api/rapid/preview', requirePublicRequestSlot, async (req, res) => {
     });
     return res.status(202).json({ success: true, orderId: result.id, status: 'queued', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}` });
   } catch (error) {
-    console.error('[rapid-preview]', error);
+    console.error('[rapid-preview]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Unable to queue preview' });
   }
 });
@@ -1932,8 +1948,8 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
       statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
   } catch (error) {
-    console.error('[rapid-order]', error);
-    return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
+    console.error('[rapid-order]', JSON.stringify(safeFaultMetadata(error)));
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -1961,7 +1977,7 @@ app.get('/api/rapid/assets/:id', async (req, res) => {
     res.setHeader('ETag', '"' + digest + '"');
     return res.status(200).send(bytes);
   } catch (error) {
-    console.error('[rapid-asset]', error?.message || error);
+    console.error('[rapid-asset]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success:false, error:'Remote asset storage unavailable' });
   }
 });
@@ -1984,7 +2000,7 @@ app.get('/api/rapid/orders/:id', async (req, res) => {
       updatedAt: task.updated_at
     });
   } catch (error) {
-    console.error('[rapid-order-status]', error);
+    console.error('[rapid-order-status]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Order status unavailable' });
   }
 });
@@ -1996,7 +2012,7 @@ app.get('/api/workers/permanent', requireControlPlaneAuth, (_req,res)=>res.json(
   supervisor: permanentWorkerSupervisor.status()
 }));
 app.get('/api/workers/overseer', requireControlPlaneAuth, (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
-app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:error?.message||String(error)}); } });
+app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:'Request failed'}); } });
 
 app.get('/api/network/rogue-ap/status', (_req, res) => {
   return res.json({ success: true, detector: rogueApDetector.status() });
@@ -2006,7 +2022,7 @@ app.post('/api/network/rogue-ap/trust', requireControlPlaneAuth, (req, res) => {
   try {
     return res.status(200).json({ success: true, ...rogueApDetector.trustBssid(req.body?.bssid) });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -2014,7 +2030,7 @@ app.post('/api/network/rogue-ap/revoke', requireControlPlaneAuth, (req, res) => 
   try {
     return res.status(200).json({ success: true, ...rogueApDetector.revokeBssid(req.body?.bssid) });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -2022,7 +2038,7 @@ app.post('/api/network/rogue-ap/observations', requireControlPlaneAuth, (req, re
   try {
     return res.status(200).json({ success: true, observation: rogueApDetector.observe(req.body || {}) });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -2044,7 +2060,7 @@ app.post('/api/episodes/produce', requireControlPlaneAuth, async (req, res) => {
       : code === 'RENDER_QC_FAILED' ? 422
       : error instanceof TypeError ? 400
       : 500;
-    console.error('[kernelvision-episode] production failed:', code || 'UNCLASSIFIED', error?.message || error);
+    console.error('[kernelvision-episode] production failed:', code || 'UNCLASSIFIED', JSON.stringify(safeFaultMetadata(error)));
     return res.status(status).json({
       success: false,
       code: code || 'KERNELVISION_PRODUCTION_FAILED',
@@ -2081,7 +2097,7 @@ app.get('/api/episodes/:episodeId/:artifactId/download', requireControlPlaneAuth
     if (!info.isFile()) return res.status(404).json({ success: false, error: 'Episode export file not found' });
     return res.download(actual, episodeId + '.mp4');
   } catch (error) {
-    console.error('[kernelvision-episode-download] failed:', error?.message || error);
+    console.error('[kernelvision-episode-download] failed:', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Unable to retrieve the episode export' });
   }
 });
@@ -2092,7 +2108,7 @@ app.use('/api/bible-production', requireControlPlaneAuth, async (req, res, next)
     const { default: router } = await import('./src/api/bible-production.mjs');
     return router(req, res, next);
   } catch (error) {
-    console.error('[bible-production] unavailable:', error?.message || error);
+    console.error('[bible-production] unavailable:', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({
       success: false,
       error: 'Bible production service unavailable',
@@ -2605,7 +2621,7 @@ async function checkInferenceSwarmHealth() {
 }
 
 function triggerSwarmFallback(error) {
-  console.error('[supervisor] inference swarm unhealthy:', error?.message || String(error));
+  console.error('[supervisor] inference swarm unhealthy:', JSON.stringify(safeFaultMetadata(error)));
   if (!meshWorkerSupervisor.started) meshWorkerSupervisor.start();
   for (const provider of inferenceProviders) {
     if (provider.enabled()) providerCooldowns.delete(provider.id);
@@ -2701,7 +2717,7 @@ app.post('/api/oracle', requireControlPlaneAuth, async (req, res) => {
       failures: result.failures
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -2885,8 +2901,8 @@ app.post('/api/audio', requireControlPlaneAuth, async (req, res) => {
     });
     return res.send(buffer);
   } catch (error) {
-    console.error('[audio-fatal]', error);
-    return res.status(502).json({ success: false, error: error.message });
+    console.error('[audio-fatal]', JSON.stringify(safeFaultMetadata(error)));
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -2953,8 +2969,8 @@ app.post('/api/media/image', requireControlPlaneAuth, async (req, res) => {
     const seed = Number.isFinite(Number(req.body?.seed)) ? Number(req.body.seed) : Math.floor(Math.random() * 9999999);
     return await proxyPollinationsMedia('image', prompt, { model, width, height, seed, nologo: 'true' }, res);
   } catch (error) {
-    console.error('[media-image-fatal]', error);
-    return res.status(502).json({ success: false, error: error.message });
+    console.error('[media-image-fatal]', JSON.stringify(safeFaultMetadata(error)));
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -2994,8 +3010,8 @@ app.post('/api/media/video', requireControlPlaneAuth, async (req, res) => {
       bytes: buffer.length
     });
   } catch (error) {
-    console.error('[media-video-fatal]', error);
-    return res.status(502).json({ success: false, error: error.message });
+    console.error('[media-video-fatal]', JSON.stringify(safeFaultMetadata(error)));
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 app.get('/api/media/status', (_req, res) => {
@@ -3026,7 +3042,7 @@ app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
     const state = await getProjectState();
     return res.json({ success: true, ...state });
   } catch (error) {
-    console.error('[project-state-fatal]', error);
+    console.error('[project-state-fatal]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Project state unavailable' });
   }
 });
@@ -3044,7 +3060,7 @@ app.get('/api/render/status', async (_req, res) => {
     const worker = new RenderWorker();
     return res.json({ success: true, ffmpegAvailable: await worker.available() });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3158,8 +3174,8 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[render-export-fatal]', error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[render-export-fatal]', JSON.stringify(safeFaultMetadata(error)));
+    return res.status(500).json({ success: false, error: 'Request failed' });
   } finally {
     for (const file of [stitchedVideoPath, masteredAudioPath, finalExportPath]) {
       if (file) await unlink(file).catch(() => {});
@@ -3270,7 +3286,7 @@ app.post('/api/ai/generate', requireControlPlaneAuth, async (req, res) => {
     const result = await executeInference(prompt, system);
     return res.json({ success: true, ...result });
   } catch (error) {
-    return res.status(502).json({ success: false, error: error.message, provider: requested || 'mesh' });
+    return res.status(502).json({ success: false, error: 'Request failed', provider: requested || 'mesh' });
   }
 });
 
@@ -3292,7 +3308,7 @@ app.post('/api/ai/collaborate', requireControlPlaneAuth, async (req, res) => {
 
     return res.status(result.ok ? 200 : 503).json({ success: result.ok, ...result });
   } catch (error) {
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3317,7 +3333,7 @@ app.post('/api/mesh/jobs', requireControlPlaneAuth, async (req, res) => {
     const result = await meshWorkerSupervisor.dispatch(req.body || {});
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
-    return res.status(502).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3338,7 +3354,7 @@ app.post('/api/crew/jobs', requireControlPlaneAuth, (req, res) => {
     });
     res.status(202).json({ success: true, job });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3347,7 +3363,7 @@ app.post('/api/crew/burst', requireControlPlaneAuth, (req, res) => {
     const jobs = aiCrew.burst(req.body?.count ?? 32, req.body?.context ?? {});
     res.status(202).json({ success: true, queued: jobs.length, jobs });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3382,7 +3398,7 @@ app.get('/api/voiceover/voices', async (_req,res) => {
     const { listVoiceCatalog } = await import('./src/workers/voiceover-worker.mjs');
     res.json({success:true,voices:await listVoiceCatalog()});
   } catch(error) {
-    res.status(503).json({success:false,error:error.message});
+    res.status(503).json({success:false,error: 'Request failed'});
   }
 });
 app.get('/api/voiceover/status', async (_req,res) => {
@@ -3390,7 +3406,7 @@ app.get('/api/voiceover/status', async (_req,res) => {
     const { voiceoverWorkerStatus } = await import('./src/workers/voiceover-worker.mjs');
     res.json({success:true,...await voiceoverWorkerStatus()});
   } catch(error) {
-    res.status(503).json({success:false,error:error.message});
+    res.status(503).json({success:false,error: 'Request failed'});
   }
 });
 app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
@@ -3405,7 +3421,7 @@ app.get('/api/voiceover/jobs/:id', requireControlPlaneAuth, async (req,res) => {
     }
     return res.json({success:true,...job});
   } catch(error) {
-    return res.status(503).json({success:false,error:error.message});
+    return res.status(503).json({success:false,error: 'Request failed'});
   }
 });
 app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
@@ -3415,7 +3431,7 @@ app.post('/api/voiceover/jobs', requireControlPlaneAuth, async (req,res) => {
     const { enqueueVoiceoverJob } = await import('./src/workers/voiceover-worker.mjs');
     const id=await enqueueVoiceoverJob(req.body||{}, {priority:Number(req.body?.priority||0)});
     res.status(202).json({success:true,id,status:'queued',statusUrl:'/api/voiceover/jobs/'+encodeURIComponent(id)});
-  } catch(error){ res.status(500).json({success:false,error:error.message}); }
+  } catch(error){ res.status(500).json({success:false,error: 'Request failed'}); }
 });
 
 app.get('/api/network/adblock/profile', (_req, res) => {
@@ -3428,7 +3444,7 @@ app.get('/api/network/adblock/profile', (_req, res) => {
     });
     res.end(body);
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : 'profile generation failed' });
+    res.status(500).json({ error: 'Profile generation failed' });
   }
 });
 app.get('/api/network/adblock/status', (_req, res) => res.status(200).json(studioAdBlockStatus()));
@@ -3449,9 +3465,9 @@ async function routeWithSwarm(payload) {
   return result;
 }
 
-void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
+void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', JSON.stringify(safeFaultMetadata(error))));
 if (String(process.env.APEX_BROADCAST_AUTOSTART || 'false').toLowerCase() === 'true') {
-  void infiniteBroadcast.start().catch(error => console.error('[broadcast] autostart failed:', error?.message || error));
+  void infiniteBroadcast.start().catch(error => console.error('[broadcast] autostart failed:', JSON.stringify(safeFaultMetadata(error))));
 }
 
 
@@ -3459,7 +3475,7 @@ async function runInlineRapidTask(task) {
   const leaseMs = Math.max(15000, Number(process.env.APEX_RAPID_INLINE_LEASE_MS || 45000));
   const heartbeat = setInterval(() => {
     void heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence).catch(error => {
-      console.error('[rapid-inline-worker] heartbeat failed:', error?.message || error);
+      console.error('[rapid-inline-worker] heartbeat failed:', JSON.stringify(safeFaultMetadata(error)));
     });
   }, Math.max(5000, Math.floor(leaseMs / 3)));
   heartbeat.unref?.();
@@ -3473,7 +3489,7 @@ async function runInlineRapidTask(task) {
     await failWorkerTask(task.id, error, task.lease_token, task.lease_fence).catch(failure => {
       console.error('[rapid-inline-worker] failure update failed:', failure?.message || failure);
     });
-    console.error('[rapid-inline-worker] task failed:', task.id, error?.message || error);
+    console.error('[rapid-inline-worker] task failed:', JSON.stringify(safeFaultMetadata(error)));
   } finally {
     clearInterval(heartbeat);
   }
@@ -3500,7 +3516,7 @@ if (durableWorkerEnabled()) {
         if (!claimedAny) await waitForShutdownOrDelay(1500);
       } catch (error) {
         if (shuttingDown) break;
-        console.error('[rapid-inline-worker] poll failed; backing off:', error?.message || error);
+        console.error('[rapid-inline-worker] poll failed; backing off:', JSON.stringify(safeFaultMetadata(error)));
         const jitter = Math.floor(Math.random() * Math.max(250, dbFailureBackoffMs * 0.25));
         await waitForShutdownOrDelay(Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter);
         dbFailureBackoffMs = Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs * 2);
@@ -3510,7 +3526,7 @@ if (durableWorkerEnabled()) {
   rapidInlineLoopPromise = rapidInlineLoop();
   rapidInlineLoopPromise.catch(error => {
     process.exitCode = 1;
-    console.error('[rapid-inline-worker] loop stopped with error:', error?.message || error);
+    console.error('[rapid-inline-worker] loop stopped with error:', JSON.stringify(safeFaultMetadata(error)));
   });
 }
 
@@ -3528,7 +3544,7 @@ app.get('/api/korn-knob/status', async (_req, res) => {
     const { kornKnobStatus } = await import('./src/apps/korn-knob.mjs');
     return res.json({ success: true, ...kornKnobStatus() });
   } catch (error) {
-    return res.status(503).json({ success: false, error: error.message });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3538,7 +3554,7 @@ app.post('/api/korn-knob/ideas', requireControlPlaneAuth, async (req, res) => {
     const idea = createKornKnobIdea(req.body || {});
     return res.status(201).json({ success: true, idea });
   } catch (error) {
-    return res.status(400).json({ success: false, error: error.message });
+    return res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3556,7 +3572,7 @@ app.post('/api/korn-knob/ideas/evaluate', requireControlPlaneAuth, async (req, r
       }
     });
   } catch (error) {
-    return res.status(400).json({ success: false, error: error.message });
+    return res.status(400).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3571,7 +3587,7 @@ app.post('/api/korn-knob/worker-job', requireControlPlaneAuth, async (req, res) 
     });
     return res.status(202).json({ success: true, task });
   } catch (error) {
-    return res.status(503).json({ success: false, error: error.message });
+    return res.status(503).json({ success: false, error: 'Request failed' });
   }
 });
 
@@ -3580,7 +3596,7 @@ app.get('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async (r
     const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.json({ success: true, ...(await getChatRuntimeState(req.query?.scope || 'default')) });
   } catch (error) {
-    console.error('[engine-apex-chat-runtime-state]', error);
+    console.error('[engine-apex-chat-runtime-state]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Chat runtime state unavailable' });
   }
 });
@@ -3599,7 +3615,7 @@ app.patch('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async 
     const status = error?.code === 'RUNTIME_VERSION_CONFLICT' ? 409 : 503;
     return res.status(status).json({
       success: false,
-      error: error?.message || 'Chat runtime state update failed',
+      error: 'Chat runtime state update failed',
       ...(error?.currentVersion != null ? { currentVersion: error.currentVersion } : {})
     });
   }
@@ -3610,7 +3626,7 @@ app.get('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async (
     const { listChatRuntimeEvents } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.json({ success: true, ...(await listChatRuntimeEvents(req.query?.scope || 'default', req.query?.limit)) });
   } catch (error) {
-    console.error('[engine-apex-chat-runtime-events]', error);
+    console.error('[engine-apex-chat-runtime-events]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Chat runtime events unavailable' });
   }
 });
@@ -3628,7 +3644,7 @@ app.post('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async 
       }))
     });
   } catch (error) {
-    console.error('[engine-apex-chat-runtime-event]', error);
+    console.error('[engine-apex-chat-runtime-event]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Chat runtime event unavailable' });
   }
 });
@@ -3656,7 +3672,7 @@ app.get('/api/engine-apex/snapshot', requireControlPlaneAuth, async (_req, res) 
     const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
     return res.json({ success: true, ...(await getEngineSnapshot()) });
   } catch (error) {
-    console.error('[engine-apex-snapshot]', error);
+    console.error('[engine-apex-snapshot]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'EngineApex evidence is unavailable' });
   }
 });

@@ -1,3 +1,4 @@
+import { isStrongControlToken } from '../security/control-plane-auth.mjs';
 import express from 'express';
 import crypto from 'node:crypto';
 import {
@@ -26,6 +27,9 @@ function requireShortcutAuth(req, res, next) {
   const expected = process.env.APEX_SHORTCUT_TOKEN || process.env.APEX_CONTROL_TOKEN;
   if (!expected) {
     return res.status(503).json({ success: false, error: 'Apex Shortcut control plane is not configured' });
+  }
+  if (process.env.NODE_ENV === 'production' && !isStrongControlToken(expected)) {
+    return res.status(503).json({ success: false, error: 'Control-plane token must be at least 32 bytes' });
   }
   const supplied = req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!tokenMatches(expected, supplied)) {
@@ -69,7 +73,7 @@ export function createMobileControlPlane({
 
     const value = index => results[index]?.status === 'fulfilled' ? results[index].value : {
       ok: false,
-      error: String(results[index]?.reason?.message || results[index]?.reason || 'unavailable')
+      error: 'unavailable'
     };
 
     return res.json({
@@ -91,7 +95,7 @@ export function createMobileControlPlane({
     try {
       return res.json({ success: true, ...(await getHealth()) });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -99,7 +103,7 @@ export function createMobileControlPlane({
     try {
       return res.json({ success: true, ...(await getAiStatus()) });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -129,7 +133,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 502)
-        .json({ success: false, error: String(error?.message || error), retryAfterMs: Number(error?.retryAfterMs || 0) || undefined });
+        .json({ success: false, error: 'Request failed', retryAfterMs: Number(error?.retryAfterMs || 0) || undefined });
     }
   });
 
@@ -137,7 +141,7 @@ export function createMobileControlPlane({
     try {
       return res.json({ success: true, ...(await getWorkers()) });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -145,7 +149,7 @@ export function createMobileControlPlane({
     try {
       return res.json({ success: true, ...(await getNetwork()) });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -156,7 +160,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -175,7 +179,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -186,7 +190,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -197,7 +201,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -209,7 +213,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -220,7 +224,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -231,7 +235,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -240,7 +244,7 @@ export function createMobileControlPlane({
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       return res.json({ success: true, ...(await listMultipartParts(body)) });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -251,7 +255,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -260,7 +264,7 @@ export function createMobileControlPlane({
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       return res.json({ success: true, ...(await abortMultipartUpload(body)) });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -270,7 +274,7 @@ export function createMobileControlPlane({
     } catch (error) {
       const status = Number(error?.status);
       return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503)
-        .json({ success: false, error: String(error?.message || error) });
+        .json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -286,7 +290,7 @@ export function createMobileControlPlane({
       ]);
       return res.json({ success: true, workers, overseer });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error) });
+      return res.status(503).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -300,10 +304,12 @@ export function createMobileControlPlane({
       if (!book || !Number.isInteger(chapter)) {
         return res.status(400).json({ success: false, error: 'book and integer chapter are required' });
       }
-      const result = await produceEpisode(book, chapter, verses, String(req.get('x-request-id') || crypto.randomUUID()), contentDomain);
+      const suppliedRequestId = String(req.get('x-request-id') || '');
+      const requestId = /^[A-Za-z0-9._-]{1,64}$/.test(suppliedRequestId) ? suppliedRequestId : crypto.randomUUID();
+      const result = await produceEpisode(book, chapter, verses, requestId, contentDomain);
       return res.status(202).json({ success: true, ...result });
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error) });
+      return res.status(400).json({ success: false, error: 'Request failed' });
     }
   });
 
@@ -312,17 +318,17 @@ export function createMobileControlPlane({
   // one durable local fabric; each app receives an isolated namespace.
   router.get('/sovereign/status', async (_req, res) => {
     try { return res.json({ success: true, ...(await getSovereignStatus()) }); }
-    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.get('/apps', async (_req, res) => {
     try { return res.json({ success: true, apps: await getSovereignApps() }); }
-    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.get('/apps/:appId/records', async (req, res) => {
     try { return res.json({ success: true, records: await getSovereignRecord(req.params.appId) }); }
-    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.get('/apps/:appId/records/:recordId', async (req, res) => {
@@ -330,19 +336,19 @@ export function createMobileControlPlane({
       const result = await getSovereignRecord(req.params.appId, req.params.recordId);
       if (!result) return res.status(404).json({ success: false, error: 'Record not found' });
       return res.json({ success: true, ...result });
-    } catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: String(error?.message || error) }); }
+    } catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.put('/apps/:appId/records/:recordId', async (req, res) => {
     try {
       const result = await putSovereignRecord(req.params.appId, req.params.recordId, req.body);
       return res.json({ success: true, ...result });
-    } catch (error) { return res.status(Number(error?.status) || 400).json({ success: false, error: String(error?.message || error) }); }
+    } catch (error) { return res.status(Number(error?.status) || 400).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/sovereign/dispatch', async (req, res) => {
     try { return res.status(202).json({ success: true, ...(await dispatchSovereign(req.body)) }); }
-    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(Number(error?.status) || 503).json({ success: false, error: 'Request failed' }); }
   });
 
   return router;

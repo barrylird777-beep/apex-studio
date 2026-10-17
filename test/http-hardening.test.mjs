@@ -80,3 +80,91 @@ test("production remains provider-neutral when canonical HTTPS hosts are not con
   );
   assert.equal(continued, true);
 });
+
+import { errorHandler } from "../src/api/middleware.mjs";
+import { redact } from "../src/core/privacy.mjs";
+
+test("redaction masks credential-like keys regardless of common casing and separators", () => {
+  const result = redact({
+    API_KEY: "marker-api",
+    access_token: "marker-access",
+    refreshToken: "marker-refresh",
+    clientSecret: "marker-client",
+    signingKey: "marker-signing",
+    encryption_key: "marker-encryption",
+    sessionKey: "marker-session",
+    jwt: "marker-jwt",
+    cookie: "marker-cookie",
+    nested: [{ Authorization: "marker-auth", password: "marker-pass", harmless: "visible", secretaryName: "visible-too", tokenizedLabel: "also-visible", token_in: "asset-a", token_out: "asset-b" }]
+  });
+  assert.equal(result.API_KEY, "[REDACTED]");
+  assert.equal(result.access_token, "[REDACTED]");
+  assert.equal(result.refreshToken, "[REDACTED]");
+  assert.equal(result.clientSecret, "[REDACTED]");
+  assert.equal(result.signingKey, "[REDACTED]");
+  assert.equal(result.encryption_key, "[REDACTED]");
+  assert.equal(result.sessionKey, "[REDACTED]");
+  assert.equal(result.jwt, "[REDACTED]");
+  assert.equal(result.cookie, "[REDACTED]");
+  assert.equal(result.nested[0].Authorization, "[REDACTED]");
+  assert.equal(result.nested[0].password, "[REDACTED]");
+  assert.equal(result.nested[0].harmless, "visible");
+  assert.equal(result.nested[0].secretaryName, "visible-too");
+  assert.equal(result.nested[0].tokenizedLabel, "also-visible");
+  assert.equal(result.nested[0].token_in, "asset-a");
+  assert.equal(result.nested[0].token_out, "asset-b");
+});
+
+test("API error responses and logs do not expose raw exception text or stack", () => {
+  const originalError = console.error;
+  const logged = [];
+  console.error = value => logged.push(String(value));
+  const response = {
+    code: 0,
+    payload: null,
+    status(code) { this.code = code; return this; },
+    json(value) { this.payload = value; return this; }
+  };
+  try {
+    errorHandler(Object.assign(new Error("credential marker-secret upstream body"), { statusCode: 500, code: "E_UPSTREAM" }),
+      { requestId: "req-safe" }, response, () => {});
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(response.code, 500);
+  assert.deepEqual(response.payload, { error: "Request failed", requestId: "req-safe" });
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0].includes("marker-secret"), false);
+  assert.equal(logged[0].includes("upstream body"), false);
+  assert.equal(logged[0].includes("stack"), false);
+});
+
+test("arbitrary client error messages are not reflected to callers", () => {
+  const response = { code: 0, payload: null, status(code) { this.code = code; return this; }, json(value) { this.payload = value; return this; } };
+  errorHandler(Object.assign(new Error("internal credential marker"), { statusCode: 400 }), { requestId: "req-safe" }, response, () => {});
+  assert.deepEqual(response.payload, { error: "Bad request", requestId: "req-safe" });
+});
+
+test("redaction masks inline bearer credentials and key-value secret assignments", () => {
+  assert.equal(redact("Authorization: Bearer fake-marker-token").includes("fake-marker-token"), false);
+  assert.equal(redact("api_key=fake-marker-api").includes("fake-marker-api"), false);
+  assert.equal(redact("api key=fake-marker-spaced-api").includes("fake-marker-spaced-api"), false);
+  assert.equal(redact("password: 'fake-marker-password'").includes("fake-marker-password"), false);
+});
+
+test("development launcher does not install a predictable control credential", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const launcher = await readFile(new URL("../scripts/start-dev.mjs", import.meta.url), "utf8");
+  const smoke = await readFile(new URL("../scripts/smoke-005.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(launcher, /local-dev-control-token/);
+  assert.doesNotMatch(smoke, /local-dev-control-token/);
+  assert.match(smoke, /Set APEX_CONTROL_TOKEN or APEX_SHORTCUT_TOKEN explicitly/);
+});
+
+test("runtime fault telemetry stores bounded metadata instead of exception contents", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(server, /function safeFaultMetadata/);
+  assert.doesNotMatch(server, /message: String\(error\?\.message \|\| error\)/);
+  assert.doesNotMatch(server, /console\.error\('\[apex\]\[uncaughtException\]', error\)/);
+});

@@ -1,8 +1,9 @@
+import { isStrongControlToken } from '../security/control-plane-auth.mjs';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { assertSafeResearchUrl, validateResearchQuery } from '../core/security/research-boundary.mjs';
 
-export function createResearchRouter(engine) {
+export function createResearchRouter(engine, { validateUrl = assertSafeResearchUrl } = {}) {
   if (!engine || typeof engine.resolveWork !== 'function') {
     throw new TypeError('research engine is required');
   }
@@ -12,6 +13,9 @@ export function createResearchRouter(engine) {
   const requireResearchAuth = (req, res, next) => {
     const expected = process.env.APEX_RESEARCH_TOKEN || process.env.APEX_SHORTCUT_TOKEN;
     if (!expected) return res.status(503).json({ success: false, error: 'Research authorization is not configured' });
+    if (process.env.NODE_ENV === 'production' && !isStrongControlToken(expected)) {
+      return res.status(503).json({ success: false, error: 'Research token must be at least 32 bytes' });
+    }
     const supplied = req.get('x-apex-research-token') || req.get('x-apex-shortcut-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
     const a = Buffer.from(String(expected));
     const b = Buffer.from(String(supplied || ''));
@@ -26,7 +30,9 @@ export function createResearchRouter(engine) {
       const work = await engine.resolveWork(query);
       return res.status(200).json({ success: true, work });
     } catch (error) {
-      return next(error);
+      const status = Number(error?.statusCode || error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 500 ? status : 502)
+        .json({ success: false, error: status >= 400 && status < 500 ? "Invalid research request" : "Research request failed" });
     }
   });
 
@@ -48,7 +54,9 @@ export function createResearchRouter(engine) {
         reconstruction
       });
     } catch (error) {
-      return next(error);
+      const status = Number(error?.statusCode || error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 500 ? status : 502)
+        .json({ success: false, error: status >= 400 && status < 500 ? "Invalid research request" : "Research request failed" });
     }
   });
 
@@ -56,11 +64,13 @@ export function createResearchRouter(engine) {
     try {
       const url = String(req.body?.url || '').trim();
       if (!/^https?:\/\//i.test(url)) return res.status(400).json({ success: false, error: 'valid http(s) url is required' });
-      const safeUrl = assertSafeResearchUrl(url);
+      const safeUrl = await validateUrl(url);
       const feed = await engine.ingestSyndication(safeUrl);
       return res.status(200).json({ success: true, feed });
     } catch (error) {
-      return next(error);
+      const status = Number(error?.statusCode || error?.status);
+      return res.status(Number.isInteger(status) && status >= 400 && status < 500 ? status : 502)
+        .json({ success: false, error: status >= 400 && status < 500 ? "Invalid research request" : "Research request failed" });
     }
   });
 

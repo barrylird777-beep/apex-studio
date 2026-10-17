@@ -1,5 +1,6 @@
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
-const CONTROL_TOKEN = process.env.APEX_CONTROL_TOKEN || process.env.APEX_SHORTCUT_TOKEN || 'local-dev-control-token';
+const CONTROL_TOKEN = process.env.APEX_CONTROL_TOKEN || process.env.APEX_SHORTCUT_TOKEN;
+if (!CONTROL_TOKEN) throw new Error('Set APEX_CONTROL_TOKEN or APEX_SHORTCUT_TOKEN explicitly before running smoke:005.');
 const PATHS = {
   projects: '/api/projects',
   scenes: (p) => `/api/projects/${p}/scenes`,

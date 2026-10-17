@@ -333,10 +333,8 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         : { accepted: Boolean(outcome), peerId: node.peerId.toString() };
       await sendSovereignEnvelope(stream, response);
     } catch (error) {
-      console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({
-        error: error instanceof Error ? error.message : String(error),
-        remotePeerId: connection?.remotePeer?.toString?.() || ''
-      }));
+      const errorClass = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name) ? error.name : 'Error';
+      console.error('[SOVEREIGN PEER] inbound envelope failed', JSON.stringify({ errorClass }));
       await sendSovereignEnvelope(stream, { accepted: false, error: 'peer request rejected' }).catch(() => {});
     } finally {
       // A libp2p v3 handler returning with its stream still open can cause the
@@ -395,14 +393,15 @@ export async function sendToPeer(node, multiaddr, envelope) {
       return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn('[SOVEREIGN PEER] outbound stream failed', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1, error: message }));
       const transportFailure = /stream (?:has been reset|is closed|closed)|Cannot write to a stream that is closed|timed out|connection reset|ECONNRESET|EPIPE/i.test(message);
+      const errorClass = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name) ? error.name : 'Error';
+      console.warn('[SOVEREIGN PEER] outbound stream failed', JSON.stringify({ streamStatus: stream?.status ?? null, attempt: attempt + 1, errorClass, transportFailure }));
       if (!transportFailure || attempt === 1) throw error;
-      console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ destinationPeerId, attempt: attempt + 1, error: message }));
+      console.warn('[SOVEREIGN PEER] retrying transport failure', JSON.stringify({ attempt: attempt + 1, errorClass }));
     } finally {
       console.info('[HEARTBEAT_CLOSE_START]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, streamStatus: stream?.status ?? null, attempt: attempt + 1 }));
       try { await stream?.close?.(); } catch (closeError) {
-        console.warn('[HEARTBEAT_CLOSE_FAILED]', JSON.stringify({ destinationPeerId, streamId: stream?.id ?? stream?.streamId ?? null, error: closeError instanceof Error ? closeError.message : String(closeError), attempt: attempt + 1 }));
+        console.warn('[HEARTBEAT_CLOSE_FAILED]', JSON.stringify({ attempt: attempt + 1, errorClass: closeError instanceof Error ? closeError.name : 'Error' }));
       }
     }
   }

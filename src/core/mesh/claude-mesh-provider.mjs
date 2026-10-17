@@ -32,8 +32,7 @@ export class ClaudeMeshProvider {
       body: JSON.stringify(body)
     });
     if (!response.ok) {
-      const detail = (await response.text()).slice(0, 300).replace(/\s+/g, ' ');
-      throw new Error(`Claude API Error: ${response.status}${detail ? `: ${detail}` : ''}`);
+      throw new Error(`AI provider request failed (HTTP ${response.status})`);
     }
     const data = await response.json();
     const text = data.content?.filter(p => p?.type === 'text').map(p => p.text).join('').trim() || '';

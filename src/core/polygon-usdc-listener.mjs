@@ -30,7 +30,7 @@ async function rpc(url, method, params) {
   });
   if (!response.ok) throw new Error("Polygon RPC HTTP " + response.status);
   const body = await response.json();
-  if (body.error) throw new Error("Polygon RPC error: " + String(body.error.message || "unknown").slice(0, 300));
+  if (body.error) throw new Error("Polygon RPC request failed");
   return body.result;
 }
 

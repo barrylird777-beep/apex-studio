@@ -19,7 +19,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
       return res.json({ success: true, assetId: asset.id, key: download.key, url: download.url });
     } catch (error) {
       const status = Number(error?.status) || 503;
-      return res.status(status).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+      return res.status(status).json({ success: false, error: "Production request failed" });
     }
   });
 
@@ -44,7 +44,7 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
         checkedAt: new Date().toISOString()
       });
     } catch (error) {
-      return res.status(503).json({ success: false, error: String(error?.message || error).slice(0, 500) });
+      return res.status(503).json({ success: false, error: "Production status unavailable" });
     }
   });
 
@@ -79,9 +79,8 @@ export function createTeeVeeProductionRouter({ enqueue, requireAuth, store = ape
       });
       return res.status(202).json({ success: true, episodeCode: code, status: "queued", jobId: job.id, storage: "content-addressed" });
     } catch (error) {
-      const message = String(error?.message || error);
       const status = error instanceof RangeError ? 400 : 503;
-      return res.status(status).json({ success: false, error: message.slice(0, 500) });
+      return res.status(status).json({ success: false, error: status === 400 ? "Invalid production request" : "Production request failed" });
     }
   });
 

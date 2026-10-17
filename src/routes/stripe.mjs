@@ -58,8 +58,8 @@ export function createRapidStripeWebhookHandler({ durableWorkerEnabled, getWorke
       });
       return res.json({ received: true, queued: true, orderId: metadata.orderId });
     } catch (error) {
-      console.error('[rapid-stripe-webhook]', error);
-      return res.status(400).json({ received: false, error: error.message || 'Webhook verification failed' });
+      console.error('[rapid-stripe-webhook] verification or processing failed');
+      return res.status(400).json({ received: false, error: 'Webhook verification failed' });
     }
   };
 }
