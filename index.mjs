@@ -212,7 +212,7 @@ if (!workerOnly) {
     ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/complete", { result, leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
     : completeWorkerTask(task.id, result, task.lease_token, task.lease_fence);
   const queueFail = async (task, error) => remoteWorkerApiUrl
-    ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/fail", { error: String(error?.message || error), leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
+    ? (await remoteWorkerRequest("/api/internal/worker/" + encodeURIComponent(task.id) + "/fail", { error: "Worker task failed", leaseToken: task.lease_token, leaseFence: task.lease_fence })).success === true
     : failWorkerTask(task.id, error, task.lease_token, task.lease_fence);
   const queueRelease = async tasks => remoteWorkerApiUrl
     ? (await remoteWorkerRequest("/api/internal/worker/release", { taskIds: tasks.map(task => task.id), leaseTokens: tasks.map(task => task.lease_token) })).released || 0
