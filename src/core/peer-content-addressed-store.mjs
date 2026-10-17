@@ -408,6 +408,10 @@ export class PeerContentAddressedStore {
       const nextLevel = [];
       for (let index = 0; index < level.length; index += fanout) {
         const children = level.slice(index, index + fanout);
+        if (children.length === 1) {
+          nextLevel.push(children[0]);
+          continue;
+        }
         const start = children[0].start;
         const end = children[children.length - 1].end;
         const totalBytes = end - start;
