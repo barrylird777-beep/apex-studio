@@ -8,6 +8,15 @@ const insideRoot = (root, file) => {
   const relativePath = path.relative(root, file);
   return relativePath !== '' && relativePath !== '..' && !relativePath.startsWith('..' + path.sep) && !path.isAbsolute(relativePath);
 };
+const resolveInsideRoot = (root, relativePath) => {
+  if (typeof relativePath !== 'string' || !relativePath || path.isAbsolute(relativePath) ||
+      relativePath.split(/[\\/]/).some(part => !part || part === '.' || part === '..')) {
+    throw new TypeError('path must be a safe relative path inside the release root');
+  }
+  const resolved = path.resolve(root, relativePath);
+  if (!insideRoot(root, resolved)) throw new Error('path resolves outside the release root');
+  return resolved;
+};
 const keyFromEnv = (name, create) => {
   const pem = process.env[name];
   if (!pem) throw new Error(name + ' is required');
@@ -45,9 +54,13 @@ async function signCommand() {
     createdAt: new Date().toISOString(),
     artifacts
   }, privateKey);
-  const output = path.resolve(root, process.env.APEX_RELEASE_MANIFEST_OUT || 'dist/apex-release-manifest.json');
-  if (!insideRoot(root, output)) throw new Error('release manifest output must stay inside the release root');
+  const outputPath = process.env.APEX_RELEASE_MANIFEST_OUT || 'dist/apex-release-manifest.json';
+  if (artifactPaths.includes(outputPath)) throw new Error('release manifest output cannot overwrite a signed artifact');
+  let output = resolveInsideRoot(root, outputPath);
   await mkdir(path.dirname(output), { recursive: true });
+  const realDirectory = await realpath(path.dirname(output));
+  if (!insideRoot(root, realDirectory)) throw new Error('release manifest output directory resolves outside the release root');
+  output = path.join(realDirectory, path.basename(output));
   await writeFile(output, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 });
   process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, output), digest: envelope.digest, sequence: envelope.payload.sequence, artifactCount: envelope.payload.artifacts.length }) + '\n');
 }
@@ -55,9 +68,10 @@ async function signCommand() {
 async function verifyCommand() {
   const root = await realpath(process.cwd());
   const manifestPath = process.argv[3] || process.env.APEX_RELEASE_MANIFEST_IN || 'dist/apex-release-manifest.json';
-  const manifest = await readFile(path.resolve(root, manifestPath), 'utf8').then(JSON.parse);
+  const manifest = await readFile(resolveInsideRoot(root, manifestPath), 'utf8').then(JSON.parse);
   const publicKey = keyFromEnv('APEX_RELEASE_SIGNING_PUBLIC_KEY_PEM', createPublicKey);
   const minimumSequence = process.env.APEX_RELEASE_MINIMUM_SEQUENCE == null ? 0 : Number(process.env.APEX_RELEASE_MINIMUM_SEQUENCE);
+  if (!Number.isSafeInteger(minimumSequence) || minimumSequence < 0) throw new TypeError('APEX_RELEASE_MINIMUM_SEQUENCE must be a nonnegative safe integer');
   const expectedPreviousHash = process.env.APEX_RELEASE_PREVIOUS_MANIFEST_HASH;
   const result = verifyReleaseManifest(manifest, publicKey, {
     minimumSequence,
