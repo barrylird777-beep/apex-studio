@@ -296,7 +296,7 @@ const ready = (async () => {
   await defaultProject();
   return true;
 })();
-router.use((req, res, next) => ready.then(() => next()).catch(error => { console.error('[bible-production] storage initialization failed:', clean(error?.message || error, 500)); return res.status(503).json({ error: 'KernelVision production storage is unavailable' }); }));
+router.use((req, res, next) => ready.then(() => next()).catch(error => { console.error('[bible-production] storage initialization failed'); return res.status(503).json({ error: 'KernelVision production storage is unavailable' }); }));
 
 router.get('/status', async (req, res) => {
   try {
@@ -321,7 +321,7 @@ router.post('/projects', async (req, res) => {
     if (!title) return res.status(400).json({ error: 'title is required' });
     const record = await saveType('project', req.body?.id || idOf('project'), { title, description: clean(req.body?.description, 4000), primaryScripture: clean(req.body?.primaryScripture || req.body?.primary_scripture, 120), status: clean(req.body?.status || 'development', 60) });
     res.status(201).json(projectOut(record));
-  } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||400).json({ error: 'Request failed' }); }
 });
 router.put('/projects/:id', async (req, res) => {
   try {
@@ -331,7 +331,7 @@ router.put('/projects/:id', async (req, res) => {
     if (!title) return res.status(400).json({ error: 'title is required' });
     const record = await saveType('project', current.id, { ...current, title, description: clean(req.body?.description ?? current.description, 4000), primaryScripture: clean(req.body?.primaryScripture ?? req.body?.primary_scripture ?? current.primaryScripture, 120), status: clean(req.body?.status ?? current.status ?? 'development', 60) });
     res.json(projectOut(record));
-  } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||400).json({ error: 'Request failed' }); }
 });
 router.delete('/projects/:id', async (req, res) => {
   try {
@@ -342,7 +342,7 @@ router.delete('/projects/:id', async (req, res) => {
     }
     await softDelete('project', id);
     res.json({ ok: true, deleted: 'soft' });
-  } catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 
 router.get('/characters', async (req, res) => {
@@ -354,7 +354,7 @@ router.get('/characters', async (req, res) => {
 });
 router.get('/characters/:id', async (req, res) => {
   try { const row = await getType('character', req.params.id); if (!row) return res.status(404).json({ error: 'Character not found' }); res.json(characterOut(row)); }
-  catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message, 500) }); }
+  catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 router.post('/characters', async (req, res) => {
   try {
@@ -365,7 +365,7 @@ router.post('/characters', async (req, res) => {
     const id = body.id ? safeId(body.id) : idOf('character');
     const row = await saveType('character', id, { canonicalName, aliases: arr(body.aliases), primaryStories: arr(body.primaryStories), relationships: arr(body.relationships), keyTraits: arr(body.keyTraits), notes: clean(body.notes, 3000), scriptureReferences: arr(body.scriptureReferences) });
     res.status(201).json(characterOut(row));
-  } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||400).json({ error: 'Request failed' }); }
 });
 router.put('/characters/:id', async (req, res) => {
   try {
@@ -377,11 +377,11 @@ router.put('/characters/:id', async (req, res) => {
     if (duplicate) return res.status(409).json({ error: 'Character already exists', id: duplicate.id });
     const row = await saveType('character', current.id, { ...current, canonicalName, aliases: arr(body.aliases ?? current.aliases), primaryStories: arr(body.primaryStories ?? current.primaryStories), relationships: arr(body.relationships ?? current.relationships), keyTraits: arr(body.keyTraits ?? current.keyTraits), notes: clean(body.notes ?? current.notes, 3000), scriptureReferences: arr(body.scriptureReferences ?? current.scriptureReferences) });
     res.json(characterOut(row));
-  } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||400).json({ error: 'Request failed' }); }
 });
 router.delete('/characters/:id', async (req, res) => {
   try { const ok = await softDelete('character', req.params.id); if (!ok) return res.status(404).json({ error: 'Character not found' }); res.json({ ok: true, deleted: 'soft' }); }
-  catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message, 500) }); }
+  catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 
 router.get('/scenes', async (req, res) => {
@@ -389,7 +389,7 @@ router.get('/scenes', async (req, res) => {
     const projectId = req.query.projectId ? safeId(req.query.projectId) : null;
     const rows = await listType('scene');
     res.json(rows.filter(row => !projectId || String(row.projectId) === projectId).map(sceneOut).sort((a,b)=>String(a.projectId).localeCompare(String(b.projectId)) || a.sceneNumber-b.sceneNumber || a.id.localeCompare(b.id)));
-  } catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 router.post('/scenes', async (req, res) => {
   try {
@@ -401,7 +401,7 @@ router.post('/scenes', async (req, res) => {
     const characters = arr(body.characters || body.charactersPresent).map(x=>clean(x,180)).filter(Boolean);
     const row = await saveType('scene', id, { projectId, sceneNumber: Number(body.sceneNumber)||1, title: clean(body.title || ('Scene ' + (Number(body.sceneNumber)||1)),240), scriptureReference, location: clean(body.location,500), characters, charactersPresent: arr(body.charactersPresent || body.characters).map(x=>clean(x,180)).filter(Boolean), actionSummary: clean(body.actionSummary,4000), emotionalBeat: clean(body.emotionalBeat,2000), productionNotes: clean(body.productionNotes,4000), estimatedPages: Number.isFinite(Number(body.estimatedPages)) && body.estimatedPages!=='' ? Number(body.estimatedPages) : null, dayOrNight: clean(body.dayOrNight,80) });
     res.status(201).json(sceneOut(row));
-  } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||400).json({ error: 'Request failed' }); }
 });
 router.put('/scenes/:id', async (req, res) => {
   try {
@@ -411,11 +411,11 @@ router.put('/scenes/:id', async (req, res) => {
     if (!validRef(scriptureReference)) return res.status(400).json({ error: 'Valid scriptureReference is required' });
     const row = await saveType('scene', current.id, { ...current, sceneNumber: Number(body.sceneNumber ?? current.sceneNumber)||1, title: clean(body.title ?? current.title,240), scriptureReference, location: clean(body.location ?? current.location,500), characters: arr(body.characters ?? current.characters).map(x=>clean(x,180)).filter(Boolean), charactersPresent: arr(body.charactersPresent ?? body.characters ?? current.charactersPresent).map(x=>clean(x,180)).filter(Boolean), actionSummary: clean(body.actionSummary ?? current.actionSummary,4000), emotionalBeat: clean(body.emotionalBeat ?? current.emotionalBeat,2000), productionNotes: clean(body.productionNotes ?? current.productionNotes,4000), estimatedPages: (body.estimatedPages ?? current.estimatedPages) == null || (body.estimatedPages ?? current.estimatedPages) === '' ? null : (Number.isFinite(Number(body.estimatedPages ?? current.estimatedPages)) ? Number(body.estimatedPages ?? current.estimatedPages) : null), dayOrNight: clean(body.dayOrNight ?? current.dayOrNight,80) });
     res.json(sceneOut(row));
-  } catch (error) { res.status(Number(error.status)||400).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||400).json({ error: 'Request failed' }); }
 });
 router.delete('/scenes/:id', async (req, res) => {
   try { const ok = await softDelete('scene', req.params.id); if (!ok) return res.status(404).json({ error: 'Scene not found' }); res.json({ ok: true, deleted: 'soft' }); }
-  catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message, 500) }); }
+  catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 router.post('/scenes/generate', async (req, res) => {
   try {
@@ -439,32 +439,32 @@ router.post('/scenes/generate', async (req, res) => {
       });
     });
     res.json(generated);
-  } catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message, 500) }); }
+  } catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 
 router.get('/shoot-days', async (req, res) => {
   try { const projectId=req.query.projectId?safeId(req.query.projectId):null; res.json((await listType('shootDay')).filter(row=>!projectId||String(row.projectId)===projectId).map(shootDayOut).sort((a,b)=>String(a.date).localeCompare(String(b.date)))); }
-  catch (error) { res.status(Number(error.status)||500).json({ error: clean(error.message,500) }); }
+  catch (error) { res.status(Number(error.status)||500).json({ error: 'Request failed' }); }
 });
 router.post('/shoot-days', async (req,res) => {
   try { const body=req.body||{}, projectId=await resolveProjectId(body.projectId), date=clean(body.date,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return res.status(400).json({error:'projectId and YYYY-MM-DD date are required'}); const row=await saveType('shootDay',idOf('shootDay'),{projectId,date,unit:clean(body.unit||'1st Unit',80),notes:clean(body.notes,3000)}); res.status(201).json(shootDayOut(row)); }
-  catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.post('/shoot-days/:id/scenes', async (req,res) => {
   try {
     const day=await getType('shootDay',req.params.id); if(!day)return res.status(404).json({error:'Shoot day not found'});
     for(const rawId of arr(req.body?.sceneIds)){const scene=await getType('scene',rawId);if(!scene||String(scene.projectId)!==String(day.projectId))continue;const relationId=String(day.id)+'-'+String(scene.id);const existing=await getType('sceneShootDay',relationId);if(!existing)await saveType('sceneShootDay',relationId,{shootDayId:String(day.id),sceneId:String(scene.id)});}
     res.json({ok:true});
-  } catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  } catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.get('/shoot-days/:id/scenes', async (req,res) => {
   try {const day=await getType('shootDay',req.params.id);if(!day)return res.status(404).json({error:'Shoot day not found'});const links=(await listType('sceneShootDay')).filter(x=>String(x.shootDayId)===String(day.id));const ids=new Set(links.map(x=>String(x.sceneId)));res.json((await listType('scene')).filter(x=>ids.has(String(x.id))).map(sceneOut).sort((a,b)=>a.sceneNumber-b.sceneNumber));}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 
 router.get('/call-sheets', async (req,res) => {
   try {const projectId=req.query.projectId?safeId(req.query.projectId):null;res.json((await listType('callSheet')).filter(x=>!projectId||String(x.projectId)===projectId).map(callSheetOut).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))));}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 async function makeCallSheet(body={}, forcedId=null) {
   const sceneIds=arr(body.sceneIds).map(value=>clean(value,128)).filter(Boolean);
@@ -488,19 +488,19 @@ async function makeCallSheet(body={}, forcedId=null) {
 }
 router.post('/call-sheets/from-scenes', async (req,res) => {
   try {const ids=arr(req.body?.sceneIds);if(!ids.length)return res.status(400).json({error:'sceneIds is required'});const existing=[];for(const id of ids){const scene=await getType('scene',id);if(scene)existing.push(scene);}if(!existing.length)return res.status(404).json({error:'No linked scenes found'});if(existing.length!==ids.length)return res.status(400).json({error:'One or more linked scenes were not found'});res.status(201).json(callSheetOut(await makeCallSheet(req.body||{})));}
-  catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.post('/call-sheets', async (req,res) => {
   try {res.status(201).json(callSheetOut(await makeCallSheet(req.body||{})));}
-  catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.put('/call-sheets/:id', async (req,res) => {
   try {if(!(await getType('callSheet',req.params.id)))return res.status(404).json({error:'Call sheet not found'});res.json(callSheetOut(await makeCallSheet(req.body||{},safeId(req.params.id))));}
-  catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.delete('/call-sheets/:id', async (req,res) => {
   try {const ok=await softDelete('callSheet',req.params.id);if(!ok)return res.status(404).json({error:'Call sheet not found'});res.json({ok:true,deleted:'soft'});}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 router.get('/call-sheets/:id/pdf', async (req,res) => {
   try {
@@ -518,28 +518,28 @@ router.get('/call-sheets/:id/pdf', async (req,res) => {
 
 router.get('/budget', async (req,res) => {
   try {const projectId=req.query.projectId?safeId(req.query.projectId):null;res.json((await listType('budgetItem')).filter(x=>!projectId||String(x.projectId)===projectId).map(budgetOut).sort((a,b)=>String(a.category).localeCompare(String(b.category))));}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 router.post('/budget', async (req,res) => {
   try {const body=req.body||{},projectId=await resolveProjectId(body.projectId),category=clean(body.category,120),description=clean(body.description,1000);if(!category||!description)return res.status(400).json({error:'category and description are required'});const row=await saveType('budgetItem',idOf('budgetItem'),{projectId,category,description,estimated:Number(body.estimated)||0,actual:Number(body.actual)||0,notes:clean(body.notes,3000)});res.status(201).json(budgetOut(row));}
-  catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.delete('/budget/:id', async (req,res) => {
   try {const ok=await softDelete('budgetItem',req.params.id);if(!ok)return res.status(404).json({error:'Budget item not found'});res.json({ok:true,deleted:'soft'});}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 
 router.get('/script-notes', async (req,res) => {
   try {const projectId=req.query.projectId?safeId(req.query.projectId):null;res.json((await listType('scriptNote')).filter(x=>!projectId||String(x.projectId)===projectId).map(noteOut).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))));}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 router.post('/script-notes', async (req,res) => {
   try {const body=req.body||{},projectId=await resolveProjectId(body.projectId),scriptureReference=clean(body.scriptureReference||body.scriptureRef,120);if(!validRef(scriptureReference))return res.status(400).json({error:'valid scriptureReference is required'});const row=await saveType('scriptNote',idOf('scriptNote'),{projectId,sceneId:body.sceneId?safeId(body.sceneId):null,scriptureReference,dialogue:clean(body.dialogue,6000),versionNotes:clean(body.versionNotes,4000)});res.status(201).json(noteOut(row));}
-  catch(error){res.status(Number(error.status)||400).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||400).json({error:'Request failed'});}
 });
 router.get('/script-notes/:id', async (req,res) => {
   try {const row=await getType('scriptNote',req.params.id);if(!row)return res.status(404).json({error:'Script note not found'});res.json(noteOut(row));}
-  catch(error){res.status(Number(error.status)||500).json({error:clean(error.message,500)});}
+  catch(error){res.status(Number(error.status)||500).json({error:'Request failed'});}
 });
 
 export default router;
