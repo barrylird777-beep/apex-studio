@@ -308,7 +308,7 @@ app.get('/api/search', async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       success: false,
-      error: String(error?.message || error).slice(0, 240)
+      error: "Invalid request"
     });
   }
 });
@@ -484,7 +484,7 @@ app.post('/api/internal/worker/enqueue', requireWorkerAuth, async (req, res) => 
     try {
       payload = normalizeAutonomousAiPayload(item.payload);
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 240) });
+      return res.status(400).json({ success: false, error: "Invalid request" });
     }
     if (item.task !== 'ai-inference' || !allowedRoles.has(String(item.role || ''))) {
       return res.status(400).json({ success: false, error: 'Only validated autonomous AI inference tasks may be enqueued by remote workers' });
@@ -720,7 +720,7 @@ app.post('/api/paypex/brief', requirePublicRequestSlot, express.json({ limit: '3
     const brief = createPayPexBrief(req.body || {});
     return res.status(201).json({ success: true, brief });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -1168,7 +1168,7 @@ app.post('/api/kash-korner/entries', requireControlPlaneAuth, async (req, res) =
     const entries = excludeOpportunityRecords(await listKashKornerRecords());
     return res.status(201).json({ success: true, entry, entries });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -1196,7 +1196,7 @@ app.post('/api/kernel-vision/sessions', requireControlPlaneAuth, async (req, res
     await saveKernelVisionRecord(session.sessionId, { ...session, recordType: 'viewing-session' });
     return res.status(201).json({ success: true, session });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -1263,7 +1263,7 @@ app.post('/api/kernelodies/tracks', requireControlPlaneAuth, async (req, res) =>
     await saveKernelodiesRecord(track.trackId, record);
     return res.status(201).json({ success: true, track: record, nextStep: 'Production plan saved; audio rendering is a separate step.' });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -2022,7 +2022,7 @@ app.post('/api/network/rogue-ap/trust', requireControlPlaneAuth, (req, res) => {
   try {
     return res.status(200).json({ success: true, ...rogueApDetector.trustBssid(req.body?.bssid) });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -2030,7 +2030,7 @@ app.post('/api/network/rogue-ap/revoke', requireControlPlaneAuth, (req, res) => 
   try {
     return res.status(200).json({ success: true, ...rogueApDetector.revokeBssid(req.body?.bssid) });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
@@ -2038,7 +2038,7 @@ app.post('/api/network/rogue-ap/observations', requireControlPlaneAuth, (req, re
   try {
     return res.status(200).json({ success: true, observation: rogueApDetector.observe(req.body || {}) });
   } catch (error) {
-    return res.status(400).json({ success: false, error: String(error?.message || error) });
+    return res.status(400).json({ success: false, error: "Invalid request" });
   }
 });
 
