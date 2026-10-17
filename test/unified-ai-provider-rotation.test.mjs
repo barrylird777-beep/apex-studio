@@ -39,6 +39,9 @@ test('free provider rotation includes only explicitly configured and confirmed f
     const plan = getFreeAiRotationPlan();
     assert.equal(plan.length, 5);
     assert.deepEqual(new Set(plan), new Set(['groq', 'openrouter', 'mistral', 'cloudflare', 'pollinations']));
+    const nextPlan = getFreeAiRotationPlan();
+    assert.notEqual(nextPlan[0], plan[0], 'successive requests must rotate their first provider');
+    assert.deepEqual(new Set(nextPlan), new Set(plan));
     assert.equal(plan.includes('google'), false);
     const status = unifiedAiStatus();
     assert.equal(status.groq.freeEligible, true);
