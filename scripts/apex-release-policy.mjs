@@ -65,6 +65,77 @@ async function signCommand() {
   process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, output), digest: envelope.digest, sequence: envelope.payload.sequence, artifactCount: envelope.payload.artifacts.length }) + '\n');
 }
 
+async function loadVerifiedManifest(root, relativePath, publicKey) {
+  const file = await realpath(resolveInsideRoot(root, relativePath));
+  if (!insideRoot(root, file)) throw new Error('release manifest resolves outside the release root');
+  const envelope = await readFile(file, 'utf8').then(JSON.parse);
+  verifyReleaseManifest(envelope, publicKey, { minimumSequence: 0 });
+  return envelope;
+}
+
+async function knownManifestEnvelopes(root, publicKey) {
+  const paths = String(process.env.APEX_RELEASE_KNOWN_MANIFESTS || '').split(',').map(item => item.trim()).filter(Boolean);
+  if (!paths.length) throw new Error('APEX_RELEASE_KNOWN_MANIFESTS must list known signed manifests');
+  const envelopes = [];
+  for (const manifestPath of paths) envelopes.push(await loadVerifiedManifest(root, manifestPath, publicKey));
+  return envelopes;
+}
+
+async function rollbackSignCommand() {
+  const root = await realpath(process.cwd());
+  const publicKey = keyFromEnv('APEX_RELEASE_SIGNING_PUBLIC_KEY_PEM', createPublicKey);
+  const privateKey = keyFromEnv('APEX_RELEASE_SIGNING_PRIVATE_KEY_PEM', createPrivateKey);
+  const active = await loadVerifiedManifest(root, process.env.APEX_RELEASE_ACTIVE_MANIFEST || 'dist/apex-release-manifest.json', publicKey);
+  const targetPath = process.env.APEX_RELEASE_ROLLBACK_TARGET_MANIFEST;
+  if (!targetPath) throw new Error('APEX_RELEASE_ROLLBACK_TARGET_MANIFEST is required');
+  const target = await loadVerifiedManifest(root, targetPath, publicKey);
+  const known = await knownManifestEnvelopes(root, publicKey);
+  if (!known.some(item => item.digest === target.digest)) throw new Error('rollback target is not in the verified known-manifest set');
+  if (target.digest === active.digest || target.payload.sequence >= active.payload.sequence) {
+    throw new Error('rollback target must be a different, earlier signed release');
+  }
+  const sequence = Number(process.env.APEX_RELEASE_ROLLBACK_SEQUENCE);
+  if (!Number.isSafeInteger(sequence) || sequence <= active.payload.sequence) {
+    throw new Error('APEX_RELEASE_ROLLBACK_SEQUENCE must advance beyond the active release sequence');
+  }
+  const envelope = signRollbackAuthorization({
+    sequence,
+    currentManifestHash: active.digest,
+    targetManifestHash: target.digest,
+    reason: process.env.APEX_RELEASE_ROLLBACK_REASON || '',
+    createdAt: new Date().toISOString()
+  }, privateKey);
+  const outputPath = process.env.APEX_RELEASE_ROLLBACK_OUT || 'dist/apex-rollback-authorization.json';
+  const output = resolveInsideRoot(root, outputPath);
+  await mkdir(path.dirname(output), { recursive: true });
+  const realDirectory = await realpath(path.dirname(output));
+  if (!insideRoot(root, realDirectory)) throw new Error('rollback output directory resolves outside the release root');
+  const finalPath = path.join(realDirectory, path.basename(output));
+  await writeFile(finalPath, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 });
+  process.stdout.write(JSON.stringify({ signed: true, output: path.relative(root, finalPath), sequence, targetVersion: target.payload.version }) + '\n');
+}
+
+async function rollbackVerifyCommand() {
+  const root = await realpath(process.cwd());
+  const publicKey = keyFromEnv('APEX_RELEASE_SIGNING_PUBLIC_KEY_PEM', createPublicKey);
+  const authPath = process.env.APEX_RELEASE_ROLLBACK_AUTHORIZATION || 'dist/apex-rollback-authorization.json';
+  const authFile = await realpath(resolveInsideRoot(root, authPath));
+  if (!insideRoot(root, authFile)) throw new Error('rollback authorization resolves outside the release root');
+  const authorization = await readFile(authFile, 'utf8').then(JSON.parse);
+  const active = await loadVerifiedManifest(root, process.env.APEX_RELEASE_ACTIVE_MANIFEST || 'dist/apex-release-manifest.json', publicKey);
+  const targetPath = process.env.APEX_RELEASE_ROLLBACK_TARGET_MANIFEST;
+  if (!targetPath) throw new Error('APEX_RELEASE_ROLLBACK_TARGET_MANIFEST is required');
+  const target = await loadVerifiedManifest(root, targetPath, publicKey);
+  const known = await knownManifestEnvelopes(root, publicKey);
+  const result = verifyRollbackAuthorization(authorization, publicKey, {
+    currentSequence: active.payload.sequence,
+    activeManifestHash: active.digest,
+    targetManifest: target,
+    knownManifestHashes: known.map(item => item.digest)
+  });
+  process.stdout.write(JSON.stringify(result) + '\n');
+}
+
 async function verifyCommand() {
   const root = await realpath(process.cwd());
   const manifestPath = process.argv[3] || process.env.APEX_RELEASE_MANIFEST_IN || 'dist/apex-release-manifest.json';
@@ -92,7 +163,9 @@ const command = process.argv[2];
 try {
   if (command === 'sign') await signCommand();
   else if (command === 'verify') await verifyCommand();
-  else throw new Error('usage: node scripts/apex-release-policy.mjs <sign|verify> [manifest-path]');
+  else if (command === 'rollback-sign') await rollbackSignCommand();
+  else if (command === 'rollback-verify') await rollbackVerifyCommand();
+  else throw new Error('usage: node scripts/apex-release-policy.mjs <sign|verify|rollback-sign|rollback-verify> [manifest-path]');
 } catch (error) {
   process.stderr.write('APEX release policy failed: ' + String(error?.message || error) + '\n');
   process.exitCode = 1;
