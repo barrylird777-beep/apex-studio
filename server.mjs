@@ -2012,7 +2012,7 @@ app.get('/api/workers/permanent', requireControlPlaneAuth, (_req,res)=>res.json(
   supervisor: permanentWorkerSupervisor.status()
 }));
 app.get('/api/workers/overseer', requireControlPlaneAuth, (_req,res)=>res.json({success:true,overseer:overseerStatus(apexOverseer,permanentWorkerFleet)}));
-app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:'Network status unavailable'}); } });
+app.get('/api/workers/durable', requireControlPlaneAuth, async (_req,res)=>{ try { res.json({success:true, queue:await queueStats()}); } catch (error) { res.status(503).json({success:false,error:'Request failed'}); } });
 
 app.get('/api/network/rogue-ap/status', (_req, res) => {
   return res.json({ success: true, detector: rogueApDetector.status() });
