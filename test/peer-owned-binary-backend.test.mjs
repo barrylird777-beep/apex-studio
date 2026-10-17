@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { encodeCanonical } from '../src/core/apex-cbor.mjs';
 import { createPeerOwnedBinaryBackend } from '../src/core/peer-owned-binary-backend.mjs';
 import { PeerContentAddressedStore, createPeerObjectStorageHandler } from '../src/core/peer-content-addressed-store.mjs';
@@ -27,7 +27,8 @@ async function fixture(t) {
 }
 
 test('peer-owned binary backend survives backend re-instantiation and verifies CBOR bytes', async t => {
-  const { options, backend } = await fixture(t);
+  const { root, options, backend } = await fixture(t);
+  assert.equal(backend.capacityRoot, root, 'backend must expose the exact root used for capacity measurement');
   const bytes = encodeCanonical({ version: 1, binary: Buffer.from([0, 1, 2, 255]) });
   const id = hash(bytes);
   await backend.putBytes(id, bytes);
@@ -35,10 +36,13 @@ test('peer-owned binary backend survives backend re-instantiation and verifies C
   const refHash = hash(refBytes);
   await backend.writeRef('PlanetApeX', 'project-main', null, refHash, refBytes);
 
+  const beforeRestartProof = await backend.health({ namespace: 'PlanetApeX', peerId: 'peer-owner' });
   const restarted = await createPeerOwnedBinaryBackend(options);
   assert.deepEqual(await restarted.getBytes(id), bytes);
   assert.deepEqual(await restarted.readRef('PlanetApeX', 'project-main'), { hash: refHash, bytes: refBytes });
   const proof = await restarted.health({ namespace: 'PlanetApeX', peerId: 'peer-owner' });
+  assert.notEqual(proof.backendInstanceId, beforeRestartProof.backendInstanceId, 'restart must create a new backend instance identity');
+  assert.notEqual(proof.receiptId, beforeRestartProof.receiptId, 'a new backend instance must produce fresh recovery evidence');
   assert.equal(await restarted.verifyDurabilityReceipt(proof.receipt, {
     namespace: 'PlanetApeX', peerId: 'peer-owner',
     restartRecoveryVerified: true, atomicReferencesVerified: true
@@ -84,7 +88,8 @@ test('durability receipt rejects validly signed mismatched or weakened claims', 
   };
   const expected = {
     version: 1, peerId: 'peer-owner', namespace: 'PlanetApeX', ownership: 'peer-owned',
-    durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true
+    durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true,
+    backendInstanceId: randomUUID(), verifiedAt: Date.now(), receiptNonce: randomUUID()
   };
   assert.equal(await backend.verifyDurabilityReceipt(sign(expected), expected), true);
   for (const weakened of [
@@ -100,6 +105,8 @@ test('durability receipt rejects validly signed mismatched or weakened claims', 
   }
   const valid = sign(expected);
   assert.equal(await backend.verifyDurabilityReceipt(valid, { ...expected, namespace: 'KashKorner' }), false);
+  const stale = sign({ ...expected, verifiedAt: Date.now() - 5 * 60_000 - 1 });
+  assert.equal(await backend.verifyDurabilityReceipt(stale, expected), false, 'stale durability receipts must fail closed');
 });
 
 

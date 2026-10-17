@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { measurePeerStorageCapacity } from './peer-storage-capacity.mjs';
+
 const CANONICAL_APPS = new Set([
   'PlanetApeX', 'XShield', 'KernelVision', 'Kernelodies', 'KashKorner', 'KoinKob'
 ]);
@@ -57,11 +60,33 @@ export async function initializePeerObjectStorage({
   }
   const acl = parseNamespaceAcl(namespaceAcl);
   const { createPeerObjectStorageHandler } = await import('./peer-content-addressed-store.mjs');
-  const handle = createPeerObjectStorageHandler({
+  const baseHandle = createPeerObjectStorageHandler({
     store,
     peerId,
     authorizeNamespace: ({ remotePeerId, namespace }) =>
       Boolean(remotePeerId && Array.isArray(acl[namespace]) && acl[namespace].includes(remotePeerId))
   });
+  const handle = async (envelope, context) => {
+    const response = await baseHandle(envelope, context);
+    if (envelope?.operation !== 'storage.health' || envelope?.protocol !== 'apex.cas.v1') return response;
+    const localPeerId = String(typeof peerId === 'function' ? peerId() : peerId || '');
+    const failureDomain = String(process.env.APEX_PEER_FAILURE_DOMAIN || '').trim();
+    const root = String(process.env.APEX_PEER_OWNED_STORAGE_ROOT || '').trim();
+    // A peer without an explicitly assigned root and operator failure domain
+    // may still serve existing operations, but is not eligible for placement.
+    if (!root || !failureDomain || !localPeerId) return response;
+    const backendRoot = String(store.capacityRoot || store.storageRoot || '').trim();
+    if (!backendRoot || path.resolve(backendRoot) !== path.resolve(root)) {
+      throw new Error('configured capacity root must exactly match the injected peer-owned backend capacityRoot');
+    }
+    const capacityReport = await measurePeerStorageCapacity({
+      peerId: localPeerId,
+      failureDomain,
+      root,
+      reservedBytes: Number(process.env.APEX_PEER_STORAGE_RESERVED_BYTES || 0)
+    });
+    const { root: _privateFilesystemPath, ...publicCapacityReport } = capacityReport;
+    return { ...response, capacityReport: publicCapacityReport };
+  };
   return Object.freeze({ enabled: true, store, handle });
 }

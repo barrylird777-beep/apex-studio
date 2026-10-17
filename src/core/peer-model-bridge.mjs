@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { chmod } from 'node:fs/promises';
+import { createKernelVisionPeerStorageCanary } from './peer-storage-canary.mjs';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const CANONICAL_APPS = new Set(['KernelVision', 'XShield', 'Kernelodies', 'PlanetApeX', 'KashKorner', 'KoinKob']);
@@ -12,7 +13,7 @@ const safeId = value => typeof value === 'string' && value.length <= 256 &&
  * PeerContentAddressedStore. It never persists model bytes or proxies providers.
  * The hosting daemon must pass its live store and app-specific authorization.
  */
-export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765, socketPath = '' } = {}) {
+export function createPeerModelBridgeServer({ store, authorizeModel, token, host = '127.0.0.1', port = 8765, socketPath = '', kernelVisionCanaryEnabled = false } = {}) {
   if (!store || typeof store.readRef !== 'function' || typeof store.getBlob !== 'function') {
     throw new TypeError('live PeerContentAddressedStore is required');
   }
@@ -26,6 +27,12 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
     throw new Error('Unix socket path must be a safe path under /tmp');
   }
   const expected = Buffer.from(token);
+  // The canary is a separate opt-in surface; write capability alone must not enable it.
+  // The model-read bridge remains usable with read-only Peer-CAS adapters.
+  const kernelVisionCanary = kernelVisionCanaryEnabled && store.namespace === 'KernelVision' &&
+    typeof store.writeRef === 'function'
+    ? createKernelVisionPeerStorageCanary({ store, enabled: true })
+    : null;
   const send = (res, status, body, type = 'application/json') => {
     res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
     res.end(body);
@@ -35,8 +42,32 @@ export function createPeerModelBridgeServer({ store, authorizeModel, token, host
       const supplied = String(req.headers.authorization || '').replace(/^Bearer /, '');
       const actual = Buffer.from(supplied);
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(res, 401, 'unauthorized');
-      if (req.method !== 'GET') return send(res, 405, 'method not allowed');
       const url = new URL(req.url || '/', 'http://127.0.0.1');
+      const canaryMatch = url.pathname.match(/^\/v1\/peer-cas\/canary\/([A-Za-z0-9._-]{1,120})$/);
+      if (canaryMatch) {
+        if (!kernelVisionCanary) return send(res, 403, 'KernelVision canary unavailable for this namespace');
+        const key = canaryMatch[1];
+        if (req.method === 'GET') {
+          const current = await kernelVisionCanary.read(key);
+          if (!current) return send(res, 404, JSON.stringify({ error: 'canary record not found' }));
+          return send(res, 200, JSON.stringify(current));
+        }
+        if (req.method === 'PUT') {
+          let raw = '';
+          for await (const chunk of req) {
+            raw += chunk.toString('utf8');
+            if (Buffer.byteLength(raw) > 64 * 1024) return send(res, 413, JSON.stringify({ error: 'canary value exceeds 64 KiB' }));
+          }
+          let payload;
+          try { payload = JSON.parse(raw); } catch { return send(res, 400, JSON.stringify({ error: 'invalid JSON body' })); }
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'value')) {
+            return send(res, 400, JSON.stringify({ error: 'JSON body must contain value' }));
+          }
+          const saved = await kernelVisionCanary.write(key, payload.value);
+          return send(res, 200, JSON.stringify(saved));
+        }
+        return send(res, 405, 'method not allowed');
+      }
       const match = url.pathname.match(/^\/v1\/peer-cas\/models\/([^/]+)\/(.+)\/manifest$/);
       if (match) {
         const modelId = decodeURIComponent(match[1]), revision = decodeURIComponent(match[2]);

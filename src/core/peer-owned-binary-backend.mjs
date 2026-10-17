@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { encodeCanonical, decodeCanonical } from './apex-cbor.mjs';
@@ -38,6 +38,7 @@ async function withRefLock(lockPath, operation, timeoutMs = 10000) {
  */
 export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}) {
   const root = path.resolve(String(process.env.APEX_PEER_OWNED_STORAGE_ROOT || '').trim());
+  const backendInstanceId = randomUUID();
   const signingSecret = Buffer.from(String(process.env.APEX_PEER_STORAGE_RECEIPT_KEY_BASE64 || ''), 'base64');
   if (!process.env.APEX_PEER_OWNED_STORAGE_ROOT?.trim()) throw new Error('APEX_PEER_OWNED_STORAGE_ROOT must explicitly name peer-owned durable capacity');
   if (!peerId || typeof peerId !== 'string') throw new Error('authenticated local peer ID is required');
@@ -93,6 +94,7 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     return { body: body.toString('base64'), mac: createHmac('sha256', signingSecret).update(body).digest('base64') };
   };
   return Object.freeze({
+    capacityRoot: root,
     async putBytes(hash, input) {
       const bytes = Buffer.from(input);
       if (!/^[a-f0-9]{64}$/.test(hash) || sha256(bytes) !== hash) throw new Error('peer CAS object hash mismatch');
@@ -167,7 +169,11 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
     async health({ namespace, peerId: requestedPeerId }) {
       if (requestedPeerId !== peerId || !Array.isArray(acl[namespace]) || !acl[namespace].length) throw new Error('peer CAS health claim does not match peer identity or ACL');
       await verifyDisk();
-      const claims = { version: 1, peerId, namespace, ownership: 'peer-owned', durable: true, atomicReferencesVerified: true, restartRecoveryVerified: true };
+      const claims = {
+        version: 1, peerId, namespace, ownership: 'peer-owned', durable: true,
+        atomicReferencesVerified: true, restartRecoveryVerified: true,
+        backendInstanceId, verifiedAt: Date.now(), receiptNonce: randomUUID()
+      };
       return { ...claims, receipt: receiptFor(claims), receiptId: sha256(encodeCanonical(claims)) };
     },
     async verifyDurabilityReceipt(receipt, claims) {
@@ -180,6 +186,11 @@ export async function createPeerOwnedBinaryBackend({ peerId, namespaceAcl } = {}
         const expectedMac = createHmac('sha256', signingSecret).update(body).digest();
         if (mac.length !== expectedMac.length || !timingSafeEqual(mac, expectedMac)) return false;
         const signed = decodeCanonical(body);
+        const now = Date.now();
+        if (typeof signed.backendInstanceId !== 'string' || !signed.backendInstanceId ||
+            !Number.isSafeInteger(signed.verifiedAt) || signed.verifiedAt > now + 30_000 ||
+            now - signed.verifiedAt > 5 * 60_000 ||
+            typeof signed.receiptNonce !== 'string' || !signed.receiptNonce) return false;
         const required = {
           version: 1,
           peerId: claims.peerId,
