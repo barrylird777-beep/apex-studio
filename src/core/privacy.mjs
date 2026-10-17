@@ -26,10 +26,19 @@ export function fingerprint(value){
   return crypto.createHash("sha256").update(String(value)).digest("hex");
 }
 
+const DEFAULT_SECRET_KEY_PATTERN=/(?:^|[_-])(token|password|passwd|secret|api[_-]?key|authorization|credential|private[_-]?key|client[_-]?secret|access[_-]?key|refresh[_-]?key)(?:$|[_-])/i;
+const DEFAULT_SECRET_COMPACT_PATTERN=/(?:^|[^a-z0-9])(access|refresh)?token|password|passwd|secret|apikey|authorization|credential|privatekey|clientsecret|accesskey|refreshkey/i;
+
+function isSensitiveKey(key,keys){
+  const normalized=String(key).replace(/([a-z0-9])([A-Z])/g,"$1_$2").toLowerCase();
+  if(keys.some(candidate=>normalized===String(candidate).replace(/([a-z0-9])([A-Z])/g,"$1_$2").toLowerCase())) return true;
+  return DEFAULT_SECRET_KEY_PATTERN.test(normalized)||DEFAULT_SECRET_COMPACT_PATTERN.test(normalized);
+}
+
 export function redact(value,keys=["token","password","secret","apiKey","authorization"]){
   if(Array.isArray(value)) return value.map(v=>redact(v,keys));
   if(value&&typeof value==="object"){
-    return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,keys.includes(k)?"[REDACTED]":redact(v,keys)]));
+    return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,isSensitiveKey(k,keys)?"[REDACTED]":redact(v,keys)]));
   }
   return value;
 }
