@@ -1,7 +1,7 @@
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
 import { readFile, realpath, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { signReleaseManifest, verifyReleaseManifest } from '../src/security/content-addressed-release.mjs';
+import { signReleaseManifest, verifyReleaseManifest, signRollbackAuthorization, verifyRollbackAuthorization } from '../src/security/content-addressed-release.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const insideRoot = (root, file) => {
