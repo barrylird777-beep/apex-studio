@@ -16,9 +16,9 @@ export function createAutonomousSwarmDaemon({root='/srv/apex/se-x/projects/swarm
     if(!running)return; cycleCount++;
     try{
       const queue=await loadQueue();
-      if(queue.length){const item=queue.shift();try{await handler(item);failures=0;await saveQueue(queue);await recordEvent('completed',{id:item.id??null,type:item.type??null});}catch(error){failures++;queue.push({...item,lastError:String(error?.message||error),failedAt:new Date().toISOString()});await saveQueue(queue);await recordEvent('failed',{id:item.id??null,error:String(error?.message||error)});}}
+      if(queue.length){const item=queue.shift();try{await handler(item);failures=0;await saveQueue(queue);await recordEvent('completed',{id:item.id??null,type:item.type??null});}catch(error){failures++;queue.push({...item,lastError:"Task failed",failedAt:new Date().toISOString()});await saveQueue(queue);await recordEvent('failed',{id:item.id??null,error:'Task failed'});}}
       else failures=0;
-    }catch(error){failures++;await recordEvent('daemon-error',{error:String(error?.message||error)}).catch(()=>{});}
+    }catch(error){failures++;await recordEvent('daemon-error',{error:'Task failed'}).catch(()=>{});}
     if(running){const delay=Math.min(maxBackoffMs,Math.max(pollMs,pollMs*2**Math.min(failures,5)));timer=setTimeout(()=>{timer=null;void cycle();},delay);timer.unref?.();}
   }
   return {async start(){if(running)return this.status();running=true;failures=0;await cycle();return this.status();},async stop(){running=false;if(timer){clearTimeout(timer);timer=null;}return this.status();},status(){return {running,failures,cycleCount,root,pollMs,maxBackoffMs}}};
