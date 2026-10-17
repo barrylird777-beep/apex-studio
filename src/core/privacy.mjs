@@ -90,9 +90,17 @@ export function validateDataProductManifest(manifest) {
     errors.push("retention.expiresAt must be a valid date");
   }
   if (typeof manifest.personalData !== "boolean") errors.push("personalData must be explicit");
-  if (manifest.personalData && (!manifest.consent || !nonEmptyString(manifest.consent.purpose) ||
-      !["granted", "not-required"].includes(manifest.consent.status))) {
-    errors.push("personal data requires explicit consent status and purpose");
+  if (manifest.personalData) {
+    if (!manifest.consent || !nonEmptyString(manifest.consent.purpose) ||
+        !["granted", "not-required"].includes(manifest.consent.status)) {
+      errors.push("personal data requires explicit consent status and purpose");
+    } else if (manifest.consent.status === "granted" &&
+        !nonEmptyString(manifest.consent.evidenceRef)) {
+      errors.push("granted consent requires a verifiable evidenceRef");
+    } else if (manifest.consent.status === "not-required" &&
+        !nonEmptyString(manifest.consent.legalBasis)) {
+      errors.push("consent marked not-required requires a documented legalBasis");
+    }
   }
   return { valid: errors.length === 0, errors };
 }
