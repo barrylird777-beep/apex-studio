@@ -146,3 +146,32 @@ Repository-visible evidence alone cannot prove production network policy, actual
 | Frontend injection | Partial sink inventory | All HTML/URL sinks traced and adversarially tested |
 | Production/runtime | Not proven | Deployed SHA, cloud/network/IAM evidence |
 | Overall verdict | **OPEN** | All critical proof gates closed with independent evidence |
+
+
+## A-006 — additional source-trace findings (2026-10-17)
+
+### Exact production call-path conflict
+
+- `server.mjs` imports the module-level `apexPureStore` and the module-level `sovereignAppFabric`.
+- `src/core/sovereign-app-fabric.mjs` defaults to that singleton unless a caller explicitly injects a different store.
+- `src/core/apex-pure-store.mjs` selects local `ContentAddressedStore` plus `ApexRingWAL` when the remote flag is false, and selects generic `RemoteContentAddressedStore` when the flag is true but no CAS is injected.
+- `src/core/storage.mjs` separately writes project assets and `manifest.json` to `STORAGE_DIR` (default `/srv/apex/se-x/projects`). `src/services/projectManager.mjs` re-exports it; `server.mjs` imports these functions. This is an active source-level path, not just a migration artifact.
+- `src/core/sovereign-runtime-daemon.mjs` constructs a separate peer store, `PeerMeshCasAdapter`, `SovereignMeshEngine`, and separate app fabric after runtime peer readiness. The inspected startup path does not inject that adapter into the main server's imported `apexPureStore` singleton.
+- The peer runtime is scoped by `APEX_PEER_CAS_NAMESPACE` to one canonical app per runtime. The main app fabric exposes all six apps from one shared store and also stores cross-app/system/worker records. A safe bridge requires a deliberate multi-namespace design and authorization matrix; simply passing one app-scoped adapter into the singleton would not be a valid six-app solution.
+
+### Fail-closed candidate changes and their limitations
+
+The candidate branch now rejects production construction of `ApexPureStore` unless an actual `PeerMeshCasAdapter` is injected, and the adapter now requires an actual `PeerContentAddressedStore` instance rather than an arbitrary object that claims to be peer-owned. The production test file includes negative tests for local fallback and forged/duck-typed adapters. These edits have not been executed locally or confirmed by CI.
+
+**Important:** because `apexPureStore` is constructed at module import time, the new guard currently causes a production import of the existing main server to fail before the server can start, unless the main server's wiring is changed. This is a deliberate fail-closed blocker, not a completed production fix. Do not deploy this branch as-is. The correct next implementation must explicitly inject the correct per-app peer storage facade and move asset/manifest writes onto a compatible durable path, or keep production disabled until that migration is proven.
+
+### WAL protection nuance
+
+The candidate branch blocks legacy `ApexRingWAL` initialization/writes in production. This protects against accidental new writes through that class but does not by itself prove that all old WAL data has been imported, that no other module writes local files, or that recovery from the old data has been independently verified. Preserve the legacy files and migration logic until checksummed read-back is complete.
+
+### Candidate validation status
+
+- Latest inspected candidate commits include the constructor gate, a concrete peer-adapter type check, and new negative tests.
+- The candidate branch has no pull request associated with it yet; the inspected commits have no returned CI workflow runs or combined statuses. This is **not** evidence of passing tests.
+- The production test's generic-object-store case currently fails at module import due to the singleton guard before it can exercise the supplied fake adapter. Refactor that test to isolate constructor behavior without relying on the module-level singleton, then run all storage tests and the full CI suite against the exact candidate SHA.
+- Overall A-006 stays **OPEN** until the server wiring, all six app namespaces, filesystem asset writes, and actual peer restart/failure/recovery have been proven together.
