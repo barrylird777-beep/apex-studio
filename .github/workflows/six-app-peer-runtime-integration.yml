@@ -1,0 +1,35 @@
+name: Six-app peer runtime integration
+
+on:
+  pull_request:
+    paths:
+      - "src/core/peer-runtime-controls.mjs"
+      - "src/core/namespace-access-tensor.mjs"
+      - "src/core/peer-storage-api-client.mjs"
+      - "src/core/peer-storage-api-bridge.mjs"
+      - "test/peer-runtime-controls.test.mjs"
+      - "test/namespace-access-tensor.test.mjs"
+      - "test/peer-storage-api-bridge.test.mjs"
+      - ".github/workflows/six-app-peer-runtime-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  peer-runtime-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # These focused suites use Node built-ins and local modules only.
+      # The repository has no npm lockfile, so no dependency install/cache is needed.
+      - name: Verify scoped runtime controls
+        run: node --test test/peer-runtime-controls.test.mjs
+      - name: Verify access tensor isolation
+        run: node --test test/namespace-access-tensor.test.mjs
+      - name: Verify authenticated six-app API bridge
+        run: node --test test/peer-storage-api-bridge.test.mjs
