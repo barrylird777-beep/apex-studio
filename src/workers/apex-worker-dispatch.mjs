@@ -124,7 +124,7 @@ export function createApexWorkerDispatcher({ store = apexPureStore } = {}) {
           jobId: job.id,
           workerId: assignment.id,
           status: transitioned ? "failed_or_requeued" : "lease_lost",
-          error: String(error?.message || error)
+          error: 'Worker task failed'
         };
       }
     }));
