@@ -1,5 +1,8 @@
 name: Final Buyer Readiness Verification
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
 
