@@ -27,9 +27,16 @@ export function normalizeModelTasks(value) {
 }
 
 const SENSITIVE_PROMPT_KEY = /(?:api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|bearer|client[_-]?secret|password|passwd|private[_-]?key|secret|credential|cookie|session|control[_-]?token)/i;
-function sanitizePromptValue(value, depth = 0) {
+function sanitizePromptString(value) {
+  return value.slice(0, 1200)
+    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----/gi, "[REDACTED PRIVATE KEY]")
+    .replace(/\\bBearer\\s+[A-Za-z0-9._~+\\/-]+=*/gi, "Bearer [REDACTED]")
+    .replace(/\\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|authorization|control[_-]?token)\\s*[:=]\\s*["']?[^\\s,"';&]+/gi, "$1=[REDACTED]")
+    .replace(/\\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,})\\b/g, "[REDACTED TOKEN]");
+}
+export function sanitizePromptValue(value, depth = 0) {
   if (value == null || typeof value === "boolean" || typeof value === "number") return value;
-  if (typeof value === "string") return value.slice(0, 1200);
+  if (typeof value === "string") return sanitizePromptString(value);
   if (depth >= 4) return "[depth-limited]";
   if (Array.isArray(value)) return value.slice(0, 20).map(item => sanitizePromptValue(item, depth + 1));
   if (typeof value !== "object") return `[${typeof value}]`;
@@ -40,7 +47,7 @@ function sanitizePromptValue(value, depth = 0) {
   }
   return output;
 }
-function safePromptJson(value, maxChars = 6000) {
+export function safePromptJson(value, maxChars = 6000) {
   let serialized;
   try { serialized = JSON.stringify(sanitizePromptValue(value)); }
   catch { return "[unavailable: input could not be serialized]"; }
