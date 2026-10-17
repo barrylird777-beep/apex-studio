@@ -80,3 +80,53 @@ test("production remains provider-neutral when canonical HTTPS hosts are not con
   );
   assert.equal(continued, true);
 });
+
+import { errorHandler } from "../src/api/middleware.mjs";
+import { redact } from "../src/core/privacy.mjs";
+
+test("redaction masks credential-like keys regardless of common casing and separators", () => {
+  const result = redact({
+    API_KEY: "marker-api",
+    access_token: "marker-access",
+    refreshToken: "marker-refresh",
+    clientSecret: "marker-client",
+    nested: [{ Authorization: "marker-auth", password: "marker-pass", harmless: "visible" }]
+  });
+  assert.equal(result.API_KEY, "[REDACTED]");
+  assert.equal(result.access_token, "[REDACTED]");
+  assert.equal(result.refreshToken, "[REDACTED]");
+  assert.equal(result.clientSecret, "[REDACTED]");
+  assert.equal(result.nested[0].Authorization, "[REDACTED]");
+  assert.equal(result.nested[0].password, "[REDACTED]");
+  assert.equal(result.nested[0].harmless, "visible");
+});
+
+test("API error responses and logs do not expose raw exception text or stack", () => {
+  const originalError = console.error;
+  const logged = [];
+  console.error = value => logged.push(String(value));
+  const response = {
+    code: 0,
+    payload: null,
+    status(code) { this.code = code; return this; },
+    json(value) { this.payload = value; return this; }
+  };
+  try {
+    errorHandler(Object.assign(new Error("credential marker-secret upstream body"), { statusCode: 500, code: "E_UPSTREAM" }),
+      { requestId: "req-safe" }, response, () => {});
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(response.code, 500);
+  assert.deepEqual(response.payload, { error: "Internal server error", requestId: "req-safe" });
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0].includes("marker-secret"), false);
+  assert.equal(logged[0].includes("upstream body"), false);
+  assert.equal(logged[0].includes("stack"), false);
+});
+
+test("arbitrary client error messages are not reflected to callers", () => {
+  const response = { code: 0, payload: null, status(code) { this.code = code; return this; }, json(value) { this.payload = value; return this; } };
+  errorHandler(Object.assign(new Error("internal credential marker"), { statusCode: 400 }), { requestId: "req-safe" }, response, () => {});
+  assert.deepEqual(response.payload, { error: "Bad request", requestId: "req-safe" });
+});
