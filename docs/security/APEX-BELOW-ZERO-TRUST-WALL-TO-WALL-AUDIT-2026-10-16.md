@@ -182,3 +182,15 @@ The candidate branch blocks legacy `ApexRingWAL` initialization/writes in produc
 The candidate branch's PostgreSQL package-script removal was reversed: the existing `db:generate`, `db:migrate`, `db:studio`, `db:seed`, worker/postgres migration, backup, and TeeVee migration/bootstrap entry points have been restored from `main`. No migration scripts or historical migration sources are to be deleted while their usage and recovery dependencies remain unverified.
 
 The legacy WAL directory/file values have also been retained in `.env.example` as comments explicitly labeled migration-only, rather than erased. They must not be enabled for production writes. This preserves migration provenance while the active path is being replaced.
+
+
+### Replica failure-domain enforcement tightened
+
+- `PeerContentAddressedStore` now defaults the required failure-domain count to the replica count and rejects multi-replica policies that permit fewer distinct failure domains than replicas.
+- Both peer runtime constructors now default `APEX_PEER_CAS_FAILURE_DOMAINS` to the configured replica count instead of `1`.
+- A negative test was added for a two-replica policy that would allow both copies to occupy the same failure domain.
+- This is a configuration/code guard only. It does not prove the configured labels correspond to physically independent machines, racks, accounts, regions, power domains, or administrators. Operator evidence is still required.
+
+### PR and CI state
+
+A draft PR has been opened to trigger CI and preserve review visibility: [PR #638](https://github.com/barrylird777-beep/apex-studio/pull/638). Current candidate head at this audit point: `f34a96946794d17f14541cac8b7791958ac35b9e`. The workflow runs are queued or pending and the combined status endpoint has no completed status records yet. No passing-check claim is justified. PR #638 is draft, open, and unmerged; it is explicitly not release-ready.
