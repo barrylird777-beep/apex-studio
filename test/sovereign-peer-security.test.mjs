@@ -44,6 +44,15 @@ test("peer replay guard returns a cached response without re-admitting the reque
   assert.deepEqual(guard.getReplayResponse("peer-a", envelope), response, "cached responses must be isolated copies");
 });
 
+test("peer replay response cache refuses oversized ACKs without dropping replay protection", () => {
+  const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000, maxCachedResponseBytes: 32, maxCachedResponseBytesPerEntry: 16 });
+  const envelope = { type: "cas.write", messageId: "12345678-1234-4234-9234-123456789abc" };
+  assert.equal(guard.admit("peer-a", envelope).allowed, true);
+  assert.equal(guard.rememberResponse("peer-a", envelope, { text: 'x'.repeat(100) }), false);
+  assert.equal(guard.admit("peer-a", envelope).allowed, false);
+  assert.equal(guard.getReplayResponse("peer-a", envelope), null);
+});
+
 test("sovereign envelope parser rejects oversized peer messages", async () => {
   const oversized = "x".repeat(65537) + "\n";
   await assert.rejects(readSovereignEnvelope(streamFor(oversized)), /exceeds size limit/);
