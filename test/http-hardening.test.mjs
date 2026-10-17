@@ -130,3 +130,9 @@ test("arbitrary client error messages are not reflected to callers", () => {
   errorHandler(Object.assign(new Error("internal credential marker"), { statusCode: 400 }), { requestId: "req-safe" }, response, () => {});
   assert.deepEqual(response.payload, { error: "Bad request", requestId: "req-safe" });
 });
+
+test("redaction masks inline bearer credentials and key-value secret assignments", () => {
+  assert.equal(redact("Authorization: Bearer fake-marker-token").includes("fake-marker-token"), false);
+  assert.equal(redact("api_key=fake-marker-api").includes("fake-marker-api"), false);
+  assert.equal(redact("password: 'fake-marker-password'").includes("fake-marker-password"), false);
+});
