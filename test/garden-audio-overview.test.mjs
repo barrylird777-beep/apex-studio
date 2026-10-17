@@ -21,6 +21,8 @@ test('Garden source normalization rejects duplicate IDs, credential URLs, and mi
   assert.throws(() => normalizeOverviewSources([{ ...sources()[0] }, { ...sources()[0] }]), /unique/);
   assert.throws(() => normalizeOverviewSources([{ ...sources()[0], url: 'https://user:pass@example.org' }]), /embedded credentials/);
   assert.throws(() => normalizeOverviewSources([{ ...sources()[0], notes: '' }]), /title and evidence notes/);
+  assert.throws(() => normalizeOverviewSources([{ ...sources()[0], notes: 'x'.repeat(3001) }]), /exceed the supported length/);
+  assert.throws(() => buildTwoHostOverviewPrompt('x'.repeat(241), sources()), /exceeds 240 characters/);
 });
 
 test('Garden audio parser accepts alternating cited hosts and rejects invented citations', () => {
