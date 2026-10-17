@@ -57,6 +57,14 @@ Shared backstage infrastructure may support these apps, but shared infrastructur
 - The original Grok adapter had the same caller-supplied `system`/`developer` role gap and forwarded system instructions without applying the shared outbound credential screening.
 - Grok supports optional web/X search tools; their invocation, permissions, data boundaries, and output handling require explicit audit.
 
+### Direct-route follow-up findings (main snapshot)
+- `/api/ai/generate-max` and `/api/ai/generate-grok` require control-plane auth for generation, but their paired `/status` routes are public and disclose provider configuration booleans and model names. This is lower-risk metadata, but it needs an explicit public/private decision and response-minimization review.
+- The direct OpenAI and Grok handlers log provider exception messages. Their HTTP 502 response bodies are generic, but internal logs can still receive provider or request-derived error strings. Review log redaction and avoid logging raw exception text unless demonstrably sanitized.
+- The direct OpenAI/Grok handlers accept caller-supplied `model`, `previous_response_id`, schema objects, schema descriptions, and Grok search-tool flags. Schema size is bounded, but there is no evident per-caller ownership binding for response IDs in these handlers, no fixed model/capability allowlist in the adapters, and no post-parse validation beyond `JSON.parse`. Assess whether response IDs can be reused across user/app contexts and enforce an ownership check or disable caller-supplied IDs if no trusted binding exists.
+- `/api/ai/generate` and `/api/ai/collaborate` are control-plane protected. They accept caller-provided system text and provider selection, and the collaborate route accepts caller context. Their complete data flow, per-provider allowlist, request size bounds, and cross-app authorization still require review.
+- `/api/ai/catalog`, `/api/ai/providers`, `/api/ai/status`, `/api/apex/universe`, and related status endpoints are public in the reviewed route excerpt. Their output includes provider names, configured state, model names, capability metadata, or execution policy. Treat this as an explicit exposure decision, not automatically as a vulnerability; remove operationally sensitive fields if public access is not intended.
+- The authentication middleware uses timing-safe comparison for supplied control tokens and supports owner sessions. Route authorization still needs per-route and per-app policy checks; authentication alone does not establish that a caller may access every app or tool.
+
 ### Unified router and mesh providers
 - `unified-ai-router.mjs` has a shared role policy that accepts only `user` and `assistant` caller turns; its separate caller `system` context is downgraded to a `user` turn rather than treated as trusted system instructions.
 - The unified router advertises OpenAI, Anthropic, Google, xAI, and multiple OpenAI-compatible/search/inference providers. The catalog is breadth of integrations, not proof of feature parity, model availability, provider-specific security, or sovereign inference.
@@ -130,7 +138,7 @@ A control must not be described as complete when only the first or second label 
 
 - PR #637: open, draft, unmerged.
 - Current changes: OpenAI Max and Grok role/instruction screening, Gemini and Claude mesh input/token-option bounds, and regression tests.
-- CI at last check: running/pending; final outcome not yet verified.
+- CI at last check: all seven workflow runs were still in progress; final outcome not yet verified. The Free Security Baseline secret-scanning job had succeeded, but its dependency audit was still running.
 - Production: no deployment or runtime configuration change made by this audit.
 - Overall security completion: **OPEN**.
 - Overall unified-intelligence product goal: **TARGET DIRECTION; not certified as delivered**.
