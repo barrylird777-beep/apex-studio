@@ -1,3 +1,4 @@
+import { PeerContentAddressedStore } from './peer-content-addressed-store.mjs';
 /**
  * Peer-only adapter for mesh manifests and runtime queue/state references.
  * It has no local disk, WAL, JSON-log, or legacy fallback.
@@ -7,8 +8,7 @@ const clone = value => value == null ? value : structuredClone(value);
 
 export class PeerMeshCasAdapter {
   constructor({ store, appNamespace } = {}) {
-    if (!store || typeof store.readRef !== 'function' || typeof store.writeRef !== 'function' ||
-        typeof store.listRefs !== 'function') throw new TypeError('PeerMeshCasAdapter requires a peer-backed reference store');
+    if (!(store instanceof PeerContentAddressedStore)) throw new TypeError('PeerMeshCasAdapter requires an actual PeerContentAddressedStore instance; duck-typed or marked substitutes are rejected');
     if (!validPart(appNamespace)) throw new TypeError('a canonical application namespace is required');
     this.store = store;
     this.appNamespace = appNamespace;
