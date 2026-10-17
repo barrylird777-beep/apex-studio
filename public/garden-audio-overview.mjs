@@ -10,10 +10,11 @@ export function normalizeOverviewSources(input) {
       throw new TypeError('Source ' + (index + 1) + ' must be an object.');
     }
     const id = String(source.id || '').trim();
-    const title = String(source.title || '').trim().slice(0, 200);
-    const notes = String(source.notes || '').trim().slice(0, 3000);
+    const title = String(source.title || '').trim();
+    const notes = String(source.notes || '').trim();
     if (!ID.test(id) || seen.has(id)) throw new TypeError('Source IDs must be unique and use 1–16 safe characters.');
     if (!title || !notes) throw new TypeError('Every source needs a title and evidence notes.');
+    if (title.length > 200 || notes.length > 3000) throw new RangeError('Source title or evidence notes exceed the supported length; shorten them explicitly before submitting.');
     let url;
     try { url = new URL(String(source.url || '')); }
     catch { throw new TypeError('Every source needs a valid HTTP(S) URL.'); }
@@ -26,8 +27,9 @@ export function normalizeOverviewSources(input) {
 }
 
 export function buildTwoHostOverviewPrompt(topic, inputSources) {
-  const subject = String(topic || '').trim().slice(0, 240);
+  const subject = String(topic || '').trim();
   if (!subject) throw new TypeError('A research topic is required.');
+  if (subject.length > 240) throw new RangeError('Research topic exceeds 240 characters.');
   const sources = normalizeOverviewSources(inputSources);
   const evidence = sources.map(source =>
     '[' + source.id + '] ' + source.title + '\nURL: ' + source.url + '\nEvidence notes: ' + source.notes
