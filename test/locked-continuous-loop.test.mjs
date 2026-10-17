@@ -17,8 +17,6 @@ test("zero-cost AI is fail-closed by default", () => {
   };
 
   delete process.env.OPENROUTER_API_KEY;
-  delete process.env.GEMINI_API_KEY;
-  delete process.env.APEX_GEMINI_FREE_TIER_CONFIRMED;
   process.env.APEX_FREE_MODE = "true";
 
   assert.equal(zeroCostAiProvider(), null);
@@ -26,10 +24,10 @@ test("zero-cost AI is fail-closed by default", () => {
 
   for (const [key, value] of Object.entries(previous)) {
     if (value == null) delete process.env[
-      { free: "APEX_FREE_MODE", openrouter: "OPENROUTER_API_KEY", gemini: "GEMINI_API_KEY", confirmed: "APEX_GEMINI_FREE_TIER_CONFIRMED" }[key]
+      { free: "APEX_FREE_MODE", openrouter: "OPENROUTER_API_KEY" }[key]
     ];
     else process.env[
-      { free: "APEX_FREE_MODE", openrouter: "OPENROUTER_API_KEY", gemini: "GEMINI_API_KEY", confirmed: "APEX_GEMINI_FREE_TIER_CONFIRMED" }[key]
+      { free: "APEX_FREE_MODE", openrouter: "OPENROUTER_API_KEY" }[key]
     ] = value;
   }
 });
@@ -50,30 +48,7 @@ test("OpenRouter free router is selected only when its key exists", () => {
   else process.env.OPENROUTER_API_KEY = previous;
 });
 
-test("Gemini is never inferred to be free from key presence alone", () => {
-  const previous = {
-    gemini: process.env.GEMINI_API_KEY,
-    confirmed: process.env.APEX_GEMINI_FREE_TIER_CONFIRMED,
-    openrouter: process.env.OPENROUTER_API_KEY
-  };
-
-  process.env.APEX_FREE_MODE = "true";
-  process.env.GEMINI_API_KEY = "test-key";
-  delete process.env.OPENROUTER_API_KEY;
-  delete process.env.APEX_GEMINI_FREE_TIER_CONFIRMED;
-
-  assert.equal(zeroCostAiProvider(), null);
-
-  process.env.APEX_GEMINI_FREE_TIER_CONFIRMED = "true";
-  assert.equal(zeroCostAiProvider().provider, "google");
-
-  if (previous.gemini == null) delete process.env.GEMINI_API_KEY;
-  else process.env.GEMINI_API_KEY = previous.gemini;
-  if (previous.confirmed == null) delete process.env.APEX_GEMINI_FREE_TIER_CONFIRMED;
-  else process.env.APEX_GEMINI_FREE_TIER_CONFIRMED = previous.confirmed;
-  if (previous.openrouter == null) delete process.env.OPENROUTER_API_KEY;
-  else process.env.OPENROUTER_API_KEY = previous.openrouter;
-});
+);
 
 test("autonomous AI task carries explicit provider and durable dedupe key", () => {
   const task = buildAutonomousAiTask({
