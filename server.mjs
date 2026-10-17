@@ -582,7 +582,7 @@ app.get('/api/apex/readiness', async (_req, res) => {
       checkedAt: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[apex-readiness]', error);
+    console.error('[apex-readiness]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Apex readiness unavailable' });
   }
 });
@@ -731,7 +731,7 @@ app.get('/api/apex/apps', async (_req, res) => {
     const apps = listApexApps();
     return res.json({ success: true, count: apps.length, apps, checkedAt: new Date().toISOString() });
   } catch (error) {
-    console.error('[apex-apps]', error);
+    console.error('[apex-apps]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Apex app registry unavailable' });
   }
 });
@@ -771,7 +771,7 @@ app.get('/api/apex/apps/:appId/status', async (req, res) => {
     }
     return res.status(404).json({ success: false, error: 'Unknown Apex app' });
   } catch (error) {
-    console.error('[apex-app-status]', id, error);
+    console.error('[apex-app-status]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, appId: id, error: 'Apex app status unavailable' });
   }
 });
@@ -849,7 +849,7 @@ app.get('/api/canon/trajectory', async (_req, res) => {
     validateCanonicalTrajectory(trajectory);
     return res.json({ success: true, trajectory });
   } catch (error) {
-    console.error('[canonical-trajectory]', error);
+    console.error('[canonical-trajectory]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Canonical trajectory unavailable' });
   }
 });
@@ -1312,7 +1312,7 @@ function beginGracefulShutdown(signal) {
     clearTimeout(shutdownTimer);
     if (error) {
       process.exitCode = 1;
-      console.error('[apex] HTTP drain failed', String(error?.message || error));
+      console.error('[apex] HTTP drain failed', JSON.stringify(safeFaultMetadata(error)));
       return;
     }
     try {
@@ -1334,7 +1334,7 @@ function beginGracefulShutdown(signal) {
     for (const result of workerShutdowns) {
       if (result.status === 'rejected') {
         process.exitCode = 1;
-        console.error('[apex] background service shutdown failed', String(result.reason?.message || result.reason));
+        console.error('[apex] background service shutdown failed', JSON.stringify(safeFaultMetadata(result.reason)));
       }
     }
     console.log('[apex] background services stopped', JSON.stringify({
@@ -1359,7 +1359,7 @@ app.post(
 
 
 if (durableWorkerEnabled()) {
-  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", error)); }, 15000);
+  const reclaimTimer = setInterval(() => { void requeueExpiredWorkerTasks().catch(error => console.error("[worker-store] reclaim failed", JSON.stringify(safeFaultMetadata(error)))); }, 15000);
   reclaimTimer.unref?.();
 }
 const geminiMeshProvider = new GeminiMeshProvider();
@@ -1900,7 +1900,7 @@ app.post('/api/rapid/preview', requirePublicRequestSlot, async (req, res) => {
     });
     return res.status(202).json({ success: true, orderId: result.id, status: 'queued', statusUrl: `/api/rapid/orders/${encodeURIComponent(result.id)}` });
   } catch (error) {
-    console.error('[rapid-preview]', error);
+    console.error('[rapid-preview]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Unable to queue preview' });
   }
 });
@@ -1948,7 +1948,7 @@ app.post('/api/rapid/orders', requirePublicRequestSlot, async (req, res) => {
       statusUrl: `/api/rapid/orders/${encodeURIComponent(orderId)}`
     });
   } catch (error) {
-    console.error('[rapid-order]', error);
+    console.error('[rapid-order]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(502).json({ success: false, error: error.message || 'Unable to create checkout' });
   }
 });
@@ -1977,7 +1977,7 @@ app.get('/api/rapid/assets/:id', async (req, res) => {
     res.setHeader('ETag', '"' + digest + '"');
     return res.status(200).send(bytes);
   } catch (error) {
-    console.error('[rapid-asset]', error?.message || error);
+    console.error('[rapid-asset]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success:false, error:'Remote asset storage unavailable' });
   }
 });
@@ -2000,7 +2000,7 @@ app.get('/api/rapid/orders/:id', async (req, res) => {
       updatedAt: task.updated_at
     });
   } catch (error) {
-    console.error('[rapid-order-status]', error);
+    console.error('[rapid-order-status]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Order status unavailable' });
   }
 });
@@ -2060,7 +2060,7 @@ app.post('/api/episodes/produce', requireControlPlaneAuth, async (req, res) => {
       : code === 'RENDER_QC_FAILED' ? 422
       : error instanceof TypeError ? 400
       : 500;
-    console.error('[kernelvision-episode] production failed:', code || 'UNCLASSIFIED', error?.message || error);
+    console.error('[kernelvision-episode] production failed:', code || 'UNCLASSIFIED', JSON.stringify(safeFaultMetadata(error)));
     return res.status(status).json({
       success: false,
       code: code || 'KERNELVISION_PRODUCTION_FAILED',
@@ -2097,7 +2097,7 @@ app.get('/api/episodes/:episodeId/:artifactId/download', requireControlPlaneAuth
     if (!info.isFile()) return res.status(404).json({ success: false, error: 'Episode export file not found' });
     return res.download(actual, episodeId + '.mp4');
   } catch (error) {
-    console.error('[kernelvision-episode-download] failed:', error?.message || error);
+    console.error('[kernelvision-episode-download] failed:', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Unable to retrieve the episode export' });
   }
 });
@@ -2108,7 +2108,7 @@ app.use('/api/bible-production', requireControlPlaneAuth, async (req, res, next)
     const { default: router } = await import('./src/api/bible-production.mjs');
     return router(req, res, next);
   } catch (error) {
-    console.error('[bible-production] unavailable:', error?.message || error);
+    console.error('[bible-production] unavailable:', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({
       success: false,
       error: 'Bible production service unavailable',
@@ -2621,7 +2621,7 @@ async function checkInferenceSwarmHealth() {
 }
 
 function triggerSwarmFallback(error) {
-  console.error('[supervisor] inference swarm unhealthy:', error?.message || String(error));
+  console.error('[supervisor] inference swarm unhealthy:', JSON.stringify(safeFaultMetadata(error)));
   if (!meshWorkerSupervisor.started) meshWorkerSupervisor.start();
   for (const provider of inferenceProviders) {
     if (provider.enabled()) providerCooldowns.delete(provider.id);
@@ -2901,7 +2901,7 @@ app.post('/api/audio', requireControlPlaneAuth, async (req, res) => {
     });
     return res.send(buffer);
   } catch (error) {
-    console.error('[audio-fatal]', error);
+    console.error('[audio-fatal]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(502).json({ success: false, error: error.message });
   }
 });
@@ -2969,7 +2969,7 @@ app.post('/api/media/image', requireControlPlaneAuth, async (req, res) => {
     const seed = Number.isFinite(Number(req.body?.seed)) ? Number(req.body.seed) : Math.floor(Math.random() * 9999999);
     return await proxyPollinationsMedia('image', prompt, { model, width, height, seed, nologo: 'true' }, res);
   } catch (error) {
-    console.error('[media-image-fatal]', error);
+    console.error('[media-image-fatal]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(502).json({ success: false, error: error.message });
   }
 });
@@ -3010,7 +3010,7 @@ app.post('/api/media/video', requireControlPlaneAuth, async (req, res) => {
       bytes: buffer.length
     });
   } catch (error) {
-    console.error('[media-video-fatal]', error);
+    console.error('[media-video-fatal]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(502).json({ success: false, error: error.message });
   }
 });
@@ -3042,7 +3042,7 @@ app.get('/api/project', requireControlPlaneAuth, async (_req, res) => {
     const state = await getProjectState();
     return res.json({ success: true, ...state });
   } catch (error) {
-    console.error('[project-state-fatal]', error);
+    console.error('[project-state-fatal]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: 'Project state unavailable' });
   }
 });
@@ -3174,7 +3174,7 @@ app.post('/api/render/export', requireControlPlaneAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[render-export-fatal]', error);
+    console.error('[render-export-fatal]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(500).json({ success: false, error: error.message });
   } finally {
     for (const file of [stitchedVideoPath, masteredAudioPath, finalExportPath]) {
@@ -3465,9 +3465,9 @@ async function routeWithSwarm(payload) {
   return result;
 }
 
-void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', error));
+void initializeStudioAdBlock().catch(error => console.error('[adblock] initialization failed', JSON.stringify(safeFaultMetadata(error))));
 if (String(process.env.APEX_BROADCAST_AUTOSTART || 'false').toLowerCase() === 'true') {
-  void infiniteBroadcast.start().catch(error => console.error('[broadcast] autostart failed:', error?.message || error));
+  void infiniteBroadcast.start().catch(error => console.error('[broadcast] autostart failed:', JSON.stringify(safeFaultMetadata(error))));
 }
 
 
@@ -3475,7 +3475,7 @@ async function runInlineRapidTask(task) {
   const leaseMs = Math.max(15000, Number(process.env.APEX_RAPID_INLINE_LEASE_MS || 45000));
   const heartbeat = setInterval(() => {
     void heartbeatWorkerTask(task.id, leaseMs, task.lease_token, task.lease_fence).catch(error => {
-      console.error('[rapid-inline-worker] heartbeat failed:', error?.message || error);
+      console.error('[rapid-inline-worker] heartbeat failed:', JSON.stringify(safeFaultMetadata(error)));
     });
   }, Math.max(5000, Math.floor(leaseMs / 3)));
   heartbeat.unref?.();
@@ -3489,7 +3489,7 @@ async function runInlineRapidTask(task) {
     await failWorkerTask(task.id, error, task.lease_token, task.lease_fence).catch(failure => {
       console.error('[rapid-inline-worker] failure update failed:', failure?.message || failure);
     });
-    console.error('[rapid-inline-worker] task failed:', task.id, error?.message || error);
+    console.error('[rapid-inline-worker] task failed:', JSON.stringify(safeFaultMetadata(error)));
   } finally {
     clearInterval(heartbeat);
   }
@@ -3516,7 +3516,7 @@ if (durableWorkerEnabled()) {
         if (!claimedAny) await waitForShutdownOrDelay(1500);
       } catch (error) {
         if (shuttingDown) break;
-        console.error('[rapid-inline-worker] poll failed; backing off:', error?.message || error);
+        console.error('[rapid-inline-worker] poll failed; backing off:', JSON.stringify(safeFaultMetadata(error)));
         const jitter = Math.floor(Math.random() * Math.max(250, dbFailureBackoffMs * 0.25));
         await waitForShutdownOrDelay(Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs) + jitter);
         dbFailureBackoffMs = Math.min(maxDbFailureBackoffMs, dbFailureBackoffMs * 2);
@@ -3526,7 +3526,7 @@ if (durableWorkerEnabled()) {
   rapidInlineLoopPromise = rapidInlineLoop();
   rapidInlineLoopPromise.catch(error => {
     process.exitCode = 1;
-    console.error('[rapid-inline-worker] loop stopped with error:', error?.message || error);
+    console.error('[rapid-inline-worker] loop stopped with error:', JSON.stringify(safeFaultMetadata(error)));
   });
 }
 
@@ -3596,7 +3596,7 @@ app.get('/api/engine-apex/chat-runtime/state', requireControlPlaneAuth, async (r
     const { getChatRuntimeState } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.json({ success: true, ...(await getChatRuntimeState(req.query?.scope || 'default')) });
   } catch (error) {
-    console.error('[engine-apex-chat-runtime-state]', error);
+    console.error('[engine-apex-chat-runtime-state]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Chat runtime state unavailable' });
   }
 });
@@ -3626,7 +3626,7 @@ app.get('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async (
     const { listChatRuntimeEvents } = await import('./src/core/engine-apex-chat-runtime.mjs');
     return res.json({ success: true, ...(await listChatRuntimeEvents(req.query?.scope || 'default', req.query?.limit)) });
   } catch (error) {
-    console.error('[engine-apex-chat-runtime-events]', error);
+    console.error('[engine-apex-chat-runtime-events]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Chat runtime events unavailable' });
   }
 });
@@ -3644,7 +3644,7 @@ app.post('/api/engine-apex/chat-runtime/events', requireControlPlaneAuth, async 
       }))
     });
   } catch (error) {
-    console.error('[engine-apex-chat-runtime-event]', error);
+    console.error('[engine-apex-chat-runtime-event]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'Chat runtime event unavailable' });
   }
 });
@@ -3672,7 +3672,7 @@ app.get('/api/engine-apex/snapshot', requireControlPlaneAuth, async (_req, res) 
     const { getEngineSnapshot } = await import('./src/core/engine-apex.mjs');
     return res.json({ success: true, ...(await getEngineSnapshot()) });
   } catch (error) {
-    console.error('[engine-apex-snapshot]', error);
+    console.error('[engine-apex-snapshot]', JSON.stringify(safeFaultMetadata(error)));
     return res.status(503).json({ success: false, error: 'EngineApex evidence is unavailable' });
   }
 });
