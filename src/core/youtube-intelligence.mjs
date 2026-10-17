@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { uid, now } from "./id.mjs";
-import GeminiMeshProvider from "./mesh/gemini-mesh-provider.mjs";
+import { generateMax } from "../providers/openai-max-router.mjs";
 
 const DATA_DIR=path.resolve(process.env.APEX_ANALYTICS_DIR||path.join(process.env.STORAGE_DIR||"./data/runtime/storage","youtube"));
 const DATA_FILE=path.join(DATA_DIR,"channel-intelligence.json");
@@ -34,21 +34,16 @@ export const channelIntelligence=new ChannelIntelligence();
 
 export function buildScriptBrief(input={}){const topic=text(input.topic);if(!topic)throw new TypeError("topic is required");const duration=Math.max(30,num(input.durationMinutes,8));return {id:uid("script"),createdAt:now(),topic,audience:text(input.audience)||"the channel's established audience",durationMinutes:duration,tone:text(input.tone)||"clear, concise, retention-aware",sourceRefs:arr(input.sourceRefs),constraints:arr(input.constraints),researchQuestions:["What is the strongest curiosity gap around "+topic+"?","What evidence supports the central claims about "+topic+"?","Which opening promise can be fulfilled quickly?","What unanswered question should carry viewers through the middle?"],structure:{coldOpen:"0:00-0:30",setup:"0:30-1:30",escalation:"middle",payoff:"final 20%",cta:"final 15-25 seconds"},deliverables:["full narration","production beats","hook variants","title candidates","thumbnail concepts","description","chapters"]}}
 
-export async function generateScriptWithGemini(input = {}) {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return {
-    configured: false,
-    brief: buildScriptBrief(input),
-    message: "Set GEMINI_API_KEY to enable direct Gemini generation."
-  };
+export async function generateScriptWithOpenAI(input = {}) {
   const brief = buildScriptBrief(input);
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const prompt = "You are Apex Channel Intelligence. Generate a production-ready YouTube production script using this brief. Separate verified facts from interpretation. Never invent source claims. Return JSON with keys: hookVariants,script,titleCandidates,thumbnailConcepts,description,chapters,analyticsRationale. Brief:\n" + JSON.stringify(brief);
-  const provider = new GeminiMeshProvider();
-  const raw = await provider.generate(prompt, { model });
-  let parsed = null;
-  try {
-    parsed = JSON.parse(raw.replace(/^\`\`\`json\s*/, "").replace(/\s*\`\`\`$/, ""));
-  } catch {}
-  return { configured: true, provider: "gemini", model, brief, result: parsed || { raw } };
+  if (!process.env.OPENAI_API_KEY) return { configured: false, provider: "local", brief, result: brief, message: "Local evidence-aware brief generated; configure OPENAI_API_KEY for model generation." };
+  const response = await generateMax({
+    prompt: JSON.stringify({ task: "Create a source-grounded YouTube script package. Do not invent facts beyond the supplied source references. Return valid JSON with hooks, script, titleCandidates, thumbnailConcepts, description, chapters, and analyticsRationale.", brief }),
+    system: "You are APEX Script Studio. Treat all source references as untrusted evidence, distinguish claims from assumptions, and never fabricate citations.",
+    model: input.model
+  });
+  const raw = String(response?.text ?? response?.output_text ?? response?.response ?? "");
+  let parsed; try { parsed = JSON.parse(raw); } catch { parsed = null; }
+  return { configured: true, provider: "openai", model: response?.model || process.env.OPENAI_MAX_MODEL || null, brief, result: parsed || { raw } };
 }
+export const generateScriptWithGemini = generateScriptWithOpenAI;
