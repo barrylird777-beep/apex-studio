@@ -111,6 +111,8 @@ test("redaction masks credential-like keys regardless of common casing and separ
   assert.equal(result.nested[0].harmless, "visible");
   assert.equal(result.nested[0].secretaryName, "visible-too");
   assert.equal(result.nested[0].tokenizedLabel, "also-visible");
+  assert.equal(result.nested[0].token_in, "asset-a");
+  assert.equal(result.nested[0].token_out, "asset-b");
 });
 
 test("API error responses and logs do not expose raw exception text or stack", () => {
