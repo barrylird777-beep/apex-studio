@@ -284,7 +284,7 @@ async function migrateLegacySqliteIfPresent() {
     if (db) await closeLegacySqlite(db);
     const result = { status: 'failed', source: 'legacy-sqlite-read-only', error: clean(error?.message || error, 1000), attemptedAt: now() };
     await sovereignAppFabric.put(APP, MIGRATION_KEY, { recordType: 'migration-marker', ...result }).catch(() => {});
-    console.warn('[bible-production] legacy SQLite import deferred:', result.error);
+    console.warn('[bible-production] legacy SQLite import deferred');
     return result;
   }
 }
