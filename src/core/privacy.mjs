@@ -53,3 +53,100 @@ export function redact(value,keys=["token","password","secret","apiKey","authori
   }
   return value;
 }
+
+/**
+ * Data-product governance primitives. Metadata checks are not a substitute for
+ * authentication, enforceable storage/query ACLs, or legal review.
+ */
+const DATA_CLASSIFICATIONS = new Set(["public", "internal", "confidential", "restricted"]);
+const DATA_PURPOSES = new Set(["personal", "product", "analytics", "research", "commercial-sale", "support"]);
+
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validIsoDate(value) {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+export function validateDataProductManifest(manifest) {
+  const errors = [];
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    return { valid: false, errors: ["manifest must be an object"] };
+  }
+  for (const key of ["datasetId", "ownerTenantId", "appNamespace", "title", "source", "schemaVersion"]) {
+    if (!nonEmptyString(manifest[key])) errors.push(key + " is required");
+  }
+  if (!DATA_CLASSIFICATIONS.has(manifest.classification)) errors.push("classification is invalid");
+  if (!manifest.provenance || !nonEmptyString(manifest.provenance.sourceType) || !validIsoDate(manifest.provenance.collectedAt)) {
+    errors.push("provenance.sourceType and valid provenance.collectedAt are required");
+  }
+  if (!manifest.license || !nonEmptyString(manifest.license.id) ||
+      typeof manifest.license.commercialUse !== "boolean" ||
+      typeof manifest.license.redistribution !== "boolean") {
+    errors.push("license id, commercialUse, and redistribution are required");
+  }
+  if (!manifest.retention || !validIsoDate(manifest.retention.expiresAt)) {
+    errors.push("retention.expiresAt must be a valid date");
+  }
+  if (typeof manifest.personalData !== "boolean") errors.push("personalData must be explicit");
+  if (manifest.personalData) {
+    if (!manifest.consent || !nonEmptyString(manifest.consent.purpose) ||
+        !["granted", "not-required"].includes(manifest.consent.status)) {
+      errors.push("personal data requires explicit consent status and purpose");
+    } else if (manifest.consent.status === "granted" &&
+        !nonEmptyString(manifest.consent.evidenceRef)) {
+      errors.push("granted consent requires an evidenceRef (the reference itself must be verified by the serving system)");
+    } else if (manifest.consent.status === "not-required" &&
+        !nonEmptyString(manifest.consent.legalBasis)) {
+      errors.push("consent marked not-required requires a documented legalBasis");
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+export function evaluateDataProductAccess(manifest, request = {}, now = new Date()) {
+  const validation = validateDataProductManifest(manifest);
+  const result = (status, reason, choices = ["request-access", "review-source-rights", "stop"], extra = {}) =>
+    ({ status, reason, choices: [...choices], ...extra });
+
+  if (!validation.valid) return result("blocked", "manifest-invalid", ["fix-manifest", "stop"], { errors: validation.errors });
+  if (!nonEmptyString(request.tenantId) || request.tenantId !== manifest.ownerTenantId) {
+    return result("blocked", "tenant-isolation");
+  }
+  if (!nonEmptyString(request.appNamespace) || request.appNamespace !== manifest.appNamespace) {
+    return result("blocked", "app-namespace-isolation");
+  }
+  if (!DATA_PURPOSES.has(request.purpose)) {
+    return result("needs_review", "purpose-must-be-declared", ["declare-purpose", "stop"]);
+  }
+  if (Date.parse(manifest.retention.expiresAt) <= now.getTime()) {
+    return result("blocked", "retention-expired", ["renew-retention-if-authorized", "delete-or-quarantine", "stop"]);
+  }
+  if (request.purpose === "commercial-sale" && (!manifest.license.commercialUse || !manifest.license.redistribution)) {
+    return result("blocked", "license-does-not-authorize-commercial-redistribution", ["obtain-commercial-rights", "exclude-dataset", "stop"]);
+  }
+  if (manifest.personalData && !["granted", "not-required"].includes(manifest.consent.status)) {
+    return result("blocked", "personal-data-consent-not-established", ["establish-valid-consent-or-legal-basis", "exclude-personal-data", "stop"]);
+  }
+  if (["confidential", "restricted"].includes(manifest.classification) &&
+      (!nonEmptyString(manifest.accessGrantId) || request.grantId !== manifest.accessGrantId)) {
+    return result("needs_review", "explicit-data-owner-grant-required", ["request-owner-grant", "use-authorized-aggregate", "stop"]);
+  }
+  return result("allowed", "manifest-policy-checks-passed", ["proceed", "stop"], {
+    disclaimer: "Metadata checks passed; serving-layer identity, grants, licensing and row/object ACLs must still be enforced."
+  });
+}
+
+export function createDataProductReceipt({ datasetId, tenantId, appNamespace, action, actorId, purpose, sourceRefs = [], policyVersion = "1" } = {}) {
+  for (const [key, value] of Object.entries({ datasetId, tenantId, appNamespace, action, actorId, purpose })) {
+    if (!nonEmptyString(value)) throw new TypeError(key + " is required for a data-product receipt");
+  }
+  if (!Array.isArray(sourceRefs) || sourceRefs.some(ref => !nonEmptyString(ref))) {
+    throw new TypeError("sourceRefs must be an array of non-empty source references");
+  }
+  return Object.freeze({
+    datasetId, tenantId, appNamespace, action, actorId, purpose,
+    sourceRefs: [...sourceRefs], policyVersion, recordedAt: new Date().toISOString()
+  });
+}
