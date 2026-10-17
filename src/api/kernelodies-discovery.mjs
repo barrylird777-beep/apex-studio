@@ -77,7 +77,7 @@ export function createKernelodiesDiscoveryRouter({
       const invalid = error instanceof RangeError;
       return res.status(invalid ? 400 : 502).json({
         success: false,
-        error: String(error?.message || error).slice(0, 220)
+        error: invalid ? "Invalid request" : "Upstream request failed"
       });
     }
   });
