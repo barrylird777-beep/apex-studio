@@ -9,7 +9,7 @@ import { yamux } from '@libp2p/yamux';
 import { bootstrap } from '@libp2p/bootstrap';
 import { kadDHT } from '@libp2p/kad-dht';
 import { identify } from '@libp2p/identify';
-import { createPeerSecurityGuard } from './sovereign-peer-security.mjs';
+import { createPeerSecurityGuard, sealPeerEnvelope, verifyPeerEnvelope } from './sovereign-peer-security.mjs';
 import { createPeerIngressGuard } from './peer-ingress-guard.mjs';
 import { multiaddr as parseMultiaddr } from '@multiformats/multiaddr';
 
@@ -322,6 +322,11 @@ export async function createSovereignPeer({ onEnvelope, keyFile = PEER_KEY_FILE 
         return;
       }
       const envelope = await readSovereignEnvelope(stream);
+      const envelopeVerification = verifyPeerEnvelope(envelope, remotePeerId);
+      if (!envelopeVerification.allowed) {
+        await sendSovereignEnvelope(stream, { accepted: false, error: envelopeVerification.reason });
+        return;
+      }
       const admission = peerSecurity.admit(remotePeerId, envelope);
       if (!admission.allowed) {
         await sendSovereignEnvelope(stream, { accepted: false, error: admission.reason });
@@ -368,7 +373,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
   // Every wire-level request receives a fresh replay-detection identifier.
   // Retries reuse this identifier so a request that was already processed cannot
   // be applied a second time after an ACK/transport failure.
-  const outboundEnvelope = { ...envelope, messageId: randomUUID() };
+  const outboundEnvelope = sealPeerEnvelope(envelope, localPeerId, Date.now());
   const admission = outboundPeerSecurity.admit(destinationPeerId, outboundEnvelope);
   if (!admission.allowed) throw new Error(admission.reason);
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
