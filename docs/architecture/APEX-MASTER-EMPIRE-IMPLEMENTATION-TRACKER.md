@@ -13,6 +13,7 @@
 - **KashKorner contingency audit:** authenticated structured-contract/invoice audit endpoint and UI; missing-term, reference, amount, currency, date, and contingency-fee checks; no persistence or external transmission by the audit route.
 - **GardenApex audio overview:** source-constrained two-host script generation, supplied-source citation validation, and browser speech-synthesis playback; notes are disclosed as sent to the configured AI provider, URLs are not fetched, and no audio file is created.
 - **Apex Assistant overlay:** authenticated text prompts, browser speech input when supported, interruptible speech playback, and text fallback; it does not persist conversation history. This is not yet true full-duplex voice.
+- **Signed release policy:** Ed25519-signed content-addressed release manifests, artifact/path validation, monotonic release sequencing, and separately signed rollback authorization to a known manifest. The helper is not yet wired into the live deployment/update path.
 - **Regression coverage:** focused AI-rotation, peer-blob, and KashKorner audit test commands are registered; production storage and peer-security tests are included in the test suite.
 
 ## Verification state
@@ -28,7 +29,7 @@
 2. Provide authenticated, independently operated peer machines and prove durable writes, restart recovery, peer-loss reads, re-replication, and repair using receipts.
 3. Replace sequential multi-peer mutable-reference writes with a reviewed consensus/leader-fencing protocol; a replica majority alone is not proof of linearizable CAS.
 4. Finish and test the full blueprint product capabilities: bounties/spec-ad/retainer fulfillment, continuity mesh, true full-duplex assistant behavior, source-fetching/cited research and audio export, media/metaverse tools, and mobile/device compute.
-5. Complete platform-specific trust tiers, revocation/key rotation, threshold governance, privacy-preserving telemetry, and content-addressed update rollback.
+5. Complete platform-specific trust tiers, revocation/key rotation, threshold governance, privacy-preserving telemetry, and integration of signed release/rollback verification into the live update path.
 6. Run required checks on the exact final PR head and independently verify production behavior before enabling checkout or retiring historical persistence sources.
 
 ## Safety constraints retained
