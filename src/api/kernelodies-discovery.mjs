@@ -114,7 +114,7 @@ export function createKernelodiesDiscoveryRouter({
       await fabric.put("kernelodies", discoveryId, discovery);
       return res.status(201).json({ success: true, duplicate: false, discovery });
     } catch (error) {
-      return res.status(400).json({ success: false, error: String(error?.message || error).slice(0, 220) });
+      return res.status(400).json({ success: false, error: "Unable to save discovery; verify the submitted fields and retry." });
     }
   });
 
