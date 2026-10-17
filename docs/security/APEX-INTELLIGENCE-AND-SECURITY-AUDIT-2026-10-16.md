@@ -60,15 +60,15 @@ Shared backstage infrastructure may support these apps, but shared infrastructur
 ### Unified router and mesh providers
 - `unified-ai-router.mjs` has a shared role policy that accepts only `user` and `assistant` caller turns; its separate caller `system` context is downgraded to a `user` turn rather than treated as trusted system instructions.
 - The unified router advertises OpenAI, Anthropic, Google, xAI, and multiple OpenAI-compatible/search/inference providers. The catalog is breadth of integrations, not proof of feature parity, model availability, provider-specific security, or sovereign inference.
-- The direct Gemini mesh adapter and direct Claude mesh adapter both screen prompt/system payloads and use guarded provider hosts, but the reviewed implementations did not show the same explicit prompt/system character bounds present in the unified router and OpenAI/Grok adapters. Their model, output-token, thinking/effort option bounds and caller reachability need review before treating them as equivalent security boundaries.
+- On the audited `main` snapshot, the direct Gemini mesh adapter and direct Claude mesh adapter screened prompt/system payloads and used guarded provider hosts, but did not explicitly bound prompt/system length or caller-supplied output-token counts. The candidate branch now adds prompt/system bounds, token-count ceilings, and allowlists for Gemini thinking level and Claude effort. These changes remain unverified until the relevant CI checks finish and code review confirms the limits match provider behavior.
 - The shared router's Anthropic and Gemini adapters transform normalized messages into provider-specific system fields. Continue to verify that no direct call path can bypass `messagesOf()` and that provider-specific schema/output behavior is validated.
 - The outbound gateway detects common credential formats and secret-bearing field names. This is useful screening, not proof that all secrets or personal data can be recognized; data minimization and access controls remain necessary.
 
 ### Draft implementation in PR #637
-The isolated branch currently includes changes to both OpenAI Max and Grok adapters:
-- accept only `user` and `assistant` roles in caller-supplied message arrays;
-- bound separately supplied system instructions and screen them through the existing outbound credential scanner;
-- add focused regression tests for both adapters.
+The isolated branch currently includes changes to four provider adapters:
+- OpenAI Max and Grok accept only `user` and `assistant` roles in caller-supplied message arrays; separately supplied system instructions are length-bounded and screened through the existing outbound credential scanner.
+- Gemini mesh and Claude mesh now bound prompt/system lengths and clamp requested output token counts; Gemini thinking level and Claude effort values are allowlisted.
+- Focused regression tests cover role injection, oversized prompts/instructions, and credential-like strings across these adapters.
 
 This is a narrow boundary correction, not completion of the broader security program. The latest CI run was still in progress/pending when last checked. Do not mark tests or CI as passing until final results are read back. PR #637 remains draft and unmerged.
 
@@ -129,7 +129,7 @@ A control must not be described as complete when only the first or second label 
 ## 5. Immediate status
 
 - PR #637: open, draft, unmerged.
-- Current changes: OpenAI Max and Grok input-role/instruction-screening consistency plus regression tests.
+- Current changes: OpenAI Max and Grok role/instruction screening, Gemini and Claude mesh input/token-option bounds, and regression tests.
 - CI at last check: running/pending; final outcome not yet verified.
 - Production: no deployment or runtime configuration change made by this audit.
 - Overall security completion: **OPEN**.
