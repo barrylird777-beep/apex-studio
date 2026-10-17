@@ -64,18 +64,28 @@ export function createPeerSecurityGuard({
   now = () => Date.now(),
   windowMs = positiveInteger(process.env.APEX_PEER_RATE_WINDOW_MS, DEFAULT_WINDOW_MS, 3_600_000),
   limit = positiveInteger(process.env.APEX_PEER_RATE_LIMIT, DEFAULT_LIMIT, 100_000),
-  replayTtlMs = REPLAY_TTL_MS
+  replayTtlMs = REPLAY_TTL_MS,
+  maxCachedResponseBytes = 8 * 1024 * 1024,
+  maxCachedResponseBytesPerEntry = 64 * 1024
 } = {}) {
   const windows = new Map();
   const replay = new Map();
+  let cachedResponseBytes = 0;
+  const totalResponseBudget = positiveInteger(maxCachedResponseBytes, 8 * 1024 * 1024, 64 * 1024 * 1024);
+  const singleResponseBudget = positiveInteger(maxCachedResponseBytesPerEntry, 64 * 1024, 1024 * 1024);
 
   function pruneReplay(time) {
     for (const [key, entry] of replay) {
-      if (entry.expiresAt <= time) replay.delete(key);
+      if (entry.expiresAt <= time) {
+        cachedResponseBytes -= entry.responseBytes || 0;
+        replay.delete(key);
+      }
     }
     while (replay.size >= MAX_REPLAY_ENTRIES) {
       const oldest = replay.keys().next().value;
       if (oldest === undefined) break;
+      const entry = replay.get(oldest);
+      cachedResponseBytes -= entry?.responseBytes || 0;
       replay.delete(oldest);
     }
   }
@@ -109,7 +119,7 @@ export function createPeerSecurityGuard({
       pruneReplay(time);
       const replayKey = peer + ':' + id;
       if (replay.has(replayKey)) return { allowed: false, reason: 'replayed message rejected', replayKey };
-      replay.set(replayKey, { expiresAt: time + Math.max(1000, replayTtlMs), response: null });
+      replay.set(replayKey, { expiresAt: time + Math.max(1000, replayTtlMs), response: null, responseBytes: 0 });
     }
     return { allowed: true };
   }
@@ -119,7 +129,16 @@ export function createPeerSecurityGuard({
     if (typeof id !== 'string' || !id) return false;
     const entry = replay.get(String(peerId) + ':' + id);
     if (!entry) return false;
-    entry.response = structuredClone(response);
+    let encoded;
+    try { encoded = JSON.stringify(response); } catch { return false; }
+    if (typeof encoded !== 'string') return false;
+    const bytes = Buffer.byteLength(encoded);
+    if (bytes > singleResponseBudget) return false;
+    const previousBytes = entry.responseBytes || 0;
+    if (cachedResponseBytes - previousBytes + bytes > totalResponseBudget) return false;
+    entry.response = JSON.parse(encoded);
+    entry.responseBytes = bytes;
+    cachedResponseBytes += bytes - previousBytes;
     return true;
   }
 
