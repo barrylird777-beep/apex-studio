@@ -71,7 +71,8 @@ export function createStreamRelay({
     try{
       const probe=await probeInput({ffprobePath,ingest:ingestSource,timeoutMs:Math.max(1000,Number(probeTimeoutMs)||DEFAULT_PROBE_TIMEOUT_MS)});
       const route=selectRelayMode(probe,{preferNvenc,enhancedRtmp});
-      state.probe=probe;
+      // Keep only codec facts needed for decisions; ffprobe metadata can contain the full ingest URL.
+      state.probe={streams:(Array.isArray(probe.streams)?probe.streams:[]).map(stream=>({codec_type:stream.codec_type,codec_name:stream.codec_name}))};
       state.mode=route.mode;
       state.encoder=route.encoder;
       state.lastProbeAt=new Date().toISOString();
@@ -84,8 +85,8 @@ export function createStreamRelay({
       state.startedAt ||= new Date().toISOString();
       child=spawn(ffmpegPath,args,{stdio:['ignore','ignore','pipe']});
       state.pid=child.pid??null;
-      child.stderr.on('data',chunk=>{const s=String(chunk).trim();if(/error|failed|refused|broken pipe|invalid/i.test(s))state.lastError=s.slice(-2000);});
-      child.once('error',error=>{state.lastError=String(error?.message||error);});
+      child.stderr.on('data',chunk=>{const s=String(chunk).trim();if(/error|failed|refused|broken pipe|invalid/i.test(s))state.lastError='Media relay process reported an error';});
+      child.once('error',()=>{state.lastError='Media relay process failed to start';});
       child.once('exit',(code,signal)=>{
         state.lastExitCode=code;state.lastSignal=signal;state.pid=null;child=null;
         if(stopping){state.status='stopped';return;}
@@ -94,7 +95,7 @@ export function createStreamRelay({
         timer.unref?.();
       });
     }catch(error){
-      state.lastError=String(error?.message||error);
+      state.lastError='Media relay probe failed';
       state.status='probe-failed';
       if(!stopping){
         clear();
