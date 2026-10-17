@@ -44,7 +44,7 @@ export function createPhoneControlPlane({ getHealth, getNetwork } = {}) {
   router.get('/storage', async (req, res) => {
     try {
       return res.json({ success: true, ...(await listCloudObjects({ prefix: PHONE_PREFIX, limit: req.query.limit, continuationToken: req.query.cursor })) });
-    } catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    } catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/upload-url', async (req, res) => {
@@ -53,53 +53,53 @@ export function createPhoneControlPlane({ getHealth, getNetwork } = {}) {
       return res.json({ success: true, ...(await createUploadUrl({ filename: body.filename, contentType: body.contentType, size: body.size, prefix: PHONE_PREFIX })) });
     } catch (error) {
       const status = Number(error?.status);
-      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503).json({ success: false, error: String(error?.message || error) });
+      return res.status(Number.isInteger(status) && status >= 400 && status < 600 ? status : 503).json({ success: false, error: 'Request failed' });
     }
   });
 
   router.post('/storage/download-url', async (req, res) => {
     try { return res.json({ success: true, ...(await createDownloadUrl({ key: String(req.body?.key || ''), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/inspect', async (req, res) => {
     try { return res.json({ success: true, ...(await inspectCloudObject({ key: String(req.body?.key || ''), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.delete('/storage', async (req, res) => {
     try { return res.json({ success: true, ...(await deleteCloudObject({ key: String(req.query.key || ''), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/multipart/initiate', async (req, res) => {
     try { return res.json({ success: true, ...(await initiateMultipartUpload({ ...(req.body || {}), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/multipart/part-url', async (req, res) => {
     try { return res.json({ success: true, ...(await signMultipartPart({ ...(req.body || {}), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/multipart/parts', async (req, res) => {
     try { return res.json({ success: true, ...(await listMultipartParts({ ...(req.body || {}), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/multipart/complete', async (req, res) => {
     try { return res.json({ success: true, ...(await completeMultipartUpload({ ...(req.body || {}), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/multipart/abort', async (req, res) => {
     try { return res.json({ success: true, ...(await abortMultipartUpload({ ...(req.body || {}), prefix: PHONE_PREFIX })) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.post('/storage/multipart/plan', (req, res) => {
     try { return res.json({ success: true, ...multipartPlan(req.body || {}) }); }
-    catch (error) { return res.status(503).json({ success: false, error: String(error?.message || error) }); }
+    catch (error) { return res.status(503).json({ success: false, error: 'Request failed' }); }
   });
 
   router.get('/storage/policy', (_req, res) => res.json({ success: true, namespace: PHONE_PREFIX, ...freeStoragePolicy() }));
