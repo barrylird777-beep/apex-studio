@@ -32,9 +32,16 @@ export class DataProductRegistry {
   #audit = [];
   #clock;
   #id;
-  constructor({ clock = () => new Date().toISOString(), id = () => crypto.randomUUID() } = {}) {
+  #authorizeAudit;
+  constructor({
+    clock = () => new Date().toISOString(),
+    id = () => crypto.randomUUID(),
+    // Must be injected by the trusted control plane, never from a request body.
+    authorizeAudit = () => false
+  } = {}) {
     this.#clock = clock;
     this.#id = id;
+    this.#authorizeAudit = authorizeAudit;
   }
 
   register(input, { actor } = {}) {
@@ -196,6 +203,9 @@ export class DataProductRegistry {
 
   audit({ actor } = {}) {
     if (!actor) throw new Error("audit access requires an authenticated actor");
+    if (this.#authorizeAudit(String(actor)) !== true) {
+      throw Object.assign(new Error("audit access is not authorized by the trusted control plane"), { code: "AUDIT_ACCESS_DENIED" });
+    }
     return this.#audit.map(event => ({ ...event }));
   }
 
