@@ -12,6 +12,10 @@ export class PeerMeshCasAdapter {
     if (!validPart(appNamespace)) throw new TypeError('a canonical application namespace is required');
     this.store = store;
     this.appNamespace = appNamespace;
+    // Capability marker consumed only by trusted in-process production wiring.
+    // The owning PeerContentAddressedStore enforces peer identity, namespace,
+    // encryption, quorum, replica placement, and configured failure domains.
+    this.peerOwnedStorage = true;
     this.jobCache = new Map();
     this.initialized = false;
   }
