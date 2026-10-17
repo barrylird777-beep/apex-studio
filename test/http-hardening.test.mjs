@@ -118,7 +118,7 @@ test("API error responses and logs do not expose raw exception text or stack", (
     console.error = originalError;
   }
   assert.equal(response.code, 500);
-  assert.deepEqual(response.payload, { error: "Internal server error", requestId: "req-safe" });
+  assert.deepEqual(response.payload, { error: "Request failed", requestId: "req-safe" });
   assert.equal(logged.length, 1);
   assert.equal(logged[0].includes("marker-secret"), false);
   assert.equal(logged[0].includes("upstream body"), false);
