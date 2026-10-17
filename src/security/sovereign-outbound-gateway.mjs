@@ -3,7 +3,6 @@ import { createHash, randomBytes } from "node:crypto";
 const PROVIDERS = Object.freeze({
   openai: { hosts: new Set(["api.openai.com"]), keyEnv: "OPENAI_API_KEY", path: "/v1/chat/completions" },
   anthropic: { hosts: new Set(["api.anthropic.com"]), keyEnv: "ANTHROPIC_API_KEY", path: "/v1/messages" },
-  gemini: { hosts: new Set(["generativelanguage.googleapis.com"]), keyEnv: "GEMINI_API_KEY", path: "/v1beta/openai/chat/completions" }
 });
 const SECRET_KEY = /(?:api[_-]?key|secret|token|password|credential|database[_-]?url|stripe|private[_-]?key|authorization)/i;
 const SECRET_VALUE = /(?:Bearer\s+[A-Za-z0-9._~+\/-]{20,}|sk-[A-Za-z0-9_-]{16,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|rk_(?:live|test)_[A-Za-z0-9]{16,}|AIza[\w-]{25,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s"'<>]+|mysql:\/\/[^\s"'<>]+)/i;
@@ -102,7 +101,7 @@ export function createSovereignLlmGateway({ fetchImpl = globalThis.fetch, localG
       const base = env[provider.toUpperCase() + "_API_BASE"] || (
         provider === "openai" ? "https://api.openai.com" :
         provider === "anthropic" ? "https://api.anthropic.com" :
-        "https://generativelanguage.googleapis.com"
+        "https://api.openai.com"
       );
       let target;
       try {

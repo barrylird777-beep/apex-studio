@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 const required = [
-  "src/core/mesh/gemini-mesh-provider.mjs",
   "src/core/mesh/claude-mesh-provider.mjs"
 ];
 const securityImports = [

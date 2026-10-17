@@ -10,9 +10,6 @@ const MAX_TOTAL_MESSAGE_CHARS = MAX_CHARS;
 const MAX_SYSTEM_CHARS = 10000;
 const FREE_MODE = String(process.env.APEX_FREE_MODE ?? 'true').toLowerCase() !== 'false';
 const FREE_AI_PROVIDERS = new Set(['openrouter', 'pollinations', 'groq']);
-if (String(process.env.APEX_GEMINI_FREE_TIER_CONFIRMED ?? '').toLowerCase() === 'true') {
-  FREE_AI_PROVIDERS.add('google');
-}
 const FREE_AI_MAX_CONCURRENCY = boundedNumber(process.env.APEX_FREE_AI_MAX_CONCURRENCY, 8, 1, 16);
 let freeAiInFlight = 0;
 const freeAiWaiters = [];
@@ -26,7 +23,6 @@ function releaseFreeAiSlot() { freeAiInFlight = Math.max(0, freeAiInFlight - 1);
 export const AI_PROVIDER_CATALOG = [
   { id: 'openai', category: 'frontier-text-reasoning', env: 'OPENAI_API_KEY', modelEnv: 'OPENAI_MAX_MODEL', defaultModel: 'gpt-6-astra', protocol: 'responses' },
   { id: 'anthropic', category: 'frontier-text-reasoning-coding', env: 'ANTHROPIC_API_KEY', modelEnv: 'ANTHROPIC_MODEL', defaultModel: 'claude-opus-5', protocol: 'anthropic-messages' },
-  { id: 'google', aliases: ['gemini'], category: 'frontier-multimodal-reasoning', env: 'GEMINI_API_KEY', modelEnv: 'GEMINI_MODEL', defaultModel: 'gemini-3.8-flash', protocol: 'gemini' },
   { id: 'xai', aliases: ['grok'], category: 'frontier-reasoning-search', env: 'XAI_API_KEY', modelEnv: 'GROK_MODEL', defaultModel: 'grok-4.7', protocol: 'responses' },
   { id: 'deepseek', category: 'reasoning-coding', env: 'DEEPSEEK_API_KEY', modelEnv: 'DEEPSEEK_MODEL', defaultModel: 'deepseek-v4-pro', protocol: 'openai-compatible' },
   { id: 'mistral', category: 'multilingual-reasoning-coding', env: 'MISTRAL_API_KEY', modelEnv: 'MISTRAL_MODEL', defaultModel: 'mistral-large-latest', protocol: 'openai-compatible' },
@@ -90,7 +86,7 @@ function enforceFreeAiBudget(provider) {
 
 const pollinationsFetch = createGuardedFetch(['text.pollinations.ai']);
 const providerFetch = createGuardedFetch([
-  'api.anthropic.com', 'generativelanguage.googleapis.com', 'api.cohere.com',
+  'api.anthropic.com', 'api.cohere.com',
   'api.deepseek.com', 'api.mistral.ai', 'dashscope-intl.aliyuncs.com',
   'api.perplexity.ai', 'api.together.xyz', 'api.fireworks.ai',
   'api.cerebras.ai', 'api.sambanova.ai', 'api.groq.com', 'openrouter.ai'
@@ -133,20 +129,6 @@ async function anthropic({ p, model, messages, maxTokens = 4096, temperature }) 
     'x-api-key': key, 'anthropic-version': '2023-06-01'
   }, { model, max_tokens: Math.max(1, Number(maxTokens) || 4096), ...(system ? { system } : {}), messages: input, ...(temperature == null ? {} : { temperature }) });
   return { id: data.id, model: data.model || model, text: data.content?.filter(x => x.type === 'text').map(x => x.text).join('') || '', usage: data.usage || null };
-}
-
-async function gemini({ model, messages, temperature, maxTokens }) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY is not configured');
-  const system = messages.filter(m => m.role === 'system' || m.role === 'developer').map(m => m.content).join('\n');
-  const contents = messages.filter(m => m.role !== 'system' && m.role !== 'developer').map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-  const data = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { "x-goog-api-key": key }, {
-    ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-    contents,
-    generationConfig: { ...(temperature == null ? {} : { temperature }), ...(maxTokens ? { maxOutputTokens: Number(maxTokens) } : {}) }
-  });
-  const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-  return { id: data.responseId || null, model, text, usage: data.usageMetadata || null };
 }
 
 async function cohere({ model, messages, temperature, maxTokens }) {
@@ -193,7 +175,6 @@ export async function generateUnifiedAi({ provider, prompt, messages, system, mo
   let result;
   if (p.id === 'pollinations') result = await pollinations({ model: selectedModel, messages: normalized });
   else if (p.id === 'anthropic') result = await anthropic({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
-  else if (p.id === 'google') result = await gemini({ model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'cohere') result = await cohere({ model: selectedModel, messages: normalized, temperature, maxTokens: maxTokens ?? max_tokens });
   else if (OPENAI_COMPATIBLE[p.id]) result = await openAiCompatible({ p, model: selectedModel, messages: normalized, temperature: requestedTemperature, maxTokens: outputTokenLimit });
   else if (p.id === 'openai') {
