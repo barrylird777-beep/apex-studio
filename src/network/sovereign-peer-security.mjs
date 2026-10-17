@@ -10,26 +10,26 @@ const MAX_TRACKED_PEERS = 10_000;
 const MAX_REPLAY_ENTRIES = 20_000;
 const REPLAY_TTL_MS = 10 * 60_000;
 
-const AUTH_FIELDS = new Set(['messageId', 'senderPeerId', 'senderEpoch', 'issuedAt', 'requestDigest']);
+const RESERVED_FIELDS = new Set(['messageId', 'senderPeerId', 'senderEpoch', 'issuedAt', 'requestDigest']);
 const payloadDigest = envelope => {
-  const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => !AUTH_FIELDS.has(key)));
+  const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => key !== 'requestDigest'));
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 };
 
-/** Bind a request payload to the authenticated libp2p sender and a fresh request ID. */
+/** Bind a request payload, sender identity, trust epoch, freshness, and message ID. */
 export function sealPeerEnvelope(envelope, senderPeerId, now = Date.now()) {
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
     throw new TypeError('peer envelope must be an object');
   }
-  const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => !AUTH_FIELDS.has(key)));
-  return {
+  const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => !RESERVED_FIELDS.has(key)));
+  const sealed = {
     ...payload,
     messageId: randomUUID(),
     senderPeerId: String(senderPeerId || ''),
     senderEpoch: Number(process.env.APEX_PEER_TRUST_EPOCH ?? 0),
-    issuedAt: Number(now),
-    requestDigest: payloadDigest(payload)
+    issuedAt: Number(now)
   };
+  return { ...sealed, requestDigest: payloadDigest(sealed) };
 }
 
 /** Reject payload tampering, sender-identity mismatch, and stale peer requests. */
