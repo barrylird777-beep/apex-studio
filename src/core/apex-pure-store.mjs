@@ -141,10 +141,10 @@ export class ApexPureStore {
       try{const lock=await this.cas.writeRef("system",key,{token,leaseUntil:now+90000,owner:process.env.APEX_SERVICE_SCOPE||"apex"},{expectedHash:current?.hash??null});currentHash=lock.hash;break;}
       catch(error){if(error.code!=="CAS_CONFLICT")throw error;if(now-started>180000)throw new Error("[REMOTE_STORE_LOCK] Timed out acquiring "+key);await sleep(40+Math.floor(Math.random()*80));}
     }
-    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:process.env.APEX_SERVICE_SCOPE||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed",String(error?.message||error).slice(0,250));});},20000);
+    const heartbeat=setInterval(()=>{if(stopped)return;heartbeatChain=heartbeatChain.then(async()=>{if(stopped||!currentHash)return;const renewed=await this.cas.writeRef("system",key,{token,leaseUntil:Date.now()+90000,owner:process.env.APEX_SERVICE_SCOPE||"apex"},{expectedHash:currentHash});currentHash=renewed.hash;}).catch(error=>{console.error("[REMOTE_STORE_LOCK] lease renewal failed");});},20000);
     heartbeat.unref?.();
     try{return await operation();}
-    finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed",String(error?.message||error).slice(0,250));});}
+    finally{stopped=true;clearInterval(heartbeat);await heartbeatChain;if(currentHash)await this.cas.deleteRef("system",key,{expectedHash:currentHash}).catch(error=>{if(error.code!=="CAS_CONFLICT")console.error("[REMOTE_STORE_LOCK] release failed");});}
   }
   async initializeRemote(){
     await this.cas.init();
@@ -590,8 +590,8 @@ export class ApexPureStore {
       let patch={updatedAt:new Date().toISOString()};
       if(op==="heartbeat")patch={...patch,leaseExpiresAt:Date.now()+Math.max(1000,Number(leaseMs)||45000)};
       if(op==="complete")patch={...patch,status:"completed",result:clone(result),leaseOwner:null,leaseToken:null,leaseExpiresAt:0,completedAt:new Date().toISOString()};
-      if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:String(reason).slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
-      if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:String(error?.message||error||"Worker task failed").slice(0,4000),leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
+      if(op==="defer")patch={...patch,status:"queued",runAt:Date.now()+Math.max(1,Number(delayMs)||1),lastError:"Worker task deferred",leaseOwner:null,leaseToken:null,leaseExpiresAt:0};
+      if(op==="fail"){const attempts=Number(j.attempts);const dead=attempts>=Number(j.maxAttempts);patch={...patch,status:dead?"dead":"queued",runAt:dead?j.runAt:Date.now()+Math.min(300000,(2**attempts)*1000+Math.random()*5000),lastError:"Worker task failed",leaseOwner:null,leaseToken:null,leaseExpiresAt:0};}
       const persisted=await this.persistJob({...j,...patch});
       this.jobsState.set(String(persisted.id),clone(persisted));return true;
     });
