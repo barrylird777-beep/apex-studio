@@ -72,7 +72,15 @@ export function verifyRollbackAuthorization(envelope, publicKey, { currentSequen
   const payload = envelope.payload;
   const digest = sha256(canonical(payload));
   if (digest !== envelope.digest || !verify(null, Buffer.from(digest, 'hex'), publicKey, Buffer.from(String(envelope.signature || ''), 'base64'))) throw new Error('rollback digest or signature verification failed');
-  if (!Number.isSafeInteger(Number(currentSequence)) || Number(payload.sequence) <= Number(currentSequence)) throw new Error('rollback authorization sequence must advance monotonically');
+  if (!Number.isSafeInteger(currentSequence) || currentSequence < 0 ||
+      !Number.isSafeInteger(payload.sequence) || payload.sequence < 1 || payload.sequence <= currentSequence) {
+    throw new Error('rollback authorization sequence must advance monotonically');
+  }
+  if (!HASH.test(String(payload.currentManifestHash || '')) || !HASH.test(String(payload.targetManifestHash || '')) ||
+      typeof payload.reason !== 'string' || payload.reason.trim().length < 10 || payload.reason.length > 1000 ||
+      !Number.isFinite(Date.parse(String(payload.createdAt || ''))) ) {
+    throw new TypeError('rollback authorization payload is invalid');
+  }
   if (payload.currentManifestHash !== activeManifestHash) throw new Error('rollback authorization does not match the active manifest');
   if (!isRecord(targetManifest) || payload.targetManifestHash !== targetManifest.digest || !knownManifestHashes.includes(payload.targetManifestHash)) throw new Error('rollback target must be a known content-addressed release manifest');
   const target = verifyReleaseManifest(targetManifest, publicKey, { minimumSequence: 0 });
