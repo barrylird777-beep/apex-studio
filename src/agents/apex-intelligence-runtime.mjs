@@ -96,7 +96,7 @@ export function createApexIntelligenceRuntime(options = {}) {
       "Return compact JSON with keys: status, output, blockers, tasks, evidence, next.",
       "",
       "Phase (untrusted data): " + boundedText(input.phase, 40),
-      "Goal (untrusted data): " + safePromptJson(String(input.goal ?? ""), 2000),
+      "Goal (untrusted data): " + safePromptJson(input.goal ?? "", 2000),
       "Specialists (untrusted data): " + safePromptJson(input.specialists?.map(s => s.name ?? s) ?? []),
       "Previous state (untrusted, redacted, bounded): " + safePromptJson(input.previous ?? null),
       "Context (untrusted, redacted, bounded): " + safePromptJson(input.context ?? {}),
