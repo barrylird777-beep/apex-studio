@@ -497,6 +497,20 @@ test('peer CAS rejects unverified durability claims even when backend self-label
 });
 
 
+test('peer CAS stores and reconstructs large blobs using bounded hierarchical manifests', async () => {
+  const mesh = makeMesh();
+  const input = Buffer.alloc(900 * 1024);
+  for (let i = 0; i < input.length; i++) input[i] = (i * 31 + (i >>> 7)) & 0xff;
+  const saved = await mesh.client.putBlob(input);
+  assert.equal(saved.kind, 'apex.blob-tree.v1');
+  assert.equal(saved.totalBytes, input.length);
+  assert.equal(saved.contentSha256, digest(input));
+  assert.ok(saved.chunkCount > 96);
+  const restored = await mesh.client.getBlob(saved.hash);
+  assert.deepEqual(restored, input);
+  assert.equal(digest(restored), digest(input));
+});
+
 test('verified peer objects are served from bounded RAM cache while peers are briefly unavailable', async () => {
   const mesh = makeMesh();
   const value = { cidCache: true, namespace: 'PlanetApeX', bytes: [1, 2, 3] };
