@@ -10,7 +10,7 @@ const MAX_TRACKED_PEERS = 10_000;
 const MAX_REPLAY_ENTRIES = 20_000;
 const REPLAY_TTL_MS = 10 * 60_000;
 
-const AUTH_FIELDS = new Set(['messageId', 'senderPeerId', 'issuedAt', 'requestDigest']);
+const AUTH_FIELDS = new Set(['messageId', 'senderPeerId', 'senderEpoch', 'issuedAt', 'requestDigest']);
 const payloadDigest = envelope => {
   const payload = Object.fromEntries(Object.entries(envelope).filter(([key]) => !AUTH_FIELDS.has(key)));
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -26,6 +26,7 @@ export function sealPeerEnvelope(envelope, senderPeerId, now = Date.now()) {
     ...payload,
     messageId: randomUUID(),
     senderPeerId: String(senderPeerId || ''),
+    senderEpoch: Number(process.env.APEX_PEER_TRUST_EPOCH ?? 0),
     issuedAt: Number(now),
     requestDigest: payloadDigest(payload)
   };
@@ -41,6 +42,9 @@ export function verifyPeerEnvelope(envelope, remotePeerId, now = Date.now(), max
   }
   if (!remotePeerId || envelope.senderPeerId !== String(remotePeerId)) {
     return { allowed: false, reason: 'peer sender identity does not match authenticated transport identity' };
+  }
+  if (!Number.isSafeInteger(envelope.senderEpoch) || envelope.senderEpoch < 0) {
+    return { allowed: false, reason: 'peer trust epoch is invalid' };
   }
   if (!Number.isSafeInteger(envelope.issuedAt) || envelope.issuedAt > now + 60_000 ||
       now - envelope.issuedAt > maxAgeMs) {
@@ -65,6 +69,8 @@ export function createPeerSecurityGuard({
   windowMs = positiveInteger(process.env.APEX_PEER_RATE_WINDOW_MS, DEFAULT_WINDOW_MS, 3_600_000),
   limit = positiveInteger(process.env.APEX_PEER_RATE_LIMIT, DEFAULT_LIMIT, 100_000),
   replayTtlMs = REPLAY_TTL_MS,
+  trustEpochs = new Map(),
+  requireTrustEpochs = false,
   maxCachedResponseBytes = 8 * 1024 * 1024,
   maxCachedResponseBytesPerEntry = 64 * 1024
 } = {}) {
@@ -109,6 +115,19 @@ export function createPeerSecurityGuard({
     bucket.count += 1;
     if (bucket.count > Math.max(1, limit)) {
       return { allowed: false, reason: 'peer rate limit exceeded' };
+    }
+
+    const trust = trustEpochs instanceof Map ? trustEpochs.get(peer) : trustEpochs?.[peer];
+    if (trust == null && requireTrustEpochs) {
+      return { allowed: false, reason: 'peer trust epoch is not configured' };
+    }
+    if (trust != null) {
+      const expectedEpoch = Number(typeof trust === 'object' ? trust.epoch : trust);
+      const revoked = typeof trust === 'object' && (trust.revoked === true || trust.status === 'revoked');
+      if (revoked) return { allowed: false, reason: 'peer trust epoch is revoked' };
+      if (!Number.isSafeInteger(expectedEpoch) || expectedEpoch < 0 || envelope.senderEpoch !== expectedEpoch) {
+        return { allowed: false, reason: 'peer trust epoch mismatch' };
+      }
     }
 
     const id = envelope.messageId ?? envelope.nonce;
