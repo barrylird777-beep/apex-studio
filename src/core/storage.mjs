@@ -40,7 +40,20 @@ function queueManifestWrite(task) {
   return run;
 }
 
+function assertLocalAssetWritesAllowed() {
+  if (String(process.env.NODE_ENV || "").toLowerCase() === "production") {
+    const error = new Error("[STORAGE_POLICY] Local filesystem asset persistence is disabled in production until the authenticated peer-owned media adapter is wired and independently recovery-tested.");
+    error.code = "PEER_MEDIA_STORAGE_NOT_WIRED";
+    throw error;
+  }
+}
+
 export async function initStorage() {
+  if (String(process.env.NODE_ENV || "").toLowerCase() === "production") {
+    const error = new Error("[STORAGE_POLICY] Local filesystem manifest initialization is disabled in production until peer-backed project state is wired and independently recovery-tested.");
+    error.code = "PEER_MEDIA_STORAGE_NOT_WIRED";
+    throw error;
+  }
   await fs.mkdir(STORAGE_DIR, { recursive: true, mode: 0o700 });
   try {
     await fs.access(PROJECT_FILE);
@@ -57,6 +70,7 @@ export async function initStorage() {
 }
 
 export async function saveProjectAssetFromFile(type, sourcePath, extension) {
+  assertLocalAssetWritesAllowed();
   await initStorage();
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\\./, "");
@@ -87,6 +101,7 @@ export async function saveProjectAssetFromFile(type, sourcePath, extension) {
 }
 
 export async function saveProjectAsset(type, buffer, extension) {
+  assertLocalAssetWritesAllowed();
   await initStorage();
   const assetType = safePart(type, "type");
   const ext = safePart(extension, "extension").replace(/^\./, "");
@@ -116,6 +131,7 @@ export async function saveProjectAsset(type, buffer, extension) {
 }
 
 export async function saveSceneAsset(sceneId, kind, buffer, extension, metadata = {}) {
+  assertLocalAssetWritesAllowed();
   await initStorage();
   const sceneKey = safePart(sceneId, "sceneId");
   const assetKind = safePart(kind, "asset kind");
@@ -182,6 +198,7 @@ export { STORAGE_DIR, PROJECT_FILE };
 
 
 export async function downloadUrlAssetToStorage(url, episodeId, assetName, options = {}) {
+  assertLocalAssetWritesAllowed();
   const { downloadHttpAsset } = await import('../network/http-range-transfer.mjs');
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
@@ -207,6 +224,7 @@ export async function downloadUrlAssetToStorage(url, episodeId, assetName, optio
 }
 
 export async function streamAssetToStorage(readableStream, episodeId, assetName, options = {}) {
+  assertLocalAssetWritesAllowed();
   if (!readableStream || typeof readableStream.pipe !== 'function') throw new TypeError('readableStream must be a readable stream');
   const episode = safePart(episodeId, 'episodeId');
   const asset = safePart(assetName, 'assetName');
