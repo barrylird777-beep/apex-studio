@@ -57,6 +57,13 @@ Shared backstage infrastructure may support these apps, but shared infrastructur
 - The original Grok adapter had the same caller-supplied `system`/`developer` role gap and forwarded system instructions without applying the shared outbound credential screening.
 - Grok supports optional web/X search tools; their invocation, permissions, data boundaries, and output handling require explicit audit.
 
+### Unified router and mesh providers
+- `unified-ai-router.mjs` has a shared role policy that accepts only `user` and `assistant` caller turns; its separate caller `system` context is downgraded to a `user` turn rather than treated as trusted system instructions.
+- The unified router advertises OpenAI, Anthropic, Google, xAI, and multiple OpenAI-compatible/search/inference providers. The catalog is breadth of integrations, not proof of feature parity, model availability, provider-specific security, or sovereign inference.
+- The direct Gemini mesh adapter and direct Claude mesh adapter both screen prompt/system payloads and use guarded provider hosts, but the reviewed implementations did not show the same explicit prompt/system character bounds present in the unified router and OpenAI/Grok adapters. Their model, output-token, thinking/effort option bounds and caller reachability need review before treating them as equivalent security boundaries.
+- The shared router's Anthropic and Gemini adapters transform normalized messages into provider-specific system fields. Continue to verify that no direct call path can bypass `messagesOf()` and that provider-specific schema/output behavior is validated.
+- The outbound gateway detects common credential formats and secret-bearing field names. This is useful screening, not proof that all secrets or personal data can be recognized; data minimization and access controls remain necessary.
+
 ### Draft implementation in PR #637
 The isolated branch currently includes changes to both OpenAI Max and Grok adapters:
 - accept only `user` and `assistant` roles in caller-supplied message arrays;
