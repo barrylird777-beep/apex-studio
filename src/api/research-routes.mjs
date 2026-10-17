@@ -64,7 +64,7 @@ export function createResearchRouter(engine) {
     try {
       const url = String(req.body?.url || '').trim();
       if (!/^https?:\/\//i.test(url)) return res.status(400).json({ success: false, error: 'valid http(s) url is required' });
-      const safeUrl = assertSafeResearchUrl(url);
+      const safeUrl = await assertSafeResearchUrl(url);
       const feed = await engine.ingestSyndication(safeUrl);
       return res.status(200).json({ success: true, feed });
     } catch (error) {
