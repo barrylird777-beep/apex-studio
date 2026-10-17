@@ -3,7 +3,10 @@ import { createGuardedFetch, sanitizeOutboundPayload } from "../../security/sove
 
 const outboundFetch = createGuardedFetch(["generativelanguage.googleapis.com"]);
 
-const MAX_PROMPT_CHARS = Math.min(50000, Math.max(1000, Number(process.env.GEMINI_MAX_PROMPT_CHARS || 50000)));
+const CONFIGURED_MAX_PROMPT_CHARS = Number(process.env.GEMINI_MAX_PROMPT_CHARS || 50000);
+const MAX_PROMPT_CHARS = Number.isFinite(CONFIGURED_MAX_PROMPT_CHARS)
+  ? Math.min(50000, Math.max(1000, CONFIGURED_MAX_PROMPT_CHARS))
+  : 50000;
 const MAX_OUTPUT_TOKENS = 65536;
 
 export function normalizeGeminiInput(prompt, system = '') {
