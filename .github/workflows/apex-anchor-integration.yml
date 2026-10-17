@@ -1,5 +1,8 @@
 name: APEX ANCHOR Integration
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     paths:
