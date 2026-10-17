@@ -157,3 +157,18 @@ test("production control-plane token policy requires at least 32 UTF-8 bytes", (
   assert.equal(isStrongControlToken("12345678901234567890123456789012"), true);
   assert.equal(isStrongControlToken(""), false);
 });
+
+test("production rejects a weak configured control token before accepting a matching header", () => {
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const auth = createControlPlaneAuth({ getExpectedToken: () => "short-test-token" });
+    const response = makeResponse();
+    auth(makeRequest({ "x-apex-shortcut-token": "short-test-token" }), response, () => assert.fail("weak token must fail closed"));
+    assert.equal(response.statusCode, 503);
+    assert.match(response.body.error, /at least 32 bytes/);
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  }
+});
