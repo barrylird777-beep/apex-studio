@@ -123,3 +123,14 @@ test("redaction catches common secret fields without redacting ordinary token me
   assert.equal(value.nested.tokenAddress, "0x123");
   assert.match(value.nested.authorization, /REDACTED/);
 });
+
+test("audit access is denied unless a trusted control-plane authorizer approves it", () => {
+  const denied = new DataProductRegistry();
+  denied.register(validProduct(), { actor: "owner-1" });
+  assert.throws(() => denied.audit({ actor: "any-authenticated-user" }), error => error.code === "AUDIT_ACCESS_DENIED");
+
+  const approved = new DataProductRegistry({ authorizeAudit: actor => actor === "security-auditor" });
+  approved.register(validProduct(), { actor: "owner-1" });
+  assert.throws(() => approved.audit({ actor: "owner-1" }), error => error.code === "AUDIT_ACCESS_DENIED");
+  assert.equal(approved.audit({ actor: "security-auditor" }).length, 1);
+});
