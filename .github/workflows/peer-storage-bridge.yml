@@ -58,6 +58,8 @@ jobs:
         run: node --test test/local-cas-fast-path.test.mjs
       - name: Test bridge and peer CAS correctness
         run: node --test test/peer-storage-api-bridge.test.mjs test/peer-content-addressed-store.test.mjs test/peer-content-addressed-store-cache.test.mjs
+      - name: Test BFT CAS certificate and receipt fail-closed gates
+        run: node --test test/peer-cas-bft-commit.test.mjs
       - name: Test signed runtime controls and access tensors
         run: node --test test/peer-runtime-controls.test.mjs
       - name: Test challenge-bound hardware-root admission
