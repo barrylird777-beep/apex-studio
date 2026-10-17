@@ -5,10 +5,10 @@
 	objectVersion = 56;
 	objects = {
 
-		111111111111111111111111 /* ApexAdBlockerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlockerApp.swift; sourceTree = "<group>"; };
-		222222222222222222222222 /* DNSSettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSSettingsController.swift; sourceTree = "<group>"; };
-		333333333333333333333333 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		444444444444444444444444 /* ApexAdBlocker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ApexAdBlocker.entitlements; sourceTree = "<group>"; };
+		111111111111111111111111 /* ApexAdBlockerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlocker/ApexAdBlockerApp.swift; sourceTree = "<group>"; };
+		222222222222222222222222 /* DNSSettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApexAdBlocker/DNSSettingsController.swift; sourceTree = "<group>"; };
+		333333333333333333333333 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = ApexAdBlocker/Info.plist; sourceTree = "<group>"; };
+		444444444444444444444444 /* ApexAdBlocker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ApexAdBlocker/ApexAdBlocker.entitlements; sourceTree = "<group>"; };
 		555555555555555555555555 /* ApexAdBlocker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ApexAdBlocker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 
 		666666666666666666666666 /* ApexAdBlocker */ = {
@@ -64,10 +64,10 @@
 			SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 			SUPPORTS_MACCATALYST = NO;
 			ASSETCATALOG_COMPILER_APPICON_NAME = "";
-			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker.entitlements;
+			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker/ApexAdBlocker.entitlements;
 			CODE_SIGN_STYLE = Automatic;
 			DEVELOPMENT_TEAM = "";
-			INFOPLIST_FILE = Info.plist;
+			INFOPLIST_FILE = ApexAdBlocker/Info.plist;
 			IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 			PRODUCT_BUNDLE_IDENTIFIER = com.apex.studio.adblocker;
 			PRODUCT_NAME = "$(TARGET_NAME)";
@@ -78,10 +78,10 @@
 			SDKROOT = iphoneos;
 			SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 			SUPPORTS_MACCATALYST = NO;
-			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker.entitlements;
+			CODE_SIGN_ENTITLEMENTS = ApexAdBlocker/ApexAdBlocker.entitlements;
 			CODE_SIGN_STYLE = Automatic;
 			DEVELOPMENT_TEAM = "";
-			INFOPLIST_FILE = Info.plist;
+			INFOPLIST_FILE = ApexAdBlocker/Info.plist;
 			IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 			PRODUCT_BUNDLE_IDENTIFIER = com.apex.studio.adblocker;
 			PRODUCT_NAME = "$(TARGET_NAME)";
