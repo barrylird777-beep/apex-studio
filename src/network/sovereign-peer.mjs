@@ -365,7 +365,11 @@ export async function sendToPeer(node, multiaddr, envelope) {
   if (localPeerId && destinationPeerId === localPeerId) {
     throw new Error('outgoing sovereign peer cannot dial itself');
   }
-  const admission = outboundPeerSecurity.admit(destinationPeerId, envelope);
+  // Every wire-level request receives a fresh replay-detection identifier.
+  // Retries reuse this identifier so a request that was already processed cannot
+  // be applied a second time after an ACK/transport failure.
+  const outboundEnvelope = { ...envelope, messageId: randomUUID() };
+  const admission = outboundPeerSecurity.admit(destinationPeerId, outboundEnvelope);
   if (!admission.allowed) throw new Error(admission.reason);
   const target = typeof multiaddr === 'string' ? parseMultiaddr(multiaddr) : multiaddr;
   // Retry only transport failures on a fresh stream; never retry peer rejection.
@@ -383,7 +387,7 @@ export async function sendToPeer(node, multiaddr, envelope) {
       // This preserves incoming bytes that arrive during the write without racing read/write.
       readerFor(stream);
       console.info('[HEARTBEAT_WRITE_START]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
-      await sendSovereignEnvelope(stream, envelope);
+      await sendSovereignEnvelope(stream, outboundEnvelope);
       console.info('[HEARTBEAT_WRITE_SUCCESS]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       console.info('[HEARTBEAT_AWAIT_RESPONSE]', JSON.stringify({ destinationPeerId, streamId: stream.id ?? stream.streamId ?? null, streamStatus: stream.status ?? null, attempt: attempt + 1 }));
       const response = await readSovereignEnvelope(stream);
