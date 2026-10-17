@@ -17,7 +17,7 @@ test("production ApexPureStore refuses local persistence fallback", () => {
     new ApexPureStore();
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an explicitly injected peer-owned CAS adapter/);
+  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
 });
 
 test("production legacy WAL refuses initialization and writes before touching disk", () => {
@@ -38,7 +38,7 @@ test("production rejects generic remote object storage even when the legacy remo
     new ApexPureStore({ cas: genericObjectStore });
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an explicitly injected peer-owned CAS adapter/);
+  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
 });
 
 test("production accepts only an explicitly marked peer-owned adapter, not a flag-only configuration", () => {
@@ -48,5 +48,26 @@ test("production accepts only an explicitly marked peer-owned adapter, not a fla
     new ApexPureStore();
   `);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /requires an explicitly injected peer-owned CAS adapter/);
+  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+});
+
+test("production rejects a duck-typed adapter that forges the peer-owned marker", () => {
+  const result = run(`
+    process.env.APEX_CAS_REMOTE_ENABLED = "true";
+    const { ApexPureStore } = await import("./src/core/apex-pure-store.mjs");
+    const forged = { peerOwnedStorage: true, init: async () => {}, readRef: async () => null, writeRef: async () => {}, listRefs: async () => [] };
+    new ApexPureStore({ cas: forged });
+  `);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires an actual PeerMeshCasAdapter backed by PeerContentAddressedStore/);
+});
+
+test("PeerMeshCasAdapter refuses duck-typed stores that are not PeerContentAddressedStore instances", () => {
+  const result = run(`
+    const { PeerMeshCasAdapter } = await import("./src/core/peer-mesh-cas-adapter.mjs");
+    const forgedStore = { readRef: async () => null, writeRef: async () => {}, listRefs: async () => [] };
+    new PeerMeshCasAdapter({ store: forgedStore, appNamespace: "PlanetApeX" });
+  `);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires an actual PeerContentAddressedStore instance/);
 });
