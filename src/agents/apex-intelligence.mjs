@@ -103,7 +103,7 @@ export class ApexIntelligence {
         index,
         status: result.status,
         output: result.status === "fulfilled" ? normalizeResult(result.value) : null,
-        error: result.status === "rejected" ? String(result.reason?.message ?? result.reason) : null
+        error: result.status === "rejected" ? "Verifier unavailable" : null
       }))
     };
   }
@@ -114,7 +114,7 @@ export class ApexIntelligence {
     );
     const reviews = results.map((result, index) => {
       if (result.status === "rejected") {
-        return { verifier: index, verified: false, status: "error", error: String(result.reason?.message ?? result.reason) };
+        return { verifier: index, verified: false, status: "error", error: "Verifier unavailable" };
       }
       const value = normalizeResult(result.value);
       return { verifier: index, ...value, verified: value.verified === true || value.status === "verified" };
