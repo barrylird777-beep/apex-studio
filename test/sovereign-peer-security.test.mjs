@@ -30,6 +30,20 @@ test("peer security guard rejects a replayed message identifier", () => {
   assert.match(replay.reason, /replayed message/);
 });
 
+test("peer replay guard returns a cached response without re-admitting the request", () => {
+  const guard = createPeerSecurityGuard({ now: () => 1000, replayTtlMs: 60000 });
+  const envelope = { type: "cas.write", messageId: "12345678-1234-4234-9234-123456789abc" };
+  assert.equal(guard.admit("peer-a", envelope).allowed, true);
+  const response = { accepted: true, peerId: "peer-b", receipt: { hash: "a".repeat(64) } };
+  assert.equal(guard.rememberResponse("peer-a", envelope, response), true);
+  const replay = guard.admit("peer-a", envelope);
+  assert.equal(replay.allowed, false);
+  assert.deepEqual(guard.getReplayResponse("peer-a", envelope), response);
+  const copy = guard.getReplayResponse("peer-a", envelope);
+  copy.receipt.hash = "b".repeat(64);
+  assert.deepEqual(guard.getReplayResponse("peer-a", envelope), response, "cached responses must be isolated copies");
+});
+
 test("sovereign envelope parser rejects oversized peer messages", async () => {
   const oversized = "x".repeat(65537) + "\n";
   await assert.rejects(readSovereignEnvelope(streamFor(oversized)), /exceeds size limit/);
