@@ -163,7 +163,7 @@ Repository-visible evidence alone cannot prove production network policy, actual
 
 The candidate branch now rejects production construction of `ApexPureStore` unless an actual `PeerMeshCasAdapter` is injected, and the adapter now requires an actual `PeerContentAddressedStore` instance rather than an arbitrary object that claims to be peer-owned. The production test file includes negative tests for local fallback and forged/duck-typed adapters. These edits have not been executed locally or confirmed by CI.
 
-**Important:** because `apexPureStore` is constructed at module import time, the new guard currently causes a production import of the existing main server to fail before the server can start, unless the main server's wiring is changed. This is a deliberate fail-closed blocker, not a completed production fix. Do not deploy this branch as-is. The correct next implementation must explicitly inject the correct per-app peer storage facade and move asset/manifest writes onto a compatible durable path, or keep production disabled until that migration is proven.
+**Important — status updated at `650bc347211bdd24dff140bdf0b4c968ff53466b`:** the guard was changed so `ApexPureStore` construction no longer throws during module import. Instead, it records the production storage-policy error and rejects `init()` before any store initialization or persistence work. This removes the import-time crash but does **not** complete production storage wiring: server paths that initialize the store still fail closed until an actual, correctly scoped peer adapter is injected. The six-app namespace facade, local project asset/manifest writes, and live peer recovery remain unresolved. Do not deploy this branch as-is.
 
 ### WAL protection nuance
 
