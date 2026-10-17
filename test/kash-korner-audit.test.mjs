@@ -68,6 +68,22 @@ test('Kash-Korner audit identifies missing terms and never mutates input records
   assert.deepEqual(sourceInvoice, beforeInvoice);
 });
 
+test('Kash-Korner audit flags malformed amounts, currencies, and dates', () => {
+  const sourceContract = contract();
+  const sourceInvoice = invoice();
+  sourceContract.grossAmount = 'not-a-number';
+  sourceContract.currency = 'US';
+  sourceInvoice.contingencyFee = 'NaN';
+  sourceInvoice.issuedAt = 'not-a-date';
+  const result = auditContingencyContract({ contract: sourceContract, invoice: sourceInvoice });
+  const codes = new Set(result.findings.map(item => item.code));
+  assert.equal(result.status, 'review-required');
+  assert.ok(codes.has('INVALID_NUMERIC_CONTRACT_TERM'));
+  assert.ok(codes.has('INVALID_CONTRACT_CURRENCY'));
+  assert.ok(codes.has('INVALID_NUMERIC_INVOICE_FIELD'));
+  assert.ok(codes.has('INVALID_INVOICE_DATE'));
+});
+
 test('Kash-Korner audit rejects unstructured input', () => {
   assert.throws(() => auditContingencyContract({ contract: [], invoice: invoice() }), /structured objects/);
   assert.throws(() => auditContingencyContract({ contract: contract(), invoice: null }), /structured objects/);
