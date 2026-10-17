@@ -60,4 +60,14 @@ test('rollback requires a signed higher sequence and a previously known target m
   assert.throws(() => verifyRollbackAuthorization(rollback, keys.publicKey, {
     currentSequence: 2, activeManifestHash: second.digest, targetManifest: first, knownManifestHashes: []
   }), /known content-addressed release/);
+  const notEarlier = signRollbackAuthorization({
+    sequence: 3,
+    currentManifestHash: second.digest,
+    targetManifestHash: second.digest,
+    reason: 'This target is not earlier than the active release.',
+    createdAt: '2026-10-17T01:00:00.000Z'
+  }, keys.privateKey);
+  assert.throws(() => verifyRollbackAuthorization(notEarlier, keys.publicKey, {
+    currentSequence: 2, activeManifestHash: second.digest, targetManifest: second, knownManifestHashes: [second.digest]
+  }), /target must be an earlier signed release/);
 });
